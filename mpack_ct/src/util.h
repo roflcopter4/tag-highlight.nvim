@@ -1,5 +1,5 @@
-#ifndef SRC_MYTAGS_H
-#define SRC_MYTAGS_H
+#ifndef SRC_UTIL_H
+#define SRC_UTIL_H
 /*===========================================================================*/
 #ifdef __cplusplus
     extern "C" {
@@ -111,6 +111,7 @@ extern void *  xmalloc       (const size_t size)                aWUR aMAL aALSZ(
 extern void *  xcalloc       (const int num, const size_t size) aWUR aMAL aALSZ(1, 2);
 extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
 extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR;
+extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
 extern void    add_backup    (struct backups *list, void *item);
 extern void    free_backups  (struct backups *list);
 
@@ -129,4 +130,4 @@ extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 
     }
 #endif
 /*===========================================================================*/
-#endif /* mytags.h */
+#endif /* util.h */

@@ -1,4 +1,4 @@
-#include "mytags.h"
+#include "util.h"
 #include <fcntl.h>
 
 #include "data.h"
@@ -23,6 +23,10 @@ static void init_filetype(int fd, struct ftdata_s *ft);
 bool
 new_buffer(const int fd, const int bufnum)
 {
+        for (unsigned short i = 0; i < buffers.bad_bufs.qty; ++i)
+                if (bufnum == buffers.bad_bufs.lst[i])
+                        return false;
+
         struct bufdata *bdata = get_bufdata(fd, bufnum);
         if (!bdata)
                 abort();
@@ -43,6 +47,7 @@ new_buffer(const int fd, const int bufnum)
         if (!bdata->ft) {
                 nvprintf("Can't identify buffer %d, bailing!\n", bufnum);
                 destroy_bufdata(&bdata);
+                buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                 return false;
         }
 
@@ -163,10 +168,10 @@ init_filetype(int fd, struct ftdata_s *ft)
 
         ft->initialized   = true;
         ft->order         = nvim_get_var_fmt(fd, MPACK_STRING, NULL, 1,
-                                             "mytags#%s#order", BTS(ft->vim_name));
+                                             "tag_highlight#%s#order", BTS(ft->vim_name));
         ft->ignored_tags  = dict_get_key(settings.ignored_tags, 0, &ft->vim_name, 0);
         dictionary *equiv = nvim_get_var_fmt(fd, MPACK_DICT, NULL, 0,
-                                             "mytags#%s#equivalent", BTS(ft->vim_name));
+                                             "tag_highlight#%s#equivalent", BTS(ft->vim_name));
         if (equiv)
                 ft->equiv = b_list_create_alloc(equiv->qty);
         else

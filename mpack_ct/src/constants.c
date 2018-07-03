@@ -1,4 +1,4 @@
-#include "mytags.h"
+#include "util.h"
 
 #include "data.h"
 #include "mpack.h"
@@ -70,7 +70,7 @@ const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
 
 struct settings_s    settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL};
-struct buffer_list   buffers  = {NULL, 0, 0};
+struct buffer_list   buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
 struct request_stack rstack;
 
 const char *program_name;

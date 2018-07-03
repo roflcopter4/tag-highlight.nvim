@@ -1,8 +1,8 @@
 #include "archive_util.h"
 #ifdef HAVE_CONFIG_H
-#  include "mytags.h"
+#  include "util.h"
 #else
-#  include "../mytags.h"
+#  include "../util.h"
 #endif
 #include <sys/stat.h>
 
@@ -65,7 +65,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
     static inline void
     report_size(struct archive_size *size)
     {
-            warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
+            __extension__ warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
                   size->uncompressed, size->archive);
     }
 #else
@@ -84,7 +84,7 @@ plain_getlines(b_list *tags, const bstring *filename)
         struct stat st;
 
         safe_stat(BS(filename), &st);
-        uint8_t *buffer = malloc(st.st_size + 1LL);
+        uint8_t *buffer = xmalloc(st.st_size + 1LL);
 
         if (fread(buffer, 1, st.st_size, fp) != (size_t)st.st_size || ferror(fp))
                 err(1, "Error reading file %s", BS(filename));
@@ -114,7 +114,7 @@ gz_getlines(b_list *tags, const bstring *filename)
                 err(1, "Failed to open file");
 
         /* Magic macros to the rescue. */
-        uint8_t *out_buf = malloc(size.uncompressed + 1);
+        uint8_t *out_buf = xmalloc(size.uncompressed + 1);
         int64_t numread  = gzread(gfp, out_buf, size.uncompressed);
 
         assert (numread == 0 || numread == (int64_t)size.uncompressed);
@@ -131,7 +131,7 @@ gz_getlines(b_list *tags, const bstring *filename)
 
 #ifdef LZMA_SUPPORT
 #   include <lzma.h>
-extern const char * message_strm(lzma_ret);
+/* extern const char * message_strm(lzma_ret); */
 
 
 /* It would be nice if there were some magic macros to read an xz file too. */
@@ -142,8 +142,8 @@ xz_getlines(b_list *tags, const bstring *filename)
         xz_size(&size, BS(filename));
         report_size(&size);
 
-        uint8_t *in_buf  = malloc(size.archive + 1);
-        uint8_t *out_buf = malloc(size.uncompressed + 1);
+        uint8_t *in_buf  = xmalloc(size.archive + 1);
+        uint8_t *out_buf = xmalloc(size.uncompressed + 1);
 
         /* Setup the stream and initialize the decoder */
         lzma_stream strm[] = {LZMA_STREAM_INIT};
@@ -179,8 +179,8 @@ xz_getlines(b_list *tags, const bstring *filename)
         ret = lzma_code(strm, action);
 
         if (ret != LZMA_STREAM_END)
-                errx(5, "Unexpected error on line %d in file %s: %d => %s",
-                        __LINE__, __FILE__, ret, message_strm(ret));
+                warn("Unexpected error on line %d in file %s: %d => %s",
+                     __LINE__, __FILE__, ret, lzma_message_strm(ret));
 
         out_buf[size.uncompressed] = '\0';
         fclose(fp);

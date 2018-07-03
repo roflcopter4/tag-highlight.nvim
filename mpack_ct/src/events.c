@@ -1,11 +1,11 @@
-#include "mytags.h"
+#include "util.h"
 #include <fcntl.h>
 
 #include "data.h"
 #include "mpack.h"
 
 #define BT bt_init
-#define MIN(A, B) (((A) <= (B)) ? (A) : (B))
+#define MIN(iA, iB) (((iA) <= (iB)) ? (iA) : (iB))
 
 extern int sockfd;
 extern FILE *mpack_log;
@@ -39,7 +39,7 @@ static const struct event_type * id_event(mpack_obj *event);
 void
 handle_unexpected_notification(mpack_obj *note)
 {
-        const struct event_type *type = id_event(note);
+        UNUSED const struct event_type *type = id_event(note);
         mpack_print_object(note, mpack_log);
         mpack_destroy(note);
 }
@@ -150,7 +150,7 @@ handle_line_event(const uint index, mpack_obj **items)
 
         bstring *fn = nvim_call_function(sockfd, b_tmp("tempname"),
                                          MPACK_STRING, NULL, 1);
-        int tempfd  = open(BS(fn), O_CREAT|O_WRONLY, 0600);
+        int tempfd  = open(BS(fn), O_CREAT|O_WRONLY|O_TRUNC, 0600);
 
         b_write_ll(tempfd, bdata->lines);
         close(tempfd);

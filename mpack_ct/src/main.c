@@ -1,4 +1,4 @@
-#include "mytags.h"
+#include "util.h"
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/socket.h>
@@ -6,8 +6,10 @@
 
 #include "contrib/bsd_funcs.h"
 #include "data.h"
+#include "highlight.h"
 #include "mpack.h"
-#include "tags.h"
+
+#define PKGNAME "tag_highlight"
 
 #define nvim_get_var_number(FD__, VARNAME_, FATAL_)            \
         numptr_to_num(nvim_get_var((FD__), b_tmp(VARNAME_),    \
@@ -57,12 +59,10 @@ main(int argc, char *argv[], UNUSED char *envp[])
                 sigaction(SIGUSR1, &temp2, NULL);
         }
 
-        mpack_log       = fopen("/home/bml/somecrap.log", "w+");
-        decodelog = fopen("/home/bml/stream_decode.log", "w");
+        mpack_log = safe_fopen_fmt("%s/somecrap.log", "w+", getenv("HOME"));
+        decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", getenv("HOME"));
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
         sockfd    = create_socket(&servername);
-
-        _FILE *blargh = fopen("/home/bml/.vimrc", "r");
 
         if (vpipename) {
                 nvprintf("Opening file \"%s\"\n", BS(vpipename));
@@ -78,18 +78,14 @@ main(int argc, char *argv[], UNUSED char *envp[])
         nvprintf("sockfd is %d and servername is %s\n", sockfd, BS(servername));
         random_crap();
 
-        settings.comp_level       = nvim_get_var_number(sockfd, "mytags#compression_level", 1);
-        settings.compression_type = nvim_get_var_l     (sockfd, "mytags#compression_type", MPACK_STRING, NULL, 0);
-        settings.ctags_args       = blist_from_var     (sockfd, "mytags#ctags_args", NULL, 1);
-        settings.enabled          = nvim_get_var_number(sockfd, "mytags#enabled", 1);
-        settings.ignored_tags     = nvim_get_var_l     (sockfd, "mytags#ignored_tags", MPACK_DICT, NULL, 1);
-        settings.norecurse_dirs   = blist_from_var     (sockfd, "mytags#norecurse_dirs", NULL, 1);
-        settings.use_compression  = nvim_get_var_number(sockfd, "mytags#use_compression", 1);
-        settings.verbose          = nvim_get_var_number(sockfd, "mytags#verbose", 1);
-
-        buffers.qty  = 0;
-        buffers.mlen = 512;
-        buffers.lst  = xcalloc(buffers.mlen, sizeof(struct bufdata *));
+        settings.comp_level       = nvim_get_var_number(sockfd, PKGNAME "#compression_level", 1);
+        settings.compression_type = nvim_get_var_l     (sockfd, PKGNAME "#compression_type", MPACK_STRING, NULL, 0);
+        settings.ctags_args       = blist_from_var     (sockfd, PKGNAME "#ctags_args", NULL, 1);
+        settings.enabled          = nvim_get_var_number(sockfd, PKGNAME "#enabled", 1);
+        settings.ignored_tags     = nvim_get_var_l     (sockfd, PKGNAME "#ignored_tags", MPACK_DICT, NULL, 1);
+        settings.norecurse_dirs   = blist_from_var     (sockfd, PKGNAME "#norecurse_dirs", NULL, 1);
+        settings.use_compression  = nvim_get_var_number(sockfd, PKGNAME "#use_compression", 1);
+        settings.verbose          = nvim_get_var_number(sockfd, PKGNAME "#verbose", 1);
 
         assert(settings.enabled);
         struct mpack_array *buflist = nvim_list_bufs(sockfd);
@@ -97,7 +93,10 @@ main(int argc, char *argv[], UNUSED char *envp[])
         for (unsigned i = 0; i < buflist->qty; ++i) {
                 nvprintf("Attempting to initialize buffer %u\n",
                          buflist->items[i]->data.ext->num);
-                new_buffer(sockfd, buflist->items[i]->data.ext->num);
+                bool ret = new_buffer(sockfd, buflist->items[i]->data.ext->num);
+                if (ret) {
+
+                }
         }
         
         destroy_mpack_array(buflist);
@@ -123,12 +122,8 @@ wait_for_input(UNUSED void *vdata)
                 nvprintf("Attaching to buffer %d\n", buffers.lst[i]->num);
                 nvim_buf_attach(1, buffers.lst[i]->num);
         }
-        {
-                char filename[PATH_MAX];
-                strlcpy(filename, getenv("HOME"), PATH_MAX);
-                strlcat(filename, "/.mytags_log/buflog", PATH_MAX);
-                logfile = safe_fopen(filename, "w+");
-        }
+
+        logfile = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+", getenv("HOME"));
 
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
@@ -163,15 +158,19 @@ wait_for_updates(void *vdata)
                         for (unsigned i = 0; i < buflist->qty; ++i) {
                                 const int bufnum = buflist->items[i]->data.ext->num;
 
-                                if (!find_buffer(bufnum) && new_buffer(sockfd, bufnum)) {
+                                if (!find_buffer(bufnum) ) {
+                                        new_buffer(sockfd, bufnum);
+#if 0
                                         b_list *tmp = get_archived_tags(find_buffer(bufnum));
 
-                                        _FILE *blagh = fopen("/home/bml/tags.log", "w");
+                                        _FILE *blagh = safe_fopen_fmt("%s/tags.log", "w",
+                                                                      getenv("HOME"));
                                         b_dump_list(blagh, tmp);
                                         b_list_destroy(tmp);
 
                                         nvprintf("Attaching to buffer %d\n", bufnum);
                                         (void)nvim_buf_attach(1, bufnum);
+#endif
                                 }
                         }
 
@@ -181,7 +180,7 @@ wait_for_updates(void *vdata)
 
                 case 'B': { /* Buffer was written, or filetype/syntax was changed. */
                         const int bufnum = nvim_get_current_buf(sockfd);
-                        assert(run_ctags(bufnum));
+                        assert(run_ctags(bufnum, NULL));
                         break;
                 }
 
@@ -249,7 +248,7 @@ exit_cleanup(void)
 static int
 create_socket(bstring **name)
 {
-        *name = nvim_call_function(1, b_tmp("serverstart"), MPACK_STRING, NULL, 1);
+        *name = nvim_call_function(1, B("serverstart"), MPACK_STRING, NULL, 1);
 
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));

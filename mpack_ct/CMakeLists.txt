@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.6.0)
-project (mpack C)
+project (tag_highlight C)
 include (FindPkgConfig)
 include (CheckFunctionExists)
 include (CheckSymbolExists)

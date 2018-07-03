@@ -1,5 +1,5 @@
 # /src
-set (mytags_SOURCES
+set (tag_highlight_SOURCES
      archive/archive_util_gzip.c
      archive/archive_util_xz.c
      archive/getlines.c
@@ -20,19 +20,19 @@ set (mytags_SOURCES
 )
 
 # if (LZMA_SUPPORT)
-#     set (mytags_SOURCES ${mytags_SOURCES} archive_util_xz.c)
+#     set (tag_highlight_SOURCES ${tag_highlight_SOURCES} archive_util_xz.c)
 # endif()
 # if (NOT HAVE_STRLCPY) 
-#     set (mytags_SOURCES ${mytags_SOURCES} bsd_funcs.c)
+#     set (tag_highlight_SOURCES ${tag_highlight_SOURCES} bsd_funcs.c)
 # endif()
 
-add_executable(mytags ${mytags_SOURCES})
+add_executable(tag_highlight ${tag_highlight_SOURCES})
 
-# target_link_libraries(mytags ${mytags_MSGPACK_LIBRARIES})
+# target_link_libraries(tag_highlight ${tag_highlight_MSGPACK_LIBRARIES})
 
 if (ISWIN)
-    include_directories(mytags "${CMAKE_SOURCE_DIR}/contrib/include")
-    target_link_libraries(mytags
+    include_directories(tag_highlight "${CMAKE_SOURCE_DIR}/contrib/include")
+    target_link_libraries(tag_highlight
         "${CMAKE_SOURCE_DIR}/contrib/libz.lib"
         "${CMAKE_SOURCE_DIR}/contrib/liblzma.lib"
         "${CMAKE_SOURCE_DIR}/contrib/libpthread.lib")
@@ -42,19 +42,19 @@ else()
         if (BUILD_DIST OR STATIC_LIBS_ONLY)
             add_library(neo_LZMA_STATIC STATIC IMPORTED)
             set_property(TARGET neo_LZMA_STATIC PROPERTY IMPORTED_LOCATION /usr/lib64/liblzma.a)
-            target_link_libraries(mytags neo_LZMA_STATIC)
+            target_link_libraries(tag_highlight neo_LZMA_STATIC)
         else()
-            target_link_libraries(mytags ${LIBLZMA_LIBRARIES})
+            target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
         endif()
     endif()
 
     if(THREADS_HAVE_PTHREAD_ARG)
-        target_link_libraries(mytags -pthread)
+        target_link_libraries(tag_highlight -pthread)
     endif()
 
     # include_directories(${LibArchive_INCLUDE_DIRS})
-    # target_link_libraries(mytags ${LibArchive_LIBRARY})
+    # target_link_libraries(tag_highlight ${LibArchive_LIBRARY})
 
     include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries(mytags ${ZLIB_LIBRARIES})
+    target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
 endif()

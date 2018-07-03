@@ -1,4 +1,4 @@
-#include "mytags.h"
+#include "util.h"
 #include <inttypes.h>
 #include <sys/stat.h>
 
@@ -27,6 +27,26 @@ safe_fopen(const char *filename, const char *mode)
                 err(1, "Failed to open file \"%s\"", filename);
         if (!file_is_reg(filename))
                 errx(1, "Invalid filetype \"%s\"\n", filename);
+        return fp;
+}
+
+FILE *
+safe_fopen_fmt(const char *const restrict fmt,
+               const char *const restrict mode,
+               ...)
+{
+        va_list va;
+        va_start(va, mode);
+        bstring *filename = b_vformat(fmt, va);
+        va_end(va);
+
+        FILE *fp = fopen(BS(filename), mode);
+        if (!fp)
+                err(1, "Failed to open file \"%s\"", BS(filename));
+        if (!file_is_reg(BS(filename)))
+                errx(1, "Invalid filetype \"%s\"\n", BS(filename));
+
+        b_free(filename);
         return fp;
 }
 

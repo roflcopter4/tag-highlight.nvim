@@ -49,11 +49,19 @@ struct buffer_list {
                 bstring     *gzfile;
                 bstring     *tmpfname;
                 bstring     *topdir;
+                b_list      *tags;
                 linked_list *lines;
                 ll_node     *current;
 
                 struct ftdata_s *ft;
-        } **lst;
+        } *lst[512];
+        /* } **lst; */
+
+        struct {
+                int lst[512];
+                unsigned short qty;
+                unsigned short mlen;
+        } bad_bufs;
 
         unsigned qty;
         unsigned mlen;

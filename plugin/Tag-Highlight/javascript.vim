@@ -1,6 +1,6 @@
-let g:mytags#javascript#order = 'cCfmpo'
+let g:tag_highlight#javascript#order = 'cCfmpo'
 
-let g:mytags#javascript#c = {
+let g:tag_highlight#javascript#c = {
             \   'group': 'javascriptClassTag',
             \   'notin': [
             \       'jsx.*',
@@ -10,7 +10,7 @@ let g:mytags#javascript#c = {
             \   ]
             \ }
 
-let g:mytags#javascript#C = {
+let g:tag_highlight#javascript#C = {
             \   'group': 'javascriptConstantTag',
             \   'notin': [
             \       'jsx.*',
@@ -20,7 +20,7 @@ let g:mytags#javascript#C = {
             \   ]
             \ }
 
-let g:mytags#javascript#f = {
+let g:tag_highlight#javascript#f = {
             \   'group': 'javascriptFunctionTag',
             \   'notin': [
             \       'jsx.*',
@@ -32,7 +32,7 @@ let g:mytags#javascript#f = {
             \   ]
             \ }
 
-let g:mytags#javascript#m = {
+let g:tag_highlight#javascript#m = {
             \   'group': 'javascriptMethodTag',
             \   'notin': [
             \       'jsx.*',
@@ -44,7 +44,7 @@ let g:mytags#javascript#m = {
             \   ]
             \ }
 
-let g:mytags#javascript#o = {
+let g:tag_highlight#javascript#o = {
             \   'group': 'javascriptObjectTag',
             \   'notin': [
             \       'jsx.*',
@@ -56,7 +56,7 @@ let g:mytags#javascript#o = {
             \   ]
             \ }
 
-let g:mytags#javascript#p = {
+let g:tag_highlight#javascript#p = {
             \   'group': 'javascriptPropTag',
             \   'notin': [
             \       'jsx.*',
@@ -68,9 +68,9 @@ let g:mytags#javascript#p = {
             \   ]
             \ }
 
-highlight def link javascriptClassTag	mytags_ClassTag
-highlight def link javascriptConstantTag	mytags_ConstantTag
-highlight def link javascriptFunctionTag	mytags_FunctionTag
-highlight def link javascriptMethodTag	mytags_MethodTag
-highlight def link javascriptObjectTag	mytags_ObjectTag
-highlight def link javascriptPropTag	mytags_PreProcTag
+highlight def link javascriptClassTag	tag_highlight_ClassTag
+highlight def link javascriptConstantTag	tag_highlight_ConstantTag
+highlight def link javascriptFunctionTag	tag_highlight_FunctionTag
+highlight def link javascriptMethodTag	tag_highlight_MethodTag
+highlight def link javascriptObjectTag	tag_highlight_ObjectTag
+highlight def link javascriptPropTag	tag_highlight_PreProcTag

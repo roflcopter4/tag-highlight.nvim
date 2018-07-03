@@ -12,6 +12,7 @@ struct archive_size {
 
 void gzip_size(struct archive_size *size, const char *name);
 void xz_size(struct archive_size *size, const char *filename);
+char * lzma_message_strm(int code);
 
 
 #endif /* archive_util.h */

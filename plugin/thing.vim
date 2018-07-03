@@ -51,15 +51,15 @@ let s:rpc  = {  'rpc':       v:true,
             \   'on_exit':   function('s:OnExit'),
             \ }
 
-function! s:InitMytags()
+function! s:InitTagHighlight()
     let s:pipe = tempname()
     call system('mkfifo ' . shellescape(s:pipe))
     let s:job1 = jobstart(
-                \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/mytags/mpack_ct/thing', s:pipe],
+                \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/mpack_ct/thing', s:pipe],
                 \     s:rpc
                 \ )
     " let s:job1 = jobstart(
-    "             \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/mytags/mpack_ct/thing'],
+    "             \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight/mpack_ct/thing'],
     "             \     s:rpc
     "             \ )
     sleep 500m
@@ -68,14 +68,14 @@ function! s:InitMytags()
     " let l:jobprint = jobstart(['echo', s:pipe, '>', s:pipe], {})
 endfunction
 
-function! s:StopTheBothering()
+function! s:StopTagHighlight()
     if s:job1 != 0
         call writefile(['C'], s:pipe, '')
     endif
 endfunction
 
-command! InitMytags    call s:InitMytags()
-command! StopBothering call s:StopTheBothering()
+command! InitTagHighlight call s:InitTagHighlight()
+command! StopTagHighlight call s:StopTagHighlight()
 
 augroup KillMe
     " autocmd BufAdd *.{c,cpp,python,java,perl,go,vim,cs,rust,sh,javascript,php} call s:NewBuf()

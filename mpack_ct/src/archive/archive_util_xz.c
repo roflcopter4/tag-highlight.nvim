@@ -1,5 +1,5 @@
 #include "archive_util.h"
-#include "mytags.h"
+#include "util.h"
 #include <sys/stat.h>
 
 #include <lzma.h>
@@ -74,8 +74,6 @@ struct xz_file {
 
 //============================================================================= 
 
-
-const char * message_strm(lzma_ret code);
 
 static bool parse_indexes(struct xz_file *file, xz_file_info *xfi);
 static size_t io_read(struct xz_file *file, io_buf *buf_union, size_t size);
@@ -200,7 +198,7 @@ parse_indexes(struct xz_file *file, xz_file_info *xfi)
                         assert(strm->seek_pos <= (uint64_t)(file->st.st_size));
                         if (io_seek_src(file, (off_t)(strm->seek_pos))) {
                                 warnx("%d, %s: %s\n", ret, file->name,
-                                      message_strm(ret));
+                                      lzma_message_strm(ret));
                                 return false;
                         }
 
@@ -221,7 +219,7 @@ parse_indexes(struct xz_file *file, xz_file_info *xfi)
                         break;
 
                 default:
-                        warnx("%d, %s: %s\n", ret, file->name, message_strm(ret));
+                        warnx("%d, %s: %s\n", ret, file->name, lzma_message_strm(ret));
                         return false;
                 }
         }
@@ -258,11 +256,11 @@ io_read(struct xz_file *file, io_buf *buf_union, size_t size)
 }
 
 
-const char *
-message_strm(lzma_ret code)
+char *
+lzma_message_strm(int code)
 {
         switch (code) {
-        case LZMA_OK:                break;
+        case LZMA_OK:                return "Everything is ok";
         case LZMA_STREAM_END:        return "Unexpected end of stream";
         case LZMA_NO_CHECK:          return "No integrity check; not verifying file integrity";
         case LZMA_UNSUPPORTED_CHECK: return "Unsupported type of integrity check; not verifying file integrity";
