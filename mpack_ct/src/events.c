@@ -8,7 +8,7 @@
 #define MIN(A, B) (((A) <= (B)) ? (A) : (B))
 
 extern int sockfd;
-extern FILE *ass;
+extern FILE *mpack_log;
 extern pthread_mutex_t event_mutex;
 
 static const struct event_type {
@@ -40,7 +40,7 @@ void
 handle_unexpected_notification(mpack_obj *note)
 {
         const struct event_type *type = id_event(note);
-        mpack_print_object(note, ass);
+        mpack_print_object(note, mpack_log);
         mpack_destroy(note);
 }
 

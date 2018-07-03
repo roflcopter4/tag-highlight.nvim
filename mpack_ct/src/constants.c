@@ -76,7 +76,7 @@ struct request_stack rstack;
 const char *program_name;
 int   mesfd;
 int   sockfd;
-FILE *ass;
+FILE *mpack_log;
 FILE *decodelog;
 FILE *vpipe;
 pthread_mutex_t event_mutex    = PTHREAD_MUTEX_INITIALIZER;

@@ -93,7 +93,7 @@ decode_array(bstring *buf, const struct mpack_masks *mask, const bool skip_3)
         item->data.arr->max   = size;
         item->data.arr->qty   = 0;
 
-        extern FILE *ass;
+        extern FILE *mpack_log;
 
         for (unsigned i = 0; i < item->data.arr->max; ++i) {
                 mpack_obj *tmp = decode_pack(buf, false);
@@ -103,7 +103,7 @@ decode_array(bstring *buf, const struct mpack_masks *mask, const bool skip_3)
                         else
                                 item->data.arr->items[item->data.arr->qty++] = tmp;
                 } else
-                        b_fputs(ass, b_tmp("Got a null object\n"));
+                        b_fputs(mpack_log, b_tmp("Got a null object\n"));
         }
 
         return item;

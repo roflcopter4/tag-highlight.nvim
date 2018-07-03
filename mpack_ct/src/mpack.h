@@ -208,10 +208,10 @@ numptr_to_num(int64_t *ptr)
                              MPACK_ARRAY, (KEY_), (FATAL_)))
 
 
-extern FILE *ass;
+extern FILE *mpack_log;
 #define print_and_destroy(RESULT_)                \
         do {                                      \
-                mpack_print_object(RESULT_, ass); \
+                mpack_print_object(RESULT_, mpack_log); \
                 mpack_destroy(RESULT_);           \
         } while (0)
 

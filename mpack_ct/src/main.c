@@ -57,7 +57,7 @@ main(int argc, char *argv[], UNUSED char *envp[])
                 sigaction(SIGUSR1, &temp2, NULL);
         }
 
-        ass       = fopen("/home/bml/somecrap.log", "w+");
+        mpack_log       = fopen("/home/bml/somecrap.log", "w+");
         decodelog = fopen("/home/bml/stream_decode.log", "w");
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
         sockfd    = create_socket(&servername);
@@ -233,7 +233,7 @@ exit_cleanup(void)
         free_backups(&backup_pointers);
         free(backup_pointers.lst);
 
-        fclose(ass);
+        fclose(mpack_log);
         fclose(decodelog);
         if (logfile)
                 fclose(logfile);
@@ -270,10 +270,6 @@ create_socket(bstring **name)
 static void
 random_crap(void)
 {
-        /* nvim_get_api_info(sockfd); */
-        _bstring *cuntbag = b_lit2bstr("Hello, moron!\n");
-        b_fputs(stderr, cuntbag);
-
         free(nvim_call_function_args(sockfd, B("line2byte"), MPACK_NUM, NULL, 0, "d", 5));
         b_free(nvim_call_function_args(sockfd, B("glob2regpat"), MPACK_STRING, NULL, 0, "s",
                                        B("/home/{bml,brendan}/.{vim,emacs.d}/*.{vim,el}")));
@@ -287,15 +283,8 @@ random_crap(void)
                                 1, 2, B("hello"), true, B("you must die"), -1,
                                 B("DIE"), 99283839, 1, 2, 3, 4, 5, 6, 7, 8, 9,
                                 -1, false, B("hahaha")); */
-        mpack_obj *bwang = encode_fmt(
-            "d,d,s,[B,s,[[],[d,s,d,[dddddddddd]]],B],s,[]", 1, 2, B("hello"),
-            true, B("you must die"), -1, B("DIE"), 99283839, 1, 2, 3, 4, 5, 6,
-            7, 8, 9, -1, false, B("hahaha"));
-        fwrite((*bwang->packed)->data, 1, (*bwang->packed)->slen, decodelog);
         fputc('\n', decodelog);
-        nvprintf("Size: %d, will print\n", bwang->data.arr->qty);
-        print_and_destroy(bwang);
-        fflush(ass);
+        fflush(mpack_log);
 #endif
 
         /* _bstring *tmp = nvim_command_output(sockfd, B("34print"), MPACK_STRING, NULL, 0);

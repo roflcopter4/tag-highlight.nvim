@@ -77,8 +77,8 @@ decode_stream(int fd, const enum message_types expected_type)
         if (mpack_type(ret) != MPACK_ARRAY) {
                 nvprintf("For some incomprehensible reason the pack's type is %d.\n",
                          mpack_type(ret));
-                mpack_print_object(ret, ass);
-                fflush(ass);
+                mpack_print_object(ret, mpack_log);
+                fflush(mpack_log);
                 abort();
         }
 

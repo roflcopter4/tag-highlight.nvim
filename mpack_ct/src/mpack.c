@@ -22,7 +22,7 @@ extern pthread_mutex_t mpack_main;
 
 #define write_and_clean(FD__, MPACK, func)                               \
         do {                                                             \
-                fprintf(ass, "Writing request no %d to fd %d: \"%s\"\n", \
+                fprintf(mpack_log, "Writing request no %d to fd %d: \"%s\"\n", \
                         COUNT(fd) - 1, (FD__), BS(func));                \
                 b_write((FD__), *(MPACK)->packed);                       \
                 mpack_destroy(MPACK);                                    \
@@ -86,7 +86,7 @@ __nvim_write(const int fd, const enum nvim_write_type type, const bstring *mes)
         mpack_obj *tmp = decode_stream(fd, MES_RESPONSE);
         /* pthread_mutex_unlock(&mpack_main); */
 
-        mpack_print_object(tmp, ass);
+        mpack_print_object(tmp, mpack_log);
         mpack_destroy(tmp);
 }
 
@@ -308,7 +308,7 @@ nvim_call_function_args(const int              fd,
 
         va_start(va, fmt);
         mpack_obj *pack = encode_fmt(buf, 0, COUNT(fd), &func, function, &va);
-        mpack_print_object(pack, ass); fflush(ass);
+        mpack_print_object(pack, mpack_log); fflush(mpack_log);
         write_and_clean(fd, pack, &func);
         va_end(va);
 
@@ -432,8 +432,8 @@ get_expect(mpack_obj *            result,
         mpack_obj *cur = RETVAL;
         void      *ret = NULL;
         int64_t    value;
-        assert(ass != NULL);
-        mpack_print_object(result, ass);
+        assert(mpack_log != NULL);
+        mpack_print_object(result, mpack_log);
 
         if (mpack_type(cur) == MPACK_NIL) {
                 echo("Neovim returned nil!");
