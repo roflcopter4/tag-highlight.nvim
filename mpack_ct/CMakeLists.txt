@@ -1,0 +1,106 @@
+cmake_minimum_required (VERSION 3.6.0)
+project (mpack C)
+include (FindPkgConfig)
+include (CheckFunctionExists)
+include (CheckSymbolExists)
+
+if (MSVC OR MINGW)
+    set(ISWIN 1)
+endif()
+
+set (REQUIRED_LZMA_VERSION 5.3.1)
+option(BUILD_DIST "\
+Include the required alpha (and therefore uncommon) liblzma version as a static\
+library, and use bundled BSD extensions instead of libbsd even if it is available.")
+option(STATIC_LIBS_ONLY "Build with only static libraries.")
+
+###############################################################################
+# Libraries
+
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+
+if (ISWIN)
+    set (LZMA_SUPPORT 1)
+    set (USE_PTHREADS 1)
+else()
+    find_package (ZLIB REQUIRED)
+    find_package (Threads REQUIRED)
+    find_package (LibLZMA)
+endif()
+
+find_package(LibArchive REQUIRED)
+# pkg_check_modules(mytags_LIBARCHIVE libarchive)
+
+set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE -DHAVE_CONFIG_H)
+
+CHECK_SYMBOL_EXISTS (reallocarray "stdlib.h" HAVE_REALLOCARRAY)
+CHECK_SYMBOL_EXISTS (vasprintf    "stdio.h"  HAVE_VASPRINTF)
+CHECK_SYMBOL_EXISTS (asprintf     "stdio.h"  HAVE_ASPRINTF)
+CHECK_SYMBOL_EXISTS (strlcpy      "string.h" HAVE_STRLCPY)
+CHECK_SYMBOL_EXISTS (strdupa      "string.h" HAVE_STRDUPA)
+CHECK_SYMBOL_EXISTS (strsep       "string.h" HAVE_STRSEP)
+CHECK_SYMBOL_EXISTS (err          "err.h"    HAVE_ERR)
+
+CHECK_INCLUDE_FILE ("unistd.h" HAVE_UNISTD_H)
+
+if (LIBLZMA_FOUND)
+    if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
+        message(WARNING "\
+liblzma version ${REQUIRED_LZMA_VERSION} or greater is required for XZ support. \
+XZ support will be disabled for this build.")
+    else()
+        set (LZMA_SUPPORT 1)
+    endif()
+endif()
+
+if (THREADS_HAVE_PTHREAD_ARG)
+    set (USE_PTHREADS 1)
+else()
+    message(FATAL_ERROR "POSIX pthreads are required!")
+endif()
+
+###############################################################################
+# Flags
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set (DEBUG 1)
+endif()
+
+if (MSVC)
+    set (CMAKE_C_FLAGS_RELEASE "/MP /GS /TC /GL /W3 /Gm- /Ox /Ob2 /Zc:inline /fp:fast /Gd /Oi /MD /FC /Ot /arch:AVX2")
+    
+    set (CMAKE_BUILD_TYPE Release)
+    set (CMAKE_C_FLAGS_DEBUG "/GS /TC /Wall /ZI /Gm- /Od /RTC1 /Gd /Oi /MD /FC")
+    set (CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_RELEASE})
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE})
+else()
+    if (NOT BUILD_DIST) 
+        set (MARCH_SETTING "-march=native")
+    endif()
+
+    # set (WARNS "-fdiagnostics-color=always -Weverything")
+    set (WARNS "-fdiagnostics-color=always -Wall")
+
+
+    set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
+-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
+-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=format -Wsuggest-attribute=malloc \
+-Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
+-Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches")
+
+    set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O3 -g")
+    set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} -O3")
+
+    set (CMAKE_EXE_LINKER_FLAGS "-L/usr/local/lib")
+    set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
+    set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
+endif()
+
+add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H)
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories("${PROJECT_SOURCE_DIR}/src")
+configure_file(cmake-config.h.in config.h)
+
+add_subdirectory(src)
+
