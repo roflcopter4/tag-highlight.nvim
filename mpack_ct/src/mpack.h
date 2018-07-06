@@ -2,7 +2,6 @@
 #define SRC_MPACK_H
 
 #include "bstring/bstrlib.h"
-#include <setjmp.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -23,7 +22,7 @@ enum mpack_types {
         MPACK_DICT,
 };
 
-enum message_types   { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
+enum message_types { MES_ANY = 0, MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION };
 enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
 
 
@@ -125,6 +124,9 @@ extern void        mpack_print_object (const mpack_obj *result, FILE *fp);
 extern void        mpack_destroy      (mpack_obj *root);
 extern void        free_stack_push    (struct item_free_stack *list, void *item);
 
+mpack_obj * decode_stream(int fd, const enum message_types expected_type);
+mpack_obj * decode_obj(bstring *buf, const enum message_types expected_type);
+
 
 /* Encode */
 extern mpack_obj * mpack_make_new       (unsigned len, bool encode);
@@ -160,14 +162,15 @@ extern mpack_obj * encode_fmt           (const char *fmt, ...);
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) __nvim_write((FD), STANDARD, (MES))
 #define nvim_err_write(FD, MES) __nvim_write((FD), ERROR, (MES))
-#define nvprintf(...) fprintf(stderr, __VA_ARGS__)
+/* #define nvprintf(...) fprintf(stderr, __VA_ARGS__) */
+#define nvprintf warnx
 #define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n")))
 
 
 /*============================================================================*/
 /* Type conversions and Misc */
 
-extern b_list * mpack_array_to_blist(struct mpack_array *array);
+extern b_list * mpack_array_to_blist(struct mpack_array *array, bool destroy);
 extern b_list * blist_from_var_fmt  (int fd, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 extern void   * nvim_get_var_fmt    (int fd, enum mpack_types expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
 extern void   * dict_get_key        (dictionary *dict, const enum mpack_types expect, const bstring *key, const bool fatal);
@@ -205,8 +208,7 @@ numptr_to_num(int64_t *ptr)
 
 #define blist_from_var(FD__, VARNAME_, KEY_, FATAL_) \
         mpack_array_to_blist(nvim_get_var((FD__), b_tmp(VARNAME_), \
-                             MPACK_ARRAY, (KEY_), (FATAL_)))
-
+                             MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
 extern FILE *mpack_log;
 #define print_and_destroy(RESULT_)                \

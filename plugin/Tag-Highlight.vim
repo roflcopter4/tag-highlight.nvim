@@ -107,7 +107,8 @@ if g:tag_highlight#run_ctags
                 \   '--c++-kinds=+p',
                 \   '--sort=yes',
                 \   "--exclude='.mypy_cache'",
-                \   '--regex-go=''/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/'''
+                \   '--regex-go=''/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/''',
+                \   '--languages=-Pod'
                 \ ])
     else
         echohl ErrorMsg
@@ -217,24 +218,24 @@ let g:tag_highlight#loaded = 1
 "============================================================================= 
 
 
-" highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
-" highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
-" highlight def link tag_highlight_StructTag		tag_highlight_TypeTag
-" highlight def link tag_highlight_UnionTag		tag_highlight_TypeTag
-" highlight def link tag_highlight_MethodTag		tag_highlight_FunctionTag
-" highlight def link tag_highlight_VariableTag		tag_highlight_ObjectTag
-" highlight def link tag_highlight_FieldTag		tag_highlight_MemberTag
-" 
-" highlight def link tag_highlight_GlobalVarTag		PreCondit
-" highlight def link tag_highlight_ConstantTag		Constant
-" highlight def link tag_highlight_EnumTag		Define
-" highlight def link tag_highlight_FunctionTag		Function
-" highlight def link tag_highlight_InterfaceTag		Identifier
-" highlight def link tag_highlight_MemberTag		Identifier
-" highlight def link tag_highlight_ObjectTag		Identifier
-" highlight def link tag_highlight_ModuleTag		PreProc
-" highlight def link tag_highlight_PreProcTag		PreProc
-" highlight def link tag_highlight_TypeTag		Type
+highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
+highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
+highlight def link tag_highlight_StructTag		tag_highlight_TypeTag
+highlight def link tag_highlight_UnionTag		tag_highlight_TypeTag
+highlight def link tag_highlight_MethodTag		tag_highlight_FunctionTag
+highlight def link tag_highlight_VariableTag		tag_highlight_ObjectTag
+highlight def link tag_highlight_FieldTag		tag_highlight_MemberTag
+
+highlight def link tag_highlight_GlobalVarTag		PreCondit
+highlight def link tag_highlight_ConstantTag		Constant
+highlight def link tag_highlight_EnumTag		Define
+highlight def link tag_highlight_FunctionTag		Function
+highlight def link tag_highlight_InterfaceTag		Identifier
+highlight def link tag_highlight_MemberTag		Identifier
+highlight def link tag_highlight_ObjectTag		Identifier
+highlight def link tag_highlight_ModuleTag		PreProc
+highlight def link tag_highlight_PreProcTag		PreProc
+highlight def link tag_highlight_TypeTag		Type
 
 
 " vim:fdm=marker

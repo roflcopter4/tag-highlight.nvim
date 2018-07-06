@@ -4,10 +4,15 @@ endif
 
 "===============================================================================
 
+function! s:WriteFifo(msg)
+    if a:msg && s:pipe
+        call writefile([a:msg], s:pipe, '')
+    endif
+endfunction
+
+"===============================================================================
+
 function! s:OnStderr(job_id, data, event) dict
-    " if a:data[0][0:2] ==# '|||'
-    "     let s:sock = a:data[0][3:]
-    " endif
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom string(l:str)
@@ -17,13 +22,14 @@ endfunction
 
 function! s:OnExit(job_id, data, event) dict
     echom 'Closing channel.'
-    " call serverstop(s:sock)
-    " call delete(s:pipe)
 
     let s:job1 = 0
     let s:sock = 0
     let s:pipe = 0
+    let s:init = 0
 endfunction
+
+"===============================================================================
 
 function! s:NewBuf()
     sleep 50m
@@ -37,8 +43,30 @@ function! s:UpdateTags()
     if s:job1 !=# 0
         call writefile(['B'], s:pipe, '')
     endif
+endfunction
 
-    call rpcnotify(s:job1, 'cocksucker_event', ['you suck cock'])
+function! s:StopTagHighlight()
+    if s:job1 != 0
+        call writefile(['C'], s:pipe, '')
+    endif
+endfunction
+
+function! s:BufChanged()
+    sleep 50m
+    let l:buf = nvim_get_current_buf()
+
+    if index(s:seen_bufs, l:buf) ==# (-1)
+        call add(s:seen_bufs, l:buf)
+    elseif s:init && s:job1 !=# 0
+        call writefile(['D'], s:pipe, '')
+    endif
+endfunction
+
+function! s:ClearBuffer()
+    sleep 50m
+    if s:init && s:job1 !=# 0
+        call writefile(['E'], s:pipe, '')
+    endif
 endfunction
 
 "===============================================================================
@@ -46,6 +74,8 @@ endfunction
 let s:job1 = 0
 let s:pipe = 0
 let s:sock = 0
+let s:init = 0
+let s:seen_bufs = [1]
 let s:rpc  = {  'rpc':       v:true, 
             \   'on_stderr': function('s:OnStderr'),
             \   'on_exit':   function('s:OnExit'),
@@ -58,29 +88,21 @@ function! s:InitTagHighlight()
                 \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/mpack_ct/thing', s:pipe],
                 \     s:rpc
                 \ )
-    " let s:job1 = jobstart(
-    "             \     ['/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight/mpack_ct/thing'],
-    "             \     s:rpc
-    "             \ )
-    sleep 500m
-    call writefile(['The fifo is working!'], s:pipe, '')
-    " echom 'printing to ' . s:pipe
-    " let l:jobprint = jobstart(['echo', s:pipe, '>', s:pipe], {})
+
+    sleep 1500m " Don't do anything until we're sure everything's finished initializing
+    let s:init = 1
 endfunction
 
-function! s:StopTagHighlight()
-    if s:job1 != 0
-        call writefile(['C'], s:pipe, '')
-    endif
-endfunction
+"===============================================================================
 
 command! InitTagHighlight call s:InitTagHighlight()
 command! StopTagHighlight call s:StopTagHighlight()
+command! TagHighlightClear call s:ClearBuffer()
 
 augroup KillMe
-    " autocmd BufAdd *.{c,cpp,python,java,perl,go,vim,cs,rust,sh,javascript,php} call s:NewBuf()
     autocmd BufAdd * call s:NewBuf()
-    autocmd BufWritePost,FileType * call s:UpdateTags()
+    autocmd BufWritePost * call s:UpdateTags()
+    autocmd BufEnter * call s:BufChanged()
 augroup END
 
 

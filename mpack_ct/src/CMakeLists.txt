@@ -3,19 +3,23 @@ set (tag_highlight_SOURCES
      archive/archive_util_gzip.c
      archive/archive_util_xz.c
      archive/getlines.c
+     archive/writefile.c
      bstring/bstrlib.c
+     contrib/bsd_funcs.c
+     modified_neotags/main.c
+     modified_neotags/strip.c
+     modified_neotags/tok.c
      buf_data.c
      constants.c
-     contrib/bsd_funcs.c
+     ctags.c
      events.c
      linked_list.c
-     ctags.c
      main.c
      mpack.c
+     mpack_decode.c
      mpack_encode.c
-     mpack_obj_decode.c
      mpack_print.c
-     mpack_stream_decode.c
+     update.c
      util.c
 )
 

@@ -69,16 +69,17 @@ struct ftdata_s ftdata[] = {
 const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
 
-struct settings_s    settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL};
-struct buffer_list   buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
-struct request_stack rstack;
+struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0};
+struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
+struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 
-const char *program_name;
-int   mesfd;
-int   sockfd;
-FILE *mpack_log;
-FILE *decodelog;
-FILE *vpipe;
+struct backups      backup_pointers = { NULL, 0, 0 };
+
+int             sockfd;
+FILE *          decodelog;
+FILE *          mpack_log;
+FILE *          vpipe;
+const char *    program_name;
 pthread_mutex_t event_mutex    = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t ftdata_mutex   = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mpack_main     = PTHREAD_MUTEX_INITIALIZER;

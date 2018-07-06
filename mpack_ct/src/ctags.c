@@ -3,25 +3,27 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
+#include "archive/archive_util.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
 
-extern int sockfd;
+
+static inline void write_gzfile(struct top_dir *topdir);
 
 
 /*============================================================================*/
 
 
 bool
-run_ctags(const int bufnum, struct bufdata *bdata)
+run_ctags(struct bufdata *bdata, struct top_dir *topdir)
 {
-        if (!bdata) {
-                assert(bufnum > 0);
-                bdata = find_buffer(bufnum);
+        assert(topdir != NULL);
+        if (bdata->cmd_cache) {
+                b_list_destroy(bdata->cmd_cache);
+                bdata->cmd_cache = NULL;
         }
 
-        assert(bdata != NULL);
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
         for (unsigned i = 0; i < settings.ctags_args->qty; ++i) {
@@ -29,11 +31,21 @@ run_ctags(const int bufnum, struct bufdata *bdata)
                 b_conchar(cmd, ' ');
         }
 
-        b_formata(cmd, " -R -f%s '%s'", BS(bdata->tmpfname), BS(bdata->topdir));
+        if (topdir->recurse)
+                b_formata(cmd, " -R -f%s '%s'", BS(topdir->tmpfname), BS(topdir->pathname));
+        else {
+                echo("Not recursing!!!");
+                b_formata(cmd, " -f%s '%s'", BS(topdir->tmpfname), BS(bdata->filename));
+        }
 
         nvprintf("Running ctags command \"\"%s\"\"\n", BS(cmd));
 
+        /* Yes, this directly uses unchecked user input in a call to system().
+         * Frankly, if somehow someone takes over a user's vimrc then they're
+         * already compromised, and if the user wants to attack their own
+         * system for some reason then they can be my guest. */
         int status = system(BS(cmd));
+
         if (status != 0)
                 nvprintf("ctags failed with status \"%d\"\n", status);
         else
@@ -44,35 +56,65 @@ run_ctags(const int bufnum, struct bufdata *bdata)
 }
 
 
-b_list *
-get_archived_tags(struct bufdata *bdata)
+void
+get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir)
 {
-        b_list *ret = b_list_create_alloc(512);
-        nvprintf("Opening archive file \"%s\".\n", BS(bdata->gzfile));
-        assert(getlines(
-                   ret, settings.compression_type,
-                   B("/home/bml/.vim_tags/"
-                     "__home__bml__.vim__dein__repos__github.com__roflcopter4__"
-                     "tag-highlight.nvim__mpack_ct.tags.xz")) == 1);
-        return ret;
+        struct stat st;
+        errno = 0;
+        topdir->tags = b_list_create();
+
+        if (stat(BS(topdir->gzfile), &st) == 0) {
+                getlines(topdir->tags, settings.comp_type, topdir->gzfile);
+                for (unsigned i = 0; i < topdir->tags->qty; ++i)
+                        b_write(topdir->tmpfd, topdir->tags->lst[i], B("\n"));
+        } else {
+                if (errno == ENOENT)
+                        nvprintf("File \"%s\" not found, running ctags.\n",
+                                 BS(topdir->gzfile));
+                else
+                        warn("Unexpected io error");
+
+                run_ctags(bdata, topdir);
+                write_gzfile(topdir);
+                errno = 0;
+
+                if (stat(BS(topdir->gzfile), &st) != 0)
+                        err(1, "Failed to stat gzfile");
+
+                getlines(topdir->tags, COMP_NONE, topdir->tmpfname);
+        }
 }
 
 
 bool
-check_gzfile(struct bufdata *bdata)
+update_taglist(struct bufdata *bdata)
 {
-        struct stat st;
-        errno    = 0;
-        bool ret = (stat(BS(bdata->gzfile), &st) == 0);
+        if (bdata->ctick == bdata->last_ctick)
+                return false;
 
-        if (!ret) {
-                if (errno == ENOENT)
-                        echo("File not found, running ctags.");
-                else
-                        warn("Unexpected io error");
+        bdata->last_ctick = bdata->ctick;
+        assert(run_ctags(bdata, bdata->topdir));
 
-                ret = run_ctags(0, bdata);
+        getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname);
+        write_gzfile(bdata->topdir);
+
+        return true;
+}
+
+
+/*============================================================================*/
+
+
+static inline void
+write_gzfile(struct top_dir *topdir)
+{
+        echo("Compressing tagfile.");
+        switch (settings.comp_type) {
+        case COMP_NONE: write_plain(topdir); break;
+        case COMP_GZIP: write_gzip(topdir);  break;
+        case COMP_LZMA: write_lzma(topdir);  break;
+
+        default: abort();
         }
-
-        return ret;
+        echo("Finished compressing tagfile!");
 }

@@ -1,4 +1,5 @@
-/* Copyright 2002-2010 Paul Hsieh
+/*
+ * Copyright 2002-2010 Paul Hsieh
  * This file is part of Bstrlib.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,7 +91,6 @@ typedef unsigned char uchar;
 #define BSTR_FREEABLE      0x02u
 #define BSTR_DATA_FREEABLE 0x04u
 #define BSTR_LIST_END      0x08u
-#define BSTR_CLONE         0x10u
 
 #if defined(__GNUC__)
 #  define PACK(...) __VA_ARGS__ __attribute__((__packed__))
@@ -182,6 +182,8 @@ BSTR_PUBLIC bstring *b_alloc_null(unsigned len);
  * returned.
  */
 BSTR_PUBLIC bstring *b_blk2bstr(const void *blk, unsigned len);
+
+#define b_fromblk(BLK_, LENGTH_) b_blk2bstr((BLK_), (LENGTH_))
 
 /**
  * Create a '\0' terminated char buffer which contains the contents of the
@@ -1084,6 +1086,8 @@ BSTR_PUBLIC int b_vcformata(bstring *bstr, unsigned count, const char *fmt, va_l
  *     bdestroy (b);
  * }
  * \endcode
+ *
+ * DISCLAIMER: Useless!
  */
 #define b_vformata(ret, b, fmt, lastarg)                                       \
         do {                                                                   \
@@ -1440,8 +1444,25 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
  * checking is performed. The program is hopeless anyway if it is accessing NULL
  * memory and should crash.
  */
-#define BS(b)  ((char *)((b)->data))
-#define BTS(b) ((char *)((b).data))
+#ifdef __GNUC__
+#  define BS(BSTR_)                                                 \
+        __extension__({                                             \
+                _Static_assert(sizeof(*BSTR_) == sizeof(bstring) && \
+                               sizeof((BSTR_)->flags) == 1,         \
+                               "Pointer is not a bstring");         \
+                (char *)((BSTR_)->data);                            \
+        })
+#  define BTS(BSTR_)                                               \
+        __extension__({                                            \
+                _Static_assert(sizeof(BSTR_) == sizeof(bstring) && \
+                               sizeof((BSTR_).flags) == 1,         \
+                               "Pointer is not a bstring");        \
+                (char *)((BSTR_).data);                            \
+        })
+#else
+#  define BS(BSTR_)  ((char *)((BSTR_)->data))
+#  define BTS(BSTR_) ((char *)((BSTR_).data))
+#endif
 
 /**
  * Returns the p'th character of the bstring *b.
@@ -1484,39 +1505,15 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
  */
 #define b_staticBlkParms(cstr) ((void *)("" cstr "")), (sizeof(cstr) - 1)
 
-/**
- * The bsStatic macro allows for static declarations of literal string
- * constants as bstring structures.
- *
- * The resulting tagbstring does not need to be freed or destroyed. Note that
- * this macro is only well defined for string literal arguments. For more
- * general string pointers, use the btfromcstr macro.
- *
- * The resulting bstring is permanently write protected. Attempts
- * to write to this bstring from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
- * tagbstring has no effect.
- */
-/* b_tmp */
-
-/**
- * Fill in the tagbstring t with the '\0' terminated char buffer s.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member is just assigned s, and slen is assigned the strlen of s.  The s
- * parameter is accessed exactly once in this macro.
- *
- * The resulting bstring is initially write protected. Attempts
- * to write to this bstring in a write protected state from any
- * bstrlib function will lead to BSTR_ERR being returned. Invoke the
- * bwriteallow on this bstring to make it writeable (though this
- * requires that s be obtained from a function compatible with malloc.)
- */
-
 
 /*============================================================================*/
 /* MY ADDITIONS */
 
+/**
+ * Initialize a bstring without any casting. seful when a constant expression is
+ * required, such as in global or static variable initializers. The argument
+ * MUST be a literal string, so double evaluation shouldn't be a problem..
+ */
 #define bt_init(CSTR)                             \
         {                                         \
                 .slen  = (sizeof(CSTR) - 1),      \
@@ -1525,63 +1522,98 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
                 .flags = 0x00u                    \
         }
 
-#define b_static_refblk(BLK, LEN) \
-        (bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }}
+/**
+ * This useful macro creates a valid pointer to a static bstring object by
+ * casting bt_init() to (bstring[]). Used most often to supply literal string
+ * arguments to functions that expect a bstring pointer. Like bt_init, the
+ * argument must be a literal string.
+ *
+ * All bstring functions will refuse to modify the return from this macro,
+ * including b_free(). The object must not otheriwise be free'd.
+ */
+#define b_tmp(CSTR) (bstring[]){ bt_init(CSTR) }
 
-#define b_tmp(CSTR)            (bstring[]){ bt_init(CSTR) }
-#define b_static_refcstr(CSTR) b_static_refblk((CSTR), strlen(CSTR))
 
 #define b_litsiz                   b_staticBlkParms
 #define b_lit2bstr(LIT_STR)        b_blk2bstr(b_staticBlkParms(LIT_STR))
 #define b_assignlit(BSTR, LIT_STR) b_assign_blk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_catlit(BSTR, LIT_STR)    b_catblk((BSTR), b_staticBlkParms(LIT_STR))
 
-#define b_refcstr(CSTR) \
-        ((CSTR) ? b_refblk((CSTR), strlen(CSTR)) : NULL)
 
-
-BSTR_PUBLIC bstring *b_refblk(void *blk, unsigned len);
+/**
+ * Allocates a reference to the data of an existing bstring without copying the
+ * data. The bstring itself must be free'd, however b_free will not free the
+ * data. The clone is write protected, but the original is not, so caution must
+ * be taken when modifying it lest the clone's length fields become invalid.
+ *
+ * This is rarely useful.
+ */
 BSTR_PUBLIC bstring *b_clone(const bstring *const src);
+
+/**
+ * Similar to b_clone() except the original bstring is designated as the clone
+ * and is write protected. Useful in situations where some routine will destroy
+ * the original, but you want to keep its data.
+ */
 BSTR_PUBLIC bstring *b_clone_swap(bstring *src);
 BSTR_PUBLIC bstring *b_ll2str(const long long value);
 
 
 /*----------------------------------------------------------------------------*/
 
+
 /**
- * Return a static bstring derived from a cstring. Useful in cases where a macro
- * call would lead to double evaluation of side effects due to its calling of
- * strlen(). Not good for much else.
+ * Allocates a bstring object that references the supplied memory. The memory is
+ * not copied, so the user must ensure that it will not go out of scope. The
+ * bstring object itself must be freed, but the memory it references will not be
+ * freed by b_destroy or b_free by default. The user must either manually set
+ * the BSTR_DATA_FREEABLE flag or ensure that the memory is freed independently.
  */
-INLINE PURE bstring bt_fromcstr(void *str)
+BSTR_PUBLIC bstring *b_refblk(void *blk, unsigned len);
+
+/**
+ * The same as b_refblk with the exception that the size is derived by strlen().
+ * Required to be an inline function to avoid evaluating the arguments twice via
+ * the necessary strlen() call.
+ */
+INLINE PURE bstring *b_refcstr(char *str)
 {
-        return (bstring){
+        return b_refblk(str, strlen(str));
+}
+
+
+/**
+ * Creates a static bstring reference to existing memory without copying it.
+ * Unlike the return from b_tmp, this will accept non-literal strings, and the
+ * data is modifyable by default. However, b_free will refuse to free the data,
+ * and the object itself is stack memory and therefore also not freeable.
+ */
+#define bt_fromblk(BLK, LEN) \
+        (bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }}
+
+/**
+ * Return a static bstring derived from a cstring. Identical to bt_fromblk
+ * except that the length field is derived through a call to strlen(). This is
+ * defined as an inline function to avoid any potential double evaluation of
+ * side effects that may happen if it were a macro.
+ */
+INLINE PURE bstring *bt_fromcstr(void *str)
+{
+        return (bstring[]){{
                 .slen  = strlen(str),
                 .mlen  = 0,
                 .data  = (uchar *)(str),
                 .flags = 0x00u
-        };
+        }};
 }
 
-/**
- * Return a static bstring from a block of known length. Not very usefull; just
- * use the above macros in most cases.
- */
-INLINE PURE bstring bt_fromblk(void *str, const unsigned len)
-{
-        return (bstring){
-                .slen  = len,
-                .mlen  = 0,
-                .data  = (uchar *)(str),
-                .flags = 0x00u
-        };
-}
 
 /*----------------------------------------------------------------------------*/
 /* Read wrappers */
 
 /**
- * This is a wrapper around fgetc to avoid warnings.
+ * Simple wrapper for fgetc that casts the void * paramater to a FILE * object
+ * to avoid compiler warnings.
  */
 INLINE int b_fgetc(void *param)
 {
@@ -1589,7 +1621,8 @@ INLINE int b_fgetc(void *param)
 }
 
 /**
- * This is just a lazy wrapper around fread to avoid warnings.
+ * Simple wrapper for fread that casts the void * paramater to a FILE * object
+ * to avoid compiler warnings.
  */
 INLINE size_t b_fread(void *buf, const size_t size, const size_t nelem, void *param)
 {
@@ -1599,9 +1632,11 @@ INLINE size_t b_fread(void *buf, const size_t size, const size_t nelem, void *pa
 #define B_GETS(PARAM, TERM) b_gets(&b_fgetc, (PARAM), (TERM))
 #define B_READ(PARAM)       b_read(&b_fread, (PARAM))
 
+
 /*----------------------------------------------------------------------------*/
 
-/*
+
+/**
  * Safely free several bstrings.
  */
 BSTR_PUBLIC void __b_free_all(bstring **bstr, ...);
@@ -1630,6 +1665,32 @@ BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
 /*============================================================================*/
 
 /**
+ * The bsStatic macro allows for static declarations of literal string
+ * constants as bstring structures.
+ *
+ * The resulting tagbstring does not need to be freed or destroyed. Note that
+ * this macro is only well defined for string literal arguments. For more
+ * general string pointers, use the btfromcstr macro.
+ *
+ * The resulting bstring is permanently write protected. Attempts
+ * to write to this bstring from any bstrlib function will lead to
+ * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
+ * tagbstring has no effect.
+ */
+/**
+ * Fill in the tagbstring t with the '\0' terminated char buffer s.
+ *
+ * This action is purely reference oriented; no memory management is done. The
+ * data member is just assigned s, and slen is assigned the strlen of s.  The s
+ * parameter is accessed exactly once in this macro.
+ *
+ * The resulting bstring is initially write protected. Attempts
+ * to write to this bstring in a write protected state from any
+ * bstrlib function will lead to BSTR_ERR being returned. Invoke the
+ * bwriteallow on this bstring to make it writeable (though this
+ * requires that s be obtained from a function compatible with malloc.)
+ */
+/**
  * Fill in the tagbstring t with the data buffer s with length len.
  *
  * This action is purely reference oriented; no memory management is done. The
@@ -1643,7 +1704,20 @@ BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
  * writeable (though this requires that s be obtained from a function compatible
  * with malloc.)
  */
-#define blk2tbstr(s, l) bt_fromblk(s, l)
+#define b_static_refblk(BLK, LEN) \
+        ((bstring){ (LEN), 0, ((uchar *)(BLK)), 0x00u })
+
+#define blk2tbstr(s, l) b_static_refblk(s, l)
+
+INLINE PURE bstring b_static_refcstr(char *str)
+{
+        return (bstring){
+                .slen  = strlen(str),
+                .mlen  = 0,
+                .data  = (uchar *)(str),
+                .flags = 0x00u
+        };
+}
 
 /**
  * Fill the tagbstring t with the substring from b, starting from position pos
@@ -1790,7 +1864,8 @@ BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
  *
  * Note: bstrings which are write protected cannot be destroyed via bdestroy.
  */
-#define b_writeprotect(t) ((t)->flags &= (~((uint8_t)BSTR_WRITE_ALLOWED)))
+#define b_writeprotect(BSTR_) \
+        ((BSTR_) ? ((BSTR_)->flags &= (~((uint8_t)BSTR_WRITE_ALLOWED))) : 0)
 
 /**
  * Allow bstring to be written to via the bstrlib API.
@@ -1804,12 +1879,14 @@ BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
  * by one more than necessary for every call to bwriteallow interleaved with any
  * bstring API which writes to this bstring.
  */
-#define b_writeallow(t) ((t)->flags |= BSTR_WRITE_ALLOWED)
+#define b_writeallow(BSTR_) \
+        ((BSTR_) ? ((BSTR_)->flags |= BSTR_WRITE_ALLOWED) : 0)
 
 /**
  * Returns 1 if the bstring is write protected, otherwise 0 is returned.
  */
-#define b_iswriteprotected(t) (((t)->flags & BSTR_WRITE_ALLOWED) == 0)
+#define b_iswriteprotected(BSTR_) \
+        ((BSTR_) && (((BSTR_)->flags & BSTR_WRITE_ALLOWED) == 0))
 
 /* 
  * Cleanup

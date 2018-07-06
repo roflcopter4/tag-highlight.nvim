@@ -5,32 +5,24 @@
 #include "mpack.h"
 
 #define BT bt_init
-#define MIN(iA, iB) (((iA) <= (iB)) ? (iA) : (iB))
 
-extern int sockfd;
-extern FILE *mpack_log;
 extern pthread_mutex_t event_mutex;
 
-static const struct event_type {
+static const struct event_id {
         const bstring name;
-        const enum events {
-                EVENT_BUF_LINES,
-                EVENT_BUF_CHANGED_TICK,
-                EVENT_BUF_DETACH,
-                EVENT_COCKSUCKER,
-        } id;
+        const enum event_types id;
 } event_list[] = {
-        { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
-        { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
-        { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
-        { BT("cocksucker_event"),           EVENT_COCKSUCKER       },
+    { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
+    { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
+    { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
+    { BT("cocksucker_event"),           EVENT_COCKSUCKER       },
 };
 
 
 static inline void b_write_ll(int fd, linked_list *ll);
 static void handle_line_event(uint index, mpack_obj **items);
 static void replace_line(uint index, b_list *new_lines, uint lineno, uint replno);
-static const struct event_type * id_event(mpack_obj *event);
+static const struct event_id * id_event(mpack_obj *event);
 
 
 /*============================================================================*/
@@ -39,26 +31,26 @@ static const struct event_type * id_event(mpack_obj *event);
 void
 handle_unexpected_notification(mpack_obj *note)
 {
-        UNUSED const struct event_type *type = id_event(note);
+        UNUSED const struct event_id *type = id_event(note);
         mpack_print_object(note, mpack_log);
         mpack_destroy(note);
 }
 
 
-void
+enum event_types
 handle_nvim_event(mpack_obj *event)
 {
 #define D (event->data.arr->items[2]->data.arr->items)
 
         pthread_mutex_lock(&event_mutex);
 
-        const struct event_type *type   = id_event(event);
+        const struct event_id *type   = id_event(event);
         const uint               bufnum = D[0]->data.ext->num;
         const int                index  = find_buffer_ind(bufnum);
 
         if (type->id == EVENT_COCKSUCKER) {
                 echo("NO I DON'T!!!!!");
-                return;
+                return type->id;
         }
 
         assert(index >= 0);
@@ -85,6 +77,7 @@ handle_nvim_event(mpack_obj *event)
 
         pthread_mutex_unlock(&event_mutex);
 
+        return type->id;
 #undef D
 }
 
@@ -101,11 +94,12 @@ handle_line_event(const uint index, mpack_obj **items)
         bdata->ctick       = items[1]->data.num;
         unsigned first     = items[2]->data.num;
         unsigned last      = items[3]->data.num;
-        b_list * new_lines = mpack_array_to_blist(items[4]->data.arr);
+        b_list * new_lines = mpack_array_to_blist(items[4]->data.arr, true);
         items[4]->data.arr = NULL;
 
+        /* nvprintf("Updating for buffer number %d, internally known as %u\n", bdata->num, index);
         nvprintf("first: %u, last: %u, llqty: %d, newqty: %u\n",
-                 first, last, bdata->lines->qty, new_lines->qty);
+                 first, last, bdata->lines->qty, new_lines->qty); */
 
         unsigned diff    = last - first;
         unsigned listlen = new_lines->qty;
@@ -146,10 +140,10 @@ handle_line_event(const uint index, mpack_obj **items)
                 }
         }
 
-        assert(ll_verify_size(bdata->lines));
+        /* assert(ll_verify_size(bdata->lines)); */
 
-        bstring *fn = nvim_call_function(sockfd, b_tmp("tempname"),
-                                         MPACK_STRING, NULL, 1);
+#if 0
+        bstring *fn = nvim_call_function(sockfd, b_tmp("tempname"), MPACK_STRING, NULL, 1);
         int tempfd  = open(BS(fn), O_CREAT|O_WRONLY|O_TRUNC, 0600);
 
         b_write_ll(tempfd, bdata->lines);
@@ -157,6 +151,7 @@ handle_line_event(const uint index, mpack_obj **items)
         b_free(fn);
 
         echo("Done writing file");
+#endif
         
         free(new_lines->lst);
         free(new_lines);
@@ -164,12 +159,14 @@ handle_line_event(const uint index, mpack_obj **items)
 
 
 static void
-replace_line(const uint index, b_list *new_lines, const uint lineno, const uint replno)
+replace_line(const uint index, b_list *new_lines,
+             const uint lineno, const uint replno)
 {
         struct bufdata *bdata = buffers.lst[index];
         ll_node        *node  = ll_at(bdata->lines, lineno);
 
-        nvprintf("Replacing line %u with replno %u, list is %d long and newlist is %u long\n",
+        nvprintf("Replacing line %u with replno %u, list is %d long and "
+                 "newlist is %u long\n",
                  lineno, replno, bdata->lines->qty, new_lines->qty);
 
         b_destroy(node->data);
@@ -193,10 +190,10 @@ b_write_ll(int fd, linked_list *ll)
 }
 
 
-static const struct event_type *
+static const struct event_id *
 id_event(mpack_obj *event)
 {
-        const struct event_type *type = NULL;
+        const struct event_id *type = NULL;
         bstring *typename = event->data.arr->items[1]->data.str;
 
         for (unsigned i = 0; i < ARRSIZ(event_list); ++i)

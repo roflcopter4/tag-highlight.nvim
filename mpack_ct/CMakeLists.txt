@@ -84,9 +84,10 @@ else()
 
     set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 -Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
--Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=format -Wsuggest-attribute=malloc \
+-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
--Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches")
+-Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches \
+-Wvarargs -Wchkp -Winit-self")
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O3 -g")

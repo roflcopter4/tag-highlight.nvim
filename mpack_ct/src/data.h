@@ -10,6 +10,14 @@ enum filetype_id {
         FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
 };
 
+enum event_types {
+        EVENT_BUF_LINES,
+        EVENT_BUF_CHANGED_TICK,
+        EVENT_BUF_DETACH,
+        EVENT_COCKSUCKER,
+};
+
+
 struct settings_s {
         /* 6 bytes */
         uint16_t job_id;
@@ -19,10 +27,11 @@ struct settings_s {
         bool verbose;
 
         b_list     *ctags_args;
+        b_list     *ignored_ftypes;
         b_list     *norecurse_dirs;
-        bstring    *compression_type;
         dictionary *ignored_tags;
         dictionary *order;
+        enum comp_type_e { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type;
 };
 
 struct ftdata_s {
@@ -36,51 +45,69 @@ struct ftdata_s {
         bool initialized;
 };
 
+struct top_dir {
+        int16_t  tmpfd;
+        uint16_t index;
+        uint16_t refs;
+        bool     recurse;
+
+        bstring *gzfile;
+        bstring *pathname;
+        bstring *tmpfname;
+        b_list  *tags;
+};
+
 struct buffer_list {
         struct bufdata {
-                /* 8 bytes */
-                uint16_t num;
-                int16_t  tmpfd;
                 uint32_t ctick;
-                /* 4 bytes */
                 uint32_t last_ctick;
+                uint16_t num;
 
-                bstring     *filename;
-                bstring     *gzfile;
-                bstring     *tmpfname;
-                bstring     *topdir;
-                b_list      *tags;
-                linked_list *lines;
-                ll_node     *current;
-
+                bstring         *filename;
+                b_list          *cmd_cache;
+                linked_list     *lines;
+                ll_node         *current;
                 struct ftdata_s *ft;
+                struct top_dir  *topdir;
         } *lst[512];
-        /* } **lst; */
 
-        struct {
+        struct bad_bufs_s {
                 int lst[512];
-                unsigned short qty;
-                unsigned short mlen;
+                uint16_t qty;
+                uint16_t mlen;
         } bad_bufs;
 
-        unsigned qty;
-        unsigned mlen;
+        uint16_t mkr;
+        uint16_t mlen;
+};
+
+struct top_dir_list {
+        struct top_dir *lst[512];
+        uint16_t mkr;
+        uint16_t mlen;
 };
 
 
+extern struct settings_s   settings;
+extern struct buffer_list  buffers;
+extern struct ftdata_s     ftdata[];
+extern struct top_dir_list top_dirs;
+
+extern int   sockfd;
 extern FILE *vpipe;
-extern struct settings_s  settings;
-extern struct buffer_list buffers;
-extern struct ftdata_s    ftdata[];
 extern const size_t ftdata_len;
 extern const char *const m_type_names[];
 
 
+
+/*===========================================================================*/
 /*===========================================================================*/
 /* Functions */
 
 
 /*---------------------------------------------------------------------------*/
+/* Buffers */
+
 extern bool new_buffer(int fd, int bufnum);
 extern int  find_buffer_ind(const int bufnum);
 extern struct bufdata *find_buffer(int bufnum);
@@ -89,33 +116,48 @@ extern void destroy_bufdata(struct bufdata **bdata);
 
 
 /*---------------------------------------------------------------------------*/
+/* Events */
 extern void handle_unexpected_notification(mpack_obj *note);
-extern void handle_nvim_event(mpack_obj *event);
+/* extern void handle_nvim_event(mpack_obj *event); */
+extern enum event_types handle_nvim_event(mpack_obj *event);
+
 
 
 /*---------------------------------------------------------------------------*/
+/* Archives */
 extern b_list *get_archived_tags(struct bufdata *bdata);
 
 
+/*===========================================================================*/
+/*===========================================================================*/
 /* Initializers */
 
-#define ZERO_512                                                                                          \
-        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, }
+#define ZERO_512                                                         \
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
+          0, 0, 0, 0, 0, 0, 0, 0 }
 
 
 #endif /* data.h */

@@ -34,7 +34,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* #include "p99/p99.h" */
+
 #include "data.h"
+
 
 extern int mesfd;
 
@@ -79,6 +82,9 @@ struct backups {
 
 #define B(LIT_CSTR_)    b_tmp(LIT_CSTR_)
 
+#define MAX(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ > ib_) ? ia_ : ib_; })
+#define MIN(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ < ib_) ? ia_ : ib_; })
+
 #ifdef HAVE_ERR
 #   undef HAVE_ERR
 #endif
@@ -107,13 +113,19 @@ extern void    __free_all    (void *ptr, ...);
 extern int64_t __xatoi       (const char *str, bool strict);
 extern int     find_num_cpus (void);
 extern void    __b_add_to_list (b_list **list, bstring *bstr);
-extern void *  xmalloc       (const size_t size)                aWUR aMAL aALSZ(1);
-extern void *  xcalloc       (const int num, const size_t size) aWUR aMAL aALSZ(1, 2);
-extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
 extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR;
 extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
 extern void    add_backup    (struct backups *list, void *item);
 extern void    free_backups  (struct backups *list);
+extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
+
+#ifdef USE_XMALLOC
+   extern void *  xmalloc    (const size_t size)                aWUR aMAL aALSZ(1);
+   extern void *  xcalloc    (const int num, const size_t size) aWUR aMAL aALSZ(1, 2);
+#else
+#  define xmalloc malloc
+#  define xcalloc calloc
+#endif
 
 #define HAVE_REALLOCARRAY
 #if defined(HAVE_REALLOCARRAY)
@@ -124,6 +136,9 @@ extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 
 #   define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #   define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
+
+
+extern struct bufdata * null_find_bufdata(const int bufnum, struct bufdata *bdata);
 
 
 #ifdef __cplusplus

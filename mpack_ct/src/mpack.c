@@ -7,8 +7,7 @@
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(dictionary *dict, const bstring *key);
 static void      *get_expect    (mpack_obj *result, const enum mpack_types expect,
-                                 const bstring *key, bool destroy);
-
+                                 const bstring *key, bool destroy, bool is_retval);
 
 static unsigned        sok_count, io_count;
 extern pthread_mutex_t mpack_main;
@@ -20,12 +19,12 @@ extern pthread_mutex_t mpack_main;
 #define COUNT(FD_) (((FD_) == 1) ? io_count++ : sok_count++)
 
 
-#define write_and_clean(FD__, MPACK, func)                               \
-        do {                                                             \
+#define WRITE_AND_CLEAN(FD__, MPACK, func)                                     \
+        do {                                                                   \
                 fprintf(mpack_log, "Writing request no %d to fd %d: \"%s\"\n", \
-                        COUNT(fd) - 1, (FD__), BS(func));                \
-                b_write((FD__), *(MPACK)->packed);                       \
-                mpack_destroy(MPACK);                                    \
+                        COUNT(fd) - 1, (FD__), BS(func));                      \
+                b_write((FD__), *(MPACK)->packed);                             \
+                mpack_destroy(MPACK);                                          \
         } while (0)
 
 
@@ -81,7 +80,7 @@ __nvim_write(const int fd, const enum nvim_write_type type, const bstring *mes)
         }
 
         mpack_obj *pack = encode_fmt_api(fd, "s", func, mes);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *tmp = decode_stream(fd, MES_RESPONSE);
         /* pthread_mutex_unlock(&mpack_main); */
@@ -115,7 +114,7 @@ nvim_buf_attach(const int fd, const int bufnum)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d,B,[]", func, bufnum, true);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
         
         pthread_mutex_unlock(&mpack_main);
         return NULL;
@@ -129,10 +128,10 @@ nvim_list_bufs(const int fd)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, MPACK_ARRAY, NULL, true);
+        void      *ret    = get_expect(result, MPACK_ARRAY, NULL, true, true);
 
         pthread_mutex_unlock(&mpack_main);
         return ret;
@@ -144,13 +143,12 @@ nvim_get_current_buf(const int fd)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
 
-        int ret = RETVAL->data.ext->num;
-
+        const int ret = RETVAL->data.ext->num;
         print_and_destroy(result);
         return ret;
 }
@@ -161,11 +159,11 @@ nvim_get_current_line(const int fd)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
-        void *ret = get_expect(result, MPACK_STRING, NULL, true);
+        void *ret = get_expect(result, MPACK_STRING, NULL, true, true);
         
         return ret;
 }
@@ -176,7 +174,7 @@ nvim_buf_line_count(const int fd, const int bufnum)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d", func, bufnum);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result    = decode_stream(fd, MES_RESPONSE);
         unsigned   linecount = (unsigned)(RETVAL->data.num);
@@ -195,10 +193,10 @@ nvim_buf_get_lines(const int      fd,
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d,d,d,d", func, bufnum, start, end, 0);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         b_list *ret = mpack_array_to_blist(get_expect(decode_stream(fd, MES_RESPONSE),
-                                           MPACK_ARRAY, NULL, true));
+                                           MPACK_ARRAY, NULL, true, true), true);
         pthread_mutex_unlock(&mpack_main);
         return ret;
 }
@@ -209,12 +207,16 @@ nvim_buf_get_name(const int fd, const int bufnum)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d", func, bufnum);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        bstring   *ret    = get_expect(result, MPACK_STRING, NULL, true);
-        pthread_mutex_unlock(&mpack_main);
+        bstring   *ret    = get_expect(result, MPACK_STRING, NULL, true, true);
 
+        char fullname[PATH_MAX];
+        char *tmp = realpath(BS(ret), fullname);
+        b_assign_cstr(ret, tmp);
+
+        pthread_mutex_unlock(&mpack_main);
         return ret;
 }
 
@@ -226,7 +228,7 @@ nvim_command(const int fd, const bstring *cmd, const bool fatal)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, cmd);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         bool       ret    = mpack_type(result->DAI[2]) == MPACK_NIL;
@@ -252,7 +254,7 @@ nvim_command_output(const int              fd,
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, cmd);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         void      *ret    = NULL;
@@ -260,9 +262,8 @@ nvim_command_output(const int              fd,
         if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
                 bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
                 b_fputs(stderr, errmsg, B("\n"));
-        } else {
-                ret = get_expect(result, expect, key, 1);
-        }
+        } else
+                ret = get_expect(result, expect, key, true, true);
 
         assert(!(fatal && !ret));
         pthread_mutex_unlock(&mpack_main);
@@ -280,10 +281,10 @@ nvim_call_function(const int              fd,
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s,[]", func, function);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, expect, key, true);
+        void      *ret    = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to analyze out put of function \"%s\".", BS(function));
 
@@ -309,11 +310,11 @@ nvim_call_function_args(const int              fd,
         va_start(va, fmt);
         mpack_obj *pack = encode_fmt(buf, 0, COUNT(fd), &func, function, &va);
         mpack_print_object(pack, mpack_log); fflush(mpack_log);
-        write_and_clean(fd, pack, &func);
+        WRITE_AND_CLEAN(fd, pack, &func);
         va_end(va);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, expect, key, true);
+        void      *ret    = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to analyze output of function \"%s\".", BS(function));
 
@@ -333,11 +334,11 @@ nvim_get_var(const int              fd,
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, varname);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
-        void *ret = get_expect(result, expect, key, true);
+        void *ret = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to retrieve variable \"%s\".", BS(varname));
 
@@ -356,10 +357,10 @@ nvim_get_option(const int              fd,
         BT_FUNCNAME();
 
         mpack_obj *pack = encode_fmt_api(fd, "s", func, optname);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void *     ret    = get_expect(result, expect, key, true);
+        void *     ret    = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to retrieve option \"%s\".", BS(optname));
 
@@ -380,11 +381,11 @@ nvim_buf_get_option(const int              fd,
         BT_FUNCNAME();
 
         mpack_obj *pack = encode_fmt_api(fd, "d:s", func, bufnum, optname);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
-        void *ret = get_expect(result, expect, key, true);
+        void *ret = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to retrieve option \"%s\".", BS(optname));
 
@@ -399,7 +400,7 @@ nvim_get_api_info(const int fd)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         print_and_destroy(result);
@@ -412,7 +413,7 @@ nvim_subscribe(const int fd, const bstring *event)
         pthread_mutex_lock(&mpack_main);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, event);
-        write_and_clean(fd, pack, func);
+        WRITE_AND_CLEAN(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
@@ -427,9 +428,16 @@ static void *
 get_expect(mpack_obj *            result,
            const enum mpack_types expect,
            const bstring *        key,
-           const bool             destroy)
+           const bool             destroy,
+           const bool             is_retval)
 {
-        mpack_obj *cur = RETVAL;
+        mpack_obj *cur;
+
+        if (is_retval)
+                cur = RETVAL;
+        else
+                cur = result;
+
         void      *ret = NULL;
         int64_t    value;
         assert(mpack_log != NULL);
@@ -447,7 +455,7 @@ get_expect(mpack_obj *            result,
                         goto num_from_ext;
                 }
         }
-        if (mpack_type(cur) != expect) {
+        if (!cur || mpack_type(cur) != expect) {
                 if (destroy)
                         mpack_destroy(result);
                 return NULL;
@@ -601,20 +609,25 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
 
 
 b_list *
-mpack_array_to_blist(struct mpack_array *array)
+mpack_array_to_blist(struct mpack_array *array, const bool destroy)
 {
         unsigned size = array->qty;
         b_list * ret  = b_list_create_alloc(size);
 
-        for (unsigned i = 0; i < size; ++i) {
-                b_writeprotect(array->items[i]->data.str);
-                b_add_to_list(ret, array->items[i]->data.str);
+        if (destroy) {
+                for (unsigned i = 0; i < size; ++i) {
+                        b_writeprotect(array->items[i]->data.str);
+                        b_add_to_list(ret, array->items[i]->data.str);
+                }
+
+                destroy_mpack_array(array);
+
+                for (unsigned i = 0; i < size; ++i)
+                        b_writeallow(ret->lst[i]);
+        } else {
+                for (unsigned i = 0; i < size; ++i)
+                        b_add_to_list(ret, array->items[i]->data.str);
         }
-
-        destroy_mpack_array(array);
-
-        for (unsigned i = 0; i < size; ++i)
-                b_writeallow(ret->lst[i]);
 
         return ret;
 }
@@ -631,7 +644,7 @@ blist_from_var_fmt(
 
         void *ret = nvim_get_var(fd, varname, MPACK_ARRAY, key, fatal);
         b_free(varname);
-        return mpack_array_to_blist(ret);
+        return mpack_array_to_blist(ret, true);
 }
 
 
@@ -656,26 +669,20 @@ nvim_get_var_fmt(const int              fd,
 
 void *
 dict_get_key(dictionary *           dict,
-             const enum mpack_types expect UNUSED,
+             const enum mpack_types expect,
              const bstring *        key,
              const bool             fatal)
 {
         if (!dict || !key)
                 abort();
 
-        void *ret = NULL;
+        mpack_obj tmp;
+        tmp.flags     = MPACK_DICT | MPACK_PHONY;
+        tmp.data.dict = dict;
 
-        for (unsigned i = 0; i < dict->qty; ++i) {
-                if (b_iseq(dict->entries[i]->key->data.str, key)) {
-                        nvprintf("Found at pos %u key %s", i,
-                                 BS(dict->entries[i]->key->data.str));
-                        ret = dict->entries[i];
-                        break;
-                }
-        }
+        void *ret = get_expect(&tmp, expect, key, false, false);
 
-        FATAL("Data at key \"%s\" is invalid.", BS(key));
-
+        FATAL("Key \"%s\" not found or data is invalid.", BS(key));
         return ret;
 }
 
@@ -687,8 +694,8 @@ find_key_value(dictionary *dict, const bstring *key)
 
         for (unsigned i = 0; i < dict->qty; ++i) {
                 if (b_iseq(dict->entries[i]->key->data.str, key)) {
-                        nvprintf("Found at pos %u key %s", i,
-                                 BS(dict->entries[i]->key->data.str));
+                        /* nvprintf("Found at pos %u key %s", i,
+                                 BS(dict->entries[i]->key->data.str)); */
                         ret = dict->entries[i]->value;
                         break;
                 }

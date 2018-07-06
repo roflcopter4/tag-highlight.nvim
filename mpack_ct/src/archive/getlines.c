@@ -20,26 +20,26 @@ static void gz_getlines    (b_list *tags, const bstring *filename);
 static void xz_getlines    (b_list *tags, const bstring *filename);
 #endif
 
-struct backups backup_pointers = { NULL, 0, 0 };
+extern struct backups backup_pointers;
 
 /* ========================================================================== */
 
 
 int
-getlines(b_list *tags, const bstring *comptype, const bstring *filename)
+getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
 {
         warnx("Attempting to read tag file %s", BS(filename));
 
-        if (b_iseq(comptype, b_tmp("none")))
+        if (comptype == COMP_NONE)
                 plain_getlines(tags, filename);
-        else if (b_iseq(comptype, b_tmp("gzip")))
+        else if (comptype == COMP_GZIP)
                 gz_getlines(tags, filename);
 #ifdef LZMA_SUPPORT
-        else if (b_iseq(comptype, b_tmp("lzma")))
+        else if (comptype == COMP_LZMA)
                 xz_getlines(tags, filename);
 #endif
         else {
-                warnx("Unknown compression type %s!", BS(comptype));
+                warnx("Unknown compression type!");
                 return 0;
         }
         return 1; /* 1 indicates success here... */
@@ -61,7 +61,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
 }
 
 
-#ifdef DEBUG
+#if defined(DEBUG) && defined(POINTLESS_DEBUG)
     static inline void
     report_size(struct archive_size *size)
     {
@@ -178,6 +178,8 @@ xz_getlines(b_list *tags, const bstring *filename)
 
         ret = lzma_code(strm, action);
 
+        if (ret != LZMA_STREAM_END)
+                ret = lzma_code(strm, LZMA_FINISH);
         if (ret != LZMA_STREAM_END)
                 warn("Unexpected error on line %d in file %s: %d => %s",
                      __LINE__, __FILE__, ret, lzma_message_strm(ret));

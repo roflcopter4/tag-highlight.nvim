@@ -61,6 +61,7 @@ file_is_reg(const char *filename)
 }
 
 
+#ifdef USE_XMALLOC
 void *
 xmalloc(const size_t size)
 {
@@ -79,6 +80,7 @@ xcalloc(const int num, const size_t size)
                 err(101, "Calloc call failed - attempted %zu bytes", size);
         return tmp;
 }
+#endif
 
 
 void *
@@ -243,6 +245,19 @@ num_to_str(const long long value)
         return (char*[21]){ret};
 }
 #endif
+
+
+struct bufdata *
+null_find_bufdata(const int bufnum, struct bufdata *bdata)
+{
+        if (!bdata) {
+                assert(bufnum > 0);
+                bdata = find_buffer(bufnum);
+        }
+        assert(bdata != NULL);
+
+        return bdata;
+}
 
 
 /*============================================================================*/

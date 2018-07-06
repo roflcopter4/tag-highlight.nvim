@@ -76,7 +76,7 @@
                         memmove((D), (buf), (blen)); \
         } while (0);
 
-#define DEBUG
+/* #define DEBUG */
 
 /* 
  * Debugging aids
@@ -110,7 +110,8 @@
 #else
 #  define RUNTIME_ERROR()          return BSTR_ERR
 #  define RETURN_NULL()            return NULL
-#  define ALLOCATION_ERROR(RETVAL) return (RETVAL)
+/* #  define ALLOCATION_ERROR(RETVAL) return (RETVAL) */
+#  define ALLOCATION_ERROR(RETVAL) abort();
 #endif
 
 
@@ -120,6 +121,7 @@
  * see this as a net benefit. Not many programs can meaninfully continue when no
  * memory is left on the system (a very rare occurance anyway).
  */
+#ifdef USE_XMALLOC
 static inline void *
 xmalloc(size_t size)
 {
@@ -128,6 +130,9 @@ xmalloc(size_t size)
                 err(1, "Failed to allocate %zu bytes", size);
         return tmp; 
 }
+#else
+#  define xmalloc malloc
+#endif
 
 static inline void *
 xrealloc(void *ptr, size_t size)
