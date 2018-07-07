@@ -23,6 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <execinfo.h>
+
 #if defined(HAVE_UNISTD_H)
 #  include <unistd.h>
 #elif defined(_WIN32)
@@ -76,29 +78,53 @@
                         memmove((D), (buf), (blen)); \
         } while (0);
 
+
+#ifdef __GNUC__
+#  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#else
+#  define FUNC_NAME (__func__)
+#endif
+
+
 /* #define DEBUG */
 
 /* 
  * Debugging aids
  */
 #if defined(DEBUG)
-#  define RUNTIME_ERROR()                                             \
-        do {                                                          \
-                warnx("Runtime error in func %s in file %s, line %d", \
-                      __func__, __FILE__, __LINE__);                  \
-                return BSTR_ERR;                                      \
+#  define RUNTIME_ERROR()                                                  \
+        do {                                                               \
+                void *arr[128];                                            \
+                size_t num     = backtrace(arr, 128);                      \
+                char **strings = backtrace_symbols(arr, num);              \
+                                                                           \
+                warnx("Runtime error in func %s in bstrlib.c, line %d\n"   \
+                      "STACKTRACE: ", FUNC_NAME, __LINE__);                \
+                for (unsigned i = 0; i < num; ++i)                         \
+                        fprintf(stderr, "  -  %s\n", strings[i]);          \
+                                                                           \
+                free(strings);                                             \
+                return BSTR_ERR;                                           \
         } while (0)
-#  define RETURN_NULL()                                             \
-        do {                                                        \
-                warnx("Null return in func %s in file %s, line %d", \
-                      __func__, __FILE__, __LINE__);                \
-                return NULL;                                        \
-        } while (0)
-#  define ALLOCATION_ERROR(RETVAL)                                       \
+#  define RETURN_NULL()                                                  \
         do {                                                             \
-                warnx("Allocation error in func %s in file %s, line %d", \
-                      __func__, __FILE__, __LINE__);                     \
-                return (RETVAL);                                         \
+                void *arr[128];                                          \
+                size_t num     = backtrace(arr, 128);                    \
+                char **strings = backtrace_symbols(arr, num);            \
+                                                                         \
+                warnx("Null return in func %s in bstrlib.c, line %d\n"   \
+                      "STACKTRACE: ", FUNC_NAME, __LINE__);              \
+                for (unsigned i = 0; i < num; ++i)                       \
+                        fprintf(stderr, "  -  %s\n", strings[i]);        \
+                                                                         \
+                free(strings);                                           \
+                return NULL;                                             \
+        } while (0)
+#  define ALLOCATION_ERROR(RETVAL)                                         \
+        do {                                                               \
+                warnx("Allocation error in func %s in bstrlib.c, line %d", \
+                      FUNC_NAME,  __LINE__);                               \
+                return (RETVAL);                                           \
         } while (0)
 #elif defined(X_ERROR)
 #  define RUNTIME_ERROR() \

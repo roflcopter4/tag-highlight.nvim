@@ -81,13 +81,24 @@ else()
     # set (WARNS "-fdiagnostics-color=always -Weverything")
     set (WARNS "-fdiagnostics-color=always -Wall")
 
+    string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
-    set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
+    if (CLANG_STR_SEARCH EQUAL -1)
+        message("Not clang!")
+        set (ISCLANG 0)
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 -Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
 -Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
 -Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches \
 -Wvarargs -Wchkp -Winit-self")
+    else()
+        set (ISCLANG 1)
+        message("Is clang!")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
+-Wno-sign-conversion -Wno-documentation-unknown-command -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros \
+-Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-conversion -Wno-padded")
+    endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O3 -g")

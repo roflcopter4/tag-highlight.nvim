@@ -11,4 +11,4 @@ let g:tag_highlight#perl#s = {
 
 highlight def link perlConstantTag	tag_highlight_ConstantTag
 highlight def link perlFunctionTag	tag_highlight_FunctionTag
-highlight def link perlPackageTag	tag_highlight_ModuleTag
+highlight def link perlPackageTag	tag_highlight_TypeTag

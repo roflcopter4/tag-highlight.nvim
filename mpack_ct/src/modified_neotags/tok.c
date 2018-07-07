@@ -93,7 +93,9 @@ tokenize_vim(b_list *list, char *vimbuf, cmp_f check)
                b_add_to_list(list, tmp);
 
                if ((col = strchr(tok, ':'))) {
-                       tmp = b_refblk(tok, vimbuf - (col + 1) - 1llu);
+                       if (!(vimbuf - col))
+                               continue;
+                       tmp = b_refblk(tok, vimbuf - col);
                        b_add_to_list(list, tmp);
                }
         }

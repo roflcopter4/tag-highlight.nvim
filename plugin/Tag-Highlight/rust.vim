@@ -1,5 +1,5 @@
 if !exists('g:tag_highlight#rust#order')
-        let g:tag_highlight#rust#order = 'nsicgtmePfM'
+        let g:tag_highlight#rust#order = 'nsicgtmefM'
 endif
 
 let g:tag_highlight#rust#n = { 'group': 'rustModuleTag' }

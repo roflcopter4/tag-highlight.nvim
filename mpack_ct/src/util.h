@@ -38,8 +38,7 @@
 
 #include "data.h"
 
-
-extern int mesfd;
+extern const char *HOME;
 
 struct backups {
         char **lst;
@@ -75,6 +74,7 @@ struct backups {
 #define eprintf(...)    fprintf(stderr, __VA_ARGS__)
 #define xfree(PTR_)     (free(PTR_), (PTR_) = NULL)
 #define UNUSED          __attribute__((__unused__))
+#define aNORET          __attribute__((__noreturn__))
 #define aWUR            __attribute__((__warn_unused_result__))
 #define aMAL            __attribute__((__malloc__))
 #define aALSZ(...)      __attribute__((__alloc_size__(__VA_ARGS__)))
@@ -90,14 +90,40 @@ struct backups {
 #endif
 /* #   include <err.h> */
 /* #else */
-    void _warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
-#   define warn(...)       _warn(true, __VA_ARGS__)
-#   define warnx(...)      _warn(false, __VA_ARGS__)
-#   define err(EVAL, ...)  _warn(true, __VA_ARGS__), abort()
-#   define errx(EVAL, ...) _warn(false, __VA_ARGS__), abort()
+
+    void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
+    void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4) aNORET;
+#   define warn(...)       __warn(true, __VA_ARGS__)
+#   define warnx(...)      __warn(false, __VA_ARGS__)
+#   define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
+#   define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
+
+/* #   define err(EVAL, ...)  _warn(true, __VA_ARGS__), abort()
+#   define errx(EVAL, ...) _warn(false, __VA_ARGS__), abort() */
 /* #   define err(EVAL, ...)  _warn(true, __VA_ARGS__), exit(EVAL) */
 /* #   define errx(EVAL, ...) _warn(false, __VA_ARGS__), exit(EVAL) */
 /* #endif */
+
+#ifdef __GNUC__
+#  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#else
+#  define FUNC_NAME (__func__)
+#endif
+
+#define nvprintf warnx
+#define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n")))
+
+#ifndef DEBUG
+#undef echo
+#undef nvprintf
+#undef eprintf
+#undef warnx
+#define warnx(...)
+#define nvprintf warnx
+#define eprintf warnx
+#define echo warnx
+#endif
+
 
 /*===========================================================================*/
 /* Generic Utility Functions */
@@ -105,14 +131,10 @@ struct backups {
 #define xatoi(STR_)            __xatoi((STR_), false)
 #define s_xatoi(STR_)          __xatoi((STR_), true)
 #define free_all(...)          __free_all(__VA_ARGS__, NULL)
-#define b_dump_list(FP_, LST_) __b_dump_list((FP_), (LST_), #LST_)
-#define b_add_to_list(LST_, BSTR) __b_add_to_list((&(LST_)), (BSTR))
 
-extern void    __b_dump_list (FILE *fp, const b_list *list, const char *listname);
 extern void    __free_all    (void *ptr, ...);
 extern int64_t __xatoi       (const char *str, bool strict);
 extern int     find_num_cpus (void);
-extern void    __b_add_to_list (b_list **list, bstring *bstr);
 extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR;
 extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
 extern void    add_backup    (struct backups *list, void *item);
@@ -136,9 +158,6 @@ extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 
 #   define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #   define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
-
-
-extern struct bufdata * null_find_bufdata(const int bufnum, struct bufdata *bdata);
 
 
 #ifdef __cplusplus

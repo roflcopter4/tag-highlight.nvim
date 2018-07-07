@@ -136,20 +136,37 @@ basename(char *path)
 
 #ifndef HAVE_ERR
 void
-_warn(const bool print_err, const char *const __restrict fmt, ...)
+__err(const int status, const bool print_err, const char *const __restrict fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        char buf[BUFSIZ];
+        char buf[0x8000];
 
         if (print_err)
-                snprintf(buf, BUFSIZ, "%s: %s: %s\n", program_name, fmt,
-                         strerror(errno));
+                snprintf(buf, 0x8000, "%s: %s: %s\n", program_name, fmt, strerror(errno));
         else
-                snprintf(buf, BUFSIZ, "%s: %s\n", program_name, fmt);
+                snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
 
         vfprintf(stderr, buf, ap);
+        va_end(ap);
 
+        exit(status);
+}
+
+
+void
+__warn(const bool print_err, const char *const __restrict fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        char buf[0x8000];
+
+        if (print_err)
+                snprintf(buf, 0x8000, "%s: %s: %s\n", program_name, fmt, strerror(errno));
+        else
+                snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
+
+        vfprintf(stderr, buf, ap);
         va_end(ap);
 }
 #endif
@@ -247,18 +264,6 @@ num_to_str(const long long value)
 #endif
 
 
-struct bufdata *
-null_find_bufdata(const int bufnum, struct bufdata *bdata)
-{
-        if (!bdata) {
-                assert(bufnum > 0);
-                bdata = find_buffer(bufnum);
-        }
-        assert(bdata != NULL);
-
-        return bdata;
-}
-
 
 /*============================================================================*/
 /* List operations */
@@ -273,23 +278,6 @@ __free_all(void *ptr, ...)
         while ((ptr = va_arg(ap, void *)) != NULL);
 
         va_end(ap);
-}
-
-void
-__b_dump_list(FILE *fp, const b_list *list, const char *listname)
-{
-        fprintf(fp, "Dumping list \"%s\"\n", listname);
-        for (unsigned i = 0; i < list->qty; ++i)
-                b_fputs(fp, list->lst[i], b_tmp("\n"));
-}
-
-void
-__b_add_to_list(b_list **list, bstring *bstr)
-{
-        if ((*list)->qty == ((*list)->mlen - 1))
-                (*list)->lst = nrealloc((*list)->lst, ((*list)->mlen <<= 1),
-                                        sizeof(*(*list)->lst));
-        (*list)->lst[(*list)->qty++] = bstr;
 }
 
 void

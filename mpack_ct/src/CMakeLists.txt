@@ -61,4 +61,10 @@ else()
 
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
+
+    if (ISCLANG)
+        target_link_libraries (tag_highlight -fuse-ld=lld)
+    endif()
+
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
 endif()

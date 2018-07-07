@@ -61,16 +61,16 @@ strip_comments(struct bufdata *bdata)
                         break;
                 }
         }
-        if (!com)
+        if (com) {
+                switch (com->type) {
+                case C_LIKE: handle_cstyle(joined); break;
+                case PYTHON: handle_python(joined); break;
+                }
+        } else
                 warnx("Failed to identify language \"%s\".",
                       BTS(bdata->ft->vim_name));
 
-        switch (com->type) {
-        case C_LIKE: handle_cstyle(joined); break;
-        case PYTHON: handle_python(joined); break;
-        }
-
-        FILE *cuntbagwhore = safe_fopen_fmt("%s/killme.log", "wb", getenv("HOME"));
+        FILE *cuntbagwhore = safe_fopen_fmt("%s/killme.log", "wb", HOME);
         b_fputs(cuntbagwhore, joined);
         fclose(cuntbagwhore);
 

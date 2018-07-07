@@ -163,8 +163,8 @@ extern mpack_obj * encode_fmt           (const char *fmt, ...);
 #define nvim_out_write(FD, MES) __nvim_write((FD), STANDARD, (MES))
 #define nvim_err_write(FD, MES) __nvim_write((FD), ERROR, (MES))
 /* #define nvprintf(...) fprintf(stderr, __VA_ARGS__) */
-#define nvprintf warnx
-#define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n")))
+/* #define nvprintf warnx */
+/* #define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n"))) */
 
 
 /*============================================================================*/
@@ -203,12 +203,14 @@ numptr_to_num(int64_t *ptr)
 }
 
 
+#define PKG "tag_highlight"
+
 #define nvim_get_var_l(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
         nvim_get_var((FD__), b_tmp(VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
-#define blist_from_var(FD__, VARNAME_, KEY_, FATAL_) \
-        mpack_array_to_blist(nvim_get_var((FD__), b_tmp(VARNAME_), \
-                             MPACK_ARRAY, (KEY_), (FATAL_)), true)
+#define blist_from_var(FD__, VARNAME_, KEY_, FATAL_)                   \
+        mpack_array_to_blist(nvim_get_var((FD__), B(PKG "#" VARNAME_), \
+                                          MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
 extern FILE *mpack_log;
 #define print_and_destroy(RESULT_)                \

@@ -15,7 +15,6 @@ static const struct event_id {
     { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
     { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
     { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
-    { BT("cocksucker_event"),           EVENT_COCKSUCKER       },
 };
 
 
@@ -45,13 +44,8 @@ handle_nvim_event(mpack_obj *event)
         pthread_mutex_lock(&event_mutex);
 
         const struct event_id *type   = id_event(event);
-        const uint               bufnum = D[0]->data.ext->num;
-        const int                index  = find_buffer_ind(bufnum);
-
-        if (type->id == EVENT_COCKSUCKER) {
-                echo("NO I DON'T!!!!!");
-                return type->id;
-        }
+        const uint             bufnum = D[0]->data.ext->num;
+        const int              index  = find_buffer_ind(bufnum);
 
         assert(index >= 0);
         struct bufdata *bdata = buffers.lst[index];

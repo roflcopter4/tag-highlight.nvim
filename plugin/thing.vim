@@ -105,5 +105,4 @@ augroup KillMe
     autocmd BufEnter * call s:BufChanged()
 augroup END
 
-
 let g:thingything#loaded = 1

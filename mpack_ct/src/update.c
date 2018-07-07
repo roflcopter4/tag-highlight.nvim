@@ -7,9 +7,8 @@
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
         nvim_get_var(sockfd, B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
+#define SLS(CSTRING_) (CSTRING_), (sizeof(CSTRING_) - 1)
 
-#define PKG "tag_highlight"
-/* #define PKG "mytags" */
 
 struct cmd_info {
         int kind;
@@ -21,11 +20,13 @@ struct cmd_info {
 static void handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
                         const struct taglist  *tags, const struct cmd_info *info);
 
-static void hardcocks(struct bufdata *bdata, struct taglist *tags);
+static void update_commands(struct bufdata *bdata, struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
 
+static bstring *get_restore_cmds(b_list *restored_groups);
+
 static b_list *copy_blist(const b_list *list);
-static b_list * clone_blist(const b_list *list);
+static b_list *clone_blist(const b_list *list);
 
 extern FILE *cmdlog;
 
@@ -37,6 +38,16 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 return;
         in_progress = true;
         bdata       = null_find_bufdata(bufnum, bdata);
+
+        if (!bdata->ft->restore_cmds_initialized) {
+                b_list *restored_groups = blist_from_var(
+                    sockfd, "restored_groups", &bdata->ft->vim_name, 0);
+                if (restored_groups) {
+                        bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
+                        b_list_destroy(restored_groups);
+                }
+                bdata->ft->restore_cmds_initialized = true;
+        }
 
         if (bdata->cmd_cache) {
                 update_from_cache(bdata);
@@ -61,7 +72,7 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 
         struct taglist *tags = findemtagers(bdata, toks);
         if (tags) {
-                hardcocks(bdata, tags);
+                update_commands(bdata, tags);
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_destroy(tags->lst[i]->b);
@@ -73,6 +84,11 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 
         b_list_destroy(toks);
         b_destroy(joined);
+
+        if (bdata->ft->restore_cmds)
+                /* b_fputs(stderr, B("That command is \""), bdata->ft->restore_cmds, B("\"\n")); */
+                nvim_command(sockfd, bdata->ft->restore_cmds, 1);
+                /* ; */
 
 #if 0
         b_list_destroy(mustfree);
@@ -86,7 +102,7 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 
 
 static void
-hardcocks(struct bufdata *bdata, struct taglist *tags)
+update_commands(struct bufdata *bdata, struct taglist *tags)
 {
         const unsigned ngroups = bdata->ft->order->slen;
         struct cmd_info info[ngroups];
@@ -126,7 +142,7 @@ hardcocks(struct bufdata *bdata, struct taglist *tags)
                                 break;
 
                 if (ctr == tags->qty) {
-                        nvprintf("Kind \"%c\" is empty, skipping.\n", info[i].kind);
+                        /* nvprintf("Kind \"%c\" is empty, skipping.\n", info[i].kind); */
                 } else {
                         bstring *cmd = b_alloc_null(0x4000);
                         handle_kind(cmd, ctr, bdata->ft, tags, &info[i]);
@@ -225,6 +241,62 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
 /*============================================================================*/
 
 
+static bstring *
+get_restore_cmds(b_list *restored_groups)
+{
+        assert(restored_groups);
+        b_list *allcmds = b_list_create_alloc(restored_groups->qty);
+
+        for (unsigned i = 0; i < restored_groups->qty; ++i) {
+                bstring *cmd = b_format("syntax list %s", BS(restored_groups->lst[i]));
+                bstring *output = nvim_command_output(sockfd, cmd, MPACK_STRING, NULL, 0);
+                b_destroy(cmd);
+                if (!output)
+                        continue;
+
+                cmd       = b_alloc_null(output->slen);
+                char *ptr = strstr(BS(output), "xxx");
+                ptr += 4;
+                assert(!isspace(*ptr));
+
+                if (strncmp(ptr, SLS("match /")) == 0) {
+                        /* b_formata(cmd, "syntax match %s ", BS(restored_groups->lst[i]));
+                        tmp = strchr(ptr, '/'); */
+                        abort();
+
+                } else {
+                        char *tmp;
+                        char link_name[1024];
+                        b_formata(cmd, "syntax keyword %s ", BS(restored_groups->lst[i]));
+
+                        while ((tmp = strchr(ptr, '\n'))) {
+                                b_catblk(cmd, ptr, (tmp - ptr));
+                                b_conchar(cmd, ' ');
+
+                                while (isspace(*++tmp))
+                                        ;
+                                if (strncmp((ptr = tmp), "links to ", 9) == 0)
+                                        if (!((tmp = strchr(ptr, '\n')) + 1))
+                                                break;
+                        }
+
+                        strcpy(link_name, (ptr += 9));
+                        b_formata(cmd, "| hi! link %s %s",
+                                  BS(restored_groups->lst[i]), link_name);
+
+                        b_add_to_list(allcmds, cmd);
+                }
+
+                b_free(output);
+        }
+
+        bstring *ret = b_join(allcmds, B(" | "));
+        b_list_destroy(allcmds);
+
+        return ret;
+}
+
+
 static void
 update_from_cache(struct bufdata *bdata)
 {
@@ -234,6 +306,9 @@ update_from_cache(struct bufdata *bdata)
         for (unsigned i = 0; i < bdata->cmd_cache->qty; ++i)
                 nvim_command(sockfd, bdata->cmd_cache->lst[i], 1);
 }
+
+
+/*============================================================================*/
 
 
 static b_list *

@@ -9,7 +9,6 @@
 #include "highlight.h"
 #include "mpack.h"
 
-#define PKG "tag_highlight"
 #undef nvim_get_var_l
 #undef blist_from_var
 
@@ -40,12 +39,21 @@ static int              create_socket(bstring **name);
 static enum comp_type_e get_compression_type(void);
 
 
-static inline void closefile(FILE **fpp)
-{ fclose(*fpp); }
-static inline void auto_b_destroy(bstring **str)
-{ b_destroy(*str); }
-static inline void pthread_exit_wrapper(UNUSED int x)
-{ pthread_exit(NULL); }
+static inline void
+closefile(FILE **fpp)
+{
+        fclose(*fpp);
+}
+static inline void
+auto_b_destroy(bstring **str)
+{
+        b_destroy(*str);
+}
+
+__attribute__((noreturn)) static inline void pthread_exit_wrapper(UNUSED int x)
+{
+        pthread_exit(NULL);
+}
 
 FILE *cmdlog;
 
@@ -53,11 +61,13 @@ FILE *cmdlog;
 
 
 int
-main(int argc, char *argv[], UNUSED char *envp[])
+main(int argc, char *argv[])
 {
         _Static_assert(sizeof(long) == sizeof(size_t), "Microsoft sux");
+        assert(!isatty(0) && argc == 2);
         extern const char *program_name;
         program_name = basename(argv[0]);
+        HOME         = getenv("HOME");
 
         unlink("/home/bml/final_output.log");
 
@@ -71,32 +81,15 @@ main(int argc, char *argv[], UNUSED char *envp[])
                 sigaction(SIGUSR1, &temp2, NULL);
         }
 
-        mpack_log = safe_fopen_fmt("%s/somecrap.log", "w+", getenv("HOME"));
-        decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", getenv("HOME"));
-        cmdlog    = safe_fopen_fmt("%s/commandlog.log", "wb", getenv("HOME"));
+        mpack_log = safe_fopen_fmt("%s/somecrap.log", "w+", HOME);
+        decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", HOME);
+        cmdlog    = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
         sockfd    = create_socket(&servername);
 
-        if (vpipename) {
-                /* nvprintf("Opening file \"%s\"\n", BS(vpipename)); */
-                vpipe = safe_fopen(BS(vpipename), "r+");
-#if 0
-                _bstring *line  = B_GETS(vpipe, '\n');
-
-                line->data[--line->slen] = '\0';
-                nvprintf("Line was \"%s\"\n", BS(line));
-#endif
-        } else
+        if (!vpipename)
                 errx(1, "Didn't get a pipename...");
-
-        /* nvprintf("sockfd is %d and servername is %s\n", sockfd, BS(servername)); */
-
-#if 0
-        mpack_obj *dumb = encode_fmt("d,d,d,[s,s]", 1, 2, 3, B("Hello"), B("die"));
-        mpack_print_object(dumb, decodelog);
-        mpack_obj *dumber = decode_obj(*dumb->packed, 0);
-        mpack_print_object(dumber, decodelog);
-#endif
+        vpipe = safe_fopen(BS(vpipename), "r+");
 
         settings.comp_type       = get_compression_type();
         settings.comp_level      = nvim_get_var_num("compression_level", 1);
@@ -112,8 +105,8 @@ main(int argc, char *argv[], UNUSED char *envp[])
         struct mpack_array *buflist = nvim_list_bufs(sockfd);
 
         for (unsigned i = 0; i < buflist->qty; ++i) {
-                nvprintf("Attempting to initialize buffer %u\n",
-                         buflist->items[i]->data.ext->num);
+                /* nvprintf("Attempting to initialize buffer %u\n",
+                         buflist->items[i]->data.ext->num); */
                 new_buffer(sockfd, buflist->items[i]->data.ext->num);
         }
 
@@ -140,11 +133,10 @@ static void *
 buffer_event_loop(UNUSED void *vdata)
 {
         for (unsigned i = 0; i < buffers.mkr; ++i) {
-                nvprintf("Attaching to buffer %d\n", buffers.lst[i]->num);
+                /* nvprintf("Attaching to buffer %d\n", buffers.lst[i]->num); */
                 nvim_buf_attach(1, buffers.lst[i]->num);
         }
-        logfile = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+",
-                                 getenv("HOME"));
+        logfile = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+", HOME);
 
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
@@ -190,37 +182,35 @@ interrupt_loop(void *vdata)
                 tmp->data[--tmp->slen] = '\0';
                 nvprintf("Recieved \"%s\"; waking up!\n", BS(tmp));
 
-                switch (tmp->data[0])
-                {
+                switch (tmp->data[0]) {
                 /* New buffer was opened. */
                 case 'A': {
                         struct mpack_array *buflist = nvim_list_bufs(sockfd);
 
                         for (unsigned i = 0; i < buflist->qty; ++i) {
-                                const int bufnum = buflist->items[i]->data.ext->num;
+                                const int curbuf = buflist->items[i]->data.ext->num;
 
-                                if (!find_buffer(bufnum) && new_buffer(sockfd, bufnum)) {
-                                        nvprintf("Attaching to buffer %d\n", bufnum);
-                                        nvim_buf_attach(1, bufnum);
+                                if (!find_buffer(curbuf) && new_buffer(sockfd, curbuf)) {
+                                        /* nvprintf("Attaching to buffer %d\n", curbuf); */
+                                        nvim_buf_attach(1, curbuf);
                                 }
                         }
 
                         destroy_mpack_array(buflist);
-                        break;
                 }
-
+                /* FALLTHROUGH */
                 /* Buffer was written, or filetype/syntax was changed. */
                 case 'B': {
-                        int bufnum, index;
+                        int curbuf, index;
                         struct bufdata *bdata;
 retry:
-                        bufnum = nvim_get_current_buf(sockfd);
-                        bdata  = find_buffer(bufnum);
-                        index  = find_buffer_ind(bufnum);
+                        curbuf = nvim_get_current_buf(sockfd);
+                        bdata  = find_buffer(curbuf);
+                        index  = find_buffer_ind(curbuf);
 
                         if (index < 0 || !bdata) {
                                 warnx("Failed to find buffer! %d -> i: %d, p: %p\n",
-                                      bufnum, index, (void*)bdata);
+                                      curbuf, index, (void*)bdata);
                                 break;
                         }
                         for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i) {
@@ -234,7 +224,7 @@ retry:
                         }
 
                         if (update_taglist(bdata))
-                                update_highlight(bufnum, bdata);
+                                update_highlight(curbuf, bdata);
                         break;
                 }
 
@@ -247,14 +237,18 @@ retry:
                         break; /* NOTREACHED */
                 }
 
+                /* Current buffer changed. */
                 case 'D': {
                         const int prev = bufnum;
                         bufnum = nvim_get_current_buf(sockfd);
+                        if (is_bad_buffer(bufnum))
+                                break;
                         warnx("I see that the buffer changed from %d to %d...\n", prev, bufnum);
                         update_highlight(bufnum, NULL);
                         break;
                 }
 
+                /* User called the clear highlight command. */
                 case 'E':
                         clear_highlight(nvim_get_current_buf(sockfd), NULL);
                         break;
@@ -294,10 +288,13 @@ exit_cleanup(void)
 
         for (unsigned i = 0; i < ftdata_len; ++i)
                 if (ftdata[i].initialized) {
-                        free(ftdata[i].ignored_tags->lst);
-                        free(ftdata[i].ignored_tags);
+                        if (ftdata[i].ignored_tags) {
+                                free(ftdata[i].ignored_tags->lst);
+                                free(ftdata[i].ignored_tags);
+                        }
                         b_list_destroy(ftdata[i].equiv);
                         b_free(ftdata[i].order);
+                        b_free(ftdata[i].restore_cmds);
                 }
 
         free_backups(&backup_pointers);
@@ -344,8 +341,7 @@ create_socket(bstring **name)
 
 
 static enum comp_type_e
-get_compression_type(void)
-{
+get_compression_type(void) {
         bstring *tmp = nvim_get_var_l("compression_type", MPACK_STRING, NULL, 0);
         enum comp_type_e  ret = COMP_NONE;
 

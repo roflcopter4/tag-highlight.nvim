@@ -3045,3 +3045,22 @@ b_ll2str(const long long value)
 
         return ret;
 }
+
+
+void
+__b_dump_list(FILE *fp, const b_list *list, const char *listname)
+{
+        fprintf(fp, "Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < list->qty; ++i)
+                b_fputs(fp, list->lst[i], b_tmp("\n"));
+}
+
+
+void
+__b_add_to_list(b_list **list, bstring *bstr)
+{
+        if ((*list)->qty == ((*list)->mlen - 1))
+                (*list)->lst = xrealloc((*list)->lst, ((*list)->mlen *= 2) *
+                                                          sizeof(*(*list)->lst));
+        (*list)->lst[(*list)->qty++] = bstr;
+}

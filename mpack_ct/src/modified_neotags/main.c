@@ -31,13 +31,13 @@ static void print_tags_vim(const struct taglist *list, const char *ft);
 static struct taglist * tok_search(const struct bufdata *bdata, b_list *vimbuf);
 static void *do_tok_search(void *vdata);
 
-FILE *thislog;
+static FILE *thislog;
 
 
 struct taglist *
 findemtagers(struct bufdata *bdata, b_list *toks)
 {
-        thislog     = fopen("/home/bml/rejectlog.log", "w");
+        thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
 
         struct taglist *list = tok_search(bdata, toks);
@@ -109,7 +109,7 @@ b_strcmp_wrap(const void *vA, const void *vB)
 static void
 print_tags(const struct taglist *list, const char *ft)
 {
-        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", getenv("HOME"));
+        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", HOME);
 
         /* Always print the first tag. */
         PRINT(0);
@@ -128,7 +128,7 @@ print_tags(const struct taglist *list, const char *ft)
 static void
 print_tags_vim(const struct taglist *list, const char *ft)
 {
-        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", getenv("HOME"));
+        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", HOME);
         char *tmp;
 
         /* Always print the first tag. */
@@ -185,7 +185,7 @@ is_correct_lang(const bstring *lang, __CONST__ bstring *match_lang)
 static bool
 skip_tag(const b_list *skip, const bstring *find)
 {
-        if (skip)
+        if (skip && skip->lst && skip->qty)
                 for (unsigned i = 0; i < skip->qty; ++i)
                         if (b_iseq(skip->lst[i], find))
                                 return true;

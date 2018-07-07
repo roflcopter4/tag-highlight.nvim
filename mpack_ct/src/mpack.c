@@ -12,7 +12,7 @@ static void      *get_expect    (mpack_obj *result, const enum mpack_types expec
 static unsigned        sok_count, io_count;
 extern pthread_mutex_t mpack_main;
 
-#define ENCODE_FMT_ARRSIZE 512
+#define ENCODE_FMT_ARRSIZE 1024
 #define DAI data.arr->items
 #define DDE data.dict->entries
 
@@ -41,7 +41,7 @@ extern pthread_mutex_t mpack_main;
                 if (!found)                                                            \
                         errx(1, "Invalid argument \"%s\" in %s(), line %d of file %s", \
                              (expect <= 7 ? m_type_names[EXPECT] : "TOO LARGE"),       \
-                             __func__, __LINE__, __FILE__);                            \
+                             FUNC_NAME, __LINE__, __FILE__);                            \
         } while (0)
 
 
@@ -56,7 +56,7 @@ extern pthread_mutex_t mpack_main;
         static bstring func[1] = {{.data = NULL}};                            \
         if (!func[0].data)                                                    \
                 func[0] = (bstring){ .slen = sizeof(__func__) - 1, .mlen = 0, \
-                                     .data = (uchar *)__func__, .flags = 0 }
+                                     .data = (uchar *)(__func__), .flags = 0 }
 
 
 #define encode_fmt_api(FD__, FMT_, ...) \
@@ -488,7 +488,7 @@ get_expect(mpack_obj *            result,
 
         case MPACK_NUM:
                 value = RETVAL->data.num;
-        num_from_ext:
+num_from_ext:
                 ret = xmalloc(sizeof(int64_t));
                 *((int64_t *)ret) = value;
                 break;
@@ -611,6 +611,8 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
 b_list *
 mpack_array_to_blist(struct mpack_array *array, const bool destroy)
 {
+        if (!array)
+                return NULL;
         unsigned size = array->qty;
         b_list * ret  = b_list_create_alloc(size);
 

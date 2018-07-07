@@ -1662,6 +1662,14 @@ BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
 #define b_write(__FD, ...) __b_write(__FD, __VA_ARGS__,   ((bstring[]){{0, 0, NULL, BSTR_LIST_END}}))
 
 
+BSTR_PUBLIC void __b_dump_list(FILE *fp, const b_list *list, const char *listname);
+BSTR_PUBLIC void __b_add_to_list(b_list **list, bstring *bstr);
+
+#define b_dump_list(FP_, LST_) __b_dump_list((FP_), (LST_), #LST_)
+#define b_add_to_list(LST_, BSTR) __b_add_to_list((&(LST_)), (BSTR))
+
+
+
 /*============================================================================*/
 
 /**

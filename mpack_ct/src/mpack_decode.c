@@ -36,7 +36,7 @@ static const struct mpack_masks * id_pack_type(uint8_t byte);
 
 #define ERRMSG()                                                                           \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s().", \
-             mask->type, mask->repr, __LINE__, __FILE__, __func__)
+             mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
 /* #define LOG(...) fprintf(decodelog, __VA_ARGS__) */
 #define LOG(...)
@@ -191,7 +191,7 @@ do_decode(read_fn READ, void *src)
 
         case BIN:    errx(2, "BIN not implemented.");
         default:     errx(1, "Default (%d) reached at %d in %s - %s",
-                          mask->group, __LINE__, __FILE__, __func__);
+                          mask->group, __LINE__, __FILE__, FUNC_NAME);
         }
 }
 

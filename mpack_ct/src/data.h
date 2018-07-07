@@ -14,7 +14,6 @@ enum event_types {
         EVENT_BUF_LINES,
         EVENT_BUF_CHANGED_TICK,
         EVENT_BUF_DETACH,
-        EVENT_COCKSUCKER,
 };
 
 
@@ -37,12 +36,14 @@ struct settings_s {
 struct ftdata_s {
         b_list  *equiv;
         b_list  *ignored_tags;
+        bstring *restore_cmds;
         bstring *order;
         const bstring vim_name;
         const bstring ctags_name;
         /* 3 bytes */
         const enum filetype_id id;
         bool initialized;
+        bool restore_cmds_initialized;
 };
 
 struct top_dir {
@@ -109,9 +110,12 @@ extern const char *const m_type_names[];
 /* Buffers */
 
 extern bool new_buffer(int fd, int bufnum);
-extern int  find_buffer_ind(const int bufnum);
+extern int  find_buffer_ind(int bufnum);
+extern bool is_bad_buffer(int bufnum);
+
 extern struct bufdata *find_buffer(int bufnum);
 extern struct bufdata *get_bufdata(int fd, int bufnum);
+extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 extern void destroy_bufdata(struct bufdata **bdata);
 
 
