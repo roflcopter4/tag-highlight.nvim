@@ -31,13 +31,13 @@ static void print_tags_vim(const struct taglist *list, const char *ft);
 static struct taglist * tok_search(const struct bufdata *bdata, b_list *vimbuf);
 static void *do_tok_search(void *vdata);
 
-static FILE *thislog;
+/* static FILE *thislog; */
 
 
 struct taglist *
 findemtagers(struct bufdata *bdata, b_list *toks)
 {
-        thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);
+        /* thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME); */
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
 
         struct taglist *list = tok_search(bdata, toks);
@@ -49,7 +49,7 @@ findemtagers(struct bufdata *bdata, b_list *toks)
         /* else */
                 /* print_tags(list, BTS(bdata->ft->vim_name)); */
 
-        fclose(thislog);
+        /* fclose(thislog); */
         return list;
 
 }
@@ -341,6 +341,7 @@ do_tok_search(void *vdata)
                 cur_str          = STRCHR(cur_str, '\t');
 
                 char *tok, kind = '\0';
+                /* bstring *match_lang = (bstring[]){{ 0, 0, NULL, 0u }}; */
                 bstring *match_lang = NULL;
 
                 /* Extract the 'kind' and 'language' fields. The former is the
@@ -348,13 +349,23 @@ do_tok_search(void *vdata)
                 while ((tok = strsep((char**)(&cur_str), "\t"))) {
                         if (tok[0] && !tok[1])
                                 kind = *tok;
-                        else if (strncmp(tok, "language:", 9) == 0)
+                        else if (strncmp(tok, "language:", 9) == 0) {
                                 match_lang = (cur_str)
                                            ? bt_fromblk(tok+9, (cur_str - (uchar*)(tok+9)) - 1)
                                            : bt_fromcstr(tok+9);
+#if 0
+                                if (cur_str)
+                                        match_lang->slen = (cur_str - (uchar *)(tok + 9) - 1);
+                                else
+                                        match_lang->slen = strlen(tok + 9);
+
+                                match_lang->data = (uchar *)(tok + 9);
+                                match_lang->mlen = match_lang->flags = 0;
+#endif
+                        }
                 }
 
-                if (!match_lang || !kind || !match_lang->data) {
+                if (!kind || !match_lang || !match_lang->data) {
                         /* b_fputs(logfile, b_tmp("Couldn't find lang/kind for tag "), name, b_tmp(".\n")); */
                         free(cpy_data);
                         free(cpy);
@@ -379,7 +390,6 @@ do_tok_search(void *vdata)
                  *    4) are present in the current vim buffer.
                  * If invalid, just move on. 
                  */
-#if 0
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
@@ -392,7 +402,7 @@ do_tok_search(void *vdata)
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
-#endif
+#if 0
 #define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
                                     kind, BS(match_lang), BS(name), name->slen, (REASON)))
 
@@ -426,6 +436,7 @@ lazy:
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
+#endif
 
                 free(cpy_data);
                 free(cpy);

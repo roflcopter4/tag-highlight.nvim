@@ -3,7 +3,7 @@ if !exists('g:tag_highlight#c#order')
 endif
 
 " let g:tag_highlight#c#g = { 'group': 'cEnumTypeTag' }
-" let g:tag_highlight#c#t = { 'group': 'cTypeTag' }
+let g:tag_highlight#c#t = { 'group': 'cTypeTag' }
 
 let g:tag_highlight#c#g = {
             \ 'group': 'cEnumTypeTag',
@@ -37,10 +37,10 @@ let g:tag_highlight#c#f = { 'group': 'cFunctionTag' }
 "             \   'suffix': '\>\%(\.\|->\)\@!'
 "             \ }
 
-let g:tag_highlight#c#t = {
-            \ 'group': 'cTypeTag',
-            \ 'suffix': '\>\%(\.\|->\)\@!'
-            \ }
+" let g:tag_highlight#c#t = {
+"             \ 'group': 'cTypeTag',
+"             \ 'suffix': '\>\%(\.\|->\)\@!'
+"             \ }
 
 let g:tag_highlight#c#R = {
             \    'group': 'cFuncRef',

@@ -77,7 +77,11 @@ write_gzip(struct top_dir *topdir)
         assert(fstat(topdir->tmpfd, &st) == 0);
 
         uint8_t *buf = xmalloc(st.st_size);
-        assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size);
+        /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
+
+        FILE *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
+        fread(buf, 1, st.st_size + 1, readfp);
+        fclose(readfp);
 
         gzFile gfp = gzopen(BS(topdir->gzfile), "wb");
         gzwrite(gfp, buf, st.st_size);
@@ -88,6 +92,19 @@ write_gzip(struct top_dir *topdir)
 
 
 #include <lzma.h>
+
+#if 0
+void
+lazy_write_lzma(struct top_dir *topdir)
+{
+        fsync(topdir->tmpfd);
+        unlink(BS(topdir->gzfile));
+        bstring *cmd = b_format("7z a '%s' -mmt='%d' '%s'", BS(topdir->gzfile), find_num_cpus(), BS(topdir->tmpfname));
+        b_fputs(stderr, cmd, B("\n"));
+        assert(system(BS(cmd)) == 0);
+        b_destroy(cmd);
+}
+#endif
 
 void
 write_lzma(struct top_dir *topdir)
@@ -117,6 +134,17 @@ write_lzma(struct top_dir *topdir)
         bstring *asswipe = B_READ(fp1);
         fclose(fp1);
 #endif
+        lzma_mt mt_opts = { 
+                .flags      = 0,
+                .threads    = find_num_cpus(),
+                .block_size = 0,
+                .timeout    = 200/*ms*/,
+                .preset     = 9,
+                .filters    = NULL,
+                .check      = LZMA_CHECK_CRC64,
+                /* 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL */
+        };
+
         struct stat st;
         fsync(topdir->tmpfd);
         assert(fstat(topdir->tmpfd, &st) == 0);
@@ -128,27 +156,29 @@ write_lzma(struct top_dir *topdir)
         fread(in_buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
-
         /* uint8_t *in_buf = asswipe->data; */
+        /* uint64_t    memuse = lzma_stream_encoder_mt_memusage(&mt_opts); */
 
         lzma_stream strm = LZMA_STREAM_INIT;
-        lzma_ret    ret  = lzma_easy_encoder(&strm, settings.comp_level, LZMA_CHECK_CRC64);
+        lzma_ret    ret  = lzma_stream_encoder_mt(&strm, &mt_opts);
+        /* lzma_ret    ret  = lzma_easy_encoder(&strm, settings.comp_level, LZMA_CHECK_CRC64); */
         assert(ret == LZMA_OK);
 
         /* uint8_t *out_buf = xcalloc(st.st_size, 1); */
         uint8_t *out_buf = xcalloc(size, 1);
 
-        strm.next_out     = out_buf;
-        strm.next_in      = in_buf;
-        strm.avail_out    = size;
-        strm.avail_in     = size;
+        strm.next_out  = out_buf;
+        strm.next_in   = in_buf;
+        strm.avail_out = size;
+        strm.avail_in  = size;
 
-        ret = lzma_code(&strm, LZMA_RUN);
-        ret = lzma_code(&strm, LZMA_FINISH);
+        do {
+                ret = lzma_code(&strm, LZMA_FINISH);
+        } while (ret != LZMA_STREAM_END);
 
         if (ret != LZMA_STREAM_END)
-                warn("Unexpected error on line %d in file %s: %d => %s",
-                     __LINE__, __FILE__, ret, lzma_message_strm(ret));
+                warnx("Unexpected error on line %d in file %s: %d => %s",
+                      __LINE__, __FILE__, ret, lzma_message_strm(ret));
 
 #if 0
         struct write_wrapper_data *data = xmalloc(sizeof *data);
@@ -163,8 +193,9 @@ write_lzma(struct top_dir *topdir)
         assert(write(fd, out_buf, size) == (ssize_t)size);
         close(fd); */
 
+        assert(strstr(BS(topdir->gzfile), ".tags.xz"));
         FILE *fp = safe_fopen(BS(topdir->gzfile), "wb");
-        fwrite(out_buf, 1, strm.total_out, fp);
+        assert(fwrite(out_buf, 1, strm.total_out, fp) == strm.total_out);
         fclose(fp);
 
         lzma_end(&strm);

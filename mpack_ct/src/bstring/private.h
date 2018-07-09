@@ -140,6 +140,7 @@
 #  define ALLOCATION_ERROR(RETVAL) abort();
 #endif
 
+#define USE_XMALLOC
 
 /* 
  * These make the code neater and save the programmer from having to check for
@@ -152,8 +153,10 @@ static inline void *
 xmalloc(size_t size)
 {
         void *tmp = malloc(size);
-        if (!tmp)
-                err(1, "Failed to allocate %zu bytes", size);
+        if (!tmp) {
+                warn("Failed to allocate %zu bytes", size);
+                abort();
+        }
         return tmp; 
 }
 #else
@@ -164,8 +167,10 @@ static inline void *
 xrealloc(void *ptr, size_t size)
 {
         void *tmp = realloc(ptr, size);
-        if (!tmp)
-                err(1, "Failed to reallocate %zu bytes", size);
+        if (!tmp) {
+                warn("Failed to reallocate %zu bytes", size);
+                abort();
+        }
         return tmp; 
 }
 
@@ -174,8 +179,10 @@ static inline int
 xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 {
         int ret = vasprintf(ptr, fmt, va);
-        if (ret == (-1))
-                err(1, "Asprintf failed to allocate memory");
+        if (ret == (-1)) {
+                warn("Asprintf failed to allocate memory");
+                abort();
+        }
         return ret;
 }
 #endif

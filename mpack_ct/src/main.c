@@ -23,13 +23,9 @@
         mpack_array_to_blist(nvim_get_var(sockfd, B(PKG "#" VARNAME_), \
                                           MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
-#define _FILE    __attribute__((__cleanup__(closefile))) FILE
-#define _bstring __attribute__((__cleanup__(auto_b_destroy))) bstring
-
 extern FILE    *decodelog;
-static FILE    *logfile = NULL;
-static bstring *vpipename;
-static bstring *servername, *mes_servername = NULL;
+static FILE    *logfile;
+static bstring *vpipename, *servername, *mes_servername;
 
 
 static void *           interrupt_loop(void *vdata);
@@ -63,8 +59,6 @@ FILE *cmdlog;
 int
 main(int argc, char *argv[])
 {
-        _Static_assert(sizeof(long) == sizeof(size_t), "Microsoft sux");
-        assert(!isatty(0) && argc == 2);
         extern const char *program_name;
         program_name = basename(argv[0]);
         HOME         = getenv("HOME");
@@ -81,7 +75,7 @@ main(int argc, char *argv[])
                 sigaction(SIGUSR1, &temp2, NULL);
         }
 
-        mpack_log = safe_fopen_fmt("%s/somecrap.log", "w+", HOME);
+        mpack_log = safe_fopen_fmt("%s/mpack.log", "w+", HOME);
         decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", HOME);
         cmdlog    = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
@@ -102,18 +96,15 @@ main(int argc, char *argv[])
         settings.verbose         = nvim_get_var_num("verbose", 1);
 
         assert(settings.enabled);
+
+        /* Initialize all opened buffers. */
         struct mpack_array *buflist = nvim_list_bufs(sockfd);
-
-        for (unsigned i = 0; i < buflist->qty; ++i) {
-                /* nvprintf("Attempting to initialize buffer %u\n",
-                         buflist->items[i]->data.ext->num); */
+        for (unsigned i = 0; i < buflist->qty; ++i)
                 new_buffer(sockfd, buflist->items[i]->data.ext->num);
-        }
-
         destroy_mpack_array(buflist);
 
         pthread_t event_loop, main_loop;
-        pthread_create(&main_loop, NULL,  &buffer_event_loop, NULL);
+        pthread_create(&main_loop,  NULL, &buffer_event_loop, NULL);
         pthread_create(&event_loop, NULL, &interrupt_loop, &main_loop);
 
         pthread_join(event_loop, NULL);
@@ -132,19 +123,18 @@ main(int argc, char *argv[])
 static void *
 buffer_event_loop(UNUSED void *vdata)
 {
-        for (unsigned i = 0; i < buffers.mkr; ++i) {
-                /* nvprintf("Attaching to buffer %d\n", buffers.lst[i]->num); */
+        for (unsigned i = 0; i < buffers.mkr; ++i)
                 nvim_buf_attach(1, buffers.lst[i]->num);
-        }
+
         logfile = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+", HOME);
 
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
                 if (event) {
-                        mpack_print_object(event, logfile);
-                        fflush(logfile);
+                        /* mpack_print_object(event, logfile);
+                        fflush(logfile); */
 
-                        const enum event_types type = handle_nvim_event(event);
+                        handle_nvim_event(event);
 
                         if (event)
                                 mpack_destroy(event);
@@ -163,17 +153,13 @@ buffer_event_loop(UNUSED void *vdata)
 static void *
 interrupt_loop(void *vdata)
 {
-        pthread_t mainloop = *((int *)vdata);
+        pthread_t mainloop = *((pthread_t *)vdata);
         int       bufnum   = nvim_get_current_buf(sockfd);
 
         {
                 struct bufdata *bdata  = find_buffer(bufnum);
-
                 while (!bdata->lines->qty)
                         usleep(100 * 1000);
-
-                usleep(100 * 1000);
-                /* nvprintf("We're going in! There are %u lines!", bdata->lines->qty); */
                 update_highlight(bufnum, bdata);
         }
 
@@ -183,23 +169,24 @@ interrupt_loop(void *vdata)
                 nvprintf("Recieved \"%s\"; waking up!\n", BS(tmp));
 
                 switch (tmp->data[0]) {
-                /* New buffer was opened. */
+                /*
+                 * New buffer was opened.
+                 */
                 case 'A': {
                         struct mpack_array *buflist = nvim_list_bufs(sockfd);
 
                         for (unsigned i = 0; i < buflist->qty; ++i) {
                                 const int curbuf = buflist->items[i]->data.ext->num;
-
-                                if (!find_buffer(curbuf) && new_buffer(sockfd, curbuf)) {
-                                        /* nvprintf("Attaching to buffer %d\n", curbuf); */
+                                if (!find_buffer(curbuf) && new_buffer(sockfd, curbuf))
                                         nvim_buf_attach(1, curbuf);
-                                }
                         }
 
                         destroy_mpack_array(buflist);
                 }
                 /* FALLTHROUGH */
-                /* Buffer was written, or filetype/syntax was changed. */
+                /*
+                 * Buffer was written, or filetype/syntax was changed.
+                 */
                 case 'B': {
                         int curbuf, index;
                         struct bufdata *bdata;
@@ -227,8 +214,9 @@ retry:
                                 update_highlight(curbuf, bdata);
                         break;
                 }
-
-                /* User called the kill command. */
+                /*
+                 * User called the kill command.
+                 */
                 case 'C': {
                         b_destroy(tmp);
                         clear_highlight(nvim_get_current_buf(sockfd), NULL);
@@ -236,8 +224,9 @@ retry:
                         pthread_exit(NULL);
                         break; /* NOTREACHED */
                 }
-
-                /* Current buffer changed. */
+                /*
+                 * Current buffer changed.
+                 */
                 case 'D': {
                         const int prev = bufnum;
                         bufnum = nvim_get_current_buf(sockfd);
@@ -247,8 +236,9 @@ retry:
                         update_highlight(bufnum, NULL);
                         break;
                 }
-
-                /* User called the clear highlight command. */
+                /*
+                 * User called the clear highlight command.
+                 */
                 case 'E':
                         clear_highlight(nvim_get_current_buf(sockfd), NULL);
                         break;
@@ -269,7 +259,7 @@ retry:
 
 
 /*
- * free everything at exit for debugging purposes.
+ * Free everything at exit for debugging purposes.
  */
 static void
 exit_cleanup(void)
@@ -300,9 +290,12 @@ exit_cleanup(void)
         free_backups(&backup_pointers);
         free(backup_pointers.lst);
 
-        fclose(mpack_log);
-        fclose(decodelog);
-        fclose(cmdlog);
+        if (mpack_log)
+                fclose(mpack_log);
+        if (decodelog)
+                fclose(decodelog);
+        if (cmdlog)
+                fclose(cmdlog);
         if (logfile)
                 fclose(logfile);
         if (vpipe) {
@@ -327,7 +320,7 @@ create_socket(bstring **name)
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strlcpy(addr.sun_path, BS(*name), sizeof(addr.sun_path) - 1);
+        strcpy(addr.sun_path, BS(*name));
 
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -354,6 +347,8 @@ get_compression_type(void) {
         else
                 nvprintf("Warning: unrecognized compression type \"%s\", "
                          "defaulting to no compression.\n", BS(tmp));
+
+        b_fputs(stderr, B("Comp type is "), tmp, B("\n"));
 
         b_destroy(tmp);
         return ret;

@@ -62,7 +62,7 @@ endif()
 ###############################################################################
 # Flags
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 
@@ -101,7 +101,7 @@ else()
     endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O3 -g")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -Og -g")
     set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} -O3")
 
     set (CMAKE_EXE_LINKER_FLAGS "-L/usr/local/lib")

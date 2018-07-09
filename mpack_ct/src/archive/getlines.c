@@ -150,7 +150,7 @@ xz_getlines(b_list *tags, const bstring *filename)
         if ((lzma_auto_decoder(strm, UINT64_MAX, 0)) != LZMA_OK)
                 errx(1, "Unhandled internal error.");
 
-        lzma_ret ret = lzma_stream_decoder(strm, UINT64_MAX, LZMA_CONCATENATED);
+        lzma_ret ret = lzma_stream_decoder(strm, UINT64_MAX, 0);
         if (ret != LZMA_OK)
                 errx(1, "%s\n", ret == LZMA_MEM_ERROR ?
                      strerror(ENOMEM) : "Internal error (bug)");
@@ -162,7 +162,6 @@ xz_getlines(b_list *tags, const bstring *filename)
         strm->next_in      = in_buf;
         strm->avail_out    = size.uncompressed;
         strm->avail_in     = 0;
-        lzma_action action = LZMA_RUN;
         FILE *fp           = safe_fopen(BS(filename), "rb");
 
         /* We must read the size of the input buffer + 1 in order to
@@ -171,12 +170,12 @@ xz_getlines(b_list *tags, const bstring *filename)
 
         if (ferror(fp))
                 err(1, "%s: Error reading input size", BS(filename));
-        if (feof(fp))
-                action = LZMA_FINISH;
-        else
+        if (!feof(fp))
+                /* action = LZMA_FINISH; */
+        /* else */
                 errx(1, "Error reading file: buffer too small.");
 
-        ret = lzma_code(strm, action);
+        ret = lzma_code(strm, LZMA_RUN);
 
         if (ret != LZMA_STREAM_END)
                 ret = lzma_code(strm, LZMA_FINISH);

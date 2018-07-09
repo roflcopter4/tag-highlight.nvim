@@ -6,8 +6,18 @@
 #include "linked_list.h"
 
 #define V(PTR_) ((void *)(PTR_))
+#define MSG1()                                                                            \
+        do {                                                                              \
+                nvprintf("Start: %d, End: %d, diff: %d => at is %p, head: %p, tail: %p, qty: %d\n", \
+                        start, end, diff, V(at), V(list->head), V(list->tail), list->qty);      \
+        } while (0)
+#define MSG2()                                                                 \
+        do {                                                                   \
+                nvprintf("NOW at is %p, head: %p, tail: %p, qty: %d\n", V(at), \
+                        V(list->head), V(list->tail), list->qty);              \
+        } while (0)
 
-static void free_data(ll_node *node);
+static inline void free_data(ll_node *node) __attribute__((always_inline));
 
 
 linked_list *
@@ -21,6 +31,7 @@ ll_make_new(void)
 }
 
 
+#if 0
 void
 ll_add(linked_list *list, bstring *data)
 {
@@ -55,6 +66,7 @@ ll_append(linked_list *list, bstring *data)
         list->tail = node;
         ++list->qty;
 }
+#endif
 
 
 /*============================================================================*/
@@ -63,6 +75,7 @@ ll_append(linked_list *list, bstring *data)
 void
 ll_insert_after(linked_list *list, ll_node *at, bstring *data)
 {
+        assert(list);
         ll_node *node = xmalloc(sizeof *node);
         node->data    = data;
         node->prev    = at;
@@ -89,6 +102,7 @@ ll_insert_after(linked_list *list, ll_node *at, bstring *data)
 void
 ll_insert_before(linked_list *list, ll_node *at, bstring *data)
 {
+        assert(list);
         ll_node *node = xmalloc(sizeof *node);
         node->data    = data;
         node->next    = at;
@@ -118,34 +132,40 @@ ll_insert_before(linked_list *list, ll_node *at, bstring *data)
 void
 ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, int end)
 {
-        /* eprintf("Start: %d, End: %d\n", start, end); */
+        assert(list && blist && blist->lst);
         start = (start >= 0) ? start : (start + (int)blist->qty + 1);
         end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
+        assert((end > 0) && (start >= 0) && (start < end) &&
+               (blist->qty > 0) && ((unsigned)end <= blist->qty));
 
-        assert(end > 0 && start >= 0 && start < end);
-        assert(blist->qty > 0 && (unsigned)end <= blist->qty);  
-
-        if ((end - start) == 1) {
+        const int diff = end - start;
+        if (diff == 1) {
                 ll_insert_after(list, at, blist->lst[start]);
                 return;
         }
+        MSG1();
 
-        ll_node **tmp  = nmalloc((end - start), sizeof *tmp);
+        ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
         tmp[0]->data   = blist->lst[start];
         tmp[0]->prev   = at;
-        const int last = end - 1;
+        int i          = 1;
 
-        eprintf("Start: %d, End: %d => at is %p, head: %p, tail: %p, qty: %d\n",
-                start, end, V(at), V(list->head), V(list->tail), list->qty);
-
-        /* for (int i = (start + 1); i < end; ++i) { */
-        for (int i = 1; i < (end - start); ++i) {
+        for (int x = (start + 1); x < end; ++x, ++i) {
+                assert((unsigned)i < blist->qty);
+                if (!(blist->lst[x] && blist->lst[x]->data)) {
+                        FILE *fp = fopen("/home/bml/emergencylog.log", "wb");
+                        b_dump_list(fp, blist);
+                        fclose(fp);
+                        abort();
+                }
                 tmp[i]         = xmalloc(sizeof **tmp);
                 tmp[i]->data   = blist->lst[i];
                 tmp[i]->prev   = tmp[i-1];
                 tmp[i-1]->next = tmp[i];
         }
+
+        const int last = i - 1;
 
         if (at) {
                 tmp[last]->next = at->next;
@@ -160,45 +180,48 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         if (!list->tail || at == list->tail)
                 list->tail = tmp[last];
 
-        list->qty += (end - start);
+        list->qty += diff;
         free(tmp);
-
-        eprintf("NOW at is %p, head: %p, tail: %p, qty: %d\n",
-                V(at), V(list->head), V(list->tail), list->qty);
+        MSG2();
 }
 
 
 void
 ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start, int end)
 {
-        /* eprintf("Start: %d, End: %d\n", start, end); */
+        assert(list && blist && blist->lst);
         start = (start >= 0) ? start : (start + (int)blist->qty + 1);
         end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
+        assert((end > 0) && (start >= 0) && (start < end) &&
+               (blist->qty > 0) && ((unsigned)end <= blist->qty));
 
-        assert(end > 0 && start >= 0 && start < end);
-        assert(blist->qty > 0 && (unsigned)end <= blist->qty);
-
-        if ((end - start) == 1) {
+        const int diff = end - start;
+        if (diff == 1) {
                 ll_insert_before(list, at, blist->lst[start]);
                 return;
         }
+        MSG1();
 
-        ll_node **tmp  = nmalloc(blist->qty, sizeof *tmp);
+        ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
         tmp[0]->data   = blist->lst[start];
-        const int last = end - 1;
+        int i          = 1;
 
-        eprintf("Start: %d, End: %d => at is %p, head: %p, tail: %p, qty: %d\n",
-                start, end, V(at), V(list->head), V(list->tail), list->qty);
-
-        /* for (int i = (start + 1); i < end; ++i) { */
-        for (int i = 1; i < (end - start); ++i) {
+        for (int x = (start + 1); x < end; ++x, ++i) {
+                assert((unsigned)i < blist->qty);
+                if (!(blist->lst[x] && blist->lst[x]->data)) {
+                        FILE *fp = fopen("/home/bml/emergencylog.log", "wb");
+                        b_dump_list(fp, blist);
+                        fclose(fp);
+                        abort();
+                }
                 tmp[i]         = xmalloc(sizeof **tmp);
-                tmp[i]->data   = blist->lst[i];
+                tmp[i]->data   = blist->lst[x];
                 tmp[i]->prev   = tmp[i-1];
                 tmp[i-1]->next = tmp[i];
         }
 
+        const int last  = i - 1;
         tmp[last]->next = at;
 
         if (at) {
@@ -214,30 +237,27 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         if (!list->tail)
                 list->tail = tmp[last];
 
-        list->qty += (end - start);
+        list->qty += diff;
         free(tmp);
-
-        eprintf("NOW at is %p, head: %p, tail: %p, qty: %d\n",
-                V(at), V(list->head), V(list->tail), list->qty);
+        MSG2();
 }
 
 
 void
 ll_delete_range(linked_list *list, ll_node *at, unsigned range)
 {
+        assert(list && list->qty >= (int)range);
         if (range == 0)
                 return;
+        nvprintf("removing: at is %p, head: %p, tail: %p, qty: %d\n",
+                 V(at), V(list->head), V(list->tail), list->qty);
 
-        eprintf("removing: at is %p, head: %p, tail: %p, qty: %d\n",
-                V(at), V(list->head), V(list->tail), list->qty);
+        ll_node *current      = at;
+        ll_node *next         = NULL;
+        ll_node *prev         = (at) ? at->prev : NULL;
+        bool     replace_head = (at == list->head || !list->head);
 
-        ll_node *current = at;
-        ll_node *next    = NULL;
-        ll_node *prev    = (at) ? at->prev : NULL;
-        
-        bool replace_head = (at == list->head || !list->head);
-        
-        for (uint64_t i = 0; i < range && current; ++i) {
+        for (unsigned i = 0; i < range && current; ++i) {
                 next = current->next;
                 free_data(current);
                 free(current);
@@ -249,49 +269,27 @@ ll_delete_range(linked_list *list, ll_node *at, unsigned range)
 
         if (replace_head)
                 list->head = next;
-        if (!next)
-                list->tail = prev;
-
         if (prev)
                 prev->next = next;
+
         if (next)
                 next->prev = prev;
+        else
+                list->tail = prev;
 
 
-        eprintf("NOW: at is %p, head: %p, tail: %p, qty: %d\n",
-                V(at), V(list->head), V(list->tail), list->qty);
+        nvprintf("NOW: at is %p, head: %p, tail: %p, qty: %d\n",
+                 V(at), V(list->head), V(list->tail), list->qty);
 }
 
 
 /*============================================================================*/
 
 
-bstring *
-_ll_popat(linked_list *list, int index, uint8_t type)
-{
-        ll_node *node = ll_at(list, index);
-
-        switch (type) {
-        case DEL_ONLY:
-                free_data(node);
-                ll_delete_node(list, node);
-                return NULL;
-        case RET_ONLY:
-                return node->data;
-        case BOTH:
-                ; bstring *data = node->data;
-                ll_delete_node(list, node);
-                return data;
-        default:
-                errx(1, "Unreachable!\n");
-        }
-}
-
-
 ll_node *
 ll_at(linked_list *list, int index)
 {
-        if (list->qty == 0)
+        if (!list || list->qty == 0)
                 return NULL;
         if (index == 0)
                 return list->head;
@@ -326,6 +324,8 @@ ll_at(linked_list *list, int index)
 void
 ll_destroy(linked_list *list)
 {
+        if (!list || !list->head)
+                return;
         if (list->qty == 1) {
                 ll_node *current;
                 if (list->tail)
@@ -377,12 +377,12 @@ ll_delete_node(linked_list *list, ll_node *node)
 bool
 ll_verify_size(linked_list *list)
 {
+        assert(list);
         int cnt = 0;
         LL_FOREACH_F (list, node)
                 ++cnt;
 
         const bool ret = (cnt == list->qty);
-
         if (!ret)
                 list->qty = cnt;
 
@@ -404,7 +404,7 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
 }
 
 
-static void
+static inline void
 free_data(ll_node *node)
 {
         b_destroy(node->data);

@@ -88,7 +88,7 @@ static size_t io_read(struct xz_file *file, io_buf *buf_union, size_t size);
 static bool
 io_open_src_real(struct xz_file *file)
 {
-        int flags = O_RDONLY | O_BINARY | O_NOCTTY;
+        int flags = O_RDONLY|O_BINARY|O_NOCTTY;
 
         file->fd = open(file->name, flags);
 

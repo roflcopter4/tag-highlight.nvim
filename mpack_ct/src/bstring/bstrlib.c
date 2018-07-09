@@ -1789,10 +1789,8 @@ b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const char terminator)
 bstring *
 b_gets(const bNgetc getc_ptr, void *parm, const char terminator)
 {
-        bstring *buff;
-        if (0 > b_getsa(buff = b_fromcstr(""), getc_ptr, parm, terminator) ||
-            0 >= buff->slen)
-        {
+        bstring *buff = b_alloc_null(128);
+        if (b_getsa(buff, getc_ptr, parm, terminator) != BSTR_OK) {
                 b_free(buff);
                 buff = NULL;
         }

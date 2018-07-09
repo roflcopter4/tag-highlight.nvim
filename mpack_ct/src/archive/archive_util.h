@@ -19,6 +19,7 @@ char * lzma_message_strm(int code);
 void write_plain(struct top_dir *topdir);
 void write_gzip(struct top_dir *topdir);
 void write_lzma(struct top_dir *topdir);
+void lazy_write_lzma(struct top_dir *topdir);
 
 
 #endif /* archive_util.h */

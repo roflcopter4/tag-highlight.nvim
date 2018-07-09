@@ -70,9 +70,9 @@ strip_comments(struct bufdata *bdata)
                 warnx("Failed to identify language \"%s\".",
                       BTS(bdata->ft->vim_name));
 
-        FILE *cuntbagwhore = safe_fopen_fmt("%s/killme.log", "wb", HOME);
+        /* FILE *cuntbagwhore = safe_fopen_fmt("%s/killme.log", "wb", HOME);
         b_fputs(cuntbagwhore, joined);
-        fclose(cuntbagwhore);
+        fclose(cuntbagwhore); */
 
         return joined;
 }

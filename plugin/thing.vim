@@ -99,6 +99,12 @@ command! InitTagHighlight call s:InitTagHighlight()
 command! StopTagHighlight call s:StopTagHighlight()
 command! TagHighlightClear call s:ClearBuffer()
 
+if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
+    augroup Tag_Highlight_Init
+        autocmd VimEnter * call s:InitTagHighlight()
+    augroup END
+endif
+
 augroup KillMe
     autocmd BufAdd * call s:NewBuf()
     autocmd BufWritePost * call s:UpdateTags()

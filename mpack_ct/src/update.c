@@ -9,7 +9,6 @@
         nvim_get_var(sockfd, B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 #define SLS(CSTRING_) (CSTRING_), (sizeof(CSTRING_) - 1)
 
-
 struct cmd_info {
         int kind;
         bstring *group;
@@ -17,14 +16,11 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static void handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
+static int  handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
                         const struct taglist  *tags, const struct cmd_info *info);
-
 static void update_commands(struct bufdata *bdata, struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
-
 static bstring *get_restore_cmds(b_list *restored_groups);
-
 static b_list *copy_blist(const b_list *list);
 static b_list *clone_blist(const b_list *list);
 
@@ -58,13 +54,6 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         bstring *joined = strip_comments(bdata);
         b_list  *toks   = tokenize(bdata, joined);
 
-#if 0
-        b_list *orig = bdata->topdir->tags;
-        b_list *mustfree = copy_blist(bdata->topdir->tags);
-        b_list *clonelist = clone_blist(mustfree);
-        bdata->topdir->tags = mustfree;
-#endif
-
         FILE *ass = fopen("/home/bml/final_output.log", "a");
         for (uint i = 0; i < toks->qty; ++i) 
                 b_fputs(ass, toks->lst[i], B("\n"));
@@ -86,18 +75,9 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         b_destroy(joined);
 
         if (bdata->ft->restore_cmds)
-                /* b_fputs(stderr, B("That command is \""), bdata->ft->restore_cmds, B("\"\n")); */
                 nvim_command(sockfd, bdata->ft->restore_cmds, 1);
-                /* ; */
-
-#if 0
-        b_list_destroy(mustfree);
-        b_list_destroy(clonelist);
-        bdata->topdir->tags = orig;
-#endif
 
         in_progress = false;
-
 }
 
 
@@ -124,9 +104,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 b_writeprotect(info[i].group);
                 b_writeprotect(info[i].prefix);
                 b_writeprotect(info[i].suffix);
-
                 destroy_dictionary(dict);
-
                 b_writeallow(info[i].group);
                 b_writeallow(info[i].prefix);
                 b_writeallow(info[i].suffix);
@@ -136,14 +114,11 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 unsigned ctr = 0;
-
                 for (; ctr < tags->qty; ++ctr)
                         if (tags->lst[ctr]->kind == info[i].kind)
                                 break;
 
-                if (ctr == tags->qty) {
-                        /* nvprintf("Kind \"%c\" is empty, skipping.\n", info[i].kind); */
-                } else {
+                if (ctr != tags->qty) {
                         bstring *cmd = b_alloc_null(0x4000);
                         handle_kind(cmd, ctr, bdata->ft, tags, &info[i]);
 
@@ -151,7 +126,6 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                         fprintf(cmdlog, "%s\n\n", BS(cmd));
                         nvim_command(sockfd, cmd, 1);
                         b_add_to_list(bdata->cmd_cache, cmd);
-                        /* b_destroy(cmd); */
                 }
 
                 b_destroy(info[i].group);
@@ -165,7 +139,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 }
 
 
-static void
+static int
 handle_kind(bstring               *cmd,
             unsigned               i,
             const struct ftdata_s *ft,
@@ -205,6 +179,8 @@ handle_kind(bstring               *cmd,
 
                 b_formata(cmd, "display | hi def link %s %s", group_id, BS(info->group));
         }
+
+        return i;
 }
 
 

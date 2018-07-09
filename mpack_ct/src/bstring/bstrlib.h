@@ -1589,7 +1589,7 @@ INLINE PURE bstring *b_refcstr(char *str)
  * and the object itself is stack memory and therefore also not freeable.
  */
 #define bt_fromblk(BLK, LEN) \
-        (bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }}
+        ((bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }})
 
 /**
  * Return a static bstring derived from a cstring. Identical to bt_fromblk
@@ -1597,7 +1597,10 @@ INLINE PURE bstring *b_refcstr(char *str)
  * defined as an inline function to avoid any potential double evaluation of
  * side effects that may happen if it were a macro.
  */
-INLINE PURE bstring *bt_fromcstr(void *str)
+#define bt_fromcstr(STR_) \
+        ((bstring[]){{ strlen(STR_), 0, ((uchar *)(STR_)), BSTR_WRITE_ALLOWED }})
+#if 0
+INLINE bstring *bt_fromcstr(void *str)
 {
         return (bstring[]){{
                 .slen  = strlen(str),
@@ -1606,6 +1609,7 @@ INLINE PURE bstring *bt_fromcstr(void *str)
                 .flags = 0x00u
         }};
 }
+#endif
 
 
 /*----------------------------------------------------------------------------*/
@@ -1717,6 +1721,10 @@ BSTR_PUBLIC void __b_add_to_list(b_list **list, bstring *bstr);
 
 #define blk2tbstr(s, l) b_static_refblk(s, l)
 
+#define b_static_refcstr(STR_) \
+        ((bstring){ strlen(STR_), 0, ((uchar *)(STR_)), 0x00u })
+
+#if 0
 INLINE PURE bstring b_static_refcstr(char *str)
 {
         return (bstring){
@@ -1726,6 +1734,7 @@ INLINE PURE bstring b_static_refcstr(char *str)
                 .flags = 0x00u
         };
 }
+#endif
 
 /**
  * Fill the tagbstring t with the substring from b, starting from position pos

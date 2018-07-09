@@ -39,7 +39,7 @@ call s:InitVar('use_compression',   1)
 call s:InitVar('compression_level', 9)
 call s:InitVar('compression_type', 'gzip')
 
-call s:InitVar('enabled',     1)
+" call s:InitVar('enabled',     1)
 call s:InitVar('appendpath',  1)
 call s:InitVar('find_tool',   0)
 call s:InitVar('highlight',   1)

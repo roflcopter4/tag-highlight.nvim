@@ -134,7 +134,7 @@ basename(char *path)
 #endif
 
 
-#ifndef HAVE_ERR
+/* #ifndef HAVE_ERR */
 void
 __err(const int status, const bool print_err, const char *const __restrict fmt, ...)
 {
@@ -150,7 +150,8 @@ __err(const int status, const bool print_err, const char *const __restrict fmt, 
         vfprintf(stderr, buf, ap);
         va_end(ap);
 
-        exit(status);
+        abort();
+        /* exit(status); */
 }
 
 
@@ -169,7 +170,7 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         vfprintf(stderr, buf, ap);
         va_end(ap);
 }
-#endif
+/* #endif */
 
 
 int
@@ -263,6 +264,21 @@ num_to_str(const long long value)
 }
 #endif
 
+
+#if defined(__GNUC__) && !(defined(__clang__) || defined(__cplusplus))
+const char *
+__ret_func_name(const char *const function, const size_t size)
+{
+        if (size + 2 > 256)
+                return function;
+        static _Thread_local char buf[256];
+        memcpy(buf, function, size - 1);
+        buf[size]   = '(';
+        buf[size+1] = ')';
+        buf[size+2] = '\0';
+        return buf;
+}
+#endif
 
 
 /*============================================================================*/

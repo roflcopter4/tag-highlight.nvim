@@ -4,7 +4,7 @@
 
 #include "mpack.h"
 
-enum m_groups { NIL, BOOL, ARRAY, MAP, STRING, BIN, INT, UINT, LINT, EXT };
+enum m_groups { G_NIL, G_BOOL, G_ARRAY, G_MAP, G_STRING, G_BIN, G_INT, G_UINT, G_LINT, G_EXT };
 
 enum m_types {
         M_NIL,       M_TRUE,      M_FALSE,     M_ARRAY_F,   M_ARRAY_E,   M_ARRAY_16,

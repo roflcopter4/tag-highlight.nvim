@@ -50,3 +50,14 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Other
+GARBAGE
+NEOTAGS
+*.json
+THING.sh
+bast
+thing
+build
+.depend
+yacc

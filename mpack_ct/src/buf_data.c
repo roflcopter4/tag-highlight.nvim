@@ -214,12 +214,12 @@ init_topdir(const int fd, struct bufdata *bdata)
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), MPACK_STRING, NULL, 1);
-        tmp->tmpfd    = open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_NOCTTY, 0600);
+        tmp->tmpfd    = open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tmp->refs     = 1;
         tmp->tags     = NULL;
         tmp->index    = top_dirs.mkr;
         tmp->pathname = dir;
-        tmp->gzfile   = b_fromcstr_alloc(bdata->filename->slen * 2, HOME);
+        tmp->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
         tmp->recurse  = check_norecurse_directories(dir);
 
         tmp->pathname->flags |= BSTR_DATA_FREEABLE;
@@ -242,24 +242,30 @@ init_topdir(const int fd, struct bufdata *bdata)
          * for all three in Windows, since it still generally tolerates paths
          * with forward slashes.
          */
-        for (unsigned i = 0; i < pos && i < bdata->filename->mlen; ++i) {
+        nvprintf("slen -> %u, mlen-> %u\n", dir->slen, tmp->gzfile->mlen);
+        for (unsigned i = 0; i < dir->slen && i < tmp->gzfile->mlen; ++i) {
                 if (dir->data[i] == SEPCHAR || DOSCHECK()) {
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                 } else
                         tmp->gzfile->data[tmp->gzfile->slen++] = dir->data[i];
         }
+        /* --tmp->gzfile->slen; */
+        /* tmp->gzfile->slen = strlen(BS(tmp->gzfile)); */
+        /* tmp->gzfile->slen -= 3; */
 
         int ret;
+        /* ret = b_concat(tmp->gzfile, B(".tags.xz")); */
+
 
         if (settings.comp_type == COMP_GZIP)
-                abort();
-                /* ret = b_concat(tmp->gzfile, B(".tags.gz")); */
+                ret = b_concat(tmp->gzfile, B(".tags.gz"));
         else if (settings.comp_type == COMP_LZMA)
                 ret = b_concat(tmp->gzfile, B(".tags.xz"));
         else
                 ret = b_concat(tmp->gzfile, B(".tags"));
 
+        warnx("dir: %s\ngzfile: %s\nslen: %u, strlen: %zu", BS(dir), BS(tmp->gzfile), tmp->gzfile->slen, strlen(BS(tmp->gzfile)));
         assert(ret == BSTR_OK);
 
         get_initial_taglist(bdata, tmp);
@@ -308,8 +314,10 @@ check_project_directories(bstring *dir)
         }
 
         fclose(fp);
-        if (candidates->qty == 0)
+        if (candidates->qty == 0) {
+                b_list_destroy(candidates);
                 return dir;
+        }
                 /* return b_refblk(dir, len); */
 
         unsigned x = 0;
@@ -319,6 +327,12 @@ check_project_directories(bstring *dir)
                         x = i;
 
         bstring *ret = candidates->lst[x];
+        bstring *test = b_strcpy(ret);
+        b_writeprotect(test);
+        b_free(test);
+        b_writeallow(test);
+        b_free(test);
+
         b_writeprotect(ret);
         b_list_destroy(candidates);
         b_writeallow(ret);

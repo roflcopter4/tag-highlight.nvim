@@ -113,6 +113,7 @@ write_gzfile(struct top_dir *topdir)
         case COMP_NONE: write_plain(topdir); break;
         case COMP_GZIP: write_gzip(topdir);  break;
         case COMP_LZMA: write_lzma(topdir);  break;
+        /* case COMP_LZMA: lazy_write_lzma(topdir);  break; */
 
         default: abort();
         }

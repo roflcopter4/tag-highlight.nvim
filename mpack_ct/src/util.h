@@ -5,20 +5,21 @@
     extern "C" {
 #endif
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
-#   pragma warning(disable : 4996)
-#   define _CRT_SECURE_NO_WARNINGS
-#   define _CRT_NONSTDC_NO_WARNINGS
-#   define __attribute__(...)
+#  pragma warning(disable : 4996)
+#  define _CRT_SECURE_NO_WARNINGS
+#  define _CRT_NONSTDC_NO_WARNINGS
+#  define __attribute__(...)
 #endif
 #ifdef HAVE_CONFIG_H
-#   include "config.h"
+#  include "config.h"
 #else  /* This just shuts up linters too lazy to include config.h */
-#   if defined(__GNUC__) || defined(__FreeBSD__)
-#      define HAVE_ERR
-#   endif
-#   define VERSION "0.0.1"
-#   define PACKAGE_STRING "idunno" VERSION
-#   define _GNU_SOURCE
+#  define DEBUG
+#  if defined(__GNUC__) || defined(__FreeBSD__)
+#    define HAVE_ERR
+#  endif
+#  define VERSION "0.0.1"
+#  define PACKAGE_STRING "idunno" VERSION
+#  define _GNU_SOURCE
 #endif
 /*===========================================================================*/
 
@@ -51,20 +52,23 @@ struct backups {
 /* Generic Macros */
 
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(HAVE_UNISTD_H)
-#   define DOSISH
-#   include <io.h>
-#   include <Windows.h>
-#   define strcasecmp  _stricmp
-#   define strncasecmp _strnicmp
-#   define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-#   define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
-#   undef BUFSIZ
-#   define BUFSIZ 8192
-#   define PATHSEP '\\'
+#  define DOSISH
+#  include <io.h>
+#  include <Windows.h>
+#  define strcasecmp  _stricmp
+#  define strncasecmp _strnicmp
+#  define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#  define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#  undef BUFSIZ
+#  define BUFSIZ 8192
+#  define PATHSEP '\\'
     extern char * basename(char *path);
 #else
-#   include <unistd.h>
-#   define PATHSEP '/'
+#  include <unistd.h>
+#  define PATHSEP '/'
+#endif
+#ifndef O_BINARY
+#  define O_BINARY 0
 #endif
 
 #define ARRSIZ(ARR_)    (sizeof(ARR_) / sizeof(*(ARR_)))
@@ -73,6 +77,7 @@ struct backups {
 #define nputs(STR_)     fputs((STR_), stdout)
 #define eprintf(...)    fprintf(stderr, __VA_ARGS__)
 #define xfree(PTR_)     (free(PTR_), (PTR_) = NULL)
+#define ALWAYS_INLINE   __attribute__((__always_inline__)) static inline
 #define UNUSED          __attribute__((__unused__))
 #define aNORET          __attribute__((__noreturn__))
 #define aWUR            __attribute__((__warn_unused_result__))
@@ -85,27 +90,53 @@ struct backups {
 #define MAX(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ > ib_) ? ia_ : ib_; })
 #define MIN(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ < ib_) ? ia_ : ib_; })
 
-#ifdef HAVE_ERR
-#   undef HAVE_ERR
-#endif
+/* #ifdef HAVE_ERR
+#  undef HAVE_ERR
+#endif */
 /* #   include <err.h> */
 /* #else */
 
     void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
     void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4) aNORET;
-#   define warn(...)       __warn(true, __VA_ARGS__)
-#   define warnx(...)      __warn(false, __VA_ARGS__)
-#   define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
-#   define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
+#define warn(...)       __warn(true, __VA_ARGS__)
+#define warnx(...)      __warn(false, __VA_ARGS__)
+#define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
+#define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
 
 /* #   define err(EVAL, ...)  _warn(true, __VA_ARGS__), abort()
-#   define errx(EVAL, ...) _warn(false, __VA_ARGS__), abort() */
+#define errx(EVAL, ...) _warn(false, __VA_ARGS__), abort() */
 /* #   define err(EVAL, ...)  _warn(true, __VA_ARGS__), exit(EVAL) */
 /* #   define errx(EVAL, ...) _warn(false, __VA_ARGS__), exit(EVAL) */
 /* #endif */
 
-#ifdef __GNUC__
-#  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#if defined(__GNUC__)
+#  if defined(__clang__) || defined(__cplusplus)
+#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#  else
+#if 0
+     ALWAYS_INLINE const char *
+     __ret_func_name(const char *const function, size_t size)
+     {
+             if (size + 2 > 256)
+                     return function;
+             static _Thread_local char tmp_[256];
+             memcpy(tmp_, function, size - 1);
+             memcpy((tmp_ + size - 1), "()", 3);
+             return tmp_;
+     }
+#endif
+     extern const char * __ret_func_name(const char *const function, size_t size);
+#    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+#if 0
+#    define FUNC_NAME                                                                 \
+        (__extension__({                                                              \
+                char tmp_[sizeof(__PRETTY_FUNCTION__) + 2];                           \
+                memcpy(tmp_, __PRETTY_FUNCTION__, (sizeof(__PRETTY_FUNCTION__) - 1)); \
+                memcpy((tmp_ + sizeof(__PRETTY_FUNCTION__) - 1), "()", 3);            \
+                tmp_;                                                                 \
+        }))
+#  endif
+#endif
 #else
 #  define FUNC_NAME (__func__)
 #endif
@@ -114,15 +145,18 @@ struct backups {
 #define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n")))
 
 #ifndef DEBUG
-#undef echo
-#undef nvprintf
-#undef eprintf
-#undef warnx
-#define warnx(...)
-#define nvprintf warnx
-#define eprintf warnx
-#define echo warnx
+#  undef echo
+#  undef nvprintf
+#  undef eprintf
+#  undef warnx
+#  define warnx(...)
+#  define nvprintf warnx
+#  define eprintf warnx
+#  define echo warnx
 #endif
+
+#define ASSERT(CONDITION_, ...)  do { if (!(CONDITION_)) err(50, __VA_ARGS__); } while (0)
+#define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)
 
 
 /*===========================================================================*/
@@ -152,11 +186,11 @@ extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
 #define HAVE_REALLOCARRAY
 #if defined(HAVE_REALLOCARRAY)
 extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
-#   define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
-#   define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
+#  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
+#  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
 #else
-#   define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#   define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
 
 
