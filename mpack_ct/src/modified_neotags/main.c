@@ -25,8 +25,8 @@
 
 static bool is_c_or_cpp;
 
-static void print_tags(const struct taglist *list, const char *ft);
-static void print_tags_vim(const struct taglist *list, const char *ft);
+UNUSED static void print_tags(const struct taglist *list, const char *ft);
+UNUSED static void print_tags_vim(const struct taglist *list, const char *ft);
 
 static struct taglist * tok_search(const struct bufdata *bdata, b_list *vimbuf);
 static void *do_tok_search(void *vdata);

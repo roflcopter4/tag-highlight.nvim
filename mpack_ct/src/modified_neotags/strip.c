@@ -37,7 +37,7 @@ strip_comments(struct bufdata *bdata)
 {
         const struct comment_s *com = NULL;
         /* unsigned               *bytenum = nvim_call_function_args(
-            sockfd, B("wordcount()"), MPACK_NUM, B("bytes"), 1, "d", bdata->num); */
+            0, B("wordcount()"), MPACK_NUM, B("bytes"), 1, "d", bdata->num); */
 
         unsigned bytenum = 0;
 

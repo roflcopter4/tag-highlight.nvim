@@ -140,6 +140,10 @@
 #  define ALLOCATION_ERROR(RETVAL) abort();
 #endif
 
+
+#if defined(__GNUC__) && !defined(HAVE_VASPRINTF)
+#  define HAVE_VASPRINTF
+#endif
 #define USE_XMALLOC
 
 /* 

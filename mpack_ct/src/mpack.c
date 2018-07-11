@@ -6,7 +6,7 @@
 
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(dictionary *dict, const bstring *key);
-static void      *get_expect    (mpack_obj *result, const enum mpack_types expect,
+static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
                                  const bstring *key, bool destroy, bool is_retval);
 
 static unsigned        sok_count, io_count;
@@ -18,6 +18,7 @@ extern pthread_mutex_t mpack_main;
 
 #define COUNT(FD_) (((FD_) == 1) ? io_count++ : sok_count++)
 
+#define CHECK_DEF_FD(FD__) ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
 
 #define WRITE_AND_CLEAN(FD__, MPACK, func)                                     \
         do {                                                                   \
@@ -30,7 +31,7 @@ extern pthread_mutex_t mpack_main;
 
 #define validate_expect(EXPECT, ...)                                                   \
         do {                                                                           \
-                const enum mpack_types lst[] = {__VA_ARGS__};                          \
+                const mpack_type_t lst[] = {__VA_ARGS__};                          \
                 bool found = false;                                                    \
                 for (unsigned i_ = 0; i_ < ARRSIZ(lst); ++i_) {                        \
                         if ((EXPECT) == lst[i_]) {                                     \
@@ -41,7 +42,7 @@ extern pthread_mutex_t mpack_main;
                 if (!found)                                                            \
                         errx(1, "Invalid argument \"%s\" in %s(), line %d of file %s", \
                              (expect <= 7 ? m_type_names[EXPECT] : "TOO LARGE"),       \
-                             FUNC_NAME, __LINE__, __FILE__);                            \
+                             FUNC_NAME, __LINE__, __FILE__);                           \
         } while (0)
 
 
@@ -67,10 +68,11 @@ extern pthread_mutex_t mpack_main;
 
 
 void
-__nvim_write(const int fd, const enum nvim_write_type type, const bstring *mes)
+__nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 {
         /* pthread_mutex_lock(&mpack_main); */
         abort();
+        CHECK_DEF_FD(fd);
         bstring *func;
         switch (type) {
         case STANDARD: func = B("nvim_out_write");   break;
@@ -91,7 +93,7 @@ __nvim_write(const int fd, const enum nvim_write_type type, const bstring *mes)
 
 
 void
-nvim_printf(const int fd, const char *const restrict fmt, ...)
+nvim_printf(int fd, const char *const restrict fmt, ...)
 {
         va_list va;
         va_start(va, fmt);
@@ -109,9 +111,10 @@ nvim_printf(const int fd, const char *const restrict fmt, ...)
 
 
 b_list *
-nvim_buf_attach(const int fd, const int bufnum)
+nvim_buf_attach(int fd, const int bufnum)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d,B,[]", func, bufnum, true);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -123,9 +126,10 @@ nvim_buf_attach(const int fd, const int bufnum)
 /*----------------------------------------------------------------------------*/
 
 void *
-nvim_list_bufs(const int fd)
+nvim_list_bufs(int fd)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -138,9 +142,10 @@ nvim_list_bufs(const int fd)
 }
 
 int
-nvim_get_current_buf(const int fd)
+nvim_get_current_buf(int fd)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -154,9 +159,10 @@ nvim_get_current_buf(const int fd)
 }
 
 bstring *
-nvim_get_current_line(const int fd)
+nvim_get_current_line(int fd)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -169,9 +175,10 @@ nvim_get_current_line(const int fd)
 }
 
 unsigned
-nvim_buf_line_count(const int fd, const int bufnum)
+nvim_buf_line_count(int fd, const int bufnum)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d", func, bufnum);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -185,12 +192,13 @@ nvim_buf_line_count(const int fd, const int bufnum)
 }
 
 b_list *
-nvim_buf_get_lines(const int      fd,
+nvim_buf_get_lines(int            fd,
                    const unsigned bufnum,
                    const int      start,
                    const int      end)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d,d,d,d", func, bufnum, start, end, 0);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -202,9 +210,10 @@ nvim_buf_get_lines(const int      fd,
 }
 
 bstring *
-nvim_buf_get_name(const int fd, const int bufnum)
+nvim_buf_get_name(int fd, const int bufnum)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "d", func, bufnum);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -223,9 +232,10 @@ nvim_buf_get_name(const int fd, const int bufnum)
 /*----------------------------------------------------------------------------*/
 
 bool
-nvim_command(const int fd, const bstring *cmd, const bool fatal)
+nvim_command(int fd, const bstring *cmd, const bool fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, cmd);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -245,13 +255,14 @@ nvim_command(const int fd, const bstring *cmd, const bool fatal)
 }
 
 void *
-nvim_command_output(const int              fd,
-                    const bstring *        cmd,
-                    const enum mpack_types expect,
-                    const bstring *        key,
-                    const bool             fatal)
+nvim_command_output(int                fd,
+                    const bstring *    cmd,
+                    const mpack_type_t expect,
+                    const bstring *    key,
+                    const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, cmd);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -272,13 +283,14 @@ nvim_command_output(const int              fd,
 }
 
 void *
-nvim_call_function(const int              fd,
-                   const bstring *        function,
-                   const enum mpack_types expect,
-                   const bstring *        key,
-                   const bool             fatal)
+nvim_call_function(int                fd,
+                   const bstring *    function,
+                   const mpack_type_t expect,
+                   const bstring *    key,
+                   const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s,[]", func, function);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -293,14 +305,15 @@ nvim_call_function(const int              fd,
 }
 
 void *
-nvim_call_function_args(const int              fd,
-                        const bstring *        function,
-                        const enum mpack_types expect,
-                        const bstring *        key,
-                        const bool             fatal,
+nvim_call_function_args(int                fd,
+                        const bstring *    function,
+                        const mpack_type_t expect,
+                        const bstring *    key,
+                        const bool         fatal,
                         const char *fmt,
                         ...)
 {
+        CHECK_DEF_FD(fd);
         static const bstring func = bt_init("nvim_call_function");
         va_list va;
         char buf[2048];
@@ -325,13 +338,14 @@ nvim_call_function_args(const int              fd,
 /*----------------------------------------------------------------------------*/
 
 void *
-nvim_get_var(const int              fd,
-             const bstring *        varname,
-             const enum mpack_types expect,
-             const bstring *        key,
-             const bool             fatal)
+nvim_get_var(int                fd,
+             const bstring *    varname,
+             const mpack_type_t expect,
+             const bstring *    key,
+             const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, varname);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -345,14 +359,18 @@ nvim_get_var(const int              fd,
         return ret;
 }
 
+/* void *
+nvim_buf_get_var(int fd, const int bufnum, const bstring *optname, const mpack_type_t expect, ) */
+
 void *
-nvim_get_option(const int              fd,
-                const bstring *        optname,
-                const enum mpack_types expect,
-                const bstring *        key,
-                const bool             fatal)
+nvim_get_option(int                fd,
+                const bstring *    optname,
+                const mpack_type_t expect,
+                const bstring *    key,
+                const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         validate_expect(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
         BT_FUNCNAME();
 
@@ -369,14 +387,15 @@ nvim_get_option(const int              fd,
 }
 
 void *
-nvim_buf_get_option(const int              fd,
-                    const int              bufnum,
-                    const bstring *        optname,
-                    const enum mpack_types expect,
-                    const bstring *        key,
-                    const bool             fatal)
+nvim_buf_get_option(int                fd,
+                    const int          bufnum,
+                    const bstring *    optname,
+                    const mpack_type_t expect,
+                    const bstring *    key,
+                    const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         validate_expect(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
         BT_FUNCNAME();
 
@@ -394,10 +413,54 @@ nvim_buf_get_option(const int              fd,
 
 /*----------------------------------------------------------------------------*/
 
-void
-nvim_get_api_info(const int fd)
+int
+nvim_buf_add_highlight(int             fd,
+                       const unsigned  bufnum,
+                       const int       hl_id,
+                       const bstring  *group,
+                       const unsigned  line,
+                       const unsigned  start,
+                       const int       end)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
+        BT_FUNCNAME();
+        mpack_obj *pack = encode_fmt_api(fd, "ddsddd", bufnum, hl_id, group,
+                                         line, start, end);
+        WRITE_AND_CLEAN(fd, pack, func);
+
+        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
+        pthread_mutex_unlock(&mpack_main);
+        const int ret = numptr_to_num(get_expect(result, MPACK_NUM, NULL, true, true));
+
+        return ret;
+}
+
+void
+nvim_buf_clear_highlight(int            fd,
+                         const unsigned bufnum,
+                         const int      hl_id,
+                         const unsigned start,
+                         const int      end)
+{
+        pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
+        BT_FUNCNAME();
+        mpack_obj *pack = encode_fmt_api(fd, "dddd", bufnum, hl_id, start, end);
+        WRITE_AND_CLEAN(fd, pack, func);
+
+        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
+        pthread_mutex_unlock(&mpack_main);
+        mpack_destroy(result);
+}
+
+/*----------------------------------------------------------------------------*/
+
+void
+nvim_get_api_info(int fd)
+{
+        pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "", func);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -408,9 +471,10 @@ nvim_get_api_info(const int fd)
 }
 
 void
-nvim_subscribe(const int fd, const bstring *event)
+nvim_subscribe(int fd, const bstring *event)
 {
         pthread_mutex_lock(&mpack_main);
+        CHECK_DEF_FD(fd);
         BT_FUNCNAME();
         mpack_obj *pack = encode_fmt_api(fd, "s", func, event);
         WRITE_AND_CLEAN(fd, pack, func);
@@ -425,11 +489,11 @@ nvim_subscribe(const int fd, const bstring *event)
 
 
 static void *
-get_expect(mpack_obj *            result,
-           const enum mpack_types expect,
-           const bstring *        key,
-           const bool             destroy,
-           const bool             is_retval)
+get_expect(mpack_obj *        result,
+           const mpack_type_t expect,
+           const bstring *    key,
+           const bool         destroy,
+           const bool         is_retval)
 {
         mpack_obj *cur;
 
@@ -637,7 +701,7 @@ mpack_array_to_blist(struct mpack_array *array, const bool destroy)
 
 b_list *
 blist_from_var_fmt(
-    const int fd, const bstring *key, const bool fatal, const char *fmt, ...)
+    int fd, const bstring *key, const bool fatal, const char *fmt, ...)
 {
         va_list va;
         va_start(va, fmt);
@@ -651,11 +715,11 @@ blist_from_var_fmt(
 
 
 void *
-nvim_get_var_fmt(const int              fd,
-                 const enum mpack_types expect,
-                 const bstring *        key,
-                 const bool             fatal,
-                 const char *           fmt,
+nvim_get_var_fmt(int                fd,
+                 const mpack_type_t expect,
+                 const bstring *    key,
+                 const bool         fatal,
+                 const char *       fmt,
                  ...)
 {
         va_list va;
@@ -670,10 +734,10 @@ nvim_get_var_fmt(const int              fd,
 
 
 void *
-dict_get_key(dictionary *           dict,
-             const enum mpack_types expect,
-             const bstring *        key,
-             const bool             fatal)
+dict_get_key(dictionary *       dict,
+             const mpack_type_t expect,
+             const bstring *    key,
+             const bool         fatal)
 {
         if (!dict || !key)
                 abort();

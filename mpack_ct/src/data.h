@@ -99,6 +99,7 @@ extern FILE *vpipe;
 extern const size_t ftdata_len;
 extern const char *const m_type_names[];
 
+#define DEFAULT_FD sockfd
 
 
 /*===========================================================================*/

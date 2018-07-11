@@ -131,21 +131,23 @@ handle_line_event(const unsigned index, mpack_obj **items)
 
         assert(ll_verify_size(bdata->lines));
 
-        /* const unsigned linecount = nvim_buf_line_count(sockfd, bdata->num);
+        /* const unsigned linecount = nvim_buf_line_count(0, bdata->num);
         ASSERTX(linecount == (unsigned)bdata->lines->qty,
                 "ERROR: Linecount: %u, qty: %d! (odiff %u)",
                 linecount, bdata->lines->qty, odiff); */
 
+#if 0
 #ifdef DEBUG
-        bstring *fn = nvim_call_function(sockfd, b_tmp("tempname"), MPACK_STRING, NULL, 1);
+        bstring *fn = nvim_call_function(0, b_tmp("tempname"), MPACK_STRING, NULL, 1);
         int tempfd  = open(BS(fn), O_CREAT|O_WRONLY|O_TRUNC|O_BINARY, 0600);
 
         b_write_ll(tempfd, bdata->lines);
         close(tempfd);
         b_free(fn);
-#endif
 
         echo("Done writing file");
+#endif
+#endif
         
         free(new_lines->lst);
         free(new_lines);

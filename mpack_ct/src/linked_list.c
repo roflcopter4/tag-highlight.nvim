@@ -298,8 +298,10 @@ ll_at(linked_list *list, int index)
 
         if (index < 0)
                 index += list->qty;
-        if (index < 0 || index > list->qty)
-                errx(1, "index: %d, qty %d", index, list->qty);
+        if (index < 0 || index > list->qty) {
+                warnx("Failed to find node: index: %d, qty %d", index, list->qty);
+                return NULL;
+        }
 
         ll_node *current;
 

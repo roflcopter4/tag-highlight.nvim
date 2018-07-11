@@ -14,32 +14,6 @@
                      err(1, "Failed to stat file '%s", (PATH)); \
      } while (0)
 
-struct write_wrapper_data {
-        struct top_dir *topdir;
-        uint8_t *buf;
-        size_t size;
-};
-
-
-static void *
-write_wrapper(void *vdata)
-{
-        struct write_wrapper_data *data = vdata;
-        /* assert(write(data->topdir->tmpfd, data->buf, data->size) == (ssize_t)data->size); */
-
-        /* FILE *fp = fopen(BS(topdir->gzfile), "wb"); */
-        int fd = open(BS(data->topdir->gzfile), O_CREAT|O_TRUNC|O_WRONLY, 0644);
-        assert(write(fd, data->buf, data->size) == (ssize_t)data->size);
-        close(fd);
-
-        /* fwrite(out_buf, 1, strm.total_out, fp); */
-        /* fclose(fp); */
-
-        free(data->buf);
-        free(data);
-        pthread_exit(NULL);
-}
-
 
 void
 write_plain(struct top_dir *topdir)

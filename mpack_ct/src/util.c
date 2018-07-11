@@ -136,7 +136,7 @@ basename(char *path)
 
 /* #ifndef HAVE_ERR */
 void
-__err(const int status, const bool print_err, const char *const __restrict fmt, ...)
+__err(UNUSED const int status, const bool print_err, const char *const __restrict fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);

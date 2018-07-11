@@ -52,23 +52,25 @@ new_buffer(const int fd, const int bufnum)
                                                    MPACK_STRING, NULL, 1);
         assert(ft != NULL);
 
-        for (unsigned i = 0; i < ftdata_len; ++i)
+        for (unsigned i = 0; i < ftdata_len; ++i) {
                 if (b_iseq(ft, &ftdata[i].vim_name)) {
                         tmp = &ftdata[i];
                         break;
                 }
+        }
 
         if (!tmp) {
-                /* nvprintf("Can't identify buffer %d, bailing!\n", bufnum); */
+                nvprintf("Can't identify buffer %d, bailing!\n", bufnum);
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                 b_destroy(ft);
                 return false;
         }
-        for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i)
+        for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i) {
                 if (b_iseq(ft, settings.ignored_ftypes->lst[i])) {
                         buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                         return false;
                 }
+        }
 
         b_destroy(ft);
         struct bufdata *bdata = get_bufdata(fd, bufnum);
@@ -138,15 +140,11 @@ destroy_bufdata(struct bufdata **bdata)
 struct bufdata *
 find_buffer(const int bufnum)
 {
-        struct bufdata *ret = NULL;
-
         for (unsigned i = 0; i < buffers.mlen; ++i)
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
-                        ret = buffers.lst[i];
-                        break;
-                }
+                if (buffers.lst[i] && buffers.lst[i]->num == bufnum)
+                        return buffers.lst[i];
 
-        return ret;
+        return NULL;
 }
 
 
@@ -168,7 +166,7 @@ null_find_bufdata(const int bufnum, struct bufdata *bdata)
                 assert(bufnum > 0);
                 bdata = find_buffer(bufnum);
         }
-        assert(bdata != NULL);
+        assert(bdata != NULL || is_bad_buffer(bufnum));
 
         return bdata;
 }
@@ -206,11 +204,12 @@ init_topdir(const int fd, struct bufdata *bdata)
         /* If this buffer shares a directory with another previously opened
          * buffer then there's no need to re-read the tags file.
          */
-        for (unsigned i = 0; i < top_dirs.mlen; ++i)
+        for (unsigned i = 0; i < top_dirs.mlen; ++i) {
                 if (top_dirs.lst[i] && b_iseq(top_dirs.lst[i]->pathname, dir)) {
                         ++top_dirs.lst[i]->refs;
                         return top_dirs.lst[i];
                 }
+        }
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), MPACK_STRING, NULL, 1);
@@ -228,20 +227,17 @@ init_topdir(const int fd, struct bufdata *bdata)
         if (tmp->tmpfd == (-1))
                 errx(1, "Failed to open temporary file!");
 
-
         /* Set the vim 'tags' option. */
         {
                 char buf[8192];
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tmp->tmpfname));
-                nvim_command(sockfd, bt_fromblk(buf, n), 0);
+                nvim_command(0, bt_fromblk(buf, n), 0);
         }
-
 
         /* In UNIX-y systems, swap '/' with '__', and do the same with '\\' and
          * ':' in Windows (because drive letters). Actually, we have to check
          * for all three in Windows, since it still generally tolerates paths
-         * with forward slashes.
-         */
+         * with forward slashes. */
         nvprintf("slen -> %u, mlen-> %u\n", dir->slen, tmp->gzfile->mlen);
         for (unsigned i = 0; i < dir->slen && i < tmp->gzfile->mlen; ++i) {
                 if (dir->data[i] == SEPCHAR || DOSCHECK()) {
@@ -250,14 +246,7 @@ init_topdir(const int fd, struct bufdata *bdata)
                 } else
                         tmp->gzfile->data[tmp->gzfile->slen++] = dir->data[i];
         }
-        /* --tmp->gzfile->slen; */
-        /* tmp->gzfile->slen = strlen(BS(tmp->gzfile)); */
-        /* tmp->gzfile->slen -= 3; */
-
         int ret;
-        /* ret = b_concat(tmp->gzfile, B(".tags.xz")); */
-
-
         if (settings.comp_type == COMP_GZIP)
                 ret = b_concat(tmp->gzfile, B(".tags.gz"));
         else if (settings.comp_type == COMP_LZMA)
@@ -265,11 +254,11 @@ init_topdir(const int fd, struct bufdata *bdata)
         else
                 ret = b_concat(tmp->gzfile, B(".tags"));
 
-        warnx("dir: %s\ngzfile: %s\nslen: %u, strlen: %zu", BS(dir), BS(tmp->gzfile), tmp->gzfile->slen, strlen(BS(tmp->gzfile)));
+        warnx("dir: %s\ngzfile: %s\nslen: %u, strlen: %zu", BS(dir),
+              BS(tmp->gzfile), tmp->gzfile->slen, strlen(BS(tmp->gzfile)));
         assert(ret == BSTR_OK);
 
         get_initial_taglist(bdata, tmp);
-
         top_dirs.lst[top_dirs.mkr] = tmp;
         NEXT_MKR(top_dirs);
 

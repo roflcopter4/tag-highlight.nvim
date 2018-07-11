@@ -5,7 +5,6 @@
 #include "mpack.h"
 #include "mpack_code.h"
 extern FILE *decodelog;
-extern int   sockfd;
 extern pthread_mutex_t readlockstdin;
 extern pthread_mutex_t readlocksocket;
 
@@ -54,7 +53,7 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
 
 
 mpack_obj *
-decode_stream(int fd, const enum message_types expected_type)
+decode_stream(int32_t fd, const enum message_types expected_type)
 {
         pthread_mutex_t *mut = NULL;
 
@@ -81,7 +80,7 @@ decode_stream(int fd, const enum message_types expected_type)
         pthread_mutex_unlock(mut);
 
         if (expected_type != MES_ANY &&
-            expected_type != ((unsigned)ret->data.arr->items[0]->data.num + 1))
+            expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
                 nvprintf("Expected %d but got %ld\n",
                          expected_type, ret->data.arr->items[0]->data.num);
@@ -122,7 +121,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         }
 
         if (expected_type != MES_ANY &&
-            expected_type != ((unsigned)ret->data.arr->items[0]->data.num + 1))
+            expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
                 if (buf != 0)
                         nvprintf("Expected %d but got %ld\n", expected_type,
@@ -175,7 +174,7 @@ decode_array(read_fn READ, void *src, const uint8_t byte, const struct mpack_mas
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = { 0, 0, 0, 0 };
+        uint8_t    word[4] = {0, 0, 0, 0};
 
         if (mask->fixed) {
                 size = (uint32_t)(byte ^ mask->val);
@@ -243,7 +242,7 @@ decode_dictionary(read_fn READ, void *src, const uint8_t byte, const struct mpac
 
         LOG("It is a dictionary! -> 0x%0X => size %u\n", byte, size);
 
-        for (unsigned i = 0; i < item->data.arr->max; ++i) {
+        for (uint32_t i = 0; i < item->data.arr->max; ++i) {
                 item->data.dict->entries[i]        = xmalloc(sizeof(struct dict_ent));
                 item->data.dict->entries[i]->key   = do_decode(READ, src);
                 item->data.dict->entries[i]->value = do_decode(READ, src);
@@ -305,7 +304,6 @@ decode_integer(read_fn READ, void *src, const uint8_t byte, const struct mpack_m
         int64_t    value   = 0;
         uint8_t    word[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-
         if (mask->fixed) {
                 value = (int32_t)(byte ^ mask->val);
         } else {
@@ -335,9 +333,9 @@ decode_integer(read_fn READ, void *src, const uint8_t byte, const struct mpack_m
         }
 
         item->flags    = MPACK_NUM;
-        item->data.num = (int64_t)value;
+        item->data.num = value;
 
-        LOG("It is a signed int! -> 0x%0X : value => %d\n", byte, value);
+        LOG("It is a signed int32_t! -> 0x%0X : value => %d\n", byte, value);
 
         return item;
 }
@@ -348,10 +346,10 @@ decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint64_t   value   = 0;
-        uint8_t    word[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+        uint8_t    word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (mask->fixed) {
-                value = (uint32_t)(byte ^ mask->val);
+                value = (uint64_t)(byte ^ mask->val);
         } else {
                 switch (mask->type) {
                 case M_UINT_8:
@@ -379,7 +377,7 @@ decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_
         item->flags    = MPACK_NUM;
         item->data.num = (int64_t)value;
 
-        LOG("It is an unsigned int! -> 0x%0X : value => %u\n", byte, value);
+        LOG("It is an uint32_t int32_t! -> 0x%0X : value => %u\n", byte, value);
 
         return item;
 }
@@ -388,10 +386,10 @@ decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_
 static mpack_obj *
 decode_ext(read_fn READ, void *src, const struct mpack_masks *mask)
 {
-        mpack_obj *item  = xmalloc(sizeof *item);
-        uint32_t   value = 0;
+        mpack_obj *item    = xmalloc(sizeof *item);
+        uint32_t   value   = 0;
+        uint8_t    word[4] = {0, 0, 0, 0};
         uint8_t    type;
-        uint8_t    word[4] = { 0, 0, 0, 0 };
 
         switch (mask->type) {
         case M_EXT_F1:
@@ -454,6 +452,9 @@ decode_nil(void)
 
 /*============================================================================*/
 
+/* #ifndef __ssize_t_defined */
+
+/* #endif */
 
 static const struct mpack_masks *
 id_pack_type(const uint8_t byte)
@@ -485,7 +486,7 @@ id_pack_type(const uint8_t byte)
 static void
 stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
-        const int fd = *((int *)src);
+        const int32_t fd = *((int32_t *)src);
         size_t nread = 0;
 
         do {

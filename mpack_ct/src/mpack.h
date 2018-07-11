@@ -21,6 +21,7 @@ enum mpack_types {
         MPACK_ARRAY,
         MPACK_DICT,
 };
+typedef enum mpack_types mpack_type_t;
 
 enum message_types { MES_ANY = 0, MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION };
 enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
@@ -102,17 +103,19 @@ extern void       nvim_printf  (int fd, const char *const restrict fmt, ...) __a
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
 extern b_list   * nvim_buf_get_lines      (int fd, unsigned buf, int start, int end);
 extern bstring  * nvim_buf_get_name       (int fd, int bufnum);
-extern void     * nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, enum mpack_types expect, const bstring *key, bool fatal);
+extern void     * nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
 extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
-extern void     * nvim_call_function      (int fd, const bstring *function, enum mpack_types expect, const bstring *key, bool fatal);
-extern void     * nvim_call_function_args (int fd, const bstring *function, enum mpack_types expect, const bstring *key, bool fatal, const char *fmt, ...);
+extern void     * nvim_call_function      (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal);
+extern void     * nvim_call_function_args (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...);
 extern bool       nvim_command            (int fd, const bstring *cmd, bool fatal);
-extern void     * nvim_command_output     (int fd, const bstring *cmd, enum mpack_types expect, const bstring *key, bool fatal);
+extern void     * nvim_command_output     (int fd, const bstring *cmd, mpack_type_t expect, const bstring *key, bool fatal);
 extern void       nvim_get_api_info       (int fd);
 extern int        nvim_get_current_buf    (int fd);
 extern bstring  * nvim_get_current_line   (int fd);
-extern void     * nvim_get_option         (int fd, const bstring *optname, enum mpack_types expect, const bstring *key, bool fatal);
-extern void     * nvim_get_var            (int fd, const bstring *varname, enum mpack_types expect, const bstring *key, bool fatal);
+extern void     * nvim_get_option         (int fd, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
+extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
+extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
+extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
 extern void     * nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
 
@@ -172,8 +175,8 @@ extern mpack_obj * encode_fmt           (const char *fmt, ...);
 
 extern b_list * mpack_array_to_blist(struct mpack_array *array, bool destroy);
 extern b_list * blist_from_var_fmt  (int fd, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
-extern void   * nvim_get_var_fmt    (int fd, enum mpack_types expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
-extern void   * dict_get_key        (dictionary *dict, const enum mpack_types expect, const bstring *key, const bool fatal);
+extern void   * nvim_get_var_fmt    (int fd, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
+extern void   * dict_get_key        (dictionary *dict, const mpack_type_t expect, const bstring *key, const bool fatal);
 
 
 static inline void

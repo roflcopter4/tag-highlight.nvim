@@ -33,23 +33,15 @@ static void *           buffer_event_loop(void *vdata);
 static void             exit_cleanup(void);
 static int              create_socket(bstring **name);
 static enum comp_type_e get_compression_type(void);
+static void             buffer_update(int bufnum, struct bufdata *bdata);
 
 
-static inline void
-closefile(FILE **fpp)
-{
-        fclose(*fpp);
-}
-static inline void
-auto_b_destroy(bstring **str)
-{
-        b_destroy(*str);
-}
-
-__attribute__((noreturn)) static inline void pthread_exit_wrapper(UNUSED int x)
-{
-        pthread_exit(NULL);
-}
+static inline void closefile(FILE **fpp)
+{ fclose(*fpp); }
+static inline void auto_b_destroy(bstring **str)
+{ b_destroy(*str); }
+_Noreturn static inline void pthread_exit_wrapper(UNUSED int x)
+{ pthread_exit(NULL); }
 
 FILE *cmdlog;
 
@@ -62,10 +54,9 @@ main(int argc, char *argv[])
         extern const char *program_name;
         program_name = basename(argv[0]);
         HOME         = getenv("HOME");
-
         unlink("/home/bml/final_output.log");
-
         assert(atexit(exit_cleanup) == 0);
+
         {
                 /* const struct sigaction temp1 = {{exit}, {{0}}, 0, 0};
                 sigaction(SIGTERM, &temp1, NULL);
@@ -98,10 +89,19 @@ main(int argc, char *argv[])
         assert(settings.enabled);
 
         /* Initialize all opened buffers. */
-        struct mpack_array *buflist = nvim_list_bufs(sockfd);
-        for (unsigned i = 0; i < buflist->qty; ++i)
-                new_buffer(sockfd, buflist->items[i]->data.ext->num);
-        destroy_mpack_array(buflist);
+        for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
+                if (attempts > 0) {
+                        if (buffers.bad_bufs.qty)
+                                buffers.bad_bufs.qty = 0;
+                        sleep(3);
+                        nvprintf("Retrying (attempt number %u)\n", attempts);
+                }
+                struct mpack_array *buflist = nvim_list_bufs(0);
+
+                for (unsigned i = 0; i < buflist->qty; ++i)
+                        new_buffer(0, buflist->items[i]->data.ext->num);
+                destroy_mpack_array(buflist);
+        }
 
         pthread_t event_loop, main_loop;
         pthread_create(&main_loop,  NULL, &buffer_event_loop, NULL);
@@ -131,8 +131,8 @@ buffer_event_loop(UNUSED void *vdata)
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
                 if (event) {
-                        /* mpack_print_object(event, logfile);
-                        fflush(logfile); */
+                        mpack_print_object(event, logfile);
+                        fflush(logfile);
 
                         handle_nvim_event(event);
 
@@ -154,10 +154,12 @@ static void *
 interrupt_loop(void *vdata)
 {
         pthread_t mainloop = *((pthread_t *)vdata);
-        int       bufnum   = nvim_get_current_buf(sockfd);
+        int       bufnum   = nvim_get_current_buf(0);
 
         {
-                struct bufdata *bdata  = find_buffer(bufnum);
+                struct bufdata *bdata = find_buffer(bufnum);
+                assert(bdata);
+
                 while (!bdata->lines->qty)
                         usleep(100 * 1000);
                 update_highlight(bufnum, bdata);
@@ -172,46 +174,79 @@ interrupt_loop(void *vdata)
                 /*
                  * New buffer was opened.
                  */
-                case 'A': {
-                        struct mpack_array *buflist = nvim_list_bufs(sockfd);
+                case 'A':
+                case 'D': {
+#if 0
+                        struct mpack_array *buflist = nvim_list_bufs(0);
+                        unsigned found = 0;
 
                         for (unsigned i = 0; i < buflist->qty; ++i) {
                                 const int curbuf = buflist->items[i]->data.ext->num;
-                                if (!find_buffer(curbuf) && new_buffer(sockfd, curbuf))
-                                        nvim_buf_attach(1, curbuf);
+                                if (!find_buffer(curbuf)) {
+                                        if (new_buffer(0, curbuf)) {
+                                                nvim_buf_attach(1, curbuf);
+                                                ++found;
+                                        }
+                                }
                         }
 
                         destroy_mpack_array(buflist);
+                        if (found == 0) {
+                                echo("Found no buffers, bailing!");
+                                break;
+                        }
+#endif
+                        const int prev = bufnum;
+                        bufnum = nvim_get_current_buf(0);
+                        struct bufdata *bdata = find_buffer(bufnum);
+
+                        if (!bdata) {
+                                if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
+                                        nvim_buf_attach(1, bufnum);
+                                        bdata = find_buffer(bufnum);
+                                        while (bdata->lines->qty == 0) {
+                                                echo("sleeping");
+                                                usleep(100000);
+                                        }
+                                        update_highlight(bufnum, bdata);
+                                }
+                        } else if (prev != bufnum) {
+                                /* if (update_taglist(bdata)) */
+                                /* buffer_update(bufnum, bdata); */
+                                update_highlight(bufnum, bdata);
+                        }
+
+                        break;
                 }
                 /* FALLTHROUGH */
                 /*
                  * Buffer was written, or filetype/syntax was changed.
                  */
                 case 'B': {
-                        int curbuf, index;
-                        struct bufdata *bdata;
-retry:
-                        curbuf = nvim_get_current_buf(sockfd);
-                        bdata  = find_buffer(curbuf);
-                        index  = find_buffer_ind(curbuf);
+                        const int       curbuf = nvim_get_current_buf(0);
+                        struct bufdata *bdata  = find_buffer(curbuf);
 
-                        if (index < 0 || !bdata) {
-                                warnx("Failed to find buffer! %d -> i: %d, p: %p\n",
-                                      curbuf, index, (void*)bdata);
+                        if (!bdata) {
+                                warnx("Failed to find buffer! %d -> p: %p\n",
+                                      curbuf, (void*)bdata);
                                 break;
                         }
-                        for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i) {
-                                nvprintf("waiting on buffer number %d, internally known as %d\n",
-                                         bdata->num, index);
+
+                        /* unsigned cticks = nvim_buf_get_var */
+                        usleep(200000);
+#if 0
+                        for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i)
                                 usleep(100000);
-                        }
                         if (bdata->lines->qty == 0) {
                                 echo("retrying");
                                 goto retry;
                         }
+#endif
 
                         if (update_taglist(bdata))
                                 update_highlight(curbuf, bdata);
+
+                        /* buffer_update(0, NULL); */
                         break;
                 }
                 /*
@@ -219,7 +254,7 @@ retry:
                  */
                 case 'C': {
                         b_destroy(tmp);
-                        clear_highlight(nvim_get_current_buf(sockfd), NULL);
+                        clear_highlight(nvim_get_current_buf(0), NULL);
                         pthread_kill(mainloop, SIGUSR1);
                         pthread_exit(NULL);
                         break; /* NOTREACHED */
@@ -227,20 +262,25 @@ retry:
                 /*
                  * Current buffer changed.
                  */
+#if 0
                 case 'D': {
                         const int prev = bufnum;
-                        bufnum = nvim_get_current_buf(sockfd);
-                        if (is_bad_buffer(bufnum))
+                        bufnum = nvim_get_current_buf(0);
+                        if (is_bad_buffer(bufnum)) {
+                                echo("Changed to bad buffer, skipping.");
                                 break;
-                        warnx("I see that the buffer changed from %d to %d...\n", prev, bufnum);
+                        }
+                        warnx("I see that the buffer changed from %d to %d...\n",
+                              prev, bufnum);
                         update_highlight(bufnum, NULL);
                         break;
                 }
+#endif
                 /*
                  * User called the clear highlight command.
                  */
                 case 'E':
-                        clear_highlight(nvim_get_current_buf(sockfd), NULL);
+                        clear_highlight(nvim_get_current_buf(0), NULL);
                         break;
 
                 default:
@@ -352,4 +392,35 @@ get_compression_type(void) {
 
         b_destroy(tmp);
         return ret;
+}
+
+
+/*============================================================================*/
+
+
+static void
+buffer_update(int bufnum, struct bufdata *bdata)
+{
+        if (!bufnum)
+                bufnum = nvim_get_current_buf(0);
+        if (!bdata)
+                bdata = find_buffer(bufnum);
+        if (!bdata) {
+                warnx("Failed to find buffer! %d -> p: %p\n",
+                      bufnum, (void*)bdata);
+                return;
+        }
+
+        /* for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i) */
+        while (bdata->lines->qty == 0)
+                echo("sleeping"), usleep(100000);
+        /* if (bdata->lines->qty == 0) {
+                echo("retrying");
+                goto retry;
+        } */
+
+        if (update_taglist(bdata))
+                update_highlight(bufnum, bdata);
+        else
+                echo("Failed to process tag data!");
 }

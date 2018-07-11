@@ -2603,72 +2603,72 @@ b_splits(const bstring *str, const bstring *splitStr)
  * leads to the idea that if the retval is larger than n, then changing n to the
  * retval will reduce the number of iterations required. */
 
-int
-b_formata(bstring *bstr, const char *fmt, ...)
+
+
+#if 0
+bstring *
+b_format(const char *fmt, ...)
 {
-        int64_t total, ret;
         va_list arglist;
-        if (!fmt || INVALID(bstr) || NO_WRITE(bstr))
-                RUNTIME_ERROR();
+        if (!fmt)
+                RETURN_NULL();
 
 #ifdef HAVE_VASPRINTF
         bstring *buff = xmalloc(sizeof *buff);
 
         va_start(arglist, fmt);
-        total = xvasprintf((char **)(&buff->data), fmt, arglist);
+        uint n = xvasprintf((char **)(&buff->data), fmt, arglist);
         va_end(arglist);
 
-        buff->slen  = total;
-        buff->mlen  = total;
+        buff->slen  = n;
+        buff->mlen  = n;
         buff->flags = BSTR_STANDARD;
 #else
-        /* Since the length is not determinable beforehand, a search is
+        /*
+         * Since the length is not determinable beforehand, a search is
          * performed using the truncating "vsnprintf" call (to avoid buffer
-         * overflows) on increasing potential sizes for the output result. */
-        total = (2 * strlen(fmt));
-        if (total < START_VSNBUFF)
-                total = START_VSNBUFF;
-
-        bstring *buff = b_fromcstr_alloc(total + 2, "");
+         * overflows) on increasing potential sizes for the output result.
+         */
+        uint n = (2 * strlen(fmt));
+        if (n < START_VSNBUFF)
+                n = START_VSNBUFF;
+        bstring *buff = b_fromcstr_alloc(n + 2, "");
 
         if (!buff) {
-                total = 1;
-                buff = b_fromcstr_alloc(total + 2, "");
+                n = 1;
+                buff = b_fromcstr_alloc(n + 2, "");
                 if (!buff)
-                        RUNTIME_ERROR();
+                        RETURN_NULL();
         }
 
         for (;;) {
                 va_start(arglist, fmt);
-                ret = vsnprintf((char *)buff->data, total + 1, fmt, arglist);
+                uint r = vsnprintf((char *)buff->data, n + 1, fmt, arglist);
                 va_end(arglist);
 
-                buff->data[total] = (uchar)'\0';
-                buff->slen            = (strlen)((char *)buff->data);
+                buff->data[n] = (uchar)'\0';
+                buff->slen    = strlen((char *)buff->data);
 
-                if (buff->slen < total)
+                if (buff->slen < n)
                         break;
-                if (ret > total)
-                        total = ret;
+                if (r > n)
+                        n = r;
                 else
-                        total += total;
+                        n += n;
 
-                if (BSTR_OK != b_alloc(buff, total + 2)) {
+                if (BSTR_OK != b_alloc(buff, n + 2)) {
                         b_free(buff);
-                        RUNTIME_ERROR();
+                        RETURN_NULL();
                 }
         }
 #endif
 
-        ret = b_concat(bstr, buff);
-        b_free(buff);
-
-        return ret;
+        return buff;
 }
-
-
+#endif
+#if 0
 int
-b_assign_format(bstring *bstr, const char *fmt, ...)
+b_format_assign(bstring *bstr, const char *fmt, ...)
 {
         va_list arglist;
         int64_t total, ret;
@@ -2731,96 +2731,87 @@ b_assign_format(bstring *bstr, const char *fmt, ...)
 
         return ret;
 }
+#endif
 
 
 bstring *
 b_format(const char *fmt, ...)
 {
-        va_list arglist;
         if (!fmt)
                 RETURN_NULL();
+        va_list va;
+        va_start(va, fmt);
+        bstring *ret = b_vformat(fmt, va);
+        va_end(va);
 
-#ifdef HAVE_VASPRINTF
-        bstring *buff = xmalloc(sizeof *buff);
-
-        va_start(arglist, fmt);
-        uint n = xvasprintf((char **)(&buff->data), fmt, arglist);
-        va_end(arglist);
-
-        buff->slen  = n;
-        buff->mlen  = n;
-        buff->flags = BSTR_STANDARD;
-#else
-        /*
-         * Since the length is not determinable beforehand, a search is
-         * performed using the truncating "vsnprintf" call (to avoid buffer
-         * overflows) on increasing potential sizes for the output result.
-         */
-        uint n = (2 * strlen(fmt));
-        if (n < START_VSNBUFF)
-                n = START_VSNBUFF;
-        bstring *buff = b_fromcstr_alloc(n + 2, "");
-
-        if (!buff) {
-                n = 1;
-                buff = b_fromcstr_alloc(n + 2, "");
-                if (!buff)
-                        RETURN_NULL();
-        }
-
-        for (;;) {
-                va_start(arglist, fmt);
-                uint r = vsnprintf((char *)buff->data, n + 1, fmt, arglist);
-                va_end(arglist);
-
-                buff->data[n] = (uchar)'\0';
-                buff->slen    = strlen((char *)buff->data);
-
-                if (buff->slen < n)
-                        break;
-                if (r > n)
-                        n = r;
-                else
-                        n += n;
-
-                if (BSTR_OK != b_alloc(buff, n + 2)) {
-                        b_free(buff);
-                        RETURN_NULL();
-                }
-        }
-#endif
-
-        return buff;
+        return ret;
 }
 
+int
+b_format_assign(bstring *bstr, const char *fmt, ...)
+{
+        if (!fmt || NO_WRITE(bstr)) 
+                RUNTIME_ERROR();
+        va_list va;
+        va_start(va, fmt);
+        bstring *buff = b_vformat(fmt, va);
+        va_end(va);
+
+        int ret = b_assign(bstr, buff);
+        b_free(buff);
+        return ret;
+}
+
+int
+b_formata(bstring *bstr, const char *fmt, ...)
+{
+        if (!fmt || INVALID(bstr) || NO_WRITE(bstr))
+                RUNTIME_ERROR();
+        va_list va;
+        va_start(va, fmt);
+        bstring *buff = b_vformat(fmt, va);
+        va_end(va);
+
+        int ret = b_concat(bstr, buff);
+        b_free(buff);
+        return ret;
+}
 
 bstring *
 b_vformat(const char *fmt, va_list arglist)
 {
-        if (!fmt)
+        if (!fmt || !arglist)
                 RETURN_NULL();
+        uint     total;
+        bstring *buff;
 
 #ifdef HAVE_VASPRINTF
-        bstring *buff  = xmalloc(sizeof *buff);
-        uint     total = xvasprintf((char **)(&buff->data), fmt, arglist);
-        buff->slen     = total;
-        buff->mlen     = total;
-        buff->flags    = BSTR_STANDARD;
+        char *tmp   = NULL;
+        total       = xvasprintf(&tmp, fmt, arglist);
+        /* buff        = b_fromblk(tmp, total + 1); */
+
+        buff        = xmalloc(sizeof *buff);
+       /* buff       = (bstring){ .mlen = 0, .slen = 0, .flags = 0, .data = NULL };  */
+        /* total       = xvasprintf(&(buff->data), fmt, arglist); */
+        buff->data  = (uchar *)tmp;
+        buff->slen  = total;
+        buff->mlen  = total + 1;
+        buff->flags = BSTR_STANDARD;
 #else
         /*
-         * Since the length is not determinable beforehand, a search is
-         * performed using the truncating "vsnprintf" call (to avoid buffer
-         * overflows) on increasing potential sizes for the output result.
+         * Without asprintf, because we can't determine the length of the
+         * resulting string beforehand, a serch has to be performed using the
+         * truncating "vsnprintf" call (to avoid buffer overflows) on increasing
+         * potential sizes for the output result. The function is supposed to
+         * return the result that would have been printed if enough space were
+         * available, so in theory this should take at most two attempts.
          */
-        uint total = (2 * strlen(fmt));
-
-        if (total < START_VSNBUFF)
+        if ((total = (2 * strlen(fmt))) < START_VSNBUFF)
                 total = START_VSNBUFF;
-        bstring *buff = b_fromcstr_alloc(total + 2, "");
-
+        buff = b_alloc_null(total + 2);
         if (!buff) {
                 total = 1;
-                buff = b_fromcstr_alloc(total + 2, "");
+                buff = b_alloc_null(total + 2);
                 if (!buff)
                         RETURN_NULL();
         }
@@ -2829,7 +2820,7 @@ b_vformat(const char *fmt, va_list arglist)
                 uint ret = vsnprintf((char *)buff->data, total + 1, fmt, arglist);
 
                 buff->data[total] = (uchar)'\0';
-                buff->slen            = strlen((char *)buff->data);
+                buff->slen        = strlen((char *)buff->data);
 
                 if (buff->slen < total)
                         break;
@@ -2848,64 +2839,33 @@ b_vformat(const char *fmt, va_list arglist)
         return buff;
 }
 
+int
+b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist)
+{
+        if (!fmt || NO_WRITE(bstr)) 
+                RUNTIME_ERROR();
+
+        bstring *buff = b_vformat(fmt, arglist);
+        int      ret  = b_assign(bstr, buff);
+        b_free(buff);
+        return ret;
+}
 
 int
-b_vcformata(bstring *bstr, const uint count, const char *fmt, va_list arg)
+b_vformata(bstring *bstr, const char *fmt, va_list arglist)
 {
-        if (!fmt || count <= 0 || INVALID(bstr) || NO_WRITE(bstr))
+        if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();
 
-        int64_t total = 0;
-
-#ifdef HAVE_VASPRINTF
-        bstring *buff = xmalloc(sizeof *buff);
-        total         = xvasprintf((char **)(&buff->data), fmt, arg);
-        buff->flags   = BSTR_STANDARD;
-        buff->slen    = buff->mlen = (uint)total;
-
-        if (b_concat(bstr, buff) != BSTR_OK)
-                RUNTIME_ERROR();
+        bstring *buff = b_vformat(fmt, arglist);
+        int      ret  = b_concat(bstr, buff);
         b_free(buff);
-#else
-        if (count > (total = bstr->slen + count) + 2)
-                RUNTIME_ERROR();
-        if (BSTR_OK != b_alloc(bstr, total + 2))
-                RUNTIME_ERROR();
-
-        uint ret = vsnprintf((char *)bstr->data + bstr->slen, count + 2, fmt, arg);
-
-        /* Did the operation complete successfully within bounds? */
-        for (uint blen = bstr->slen; blen <= total; ++blen) {
-                if ('\0' == bstr->data[blen]) {
-                        bstr->slen = blen;
-                        return BSTR_OK;
-                }
-        }
-
-        /* Abort, since the buffer was not large enough.  The return value
-         * tries to help set what the retry length should be. */
-        bstr->data[bstr->slen] = '\0';
-
-        if (ret > count + 1) {
-                /* Does ret specify a particular target length? */
-                total = ret;
-        } else {
-                /* If not, just double the size of count */
-                total = count + count;
-                if (count > total)
-                        total = INT_MAX;
-        }
-
-        total = -total;
-        if (total > BSTR_ERR - 1)
-                total = BSTR_ERR - 1;
-#endif
-
-        return total;
+        return ret;
 }
 
 
 /*============================================================================*/
+
 
 void
 __b_fputs(FILE *fp, bstring *bstr, ...)
@@ -2913,12 +2873,12 @@ __b_fputs(FILE *fp, bstring *bstr, ...)
         va_list va;
         va_start(va, bstr);
         for (;;bstr = va_arg(va, bstring *)) {
-                if (!bstr)
-                        continue;
-                if (bstr->flags & BSTR_LIST_END)
-                        break;
-                if (bstr->data && bstr->slen > 0)
-                        fwrite(bstr->data, 1, bstr->slen, fp);
+                if (bstr) {
+                        if (bstr->flags & BSTR_LIST_END)
+                                break;
+                        if (bstr->data && bstr->slen > 0)
+                                fwrite(bstr->data, 1, bstr->slen, fp);
+                }
         }
         va_end(va);
 }
@@ -2930,12 +2890,12 @@ __b_write(int fd, bstring *bstr, ...)
         va_list va;
         va_start(va, bstr);
         for (;;bstr = va_arg(va, bstring *)) {
-                if (!bstr)
-                        continue;
-                if (bstr->flags & BSTR_LIST_END)
-                        break;
-                if (bstr->data && bstr->slen > 0)
-                        write(fd, bstr->data, bstr->slen);
+                if (bstr) {
+                        if (bstr->flags & BSTR_LIST_END)
+                                break;
+                        if (bstr->data && bstr->slen > 0)
+                                write(fd, bstr->data, bstr->slen);
+                }
         }
         va_end(va);
 }
@@ -2946,14 +2906,121 @@ __b_free_all(bstring **bstr, ...)
 {
         va_list va;
         va_start(va, bstr);
-        do {
-                if (!INVALID(*bstr)) {
-                        b_destroy(*bstr);
-                        *bstr = NULL;
+        for (;;bstr = va_arg(va, bstring **)) {
+                if (bstr && *bstr) {
+                        if ((*bstr)->flags & BSTR_LIST_END)
+                                break;
+                        if ((*bstr)->data) {
+                                b_destroy(*bstr);
+                                *bstr = NULL;
+                        }
                 }
-        } while ((bstr = va_arg(va, bstring **)));
+        }
         va_end(va);
 }
+
+
+bstring *
+__b_concat_all(const bstring *join, ...)
+{
+        uint size = 0;
+        uint j_size = (join && join->data) ? join->slen : 0;
+
+        va_list va, va2;
+        va_start(va, join);
+        for (;;) {
+                const bstring *src = va_arg(va, const bstring *);
+                if (src) {
+                        if (src->flags & BSTR_LIST_END)
+                                break;
+                        if (src->data)
+                                size += src->slen + j_size;
+                }
+        }
+        va_end(va);
+
+        bstring *dest = b_alloc_null(size);
+        --dest->slen;
+        va_start(va2, join);
+
+        for (;;) {
+                const bstring *src = va_arg(va2, const bstring *);
+                if (src) {
+                        if (src->flags & BSTR_LIST_END)
+                                break;
+                        if (src->data) {
+                                memcpy((dest->data + dest->slen), src->data, src->slen);
+                                dest->slen += src->slen;
+                                if (j_size) {
+                                        memcpy((dest->data + dest->slen), join->data,
+                                               join->slen);
+                                        dest->slen += src->slen;
+                                }
+                        }
+                }
+        }
+        va_end(va2);
+
+        if (dest->slen != size) {
+                b_destroy(dest);
+                RETURN_NULL();
+        }
+
+        dest->data[dest->slen] = '\0';
+        return dest;
+}
+
+
+int
+__b_append_all(bstring *dest, const bstring *join, ...)
+{
+        uint size   = dest->slen + 1;
+        uint j_size = (join && join->data) ? join->slen : 0;
+
+        va_list va, va2;
+        va_start(va, join);
+        /* va_copy(va2, va); */
+
+        for (;;) {
+                const bstring *src = va_arg(va, const bstring *);
+                if (src) {
+                        if (src->flags & BSTR_LIST_END)
+                                break;
+                        if (src->data)
+                                size += src->slen + j_size;
+                }
+        }
+        va_end(va);
+
+        b_alloc(dest, size);
+        va_start(va2, join);
+
+        for (;;) {
+                const bstring *src = va_arg(va2, const bstring *);
+                if (src) {
+                        if (src->flags & BSTR_LIST_END)
+                                break;
+                        if (src->data) {
+                                memcpy((dest->data + dest->slen), src->data, src->slen);
+                                dest->slen += src->slen;
+                                if (j_size) {
+                                        memcpy((dest->data + dest->slen), join->data,
+                                               join->slen);
+                                        dest->slen += join->slen;
+                                }
+                        }
+                }
+        }
+        va_end(va2);
+
+        dest->data[dest->slen] = '\0';
+        return (dest->slen == size) ? BSTR_OK : BSTR_ERR;
+}
+
+
+/*============================================================================*/
+/* SOME CRAPPY ADDITIONS! */
+/*============================================================================*/
 
 
 bstring *
@@ -2970,11 +3037,6 @@ b_refblk(void *blk, const uint len)
         };
         return ret;
 }
-
-
-/*============================================================================*/
-/* SOME CRAPPY ADDITIONS! */
-/*============================================================================*/
 
 
 bstring *
@@ -3033,11 +3095,12 @@ b_ll2str(const long long value)
 
         /* Reverse the string. */
         --ptr;
+        uchar *tmp = ret->data;
         while (ret->data < ptr) {
-                char aux   = *ret->data;
-                *ret->data = *ptr;
-                *ptr       = aux;
-                ++ret->data;
+                char aux = *ret->data;
+                *tmp     = *ptr;
+                *ptr     = aux;
+                ++tmp;
                 --ptr;
         }
 
