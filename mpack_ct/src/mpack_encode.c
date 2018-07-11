@@ -35,7 +35,7 @@
         } while (0)
 
 
-static void sanity_check(mpack_obj *root, struct mpack_array *parent,
+static void sanity_check(mpack_obj *root, mpack_array_t *parent,
                          mpack_obj **item, unsigned check, bool force);
 
 
@@ -57,17 +57,17 @@ mpack_make_new(const unsigned len, const bool encode)
 
 
 void
-mpack_encode_array(mpack_obj           *root,
-                   struct mpack_array  *parent,
-                   mpack_obj          **item,
-                   const unsigned       len)
+mpack_encode_array(mpack_obj       *root,
+                   mpack_array_t   *parent,
+                   mpack_obj      **item,
+                   const unsigned   len)
 {
         if (!root)
                 errx(1, "Root is null! Shut up clang!");
 
         sanity_check(root, parent, item, 64, true);
 
-        (*item)->data.arr        = xmalloc(sizeof(struct mpack_array));
+        (*item)->data.arr        = xmalloc(sizeof(mpack_array_t));
         (*item)->data.arr->items = nmalloc(sizeof(mpack_obj *), len);
         (*item)->data.arr->qty   = 0;
         (*item)->data.arr->max   = len;
@@ -90,10 +90,10 @@ mpack_encode_array(mpack_obj           *root,
 
 
 void
-mpack_encode_integer(mpack_obj           *root,
-                     struct mpack_array  *parent,
-                     mpack_obj          **item,
-                     const int64_t        value)
+mpack_encode_integer(mpack_obj      *root,
+                     mpack_array_t  *parent,
+                     mpack_obj     **item,
+                     const int64_t   value)
 {
         sanity_check(root, parent, item, 15, false);
 
@@ -133,10 +133,10 @@ mpack_encode_integer(mpack_obj           *root,
 
 
 void
-mpack_encode_string(mpack_obj           *root,
-                    struct mpack_array  *parent,
-                    mpack_obj          **item,
-                    const bstring       *string)
+mpack_encode_string(mpack_obj      *root,
+                    mpack_array_t  *parent,
+                    mpack_obj     **item,
+                    const bstring  *string)
 {
         sanity_check(root, parent, item, string->slen + 5, false);
 
@@ -165,10 +165,10 @@ mpack_encode_string(mpack_obj           *root,
 
 
 void
-mpack_encode_boolean(mpack_obj           *root,
-                     struct mpack_array  *parent,
-                     mpack_obj          **item,
-                     const bool           value)
+mpack_encode_boolean(mpack_obj     *root,
+                     mpack_array_t *parent,
+                     mpack_obj    **item,
+                     const bool     value)
 {
         sanity_check(root, parent, item, 2, false);
 
@@ -186,11 +186,11 @@ mpack_encode_boolean(mpack_obj           *root,
 
 
 static void
-sanity_check(mpack_obj           *root,
-             struct mpack_array  *parent,
-             mpack_obj          **item,
-             const unsigned       check,
-             const bool           force)
+sanity_check(mpack_obj       *root,
+             mpack_array_t   *parent,
+             mpack_obj      **item,
+             const unsigned   check,
+             const bool       force)
 {
         if (parent) {
                 if (!(*item) && ((root->flags & MPACK_ENCODE) || force)) {

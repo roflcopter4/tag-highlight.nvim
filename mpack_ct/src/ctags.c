@@ -38,7 +38,7 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 b_formata(cmd, " -f%s '%s'", BS(topdir->tmpfname), BS(bdata->filename));
         }
 
-        nvprintf("Running ctags command \"\"%s\"\"\n", BS(cmd));
+        echo("Running ctags command \"\"%s\"\"\n", BS(cmd));
 
         /* Yes, this directly uses unchecked user input in a call to system().
          * Frankly, if somehow someone takes over a user's vimrc then they're
@@ -47,7 +47,7 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
         int status = system(BS(cmd));
 
         if (status != 0)
-                nvprintf("ctags failed with status \"%d\"\n", status);
+                echo("ctags failed with status \"%d\"\n", status);
         else
                 echo("Ctags finished successfully.");
         b_destroy(cmd);
@@ -69,8 +69,8 @@ get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir)
                         b_write(topdir->tmpfd, topdir->tags->lst[i], B("\n"));
         } else {
                 if (errno == ENOENT)
-                        nvprintf("File \"%s\" not found, running ctags.\n",
-                                 BS(topdir->gzfile));
+                        echo("File \"%s\" not found, running ctags.\n",
+                             BS(topdir->gzfile));
                 else
                         warn("Unexpected io error");
 

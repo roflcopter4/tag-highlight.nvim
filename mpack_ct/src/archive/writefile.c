@@ -99,7 +99,7 @@ write_lzma(struct top_dir *topdir)
         /* fcntl(topdir->tmpfd, F_SETFL, flgs); */
 
         /* while ((nread += read(topdir->tmpfd, in_buf, st.st_size)) < st.st_size)
-                nvprintf("read %zd so far\n", nread); */
+                echo("read %zd so far\n", nread); */
 
 #if 0
         FILE *fp1 = fopen(BS(topdir->tmpfname), "rb");

@@ -25,13 +25,14 @@ struct settings_s {
         bool use_compression;
         bool verbose;
 
-        b_list     *ctags_args;
-        b_list     *ignored_ftypes;
-        b_list     *norecurse_dirs;
-        dictionary *ignored_tags;
-        dictionary *order;
+        b_list       *ctags_args;
+        b_list       *ignored_ftypes;
+        b_list       *norecurse_dirs;
+        mpack_dict_t *ignored_tags;
+        mpack_dict_t *order;
         enum comp_type_e { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type;
 };
+typedef enum comp_type_e comp_type_t;
 
 struct ftdata_s {
         b_list  *equiv;

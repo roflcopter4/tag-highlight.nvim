@@ -167,7 +167,8 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         else
                 snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
 
-        vfprintf(stderr, buf, ap);
+        /* vfprintf(stderr, buf, ap); */
+        nvim_vprintf(sockfd, buf, ap);
         va_end(ap);
 }
 /* #endif */

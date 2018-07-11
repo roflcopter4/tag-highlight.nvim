@@ -118,7 +118,7 @@ print_dict(const mpack_obj *result)
 
         for (unsigned i = 0; i < result->data.dict->qty; ++i) {
                 pindent();
-                b_fputs(butt, B("KEY:  "));
+                /* b_fputs(butt, B("KEY:  ")); */
                 print_string(result->data.dict->entries[i]->key, 0);
 
                 fseek(butt, -1, SEEK_CUR);

@@ -59,7 +59,7 @@ handle_nvim_event(mpack_obj *event)
                 break;
         case EVENT_BUF_DETACH:
                 destroy_bufdata(buffers.lst + index);
-                nvprintf("Detaching from buffer %d\n", bufnum);
+                echo("Detaching from buffer %d\n", bufnum);
                 break;
         default:
                 abort();
@@ -87,17 +87,17 @@ handle_line_event(const unsigned index, mpack_obj **items)
         const unsigned  iters     = MAX(diff, new_lines->qty);
         items[4]->data.arr        = NULL;
 
-        nvprintf("first: %u, last: %u, llqty: %d, newqty: %u\n",
-                 first, last, bdata->lines->qty, new_lines->qty);
+        echo("first: %u, last: %u, llqty: %d, newqty: %u\n",
+             first, last, bdata->lines->qty, new_lines->qty);
 
         if (bdata->lines->qty == 0) {
                 ll_insert_blist_after_at(bdata->lines, 0, new_lines, 0, (-1));
         } else if (new_lines->qty == 0) {
                 if (first == last) {
-                        nvprintf("ERROR: First (%d) == last (%d)!\n", first, last);
+                        echo("ERROR: First (%d) == last (%d)!\n", first, last);
                 } else {
-                        nvprintf("Removing lines %u to %u, bdata has %d lines\n",
-                                 first, last, bdata->lines->qty);
+                        echo("Removing lines %u to %u, bdata has %d lines\n",
+                             first, last, bdata->lines->qty);
                         ll_delete_range_at(bdata->lines, first, diff);
                 }
         } else {
@@ -109,10 +109,10 @@ handle_line_event(const unsigned index, mpack_obj **items)
                                 if (i < new_lines->qty) {
                                         replace_line(index, new_lines, first + i, i);
                                 } else {
-                                        nvprintf("Removing lines %u to %u, bdata has %d lines\n",
-                                                 first + i, last, bdata->lines->qty);
+                                        echo("Removing lines %u to %u, bdata has %d lines\n",
+                                             first + i, last, bdata->lines->qty);
                                         ll_delete_range_at(bdata->lines, first + i, last);
-                                        nvprintf("Now there are %d lines\n", bdata->lines->qty);
+                                        echo("Now there are %d lines\n", bdata->lines->qty);
                                         break;
                                 }
                         } else {
@@ -161,7 +161,7 @@ replace_line(const unsigned index, b_list *new_lines,
         struct bufdata *bdata = buffers.lst[index];
         ll_node        *node  = ll_at(bdata->lines, lineno);
 
-        /* nvprintf("Replacing line %u with replno %u, list is %d long and "
+        /* echo("Replacing line %u with replno %u, list is %d long and "
                  "newlist is %u long\n",
                  lineno, replno, bdata->lines->qty, new_lines->qty); */
 
@@ -178,8 +178,8 @@ replace_line(const unsigned index, b_list *new_lines,
 static inline void
 b_write_ll(int fd, linked_list *ll)
 {
-        nvprintf("Writing list, size: %d, head: %p, tail: %p\n",
-                 ll->qty, (void *)ll->head, (void *)ll->tail);
+        echo("Writing list, size: %d, head: %p, tail: %p\n",
+             ll->qty, (void *)ll->head, (void *)ll->tail);
 
         bool done = false;
         LL_FOREACH_F (ll, node) {

@@ -1462,6 +1462,7 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
  * including b_free(). The object must not otheriwise be free'd.
  */
 #define b_tmp(CSTR) (bstring[]){ bt_init(CSTR) }
+#define B(CSTR)     b_tmp(CSTR)
 
 
 #define b_litsiz                   b_staticBlkParms

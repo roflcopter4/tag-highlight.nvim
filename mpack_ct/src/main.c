@@ -23,27 +23,19 @@
         mpack_array_to_blist(nvim_get_var(sockfd, B(PKG "#" VARNAME_), \
                                           MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
-extern FILE    *decodelog;
+extern FILE    *decodelog, *cmdlog;
 static FILE    *logfile;
 static bstring *vpipename, *servername, *mes_servername;
 
 
-static void *           interrupt_loop(void *vdata);
-static void *           buffer_event_loop(void *vdata);
-static void             exit_cleanup(void);
-static int              create_socket(bstring **name);
-static enum comp_type_e get_compression_type(void);
-static void             buffer_update(int bufnum, struct bufdata *bdata);
+static void *      interrupt_loop(void *vdata);
+static void *      buffer_event_loop(void *vdata);
+static void        exit_cleanup(void);
+static int         create_socket(bstring **name);
+static comp_type_t get_compression_type(void);
 
-
-static inline void closefile(FILE **fpp)
-{ fclose(*fpp); }
-static inline void auto_b_destroy(bstring **str)
-{ b_destroy(*str); }
 _Noreturn static inline void pthread_exit_wrapper(UNUSED int x)
 { pthread_exit(NULL); }
-
-FILE *cmdlog;
 
 /*============================================================================*/
 
@@ -94,9 +86,9 @@ main(int argc, char *argv[])
                         if (buffers.bad_bufs.qty)
                                 buffers.bad_bufs.qty = 0;
                         sleep(3);
-                        nvprintf("Retrying (attempt number %u)\n", attempts);
+                        echo("Retrying (attempt number %u)\n", attempts);
                 }
-                struct mpack_array *buflist = nvim_list_bufs(0);
+                mpack_array_t *buflist = nvim_list_bufs(0);
 
                 for (unsigned i = 0; i < buflist->qty; ++i)
                         new_buffer(0, buflist->items[i]->data.ext->num);
@@ -147,8 +139,8 @@ buffer_event_loop(UNUSED void *vdata)
 
 /*
  * Waits for updates from the small vimscript plugin via a named pipe. Main
- * updates are: BufNew, BufLoad, BufWrite, Syntax, Filetype, and when the user
- * calls the stop command for the plugin.
+ * updates are: BufNew, BufLoad, BufWrite, Syntax, Filetype, and when the
+ * user calls the stop command for the plugin.
  */
 static void *
 interrupt_loop(void *vdata)
@@ -162,40 +154,26 @@ interrupt_loop(void *vdata)
 
                 while (!bdata->lines->qty)
                         usleep(100 * 1000);
+
+                /* extern int main_hl_id; */
+                /* my_parser(bufnum, bdata); */
+                /* sleep(5000);
+                nvim_buf_clear_highlight(0, bufnum, main_hl_id, 0, -1);
+                sleep(2); */
                 update_highlight(bufnum, bdata);
         }
 
         for (;;) {
                 bstring *tmp = B_GETS(vpipe, '\n');
                 tmp->data[--tmp->slen] = '\0';
-                nvprintf("Recieved \"%s\"; waking up!\n", BS(tmp));
+                echo("Recieved \"%s\"; waking up!\n", BS(tmp));
 
                 switch (tmp->data[0]) {
                 /*
-                 * New buffer was opened.
+                 * New buffer was opened or current buffer changed.
                  */
                 case 'A':
                 case 'D': {
-#if 0
-                        struct mpack_array *buflist = nvim_list_bufs(0);
-                        unsigned found = 0;
-
-                        for (unsigned i = 0; i < buflist->qty; ++i) {
-                                const int curbuf = buflist->items[i]->data.ext->num;
-                                if (!find_buffer(curbuf)) {
-                                        if (new_buffer(0, curbuf)) {
-                                                nvim_buf_attach(1, curbuf);
-                                                ++found;
-                                        }
-                                }
-                        }
-
-                        destroy_mpack_array(buflist);
-                        if (found == 0) {
-                                echo("Found no buffers, bailing!");
-                                break;
-                        }
-#endif
                         const int prev = bufnum;
                         bufnum = nvim_get_current_buf(0);
                         struct bufdata *bdata = find_buffer(bufnum);
@@ -211,14 +189,11 @@ interrupt_loop(void *vdata)
                                         update_highlight(bufnum, bdata);
                                 }
                         } else if (prev != bufnum) {
-                                /* if (update_taglist(bdata)) */
-                                /* buffer_update(bufnum, bdata); */
                                 update_highlight(bufnum, bdata);
                         }
 
                         break;
                 }
-                /* FALLTHROUGH */
                 /*
                  * Buffer was written, or filetype/syntax was changed.
                  */
@@ -228,25 +203,13 @@ interrupt_loop(void *vdata)
 
                         if (!bdata) {
                                 warnx("Failed to find buffer! %d -> p: %p\n",
-                                      curbuf, (void*)bdata);
+                                      curbuf, (void *)bdata);
                                 break;
                         }
-
-                        /* unsigned cticks = nvim_buf_get_var */
                         usleep(200000);
-#if 0
-                        for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i)
-                                usleep(100000);
-                        if (bdata->lines->qty == 0) {
-                                echo("retrying");
-                                goto retry;
-                        }
-#endif
-
                         if (update_taglist(bdata))
                                 update_highlight(curbuf, bdata);
 
-                        /* buffer_update(0, NULL); */
                         break;
                 }
                 /*
@@ -259,23 +222,6 @@ interrupt_loop(void *vdata)
                         pthread_exit(NULL);
                         break; /* NOTREACHED */
                 }
-                /*
-                 * Current buffer changed.
-                 */
-#if 0
-                case 'D': {
-                        const int prev = bufnum;
-                        bufnum = nvim_get_current_buf(0);
-                        if (is_bad_buffer(bufnum)) {
-                                echo("Changed to bad buffer, skipping.");
-                                break;
-                        }
-                        warnx("I see that the buffer changed from %d to %d...\n",
-                              prev, bufnum);
-                        update_highlight(bufnum, NULL);
-                        break;
-                }
-#endif
                 /*
                  * User called the clear highlight command.
                  */
@@ -311,7 +257,7 @@ exit_cleanup(void)
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
-        destroy_dictionary(settings.ignored_tags);
+        destroy_mpack_dict(settings.ignored_tags);
 
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
@@ -360,7 +306,8 @@ create_socket(bstring **name)
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        strcpy(addr.sun_path, BS(*name));
+        assert((*name)->slen + 1 < sizeof(addr.sun_path));
+        memcpy(addr.sun_path, (*name)->data, (*name)->slen + 1);
 
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -373,7 +320,7 @@ create_socket(bstring **name)
 }
 
 
-static enum comp_type_e
+static comp_type_t
 get_compression_type(void) {
         bstring *tmp = nvim_get_var_l("compression_type", MPACK_STRING, NULL, 0);
         enum comp_type_e  ret = COMP_NONE;
@@ -385,42 +332,11 @@ get_compression_type(void) {
         else if (b_iseq(tmp, B("none")))
                 ret = COMP_NONE;
         else
-                nvprintf("Warning: unrecognized compression type \"%s\", "
-                         "defaulting to no compression.\n", BS(tmp));
+                echo("Warning: unrecognized compression type \"%s\", "
+                     "defaulting to no compression.\n", BS(tmp));
 
-        b_fputs(stderr, B("Comp type is "), tmp, B("\n"));
+        echo("Comp type is %s", BS(tmp));
 
         b_destroy(tmp);
         return ret;
-}
-
-
-/*============================================================================*/
-
-
-static void
-buffer_update(int bufnum, struct bufdata *bdata)
-{
-        if (!bufnum)
-                bufnum = nvim_get_current_buf(0);
-        if (!bdata)
-                bdata = find_buffer(bufnum);
-        if (!bdata) {
-                warnx("Failed to find buffer! %d -> p: %p\n",
-                      bufnum, (void*)bdata);
-                return;
-        }
-
-        /* for (int i = 0; i < 5 && bdata->lines->qty == 0; ++i) */
-        while (bdata->lines->qty == 0)
-                echo("sleeping"), usleep(100000);
-        /* if (bdata->lines->qty == 0) {
-                echo("retrying");
-                goto retry;
-        } */
-
-        if (update_taglist(bdata))
-                update_highlight(bufnum, bdata);
-        else
-                echo("Failed to process tag data!");
 }

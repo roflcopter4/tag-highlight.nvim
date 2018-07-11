@@ -60,7 +60,7 @@ new_buffer(const int fd, const int bufnum)
         }
 
         if (!tmp) {
-                nvprintf("Can't identify buffer %d, bailing!\n", bufnum);
+                echo("Can't identify buffer %d, bailing!\n", bufnum);
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                 b_destroy(ft);
                 return false;
@@ -199,7 +199,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         dir->slen      = pos;
         dir            = check_project_directories(dir);
 
-        /* nvprintf("Using top dir \"%s\"\n", BS(dir)); */
+        /* echo("Using top dir \"%s\"\n", BS(dir)); */
 
         /* If this buffer shares a directory with another previously opened
          * buffer then there's no need to re-read the tags file.
@@ -207,9 +207,12 @@ init_topdir(const int fd, struct bufdata *bdata)
         for (unsigned i = 0; i < top_dirs.mlen; ++i) {
                 if (top_dirs.lst[i] && b_iseq(top_dirs.lst[i]->pathname, dir)) {
                         ++top_dirs.lst[i]->refs;
+                        b_destroy(dir);
                         return top_dirs.lst[i];
                 }
         }
+
+        echo("Initializing new topdir \"%s\"\n", BS(dir));
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), MPACK_STRING, NULL, 1);
@@ -238,7 +241,7 @@ init_topdir(const int fd, struct bufdata *bdata)
          * ':' in Windows (because drive letters). Actually, we have to check
          * for all three in Windows, since it still generally tolerates paths
          * with forward slashes. */
-        nvprintf("slen -> %u, mlen-> %u\n", dir->slen, tmp->gzfile->mlen);
+        echo("slen -> %u, mlen-> %u\n", dir->slen, tmp->gzfile->mlen);
         for (unsigned i = 0; i < dir->slen && i < tmp->gzfile->mlen; ++i) {
                 if (dir->data[i] == SEPCHAR || DOSCHECK()) {
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
@@ -341,16 +344,18 @@ init_filetype(int fd, struct ftdata_s *ft)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
 
+        echo("Init filetype called for ft %s\n", BTS(ft->vim_name));
+
         ft->initialized = true;
         ft->order = nvim_get_var_fmt(fd, MPACK_STRING, NULL, true,
                                      "tag_highlight#%s#order", BTS(ft->vim_name));
 
-        struct mpack_array *tmp  = dict_get_key(settings.ignored_tags,
-                                                MPACK_ARRAY, &ft->vim_name, false);
+        mpack_array_t *tmp = dict_get_key(settings.ignored_tags,
+                                          MPACK_ARRAY, &ft->vim_name, false);
         if (tmp)
                 ft->ignored_tags = mpack_array_to_blist(tmp, false);
 
-        dictionary *equiv = nvim_get_var_fmt(
+        mpack_dict_t *equiv = nvim_get_var_fmt(
             fd, MPACK_DICT, NULL, false, "tag_highlight#%s#equivalent", BTS(ft->vim_name));
 
         if (equiv) {

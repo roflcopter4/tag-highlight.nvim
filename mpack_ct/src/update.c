@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include "contrib/bsd_funcs.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
@@ -98,21 +99,19 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
         bdata->cmd_cache = b_list_create();
 
         for (unsigned i = 0; i < ngroups; ++i) {
-                const int   ch   = bdata->ft->order->data[i];
-                dictionary *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
-                                                    BTS(bdata->ft->vim_name), ch);
+                const int     ch   = bdata->ft->order->data[i];
+                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
+                                                      BTS(bdata->ft->vim_name), ch);
 
                 info[i].kind   = ch;
                 info[i].group  = dict_get_key(dict, MPACK_STRING, B("group"), 1);
                 info[i].prefix = dict_get_key(dict, MPACK_STRING, B("prefix"), 0);
                 info[i].suffix = dict_get_key(dict, MPACK_STRING, B("suffix"), 0);
 
-                _Static_assert(sizeof(int64_t) == sizeof(long), "Error: long and long long are not the same size");
-
                 b_writeprotect(info[i].group);
                 b_writeprotect(info[i].prefix);
                 b_writeprotect(info[i].suffix);
-                destroy_dictionary(dict);
+                destroy_mpack_dict(dict);
                 b_writeallow(info[i].group);
                 b_writeallow(info[i].prefix);
                 b_writeallow(info[i].suffix);
@@ -157,16 +156,18 @@ handle_kind(bstring *cmd, unsigned i,
         b_append_all(cmd, B(" "), B("silent! syntax clear"), group_id, B("|"));
 
         if (info->prefix || info->suffix) {
-                bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
-                bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
+                bstring *prefix = (info->prefix) ?: B("\\C\\<");
+                bstring *suffix = (info->suffix) ?: B("\\>");
 
-                b_append_all(cmd, NULL, B("syntax match "), group_id, B(" /"), prefix, B("\\%("), tags->lst[i++]->b);
+                b_append_all(cmd, NULL, B("syntax match "), group_id, B(" /"),
+                             prefix, B("\\%("), tags->lst[i++]->b);
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b))
                                 b_append_all(cmd, NULL, B("\\|"), tags->lst[i]->b);
 
-                b_append_all(cmd, NULL, B("\\)"), suffix, B("/ display | hi def link "), group_id, B(" "), info->group);
+                b_append_all(cmd, NULL, B("\\)"), suffix, B("/ display | hi def link "),
+                             group_id, B(" "), info->group);
         } else {
                 b_append_all(cmd, B(" "), B("syntax keyword"), group_id, tags->lst[i++]->b);
 
@@ -192,10 +193,10 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
         bstring *cmd = b_alloc_null(8192);
 
         for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
-                const int   ch    = bdata->ft->order->data[i];
-                dictionary *dict  = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
+                const int     ch    = bdata->ft->order->data[i];
+                mpack_dict_t *dict  = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
                                                      BTS(bdata->ft->vim_name), ch);
-                bstring    *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
+                bstring      *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
 
                 b_formata(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
                           BTS(bdata->ft->vim_name), ch, BS(group));
@@ -203,7 +204,7 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
                 if (i < (bdata->ft->order->slen - 1))
                         b_concat(cmd, B(" | "));
 
-                destroy_dictionary(dict);
+                destroy_mpack_dict(dict);
         }
 
         nvim_command(0, cmd, 1);
@@ -249,7 +250,7 @@ get_restore_cmds(b_list *restored_groups)
                                                 break;
                         }
 
-                        strcpy(link_name, (ptr += 9));
+                        strlcpy(link_name, (ptr += 9), 1024);
                         b_append_all(cmd, B(" "), B("| hi! link "),
                                      restored_groups->lst[i], bt_fromcstr(link_name));
 
@@ -274,6 +275,9 @@ update_from_cache(struct bufdata *bdata)
 
         for (unsigned i = 0; i < bdata->cmd_cache->qty; ++i)
                 nvim_command(0, bdata->cmd_cache->lst[i], 1);
+
+        if (bdata->ft->restore_cmds)
+                nvim_command(0, bdata->ft->restore_cmds, 1);
 }
 
 

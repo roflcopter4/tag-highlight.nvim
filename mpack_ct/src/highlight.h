@@ -34,4 +34,8 @@ extern b_list  * tokenize(struct bufdata *bdata, bstring *vimbuf);
 extern struct taglist * findemtagers(struct bufdata *bdata, b_list *toks) __attribute__((warn_unused_result));
 
 
+extern int my_highlight(const int bufnum, struct bufdata *bdata);
+extern void my_parser(const int bufnum, struct bufdata *bdata);
+
+
 #endif /* highlight.h */

@@ -21,7 +21,6 @@ enum mpack_types {
         MPACK_ARRAY,
         MPACK_DICT,
 };
-typedef enum mpack_types mpack_type_t;
 
 enum message_types { MES_ANY = 0, MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION };
 enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
@@ -36,18 +35,23 @@ enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 
+typedef enum   mpack_types      mpack_type_t;
+typedef struct mpack_item       mpack_obj;
+typedef struct mpack_ext_s      mpack_ext_t;
+typedef struct mpack_array_s    mpack_array_t;
+typedef struct mpack_dictionary mpack_dict_t;
 
 #pragma pack(push, 1)
 
 struct mpack_item {
         union mpack_item_data {
-                bool                boolean;
-                int16_t             nil;
-                int64_t             num;
-                bstring            *str;
-                struct mpack_ext   *ext;
-                struct mpack_array *arr;
-                struct mpack_dictionary *dict;
+                bool        boolean;
+                int16_t     nil;
+                int64_t     num;
+                bstring     *str;
+                mpack_ext_t   *ext;
+                mpack_array_t *arr;
+                mpack_dict_t  *dict;
         } data;
         uint8_t flags;
         bstring *packed[];
@@ -55,29 +59,25 @@ struct mpack_item {
 
 struct mpack_dictionary {
         struct dict_ent {
-                struct mpack_item *key;
-                struct mpack_item *value;
+                mpack_obj *key;
+                mpack_obj *value;
         } **entries;
         uint16_t qty;
         uint16_t max;
 };
 
-struct mpack_array {
-        struct mpack_item **items;
+struct mpack_array_s {
+        mpack_obj **items;
         uint16_t    qty;
         uint16_t    max;
 };
 
-struct mpack_ext {
+struct mpack_ext_s {
         int8_t   type;
         uint32_t num;
 };
 
 #pragma pack(pop)
-
-
-typedef struct mpack_item       mpack_obj;
-typedef struct mpack_dictionary dictionary;
 
 
 struct item_free_stack {
@@ -97,8 +97,9 @@ struct request_stack {
 
 
 /* API Wrappers */
-extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes) __attribute__((__noreturn__));
-extern void       nvim_printf  (int fd, const char *const restrict fmt, ...) __attribute__((__noreturn__, format(printf, 2, 3)));
+extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
+extern void       nvim_printf  (int fd, const char *restrict fmt, ...) __attribute__((format(printf, 2, 3)));
+extern void       nvim_vprintf (int fd, const char *restrict fmt, va_list args);
 
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
 extern b_list   * nvim_buf_get_lines      (int fd, unsigned buf, int start, int end);
@@ -133,10 +134,10 @@ mpack_obj * decode_obj(bstring *buf, const enum message_types expected_type);
 
 /* Encode */
 extern mpack_obj * mpack_make_new       (unsigned len, bool encode);
-extern void        mpack_encode_array   (mpack_obj *root, struct mpack_array *parent, mpack_obj **item, unsigned len);
-extern void        mpack_encode_integer (mpack_obj *root, struct mpack_array *parent, mpack_obj **item, int64_t value);
-extern void        mpack_encode_string  (mpack_obj *root, struct mpack_array *parent, mpack_obj **item, const bstring *string);
-extern void        mpack_encode_boolean (mpack_obj *root, struct mpack_array *parent, mpack_obj **item, bool value);
+extern void        mpack_encode_array   (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, unsigned len);
+extern void        mpack_encode_integer (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, int64_t value);
+extern void        mpack_encode_string  (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, const bstring *string);
+extern void        mpack_encode_boolean (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, bool value);
 extern mpack_obj * encode_fmt           (const char *fmt, ...);
 
 /* extern mpack_obj * v_encode_fmt(mpack_obj *root, const char *fmt, va_list va); */
@@ -173,14 +174,14 @@ extern mpack_obj * encode_fmt           (const char *fmt, ...);
 /*============================================================================*/
 /* Type conversions and Misc */
 
-extern b_list * mpack_array_to_blist(struct mpack_array *array, bool destroy);
+extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
 extern b_list * blist_from_var_fmt  (int fd, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 extern void   * nvim_get_var_fmt    (int fd, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
-extern void   * dict_get_key        (dictionary *dict, const mpack_type_t expect, const bstring *key, const bool fatal);
+extern void   * dict_get_key        (mpack_dict_t *dict, const mpack_type_t expect, const bstring *key, const bool fatal);
 
 
 static inline void
-destroy_dictionary(dictionary *dict)
+destroy_mpack_dict(mpack_dict_t *dict)
 {
         mpack_obj tmp;
         tmp.flags     = MPACK_DICT | MPACK_PHONY;
@@ -189,7 +190,7 @@ destroy_dictionary(dictionary *dict)
 }
 
 static inline void
-destroy_mpack_array(struct mpack_array *array)
+destroy_mpack_array(mpack_array_t *array)
 {
         mpack_obj tmp;
         tmp.flags    = MPACK_ARRAY | MPACK_PHONY;

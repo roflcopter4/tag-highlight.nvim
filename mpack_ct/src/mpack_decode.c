@@ -70,8 +70,8 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                nvprintf("For some incomprehensible reason the pack's type is %d.\n",
-                         mpack_type(ret));
+                echo("For some incomprehensible reason the pack's type is %d.\n",
+                     mpack_type(ret));
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
                 abort();
@@ -82,8 +82,8 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (expected_type != MES_ANY &&
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
-                nvprintf("Expected %d but got %ld\n",
-                         expected_type, ret->data.arr->items[0]->data.num);
+                echo("Expected %d but got %ld\n",
+                     expected_type, ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
                 case MES_REQUEST: 
@@ -113,8 +113,8 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                nvprintf("For some incomprehensible reason the pack's type is %d.\n",
-                         mpack_type(ret));
+                echo("For some incomprehensible reason the pack's type is %d.\n",
+                     mpack_type(ret));
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
                 abort();
@@ -124,8 +124,8 @@ decode_obj(bstring *buf, const enum message_types expected_type)
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
                 if (buf != 0)
-                        nvprintf("Expected %d but got %ld\n", expected_type,
-                                 ret->data.arr->items[0]->data.num);
+                        echo("Expected %d but got %ld\n", expected_type,
+                             ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
                 case MES_REQUEST:      errx(1, "This will NEVER happen.");
@@ -194,7 +194,7 @@ decode_array(read_fn READ, void *src, const uint8_t byte, const struct mpack_mas
         }
 
         item->flags           = MPACK_ARRAY;
-        item->data.arr        = xmalloc(sizeof(struct mpack_array));
+        item->data.arr        = xmalloc(sizeof(mpack_array_t));
         item->data.arr->items = nmalloc(size, sizeof(mpack_obj *));
         item->data.arr->max   = size;
         item->data.arr->qty   = 0;
@@ -240,7 +240,7 @@ decode_dictionary(read_fn READ, void *src, const uint8_t byte, const struct mpac
         item->data.dict->entries = nmalloc(sizeof(struct dict_ent *), size);
         item->data.dict->qty     = item->data.dict->max = size;
 
-        LOG("It is a dictionary! -> 0x%0X => size %u\n", byte, size);
+        LOG("It is a mpack_dict_t! -> 0x%0X => size %u\n", byte, size);
 
         for (uint32_t i = 0; i < item->data.arr->max; ++i) {
                 item->data.dict->entries[i]        = xmalloc(sizeof(struct dict_ent));
@@ -412,7 +412,7 @@ decode_ext(read_fn READ, void *src, const struct mpack_masks *mask)
         }
 
         item->flags          = MPACK_EXT;
-        item->data.ext       = xmalloc(sizeof(struct mpack_ext));
+        item->data.ext       = xmalloc(sizeof(mpack_ext_t));
         item->data.ext->type = type;
         item->data.ext->num  = value;
 
@@ -452,9 +452,6 @@ decode_nil(void)
 
 /*============================================================================*/
 
-/* #ifndef __ssize_t_defined */
-
-/* #endif */
 
 static const struct mpack_masks *
 id_pack_type(const uint8_t byte)

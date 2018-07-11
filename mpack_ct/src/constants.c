@@ -79,6 +79,7 @@ int             sockfd;
 FILE *          decodelog;
 FILE *          mpack_log;
 FILE *          vpipe;
+FILE *          cmdlog;
 const char *    program_name;
 const char *    HOME;
 pthread_mutex_t event_mutex    = PTHREAD_MUTEX_INITIALIZER;

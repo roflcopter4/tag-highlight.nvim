@@ -6,15 +6,15 @@
 #include "linked_list.h"
 
 #define V(PTR_) ((void *)(PTR_))
-#define MSG1()                                                                            \
-        do {                                                                              \
-                nvprintf("Start: %d, End: %d, diff: %d => at is %p, head: %p, tail: %p, qty: %d\n", \
-                        start, end, diff, V(at), V(list->head), V(list->tail), list->qty);      \
+#define MSG1()                                                                                  \
+        do {                                                                                    \
+                echo("Start: %d, End: %d, diff: %d => at is %p, head: %p, tail: %p, qty: %d\n", \
+                     start, end, diff, V(at), V(list->head), V(list->tail), list->qty);         \
         } while (0)
-#define MSG2()                                                                 \
-        do {                                                                   \
-                nvprintf("NOW at is %p, head: %p, tail: %p, qty: %d\n", V(at), \
-                        V(list->head), V(list->tail), list->qty);              \
+#define MSG2()                                                             \
+        do {                                                               \
+                echo("NOW at is %p, head: %p, tail: %p, qty: %d\n", V(at), \
+                     V(list->head), V(list->tail), list->qty);             \
         } while (0)
 
 static inline void free_data(ll_node *node) __attribute__((always_inline));
@@ -249,8 +249,8 @@ ll_delete_range(linked_list *list, ll_node *at, unsigned range)
         assert(list && list->qty >= (int)range);
         if (range == 0)
                 return;
-        nvprintf("removing: at is %p, head: %p, tail: %p, qty: %d\n",
-                 V(at), V(list->head), V(list->tail), list->qty);
+        echo("removing: at is %p, head: %p, tail: %p, qty: %d\n",
+             V(at), V(list->head), V(list->tail), list->qty);
 
         ll_node *current      = at;
         ll_node *next         = NULL;
@@ -278,8 +278,8 @@ ll_delete_range(linked_list *list, ll_node *at, unsigned range)
                 list->tail = prev;
 
 
-        nvprintf("NOW: at is %p, head: %p, tail: %p, qty: %d\n",
-                 V(at), V(list->head), V(list->tail), list->qty);
+        echo("NOW: head: %p, tail: %p, qty: %d\n",
+             V(list->head), V(list->tail), list->qty);
 }
 
 

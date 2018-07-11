@@ -32,6 +32,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -103,7 +104,7 @@ typedef uint64_t uint64;
 #endif
 
 #define ARRSIZ(ARR_)    (sizeof(ARR_) / sizeof(*(ARR_)))
-#define modulo(A, B)    (((A) % (B) + (B)) % (B))
+#define modulo(iA, iB)  (((iA) % (iB) + (iB)) % (iB))
 #define stringify(VAR_) #VAR_
 #define nputs(STR_)     fputs((STR_), stdout)
 #define eprintf(...)    fprintf(stderr, __VA_ARGS__)
@@ -115,8 +116,6 @@ typedef uint64_t uint64;
 #define aMAL            __attribute__((__malloc__))
 #define aALSZ(...)      __attribute__((__alloc_size__(__VA_ARGS__)))
 #define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
-
-#define B(LIT_CSTR_)    b_tmp(LIT_CSTR_)
 
 #define MAX(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ > ib_) ? ia_ : ib_; })
 #define MIN(IA_, IB_) __extension__({ __auto_type ia_ = (IA_); __auto_type ib_ = (IB_); (ia_ < ib_) ? ia_ : ib_; })
@@ -172,8 +171,11 @@ typedef uint64_t uint64;
 #  define FUNC_NAME (__func__)
 #endif
 
+#undef eprintf
 #define nvprintf warnx
-#define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n")))
+#define eprintf warnx
+#define echo    warnx
+/* #define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n"))) */
 
 #ifndef DEBUG
 #  undef echo

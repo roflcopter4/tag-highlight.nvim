@@ -21,6 +21,8 @@ set (tag_highlight_SOURCES
      mpack_print.c
      update.c
      util.c
+
+     blargh.c
 )
 
 # if (LZMA_SUPPORT)
