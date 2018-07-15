@@ -44,7 +44,7 @@ strip_comments(struct bufdata *bdata)
         LL_FOREACH_F (bdata->lines, line)
                 bytenum += line->data->slen + 1;
 
-        warnx("Buffer size is %u", bytenum);
+        /* warnx("Buffer size is %u", bytenum); */
         bstring *joined = b_alloc_null(bytenum);
         /* free(bytenum); */
 
@@ -53,7 +53,7 @@ strip_comments(struct bufdata *bdata)
                 b_conchar(joined, '\n');
         }
 
-        warnx("buffer size is definitely %u\n", joined->slen);
+        /* warnx("buffer size is definitely %u\n", joined->slen); */
 
         for (unsigned i = 0; i < ARRSIZ(lang_comment_groups); ++i) {
                 if (bdata->ft->id == lang_comment_groups[i].id) {
@@ -69,10 +69,6 @@ strip_comments(struct bufdata *bdata)
         } else
                 warnx("Failed to identify language \"%s\".",
                       BTS(bdata->ft->vim_name));
-
-        /* FILE *cuntbagwhore = safe_fopen_fmt("%s/killme.log", "wb", HOME);
-        b_fputs(cuntbagwhore, joined);
-        fclose(cuntbagwhore); */
 
         return joined;
 }
@@ -96,7 +92,6 @@ strip_comments(struct bufdata *bdata)
             slash = false;                             \
     } while (0)
 
-#define SLS(STR_) (STR_), (sizeof(STR_) - 1)
 #define ustrchr(USTR, CH)  ((uchar *)(strchr((char *)(USTR), (CH))))
 #define ustrstr(USTR, STR) ((uchar *)(strstr((char *)(USTR), (STR))))
 

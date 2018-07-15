@@ -1452,6 +1452,14 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
                 .flags = 0x00u                    \
         }
 
+#define bt_fromarray(CSTR)                   \
+        (bstring){                           \
+                .slen  = (sizeof(CSTR) - 1), \
+                .mlen  = 0,                  \
+                .data  = (uchar *)(CSTR),    \
+                .flags = 0x00u               \
+        }
+
 /**
  * This useful macro creates a valid pointer to a static bstring object by
  * casting bt_init() to (bstring[]). Used most often to supply literal string
@@ -1488,6 +1496,7 @@ BSTR_PUBLIC bstring *b_clone(const bstring *const src);
  */
 BSTR_PUBLIC bstring *b_clone_swap(bstring *src);
 BSTR_PUBLIC bstring *b_ll2str(const long long value);
+BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB);
 
 
 /*----------------------------------------------------------------------------*/
@@ -1580,13 +1589,18 @@ INLINE size_t b_fread(void *buf, const size_t size, const size_t nelem, void *pa
 /**
  * Concatenate a series of bstrings.
  */
-BSTR_PUBLIC bstring *__b_concat_all(const bstring *join, ...);
-BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, ...);
+BSTR_PUBLIC bstring *__b_concat_all(const bstring *join, int join_end, ...);
+BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, int join_end, ...);
 
-#define b_concat_all(JOIN_, ...) \
-        __b_concat_all((JOIN_), __VA_ARGS__, B_LIST_END_MARK)
-#define b_append_all(BDEST, JOIN_, ...) \
-        __b_append_all((BDEST), (JOIN_), __VA_ARGS__, B_LIST_END_MARK)
+#define b_concat_all(...) \
+        __b_concat_all(NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
+#define b_append_all(BDEST, ...) \
+        __b_append_all((BDEST), NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
+
+#define b_join_all(BDEST, JOIN_, END_, ...) \
+        __b_concat_all((JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
+#define b_join_append_all(BDEST, JOIN_, END_, ...) \
+        __b_append_all((BDEST), (JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
 
 
 /**

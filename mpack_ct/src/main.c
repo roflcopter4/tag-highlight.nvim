@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/un.h>
 
 #include "contrib/bsd_funcs.h"
@@ -26,6 +27,7 @@
 extern FILE    *decodelog, *cmdlog;
 static FILE    *logfile;
 static bstring *vpipename, *servername, *mes_servername;
+static struct timeval tv1, tv2;
 
 
 static void *      interrupt_loop(void *vdata);
@@ -34,8 +36,9 @@ static void        exit_cleanup(void);
 static int         create_socket(bstring **name);
 static comp_type_t get_compression_type(void);
 
-_Noreturn static inline void pthread_exit_wrapper(UNUSED int x)
-{ pthread_exit(NULL); }
+static void piss_around(void);
+_Noreturn static inline void pthread_exit_wrapper(UNUSED int x);
+
 
 /*============================================================================*/
 
@@ -43,10 +46,10 @@ _Noreturn static inline void pthread_exit_wrapper(UNUSED int x)
 int
 main(int argc, char *argv[])
 {
+        gettimeofday(&tv1, NULL);
         extern const char *program_name;
         program_name = basename(argv[0]);
         HOME         = getenv("HOME");
-        unlink("/home/bml/final_output.log");
         assert(atexit(exit_cleanup) == 0);
 
         {
@@ -80,6 +83,8 @@ main(int argc, char *argv[])
 
         assert(settings.enabled);
 
+        piss_around();
+
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
@@ -107,6 +112,8 @@ main(int argc, char *argv[])
 
 
 /*============================================================================*/
+
+#define WAIT_TIME (0.2l)
 
 
 /*
@@ -153,14 +160,19 @@ interrupt_loop(void *vdata)
                 assert(bdata);
 
                 while (!bdata->lines->qty)
-                        usleep(100 * 1000);
+                        fsleep(0.10L);
 
-                /* extern int main_hl_id; */
-                /* my_parser(bufnum, bdata); */
-                /* sleep(5000);
+                /* extern int main_hl_id;
+                my_parser(bufnum, bdata);
+                sleep(5000);
                 nvim_buf_clear_highlight(0, bufnum, main_hl_id, 0, -1);
                 sleep(2); */
                 update_highlight(bufnum, bdata);
+                gettimeofday(&tv2, NULL);
+
+                SHOUT_("Time for initialization: %fs",
+                       ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
+                           (double)(tv2.tv_sec - tv1.tv_sec));
         }
 
         for (;;) {
@@ -175,6 +187,7 @@ interrupt_loop(void *vdata)
                 case 'A':
                 case 'D': {
                         const int prev = bufnum;
+                        gettimeofday(&tv1, NULL);
                         bufnum = nvim_get_current_buf(0);
                         struct bufdata *bdata = find_buffer(bufnum);
 
@@ -184,13 +197,22 @@ interrupt_loop(void *vdata)
                                         bdata = find_buffer(bufnum);
                                         while (bdata->lines->qty == 0) {
                                                 echo("sleeping");
-                                                usleep(100000);
+                                                fsleep(0.15L);
                                         }
                                         update_highlight(bufnum, bdata);
+                                        gettimeofday(&tv2, NULL);
+                                        SHOUT_("Time for initialization: %fs",
+                                              ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
+                                                  (double)(tv2.tv_sec - tv1.tv_sec));
                                 }
                         } else if (prev != bufnum) {
                                 update_highlight(bufnum, bdata);
+                                gettimeofday(&tv2, NULL);
+                                SHOUT_("Time for update: %fs",
+                                      ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
+                                          (double)(tv2.tv_sec - tv1.tv_sec));
                         }
+
 
                         break;
                 }
@@ -198,6 +220,7 @@ interrupt_loop(void *vdata)
                  * Buffer was written, or filetype/syntax was changed.
                  */
                 case 'B': {
+                        gettimeofday(&tv1, NULL);
                         const int       curbuf = nvim_get_current_buf(0);
                         struct bufdata *bdata  = find_buffer(curbuf);
 
@@ -206,9 +229,17 @@ interrupt_loop(void *vdata)
                                       curbuf, (void *)bdata);
                                 break;
                         }
-                        usleep(200000);
-                        if (update_taglist(bdata))
+
+                        fsleep(WAIT_TIME);
+
+                        if (update_taglist(bdata)) {
                                 update_highlight(curbuf, bdata);
+                                gettimeofday(&tv2, NULL);
+                                SHOUT_("Time for update: %fs",
+                                      ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
+                                          (double)(tv2.tv_sec - tv1.tv_sec));
+                        }
+
 
                         break;
                 }
@@ -339,4 +370,44 @@ get_compression_type(void) {
 
         b_destroy(tmp);
         return ret;
+}
+
+
+/*============================================================================*/
+
+
+static void
+piss_around(void)
+{
+        struct atomic_call_array *calls = xmalloc(sizeof *calls);
+        calls->mlen = 32;
+        calls->fmt  = nmalloc(sizeof(char *), calls->mlen);
+        calls->args = nmalloc(sizeof(union atomic_call_args *), calls->mlen);
+
+        calls->args[0]        = nmalloc(sizeof(union atomic_call_args), 2);
+        calls->fmt[0]         = strdup("s[s]");
+        calls->args[0][0].str = b_lit2bstr("nvim_command");
+        calls->args[0][1].str = b_lit2bstr("echom 'hello, faggot!'");
+
+        calls->args[1]        = nmalloc(sizeof(union atomic_call_args), 2);
+        calls->fmt[1]         = strdup("s[s]");
+        calls->args[1][0].str = b_lit2bstr("nvim_command");
+        calls->args[1][1].str = b_lit2bstr("echom 'goodbye, faggot!'");
+
+        calls->args[2]        = nmalloc(sizeof(union atomic_call_args), 2);
+        calls->fmt[2]         = strdup("s[s]");
+        calls->args[2][0].str = B("nvim_command");
+        calls->args[2][1].str = B("echom 'uhm, you are a, faggot!'");
+
+        calls->qty = 3;
+
+        nvim_call_atomic(0, calls);
+        destroy_call_array(calls);
+}
+
+
+_Noreturn static inline void
+pthread_exit_wrapper(UNUSED int x)
+{
+        pthread_exit(NULL);
 }

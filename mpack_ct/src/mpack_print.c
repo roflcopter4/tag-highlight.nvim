@@ -5,12 +5,12 @@
 
 static void do_mpack_print_object(const mpack_obj *result);
 static void print_array (const mpack_obj *result);
+static void print_bool  (const mpack_obj *result);
 static void print_dict  (const mpack_obj *result);
-static void print_string(const mpack_obj *result, bool ind);
 static void print_ext   (const mpack_obj *result);
 static void print_nil   (const mpack_obj *result);
-static void print_bool  (const mpack_obj *result);
 static void print_number(const mpack_obj *result);
+static void print_string(const mpack_obj *result, bool ind);
 
 #define CAST_INT(OBJ)                                                   \
                 ((OBJ)->type == M_INT_32)  ? (int32_t)(OBJ)->data.num : \
@@ -66,12 +66,12 @@ do_mpack_print_object(const mpack_obj *result)
 
         switch (mpack_type(result)) {
         case MPACK_ARRAY:  print_array (result);    break;
+        case MPACK_BOOL:   print_bool  (result);    break;
         case MPACK_DICT:   print_dict  (result);    break;
-        case MPACK_STRING: print_string(result, 1); break;
         case MPACK_EXT:    print_ext   (result);    break;
         case MPACK_NIL:    print_nil   (result);    break;
-        case MPACK_BOOL:   print_bool  (result);    break;
         case MPACK_NUM:    print_number(result);    break;
+        case MPACK_STRING: print_string(result, 1); break;
         case MPACK_UNINITIALIZED:
         default:
                 errx(1, "Got uninitialized item to print!");

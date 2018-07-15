@@ -31,13 +31,13 @@ UNUSED static void print_tags_vim(const struct taglist *list, const char *ft);
 static struct taglist * tok_search(const struct bufdata *bdata, b_list *vimbuf);
 static void *do_tok_search(void *vdata);
 
-/* static FILE *thislog; */
+static FILE *thislog;
 
 
 struct taglist *
 findemtagers(struct bufdata *bdata, b_list *toks)
 {
-        /* thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME); */
+        thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
 
         struct taglist *list = tok_search(bdata, toks);
@@ -49,10 +49,13 @@ findemtagers(struct bufdata *bdata, b_list *toks)
         /* else */
                 /* print_tags(list, BTS(bdata->ft->vim_name)); */
 
-        /* fclose(thislog); */
+        fclose(thislog);
         return list;
 
 }
+
+
+/* ========================================================================== */
 
 
 static inline void
@@ -63,9 +66,6 @@ add_tag_to_list(struct taglist **list, struct tag *tag)
                                         sizeof(*(*list)->lst));
         (*list)->lst[(*list)->qty++] = tag;
 }
-
-
-/* ========================================================================== */
 
 
 static int
@@ -87,16 +87,6 @@ tag_cmp(const void *vA, const void *vB)
                 ret = sA->kind - sB->kind;
 
         return ret;
-}
-
-
-static int
-b_strcmp_wrap(const void *vA, const void *vB)
-{
-        return b_strcmp((*(bstring **)(vA)),
-                        (*(bstring **)(vB)));
-        /* return strcmp(BS((*(bstring **)(vA))),
-                      BS((*(bstring **)(vB)))); */
 }
 
 
@@ -232,7 +222,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 
         /* Because we may have examined multiple tags files, it's very possible
          * for there to be duplicate tags. Sort the list and remove any. */
-        qsort(vimbuf->lst, vimbuf->qty, sizeof(*vimbuf->lst), &b_strcmp_wrap);
+        qsort(vimbuf->lst, vimbuf->qty, sizeof(*vimbuf->lst), &b_strcmp_fast_wrap);
 
         b_list *uniq = b_list_create_alloc(vimbuf->qty);
         uniq->qty = 0;
@@ -390,19 +380,20 @@ do_tok_search(void *vdata)
                  *    4) are present in the current vim buffer.
                  * If invalid, just move on. 
                  */
+#if 0
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
-                     (b_iseq(data->filename, match_file) ||
+                     (/* b_iseq(data->filename, match_file) || */
                       bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
-                              sizeof(*data->vim_buf->lst), &b_strcmp_wrap)))
+                              sizeof(*data->vim_buf->lst), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
                         struct tag *tag = xmalloc(sizeof(*tag));
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
-#if 0
+#endif
 #define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
                                     kind, BS(match_lang), BS(name), name->slen, (REASON)))
 
@@ -419,7 +410,7 @@ do_tok_search(void *vdata)
                 else if (!(b_iseq(data->filename, match_file))) {
                         REJECT_TAG("not in specified file");
                         if (bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
-                                     sizeof(bstring *), &b_strcmp_wrap))
+                                     sizeof(bstring *), &b_strcmp_fast_wrap))
                                 goto lazy;
                         /* for (unsigned i = 0; i < data->vim_buf->qty; ++i) {
                                 fprintf(thislog, "Comparing \"%s\" with \"%s\".\n", BS(name), BS(data->vim_buf->lst[i]));
@@ -436,7 +427,6 @@ lazy:
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
-#endif
 
                 free(cpy_data);
                 free(cpy);

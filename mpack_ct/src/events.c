@@ -6,7 +6,7 @@
 
 #define BT bt_init
 
-extern pthread_mutex_t event_mutex;
+extern pthread_mutex_t event_mutex, update_mutex;
 
 static const struct event_id {
         const bstring name;
@@ -42,6 +42,7 @@ handle_nvim_event(mpack_obj *event)
 {
 #define D (event->data.arr->items[2]->data.arr->items)
         pthread_mutex_lock(&event_mutex);
+        pthread_mutex_lock(&update_mutex);
         const struct event_id *type   = id_event(event);
         const unsigned         bufnum = D[0]->data.ext->num;
         const int              index  = find_buffer_ind(bufnum);
@@ -66,6 +67,7 @@ handle_nvim_event(mpack_obj *event)
         }
 
         pthread_mutex_unlock(&event_mutex);
+        pthread_mutex_unlock(&update_mutex);
         return type->id;
 #undef D
 }
@@ -130,6 +132,9 @@ handle_line_event(const unsigned index, mpack_obj **items)
         }
 
         assert(ll_verify_size(bdata->lines));
+        unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
+        if (bdata->ctick == ctick)
+                assert((unsigned)bdata->lines->qty == nvim_buf_line_count(0, bdata->num));
 
         /* const unsigned linecount = nvim_buf_line_count(0, bdata->num);
         ASSERTX(linecount == (unsigned)bdata->lines->qty,

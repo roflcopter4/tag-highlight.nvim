@@ -73,9 +73,8 @@ new_buffer(const int fd, const int bufnum)
         }
 
         b_destroy(ft);
-        struct bufdata *bdata = get_bufdata(fd, bufnum);
+        struct bufdata *bdata = get_bufdata(fd, bufnum, tmp);
         assert(bdata != NULL);
-        bdata->ft = tmp;
 
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(fd, bdata->ft);
@@ -87,17 +86,18 @@ new_buffer(const int fd, const int bufnum)
 }
 
 struct bufdata *
-get_bufdata(const int fd, const int bufnum)
+get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
 {
         struct bufdata *bdata = xmalloc(sizeof *bdata);
         bdata->num       = bufnum;
         bdata->filename  = nvim_buf_get_name(fd, bufnum);
-        bdata->ft        = NULL;
+        bdata->ft        = ft;
         bdata->current   = NULL;
         bdata->cmd_cache = NULL;
         bdata->ctick     = bdata->last_ctick = 0;
         bdata->lines     = ll_make_new();
         bdata->topdir    = init_topdir(fd, bdata);
+        bdata->calls     = NULL;
 
         return bdata;
 }
@@ -112,6 +112,7 @@ destroy_bufdata(struct bufdata **bdata)
         b_destroy((*bdata)->filename);
         ll_destroy((*bdata)->lines);
         b_list_destroy((*bdata)->cmd_cache);
+        destroy_call_array((*bdata)->calls);
 
         if (--((*bdata)->topdir->refs) == 0) {
                 struct top_dir *topdir = (*bdata)->topdir;
@@ -189,26 +190,40 @@ static struct top_dir *
 init_topdir(const int fd, struct bufdata *bdata)
 {
         /* Emulate dirname() */
+        int     ret;
         int64_t pos  = b_strrchr(bdata->filename, SEPCHAR);
         bstring *dir = b_strcpy(bdata->filename);
 
         if (pos < 0)
                 abort();
 
-        dir->data[pos] = '\0';
-        dir->slen      = pos;
-        dir            = check_project_directories(dir);
+        dir->data[pos]   = '\0';
+        dir->slen        = pos;
+        dir              = check_project_directories(dir);
+        bool     recurse = check_norecurse_directories(dir);
+        bool     is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
+        bstring *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
 
-        /* echo("Using top dir \"%s\"\n", BS(dir)); */
-
-        /* If this buffer shares a directory with another previously opened
-         * buffer then there's no need to re-read the tags file.
-         */
-        for (unsigned i = 0; i < top_dirs.mlen; ++i) {
-                if (top_dirs.lst[i] && b_iseq(top_dirs.lst[i]->pathname, dir)) {
-                        ++top_dirs.lst[i]->refs;
-                        b_destroy(dir);
-                        return top_dirs.lst[i];
+        if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
+                for (unsigned i = 0; i < top_dirs.mlen; ++i) {
+                        if (top_dirs.lst[i] &&
+                            top_dirs.lst[i]->ftid == bdata->ft->id &&
+                            b_iseq(top_dirs.lst[i]->pathname, base))
+                        {
+                                ++top_dirs.lst[i]->refs;
+                                b_destroy(base);
+                                return top_dirs.lst[i];
+                        }
+                }
+        } else {
+                for (unsigned i = 0; i < top_dirs.mlen; ++i) {
+                        if (top_dirs.lst[i] &&
+                            b_iseq(top_dirs.lst[i]->pathname, base))
+                        {
+                                ++top_dirs.lst[i]->refs;
+                                b_destroy(base);
+                                return top_dirs.lst[i];
+                        }
                 }
         }
 
@@ -217,12 +232,14 @@ init_topdir(const int fd, struct bufdata *bdata)
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), MPACK_STRING, NULL, 1);
         tmp->tmpfd    = open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
+        tmp->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
+        tmp->ftid     = bdata->ft->id;
+        tmp->index    = top_dirs.mkr;
+        tmp->is_c     = is_c;
+        tmp->pathname = dir;
+        tmp->recurse  = recurse;
         tmp->refs     = 1;
         tmp->tags     = NULL;
-        tmp->index    = top_dirs.mkr;
-        tmp->pathname = dir;
-        tmp->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
-        tmp->recurse  = check_norecurse_directories(dir);
 
         tmp->pathname->flags |= BSTR_DATA_FREEABLE;
         b_catlit(tmp->gzfile, SEPSTR ".vim_tags" SEPSTR);
@@ -237,33 +254,29 @@ init_topdir(const int fd, struct bufdata *bdata)
                 nvim_command(0, bt_fromblk(buf, n), 0);
         }
 
-        /* In UNIX-y systems, swap '/' with '__', and do the same with '\\' and
-         * ':' in Windows (because drive letters). Actually, we have to check
-         * for all three in Windows, since it still generally tolerates paths
-         * with forward slashes. */
-        echo("slen -> %u, mlen-> %u\n", dir->slen, tmp->gzfile->mlen);
-        for (unsigned i = 0; i < dir->slen && i < tmp->gzfile->mlen; ++i) {
-                if (dir->data[i] == SEPCHAR || DOSCHECK()) {
+        for (unsigned i = 0; i < base->slen && i < tmp->gzfile->mlen; ++i) {
+                if (base->data[i] == SEPCHAR || DOSCHECK()) {
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                 } else
-                        tmp->gzfile->data[tmp->gzfile->slen++] = dir->data[i];
+                        tmp->gzfile->data[tmp->gzfile->slen++] = base->data[i];
         }
-        int ret;
-        if (settings.comp_type == COMP_GZIP)
-                ret = b_concat(tmp->gzfile, B(".tags.gz"));
-        else if (settings.comp_type == COMP_LZMA)
-                ret = b_concat(tmp->gzfile, B(".tags.xz"));
-        else
-                ret = b_concat(tmp->gzfile, B(".tags"));
 
-        warnx("dir: %s\ngzfile: %s\nslen: %u, strlen: %zu", BS(dir),
-              BS(tmp->gzfile), tmp->gzfile->slen, strlen(BS(tmp->gzfile)));
+        if (settings.comp_type == COMP_GZIP)
+                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags.gz"));
+        else if (settings.comp_type == COMP_LZMA)
+                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags.xz"));
+        else
+                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags"));
+
+        echo("base: %s\ngzfile: %s", BS(base), BS(tmp->gzfile));
         assert(ret == BSTR_OK);
 
         get_initial_taglist(bdata, tmp);
         top_dirs.lst[top_dirs.mkr] = tmp;
         NEXT_MKR(top_dirs);
+        if (!recurse || is_c)
+                b_free(base);
 
         return tmp;
 }
@@ -297,8 +310,6 @@ check_project_directories(bstring *dir)
         while ((tmp = B_GETS(fp, '\n'))) {
                 tmp->data[tmp->slen -= 3] = '\0';
 
-                /* warnx("Comparing \"%s\" to \"%s\"", dir, BS(tmp)); */
-
                 if (strstr(BS(dir), BS(tmp)))
                         b_add_to_list(candidates, tmp);
                 else
@@ -310,7 +321,6 @@ check_project_directories(bstring *dir)
                 b_list_destroy(candidates);
                 return dir;
         }
-                /* return b_refblk(dir, len); */
 
         unsigned x = 0;
 
@@ -343,7 +353,6 @@ init_filetype(int fd, struct ftdata_s *ft)
         if (ft->initialized)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
-
         echo("Init filetype called for ft %s\n", BTS(ft->vim_name));
 
         ft->initialized = true;
@@ -378,9 +387,6 @@ init_filetype(int fd, struct ftdata_s *ft)
                 xfree(equiv);
         } else
                 ft->equiv = NULL;
-
-        /* ft->restore_cmds             = NULL; */
-        /* ft->restore_cmds_initialized = false; */
 
         pthread_mutex_unlock(&ftdata_mutex);
 }

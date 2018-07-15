@@ -52,6 +52,8 @@ struct top_dir {
         uint16_t index;
         uint16_t refs;
         bool     recurse;
+        bool     is_c;
+        enum filetype_id ftid;
 
         bstring *gzfile;
         bstring *pathname;
@@ -71,6 +73,7 @@ struct buffer_list {
                 ll_node         *current;
                 struct ftdata_s *ft;
                 struct top_dir  *topdir;
+                struct atomic_call_array *calls;
         } *lst[512];
 
         struct bad_bufs_s {
@@ -116,7 +119,7 @@ extern int  find_buffer_ind(int bufnum);
 extern bool is_bad_buffer(int bufnum);
 
 extern struct bufdata *find_buffer(int bufnum);
-extern struct bufdata *get_bufdata(int fd, int bufnum);
+extern struct bufdata *get_bufdata(int fd, int bufnum, struct ftdata_s *ft);
 extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 extern void destroy_bufdata(struct bufdata **bdata);
 
@@ -124,7 +127,6 @@ extern void destroy_bufdata(struct bufdata **bdata);
 /*---------------------------------------------------------------------------*/
 /* Events */
 extern void handle_unexpected_notification(mpack_obj *note);
-/* extern void handle_nvim_event(mpack_obj *event); */
 extern enum event_types handle_nvim_event(mpack_obj *event);
 
 

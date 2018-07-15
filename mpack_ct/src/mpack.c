@@ -1,9 +1,11 @@
 #include "util.h"
+#include <fcntl.h>
 
 #include "data.h"
 /* #include "macros.h" */
 #include "mpack.h"
 
+static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func);
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
 static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
@@ -12,12 +14,14 @@ static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
 static unsigned        sok_count, io_count;
 extern pthread_mutex_t mpack_main;
 
-#define ENCODE_FMT_ARRSIZE 1024
+/* #define ENCODE_FMT_ARRSIZE 524288 */
+#define ENCODE_FMT_ARRSIZE 8192
+#define STD_API_FMT "d:d:s:"
 #define DAI data.arr->items
 #define DDE data.dict->entries
 
 #define COUNT(FD_)           (((FD_) == 1) ? io_count : sok_count)
-#define INC_COUNT(FD_)       (((FD_) == 1) ? ++io_count : ++sok_count)
+#define INC_COUNT(FD_)       (((FD_) == 1) ? io_count++ : sok_count++)
 #define CHECK_DEF_FD(FD__)   ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
 
 #define WRITE_API(FMT_, ...) WRITE_API__(FMT_, func, __VA_ARGS__)
@@ -27,25 +31,12 @@ extern pthread_mutex_t mpack_main;
         do {                                                               \
                 static bstring func[1] = {{.data = NULL}};                 \
                 if (!func[0].data)                                         \
-                        func[0] = (bstring){.slen  = sizeof(__func__) - 1, \
-                                            .mlen  = 0,                    \
-                                            .data  = (uchar *)(__func__),  \
-                                            .flags = 0};                   \
+                        func[0] = bt_fromarray(__func__);                  \
                 CHECK_DEF_FD(fd);                                          \
                 mpack_obj *pack = encode_fmt_api(fd, __VA_ARGS__);         \
-                WRITE_AND_CLEAN(fd, pack, func);                           \
+                write_and_clean(fd, pack, func);                           \
         } while (0)
 
-
-#define WRITE_AND_CLEAN(FD__, MPACK, func)                               \
-        do {                                                             \
-                fprintf(mpack_log, "=================================\n" \
-                        "Writing request no %d to fd %d: \"%s\"\n",      \
-                        INC_COUNT(fd) - 1, (FD__), BS(func));            \
-                mpack_print_object((MPACK), mpack_log);                  \
-                b_write((FD__), *(MPACK)->packed);                       \
-                mpack_destroy(MPACK);                                    \
-        } while (0)
 
 #define FATAL(...)                                      \
         do {                                            \
@@ -73,7 +64,7 @@ extern pthread_mutex_t mpack_main;
         } while (0)
 
 #define encode_fmt_api(FD__, FMT_, ...) \
-        encode_fmt(("d:d:s:[" FMT_ "]"), 0, COUNT(FD__), __VA_ARGS__)
+        encode_fmt(0, (STD_API_FMT "[" FMT_ "]"), 0, INC_COUNT(FD__), __VA_ARGS__)
 
 
 /*============================================================================*/
@@ -93,7 +84,7 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
         }
 
         mpack_obj *pack = encode_fmt_api(fd, "s", func, mes);
-        WRITE_AND_CLEAN(fd, pack, func);
+        write_and_clean(fd, pack, func);
 
         mpack_obj *tmp = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
@@ -204,7 +195,8 @@ nvim_buf_get_lines(int            fd,
         WRITE_API("d,d,d,d", bufnum, start, end, 0);
 
         b_list *ret = mpack_array_to_blist(get_expect(decode_stream(fd, MES_RESPONSE),
-                                           MPACK_ARRAY, NULL, true, true), true);
+                                                      MPACK_ARRAY, NULL, true, true),
+                                           true);
         pthread_mutex_unlock(&mpack_main);
         return ret;
 }
@@ -309,11 +301,11 @@ nvim_call_function_args(int                 fd,
 
         va_list va;
         va_start(va, fmt);
-        mpack_obj *pack = encode_fmt(buf, 0, COUNT(fd), &func, function, &va);
+        mpack_obj *pack = encode_fmt(0, buf, 0, INC_COUNT(fd), &func, function, &va);
         va_end(va);
 
         mpack_print_object(pack, mpack_log); fflush(mpack_log);
-        WRITE_AND_CLEAN(fd, pack, &func);
+        write_and_clean(fd, pack, &func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         void      *ret    = get_expect(result, expect, key, true, true);
@@ -345,9 +337,6 @@ nvim_get_var(int                fd,
         return ret;
 }
 
-/* void *
-nvim_buf_get_var(int fd, const int bufnum, const bstring *optname, const mpack_type_t expect, ) */
-
 void *
 nvim_get_option(int                fd,
                 const bstring *    optname,
@@ -367,6 +356,10 @@ nvim_get_option(int                fd,
         pthread_mutex_unlock(&mpack_main);
         return ret;
 }
+
+
+/* void *
+nvim_buf_get_var(int fd, const int bufnum, const bstring *optname, const mpack_type_t expect, ) */
 
 void *
 nvim_buf_get_option(int                fd,
@@ -389,6 +382,18 @@ nvim_buf_get_option(int                fd,
         return ret;
 }
 
+unsigned
+nvim_buf_get_changedtick(int fd, const int bufnum, const bool fatal)
+{
+        pthread_mutex_lock(&mpack_main);
+        WRITE_API("d", bufnum);
+        mpack_obj      *result = decode_stream(fd, MES_RESPONSE);
+        const unsigned  ret    = RETVAL->data.num;
+        mpack_destroy(result);
+        pthread_mutex_unlock(&mpack_main);
+        return ret;
+}
+
 /*----------------------------------------------------------------------------*/
 
 int
@@ -401,11 +406,13 @@ nvim_buf_add_highlight(int             fd,
                        const int       end)
 {
         pthread_mutex_lock(&mpack_main);
-        WRITE_API("ddsddd", bufnum, hl_id, group, line, start, end);
+        WRITE_API("dd:s:ddd", bufnum, hl_id, group, line, start, end);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
-        const int ret = numptr_to_num(get_expect(result, MPACK_NUM, NULL, true, true));
+        const int ret = RETVAL->data.num;
+        /* const int ret = numptr_to_num(get_expect(result, MPACK_NUM, NULL, true, true)); */
+        print_and_destroy(result);
 
         return ret;
 }
@@ -418,7 +425,7 @@ nvim_buf_clear_highlight(int            fd,
                          const int      end)
 {
         pthread_mutex_lock(&mpack_main);
-        WRITE_API("dddd", bufnum, hl_id, start, end);
+        WRITE_API("dd:dd", bufnum, hl_id, start, end);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main);
@@ -449,6 +456,40 @@ nvim_subscribe(int fd, const bstring *event)
         print_and_destroy(result);
 }
 
+void
+nvim_call_atomic(int fd, const struct atomic_call_array *calls)
+{
+        static bstring func = bt_init("nvim_call_atomic");
+        CHECK_DEF_FD(fd);
+        pthread_mutex_lock(&mpack_main);
+        union atomic_call_args **args = calls->args;
+
+        bstring *fmt = b_fromcstr_alloc(4096, STD_API_FMT "[");
+
+        if (calls->qty) {
+                b_catlit(fmt, "[@[");
+                b_catcstr(fmt, calls->fmt[0]);
+                b_conchar(fmt, ']');
+
+                for (unsigned i = 1; i < calls->qty; ++i) {
+                        b_catlit(fmt, "[*");
+                        b_catcstr(fmt, calls->fmt[i]);
+                        b_conchar(fmt, ']');
+                }
+
+                b_catlit(fmt, "]]");
+        }
+
+        mpack_obj *pack = encode_fmt(calls->qty, BS(fmt), 0, INC_COUNT(fd), &func, args);
+
+        write_and_clean(fd, pack, &func);
+        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
+        pthread_mutex_unlock(&mpack_main);
+        print_and_destroy(result);
+
+        b_free(fmt);
+}
+
 
 /*============================================================================*/
 
@@ -473,7 +514,7 @@ get_expect(mpack_obj *        result,
         mpack_print_object(result, mpack_log);
 
         if (mpack_type(cur) == MPACK_NIL) {
-                echo("Neovim returned nil!");
+                fprintf(stderr, "Neovim returned nil!\n");
                 return NULL;
         }
         if (mpack_type(cur) != expect) {
@@ -529,6 +570,29 @@ num_from_ext:
         }
 
         return ret;
+}
+
+
+static void
+write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
+{
+        size_t nbytes;
+        char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
+        int rawlog = open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC, 0644);
+        nbytes     = write(rawlog, "\n", 1);
+        nbytes    += write(rawlog, (*pack->packed)->data, (*pack->packed)->slen);
+        nbytes    += write(rawlog, "\n", 1);
+        assert(nbytes == (*pack->packed)->slen + 2);
+        close(rawlog);
+
+        if (func)
+                fprintf(mpack_log, "=================================\n"
+                        "Writing request no %d to fd %d: \"%s\"\n",
+                        COUNT(fd) - 1, fd, BS(func));
+
+        mpack_print_object(pack, mpack_log);
+        b_write(fd, *pack->packed);
+        mpack_destroy(pack);
 }
 
 
@@ -622,6 +686,31 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
 }
 
 
+void
+destroy_call_array(struct atomic_call_array *calls)
+{
+        for (unsigned i = 0; i < calls->qty; ++i) {
+                unsigned x = 0;
+                for (const char *ptr = calls->fmt[i]; *ptr; ++ptr) {
+                        switch (*ptr) {
+                        case 'b': case 'B':
+                        case 'd': case 'D':
+                                ++x;
+                                break;
+                        case 's': case 'S':
+                                b_free(calls->args[i][x++].str);
+                                break;
+                        }
+                }
+                free(calls->args[i]);
+                free(calls->fmt[i]);
+        }
+        free(calls->args);
+        free(calls->fmt);
+        free(calls);
+}
+
+
 /*============================================================================*/
 /* Type conversions */
 
@@ -710,126 +799,197 @@ dict_get_key(mpack_dict_t *     dict,
 static mpack_obj *
 find_key_value(mpack_dict_t *dict, const bstring *key)
 {
-        mpack_obj *ret = NULL;
+        for (unsigned i = 0; i < dict->qty; ++i)
+                if (b_iseq(dict->entries[i]->key->data.str, key))
+                        return dict->entries[i]->value;
 
-        for (unsigned i = 0; i < dict->qty; ++i) {
-                if (b_iseq(dict->entries[i]->key->data.str, key)) {
-                        /* echo("Found at pos %u key %s", i,
-                                BS(dict->entries[i]->key->data.str)); */
-                        ret = dict->entries[i]->value;
-                        break;
-                }
-        }
-
-        return ret;
+        return NULL;
 }
 
 
 /*============================================================================*/
 
 
-#define NEXT(TYPE_NAME_)                          \
-        ((ref == NULL) ? va_arg(args, TYPE_NAME_) \
-                       : va_arg(*ref, TYPE_NAME_))
+#define NEXT(TYPE_NAME_, MEMBER_)                                            \
+        __extension__({                                                      \
+                TYPE_NAME_ ret__ = (TYPE_NAME_)0;                            \
+                switch (next_type) {                                         \
+                case OWN_VALIST:                                             \
+                        ret__ = va_arg(args, TYPE_NAME_);                    \
+                        break;                                               \
+                case OTHER_VALIST:                                           \
+                        assert(ref != NULL);                                 \
+                        ret__ = va_arg(*ref, TYPE_NAME_);                    \
+                        break;                                               \
+                case ATOMIC_UNION:                                           \
+                        assert(a_args);                                      \
+                        assert(a_args[a_arg_ctr]);                           \
+                        ret__ = ((a_args[a_arg_ctr][a_arg_subctr]).MEMBER_); \
+                        ++a_arg_subctr;                                      \
+                        break;                                               \
+                }                                                            \
+                (TYPE_NAME_)ret__;                                           \
+        })
+
+#define NEXT_NO_ATOMIC(TYPE_NAME_)                        \
+        __extension__({                                   \
+                TYPE_NAME_ ret__ = 0;                     \
+                switch (next_type) {                      \
+                case OWN_VALIST:                          \
+                        ret__ = va_arg(args, TYPE_NAME_); \
+                        break;                            \
+                case OTHER_VALIST:                        \
+                        assert(ref != NULL);              \
+                        ret__ = va_arg(*ref, TYPE_NAME_); \
+                        break;                            \
+                case ATOMIC_UNION: abort();               \
+                }                                         \
+                (TYPE_NAME_)ret__;                        \
+        })
 
 #define ENCODE(TYPE, VALUE) \
-        mpack_encode_##TYPE(pack, cur->data.arr, &(cur->DAI[sub_ctrs[ctr]++]), (VALUE))
+        mpack_encode_##TYPE(pack, cur_obj->data.arr, &(cur_obj->DAI[(*cur_ctr)++]), (VALUE))
+#define two3rds(NUM_) ((2 * (NUM_)) / 3)
+
+enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
+
 
 mpack_obj *
-encode_fmt(const char *const restrict fmt, ...)
+encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
-        int         sub_lengths[ENCODE_FMT_ARRSIZE] = ZERO_512;
-        int         sub_ctrs[ENCODE_FMT_ARRSIZE]    = ZERO_512;
-        int         ch, sub = 0, ctr = 0;
-        const char *ptr = fmt;
-        va_list     args, *ref = NULL;
+        const unsigned              arr_size  = (size_hint) ? ENCODE_FMT_ARRSIZE + (size_hint * 6) : ENCODE_FMT_ARRSIZE;
+        union atomic_call_args    **a_args    = NULL;
+        enum encode_fmt_next_type   next_type = OWN_VALIST;
+
+        if (size_hint)
+                fprintf(stderr, "Using arr_size %u for encoding\n", arr_size);
+
+        va_list      args;
+        int          ch;
+        int         *sub_lengths = nmalloc(sizeof(int), arr_size);
+        int         *sub_ctrs    = nmalloc(sizeof(int), arr_size);
+        int        **len_stack   = nmalloc(sizeof(int *), two3rds(arr_size));
+        mpack_obj  **obj_stack   = nmalloc(sizeof(mpack_obj *), two3rds(arr_size));
+        va_list     *ref         = NULL;
+        const char  *ptr         = fmt;
+        unsigned     len_ctr     = 0;
+        int        **len_stackp  = len_stack;
+        int         *cur_len     = &sub_lengths[len_ctr++];
+        *cur_len                 = 0;
 
         va_start(args, fmt);
 
         while ((ch = *ptr++)) {
-                assert(ctr >=0 && ctr < ENCODE_FMT_ARRSIZE);
+                assert(len_ctr < arr_size);
 
                 switch (ch) {
-                case 'b': case 'B':
-                case 'm': case 'M':
-                case 'd': case 'D':
-                case 's': case 'S':
-                        ++sub_lengths[ctr];
+                case 'b': case 'B': case 'm': case 'M':
+                case 'd': case 'D': case 's': case 'S':
+                        ++(*cur_len);
                         break;
                 case '[':
-                        ++sub_lengths[ctr++];
-                        ++sub;
+                        ++(*cur_len);
+                        *(len_stackp++) = cur_len;
+                        cur_len = &sub_lengths[len_ctr++];
+                        *cur_len = 0;
                         break;
                 case ']':
-                        --ctr;
+                        assert(len_stackp != len_stack);
+                        cur_len = *(--len_stackp);
                         break;
-
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                        sub_lengths[ctr] += xatoi(ptr - 1);
+                        *cur_len += xatoi(ptr - 1);
                         ptr = strchrnul(ptr, ']');
                         break;
-
-                case ':': case '.': case ' ': case ',': case '!':
-                        continue;
-
+                case ':': case '.': case ' ': case ',': case '!': case '@': case '*':
+                        break;
                 default:
                         errx(1, "Illegal character \"%c\" found in format.", ch);
                 }
         }
 
-        mpack_obj *pack = mpack_make_new(sub_lengths[0], true);
+        mpack_obj *pack = NULL;
 
-        if (sub_lengths[0] == 0) {
-                va_end(args);
-                return pack;
-        }
+        if (sub_lengths[0] == 0)
+                goto cleanup;
+        else
+                pack = mpack_make_new(sub_lengths[0], true);
 
-        ctr = 1;
-        ptr = fmt;
-        mpack_obj *stack[ENCODE_FMT_ARRSIZE];
-        mpack_obj **stackp = stack;
-        mpack_obj *cur     = pack;
+        /* Screw pointer arithmetic. It always breaks things.
+         * Let's just use lots of cryptic counters. */
+        len_ctr                = 1;
+        unsigned subctr_ctr    = 1;
+        unsigned a_arg_ctr     = 0;
+        unsigned a_arg_subctr  = 0;
+        mpack_obj  *cur_obj    = pack;
+        mpack_obj **obj_stackp = obj_stack;
+        int        *cur_ctr    = &sub_ctrs[0];
+        len_stackp             = len_stack;
+        *(len_stackp++)        = cur_ctr;
+        *(obj_stackp++)        = cur_obj;
+        *cur_ctr               = 0;
+        ptr                    = fmt;
 
         while ((ch = *ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
-                        bool arg = NEXT(int);
+                        bool arg = NEXT(int, boolean);
                         ENCODE(boolean, arg);
                         break;
                 }
                 case 'd': case 'D': {
-                        int arg = NEXT(int);
+                        int arg = NEXT(int, num);
                         ENCODE(integer, arg);
                         break;
                 }
                 case 's': case 'S': {
-                        bstring *arg = NEXT(bstring *);
+                        bstring *arg = NEXT(bstring *, str);
                         ENCODE(string, arg);
                         break;
                 }
                 case '[':
-                        ENCODE(array, sub_lengths[ctr]);
-                        *(stackp++) = cur;
-                        cur = cur->DAI[sub_ctrs[ctr++] - 1];
+                        ENCODE(array, sub_lengths[len_ctr]);
+                        ++len_ctr;
+                        *obj_stackp++ = cur_obj;
+                        *len_stackp++ = cur_ctr;
+                        cur_obj       = cur_obj->DAI[*cur_ctr - 1];
+                        cur_ctr       = &sub_ctrs[subctr_ctr++];
+                        *cur_ctr      = 0;
                         break;
 
                 case ']':
-                        assert(ctr > 1);
-                        cur = *(--stackp);
-                        --ctr;
+                        assert(obj_stackp != obj_stack);
+                        assert(len_stackp != len_stack);
+                        cur_obj = *(--obj_stackp);
+                        cur_ctr = *(--len_stackp);
                         break;
 
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
-                        for (; sub_ctrs[ctr] < sub_lengths[ctr]; ++sub_ctrs[ctr])
-                                cur->DAI[sub_ctrs[ctr]] = NULL;
+                        for (; *cur_ctr < cur_obj->data.arr->qty; ++(*cur_ctr))
+                                cur_obj->DAI[*cur_ctr] = NULL;
 
                         ptr = strchrnul(ptr, ']');
                         break;
 
                 case '!':
-                        ref = NEXT(va_list *);
+                        ref = NEXT_NO_ATOMIC(va_list *);
+                        next_type = OTHER_VALIST;
+                        break;
+
+                case '@':
+                        a_args       = NEXT_NO_ATOMIC(union atomic_call_args **);
+                        a_arg_ctr    = 0;
+                        a_arg_subctr = 0;
+                        assert(a_args[a_arg_ctr]);
+                        next_type = ATOMIC_UNION;
+                        break;
+
+                case '*':
+                        assert(next_type == ATOMIC_UNION);
+                        ++a_arg_ctr;
+                        a_arg_subctr = 0;
                         break;
 
                 case ':': case '.': case ' ': case ',':
@@ -839,9 +999,13 @@ encode_fmt(const char *const restrict fmt, ...)
                 default:
                         abort();
                 }
-
         }
 
+cleanup:
+        free(sub_lengths);
+        free(sub_ctrs);
+        free(len_stack);
+        free(obj_stack);
         va_end(args);
         return pack;
 }

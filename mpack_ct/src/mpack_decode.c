@@ -70,8 +70,8 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                echo("For some incomprehensible reason the pack's type is %d.\n",
-                     mpack_type(ret));
+                /* fprintf(stderr, "For some incomprehensible reason the pack's type is %d.\n",
+                     mpack_type(ret)); */
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
                 abort();
@@ -82,7 +82,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (expected_type != MES_ANY &&
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
-                echo("Expected %d but got %ld\n",
+                fprintf(stderr, "Expected %d but got %ld\n",
                      expected_type, ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
@@ -113,7 +113,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                echo("For some incomprehensible reason the pack's type is %d.\n",
+                fprintf(stderr, "For some incomprehensible reason the pack's type is %d.\n",
                      mpack_type(ret));
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
@@ -124,7 +124,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
                 if (buf != 0)
-                        echo("Expected %d but got %ld\n", expected_type,
+                        fprintf(stderr, "Expected %d but got %ld\n", expected_type,
                              ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {

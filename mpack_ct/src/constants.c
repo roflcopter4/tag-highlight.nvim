@@ -73,7 +73,13 @@ struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0};
 struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
 struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 
-struct backups      backup_pointers = { NULL, 0, 0 };
+extern struct backups backup_pointers;
+extern FILE *decodelog, *cmdlog;
+extern const char *program_name;
+extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main, printmutex,
+    readlocksocket, readlockstdin, update_mutex;
+
+struct backups backup_pointers = { NULL, 0, 0 };
 
 int             sockfd;
 FILE *          decodelog;
@@ -88,3 +94,4 @@ pthread_mutex_t mpack_main     = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t printmutex     = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t readlocksocket = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t readlockstdin  = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t update_mutex   = PTHREAD_MUTEX_INITIALIZER;

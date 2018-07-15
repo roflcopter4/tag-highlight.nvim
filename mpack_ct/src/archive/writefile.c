@@ -113,7 +113,8 @@ write_lzma(struct top_dir *topdir)
                 .threads    = find_num_cpus(),
                 .block_size = 0,
                 .timeout    = 200/*ms*/,
-                .preset     = 9,
+                /* .preset     = 9, */
+                .preset     = LZMA_PRESET_EXTREME,
                 .filters    = NULL,
                 .check      = LZMA_CHECK_CRC64,
                 /* 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL */
@@ -123,12 +124,14 @@ write_lzma(struct top_dir *topdir)
         fsync(topdir->tmpfd);
         assert(fstat(topdir->tmpfd, &st) == 0);
 
-        size_t size = st.st_size;
+        ssize_t size = (ssize_t)st.st_size;
 
-        uint8_t *in_buf = xcalloc(st.st_size + 1, 1);
+        uint8_t *in_buf = xcalloc(size + 1, 1);
         FILE *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        fread(in_buf, 1, st.st_size + 1, readfp);
+        ssize_t nread = fread(in_buf, 1, size + 1, readfp);
         fclose(readfp);
+        if (nread != size)
+                errx(1, "Read %zd, expected %zu", nread, size + 1);
 
         /* uint8_t *in_buf = asswipe->data; */
         /* uint64_t    memuse = lzma_stream_encoder_mt_memusage(&mt_opts); */
@@ -136,6 +139,7 @@ write_lzma(struct top_dir *topdir)
         lzma_stream strm = LZMA_STREAM_INIT;
         lzma_ret    ret  = lzma_stream_encoder_mt(&strm, &mt_opts);
         /* lzma_ret    ret  = lzma_easy_encoder(&strm, settings.comp_level, LZMA_CHECK_CRC64); */
+        /* lzma_ret    ret  = lzma_easy_encoder(&strm, 9, LZMA_CHECK_CRC64); */
         assert(ret == LZMA_OK);
 
         /* uint8_t *out_buf = xcalloc(st.st_size, 1); */
@@ -146,9 +150,18 @@ write_lzma(struct top_dir *topdir)
         strm.avail_out = size;
         strm.avail_in  = size;
 
+        fputs("Running lzma code now\n", stderr);
+        int iter = 1;
+
         do {
+                fprintf(stderr, "Iteration number %d\n", iter++);
+                /* ret = lzma_code(&strm, LZMA_RUN); */
                 ret = lzma_code(&strm, LZMA_FINISH);
-        } while (ret != LZMA_STREAM_END);
+        } while (ret == LZMA_OK);
+
+        /* fputs("Done! now finishing!\n", stderr);
+        ret = lzma_code(&strm, LZMA_FINISH); */
+        fputs("Done!\n", stderr);
 
         if (ret != LZMA_STREAM_END)
                 warnx("Unexpected error on line %d in file %s: %d => %s",

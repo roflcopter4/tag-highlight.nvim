@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/* #include "macros.h" */
-
 /*============================================================================*/
 /* Structures, Etc */
 
@@ -86,10 +84,17 @@ struct item_free_stack {
         unsigned    max;
 };
 
-struct request_stack {
-        int lst[1024];
-        int qty;
-        int count;
+struct atomic_call_array {
+        char    **fmt;
+        /* uint8_t  *free_type; */
+        union atomic_call_args {
+                bool     boolean;
+                int64_t  num;
+                bstring *str;
+        } **args;
+
+        uint32_t qty;
+        uint32_t mlen;
 };
 
 
@@ -116,9 +121,13 @@ extern bstring  * nvim_get_current_line   (int fd);
 extern void     * nvim_get_option         (int fd, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
 extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
+
+extern unsigned   nvim_buf_get_changedtick(int fd, const int bufnum, const bool fatal);
 extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
 extern void     * nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
+
+extern void nvim_call_atomic(int fd, const struct atomic_call_array *calls);
 
 
 /* Decode and Destroy */
@@ -138,37 +147,11 @@ extern void        mpack_encode_array   (mpack_obj *root, mpack_array_t *parent,
 extern void        mpack_encode_integer (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, int64_t value);
 extern void        mpack_encode_string  (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, const bstring *string);
 extern void        mpack_encode_boolean (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, bool value);
-extern mpack_obj * encode_fmt           (const char *fmt, ...);
-
-/* extern mpack_obj * v_encode_fmt(mpack_obj *root, const char *fmt, va_list va); */
-
-/* extern mpack_obj *v_encode_fmt(mpack_obj *root, const char *fmt, va_list va); */
-
-/* typedef union vararg {
-        const int64_t d;
-        const bstring *s;
-        const bool b;
-} var_t; */
-
-/* #define VD(VAR__) ((var_t[]){{.d = (VAR__)}})
-#define VS(VAR__) ((var_t[]){{.s = (VAR__)}})
-#define VB(VAR__) ((var_t[]){{.b = (VAR__)}}) */
-
-/* extern mpack_obj * P99_FSYMB(encode_fmt)(va_list va, const char *fmt, size_t number, var_t **arr);
-#define encode_fmt(ROOT_, FMT_, ...) P99_FSYMB(encode_fmt)((ROOT_), (FMT_), P99_LENGTH_ARR_ARG(var_t *, __VA_ARGS__)) */
-
-/* P99_PROTOTYPE(mpack_obj *, P99_FSYMB(encode_fmt), va_list, const char *const restrict, size_t, var_t **); */
-/* #define encode_fmt(...) P99_CALL_DEFARG(P99_FSYMB(encode_fmt), 4, P99_LENGTH_ARR_ARG(__VA_ARGS__)) */
-/* #define encode_fmt_defarg_1() NULL */
-/* #define eee(...) encode_fmt() */
-
+extern mpack_obj * encode_fmt           (unsigned size_hint, const char *fmt, ...);
 
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) __nvim_write((FD), STANDARD, (MES))
 #define nvim_err_write(FD, MES) __nvim_write((FD), ERROR, (MES))
-/* #define nvprintf(...) fprintf(stderr, __VA_ARGS__) */
-/* #define nvprintf warnx */
-/* #define echo(STRING_) (b_fputs(stderr, b_tmp(STRING_ "\n"))) */
 
 
 /*============================================================================*/
@@ -178,6 +161,7 @@ extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
 extern b_list * blist_from_var_fmt  (int fd, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 extern void   * nvim_get_var_fmt    (int fd, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
 extern void   * dict_get_key        (mpack_dict_t *dict, const mpack_type_t expect, const bstring *key, const bool fatal);
+extern void     destroy_call_array  (struct atomic_call_array *calls);
 
 
 static inline void

@@ -108,7 +108,7 @@ if g:tag_highlight#run_ctags
                 \   '--sort=yes',
                 \   "--exclude='.mypy_cache'",
                 \   '--regex-go=''/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/''',
-                \   '--languages=-Pod'
+                \   '--languages=-Pod',
                 \ ])
     else
         echohl ErrorMsg

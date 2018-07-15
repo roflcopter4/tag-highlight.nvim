@@ -324,3 +324,55 @@ free_backups(struct backups *list)
                 free(list->lst[i]);
         list->qty = 0;
 }
+
+void
+__b_dump_list_nvim(const b_list *list, const char *const listname)
+{
+        nvprintf("Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < list->qty; ++i)
+                nvprintf("%s\n", BS(list->lst[i]));
+}
+
+
+void
+b_list_remove_dups(b_list **listp)
+{
+        b_list *list = *listp;
+        {
+                b_list *toks = b_list_create_alloc(list->qty * 10);
+
+                for (unsigned i = 0; i < list->qty; ++i) {
+                        b_list *tmp = b_split(list->lst[i], ' ');
+                        for (unsigned x = 0; x < tmp->qty; ++x)
+                                b_add_to_list(toks, tmp->lst[x]);
+                        free(tmp->lst);
+                        free(tmp);
+                }
+                b_list_destroy(list);
+                list = toks;
+        }
+
+        qsort(list->lst, list->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
+        /* echo("qty is %u", list->qty); */
+
+        b_list *uniq = b_list_create_alloc(list->qty);
+        uniq->lst[0] = list->lst[0];
+        uniq->qty    = 1;
+        b_writeprotect(uniq->lst[0]);
+
+        for (unsigned i = 1; i < list->qty; ++i) {
+                if (!b_iseq(list->lst[i], list->lst[i-1])) {
+                        uniq->lst[uniq->qty] = list->lst[i];
+                        b_writeprotect(uniq->lst[uniq->qty]);
+                        ++uniq->qty;
+                }
+        }
+
+        b_list_destroy(list);
+        for (unsigned i = 0; i < uniq->qty; ++i)
+                b_writeallow(uniq->lst[i]);
+
+        *listp = uniq;
+
+        /* echo ("now qty is %u", (*listp)->qty); */
+}

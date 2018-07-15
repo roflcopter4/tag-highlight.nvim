@@ -154,7 +154,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
                 if (!(blist->lst[x] && blist->lst[x]->data)) {
-                        FILE *fp = fopen("/home/bml/emergencylog.log", "wb");
+                        FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
                         b_dump_list(fp, blist);
                         fclose(fp);
                         abort();
@@ -210,7 +210,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
                 if (!(blist->lst[x] && blist->lst[x]->data)) {
-                        FILE *fp = fopen("/home/bml/emergencylog.log", "wb");
+                        FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
                         b_dump_list(fp, blist);
                         fclose(fp);
                         abort();

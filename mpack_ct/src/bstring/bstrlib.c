@@ -784,7 +784,8 @@ b_strcmp(const bstring *b0, const bstring *b1)
                 /* errx(1, "ERROR: string b1 is invalid -> %p, %u, %u, 0x%02X %s", */
                      /* (void *)b1, b1->slen, b1->mlen, b1->flags, BS(b1)); */
         if (INVALID(b0) || INVALID(b1))
-                return SHRT_MIN;
+                abort();
+                /* return SHRT_MIN; */
 
         /* Return zero if two strings are both empty or point to the same data. */
         if (b0->slen == b1->slen && (b0->data == b1->data || b0->slen == 0))
@@ -1733,27 +1734,25 @@ b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const char termi
 {
         if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
                 RUNTIME_ERROR();
-        uint d = 0;
-        uint e = bstr->mlen - 2;
+        uint i = 0;
         int ch;
 
         while ((ch = getc_ptr(parm)) >= 0) {
-                if (d > e) {
-                        bstr->slen = d;
-                        if (b_alloc(bstr, d + 2) != BSTR_OK)
+                if (i > (bstr->mlen - 2)) {
+                        bstr->slen = i;
+                        if (b_alloc(bstr, i + 2) != BSTR_OK)
                                 RUNTIME_ERROR();
-                        e = bstr->mlen - 2;
                 }
-                bstr->data[d] = (uchar)ch;
-                d++;
+                bstr->data[i++] = (uchar)ch;
                 if (ch == terminator)
                         break;
         }
 
-        bstr->data[d] = (uchar)'\0';
-        bstr->slen = d;
+        bstr->data[i] = (uchar)'\0';
+        bstr->slen = i;
 
-        return (d == 0 && ch < 0);
+        return (i == 0 && ch < 0);
+        /* return (i == 0) ? BSTR_ERR : BSTR_OK; */
 }
 
 
@@ -1763,26 +1762,24 @@ b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const char terminator)
         if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
                 RUNTIME_ERROR();
         int ch;
-        uint d = bstr->slen;
-        uint e = bstr->mlen - 2;
+        uint i = bstr->slen;
 
         while ((ch = getc_ptr(parm)) >= 0) {
-                if (d > e) {
-                        bstr->slen = d;
-                        if (b_alloc(bstr, d + 2) != BSTR_OK)
+                if (i > (bstr->mlen - 2)) {
+                        bstr->slen = i;
+                        if (b_alloc(bstr, i + 2) != BSTR_OK)
                                 RUNTIME_ERROR();
-                        e = bstr->mlen - 2;
                 }
-                bstr->data[d] = (uchar)ch;
-                d++;
+                bstr->data[i++] = (uchar)ch;
                 if (ch == terminator)
                         break;
         }
 
-        bstr->data[d] = (uchar)'\0';
-        bstr->slen = d;
+        bstr->data[i] = (uchar)'\0';
+        bstr->slen    = i;
 
-        return (d == 0 && ch < 0);
+        /* return (i == 0) ? BSTR_ERR : BSTR_OK; */
+        return (i == 0 && ch < 0);
 }
 
 
@@ -2604,136 +2601,6 @@ b_splits(const bstring *str, const bstring *splitStr)
  * retval will reduce the number of iterations required. */
 
 
-
-#if 0
-bstring *
-b_format(const char *fmt, ...)
-{
-        va_list arglist;
-        if (!fmt)
-                RETURN_NULL();
-
-#ifdef HAVE_VASPRINTF
-        bstring *buff = xmalloc(sizeof *buff);
-
-        va_start(arglist, fmt);
-        uint n = xvasprintf((char **)(&buff->data), fmt, arglist);
-        va_end(arglist);
-
-        buff->slen  = n;
-        buff->mlen  = n;
-        buff->flags = BSTR_STANDARD;
-#else
-        /*
-         * Since the length is not determinable beforehand, a search is
-         * performed using the truncating "vsnprintf" call (to avoid buffer
-         * overflows) on increasing potential sizes for the output result.
-         */
-        uint n = (2 * strlen(fmt));
-        if (n < START_VSNBUFF)
-                n = START_VSNBUFF;
-        bstring *buff = b_fromcstr_alloc(n + 2, "");
-
-        if (!buff) {
-                n = 1;
-                buff = b_fromcstr_alloc(n + 2, "");
-                if (!buff)
-                        RETURN_NULL();
-        }
-
-        for (;;) {
-                va_start(arglist, fmt);
-                uint r = vsnprintf((char *)buff->data, n + 1, fmt, arglist);
-                va_end(arglist);
-
-                buff->data[n] = (uchar)'\0';
-                buff->slen    = strlen((char *)buff->data);
-
-                if (buff->slen < n)
-                        break;
-                if (r > n)
-                        n = r;
-                else
-                        n += n;
-
-                if (BSTR_OK != b_alloc(buff, n + 2)) {
-                        b_free(buff);
-                        RETURN_NULL();
-                }
-        }
-#endif
-
-        return buff;
-}
-#endif
-#if 0
-int
-b_format_assign(bstring *bstr, const char *fmt, ...)
-{
-        va_list arglist;
-        int64_t total, ret;
-        if (!fmt || INVALID(bstr) || NO_WRITE(bstr))
-                RUNTIME_ERROR();
-
-#ifdef HAVE_VASPRINTF
-        bstring *buff = xmalloc(sizeof *buff);
-
-        va_start(arglist, fmt);
-        total = xvasprintf((char **)(&buff->data), fmt, arglist);
-        va_end(arglist);
-
-        buff->slen  = total;
-        buff->mlen  = total;
-        buff->flags = BSTR_STANDARD;
-#else
-        /*
-         * Since the length is not determinable beforehand, a search is
-         * performed using the truncating "vsnprintf" call (to avoid buffer
-         * overflows) on increasing potential sizes for the output result.
-         */
-        total = (2 * strlen(fmt));
-        if (total < START_VSNBUFF)
-                total = START_VSNBUFF;
-
-        bstring *buff = b_fromcstr_alloc(total + 2, "");
-
-        if (!buff) {
-                total = 1;
-                buff = b_fromcstr_alloc(total + 2, "");
-                if (!buff)
-                        RUNTIME_ERROR();
-        }
-
-        for (;;) {
-                va_start(arglist, fmt);
-                ret = vsnprintf((char *)buff->data, total + 1, fmt, arglist);
-                va_end(arglist);
-
-                buff->data[total] = (uchar)'\0';
-                buff->slen = strlen((char *)buff->data);
-
-                if (buff->slen < total)
-                        break;
-                if (ret > total)
-                        total = ret;
-                else
-                        total += total;
-
-                if (BSTR_OK != b_alloc(buff, total + 2)) {
-                        b_free(buff);
-                        RUNTIME_ERROR();
-                }
-        }
-#endif
-
-        ret = b_assign(bstr, buff);
-        b_free(buff);
-
-        return ret;
-}
-#endif
-
-
 bstring *
 b_format(const char *fmt, ...)
 {
@@ -2921,13 +2788,13 @@ __b_free_all(bstring **bstr, ...)
 
 
 bstring *
-__b_concat_all(const bstring *join, ...)
+__b_concat_all(const bstring *join, const int join_end, ...)
 {
         uint size = 0;
         uint j_size = (join && join->data) ? join->slen : 0;
 
         va_list va, va2;
-        va_start(va, join);
+        va_start(va, join_end);
         for (;;) {
                 const bstring *src = va_arg(va, const bstring *);
                 if (src) {
@@ -2939,9 +2806,9 @@ __b_concat_all(const bstring *join, ...)
         }
         va_end(va);
 
-        bstring *dest = b_alloc_null(size);
-        --dest->slen;
-        va_start(va2, join);
+        bstring *dest = b_alloc_null(size + 1);
+        dest->slen = 0;
+        va_start(va2, join_end);
 
         for (;;) {
                 const bstring *src = va_arg(va2, const bstring *);
@@ -2966,19 +2833,25 @@ __b_concat_all(const bstring *join, ...)
                 RETURN_NULL();
         }
 
-        dest->data[dest->slen] = '\0';
+        if (join_end || !join) 
+                dest->data[dest->slen] = '\0';
+        else
+                dest->data[(dest->slen -= join->slen)] = '\0';
+        if (join && !join_end)
+                size -= join->slen;
+
         return dest;
 }
 
 
 int
-__b_append_all(bstring *dest, const bstring *join, ...)
+__b_append_all(bstring *dest, const bstring *join, const int join_end, ...)
 {
-        uint size   = dest->slen + 1;
+        uint size   = dest->slen;
         uint j_size = (join && join->data) ? join->slen : 0;
 
         va_list va, va2;
-        va_start(va, join);
+        va_start(va, join_end);
         /* va_copy(va2, va); */
 
         for (;;) {
@@ -2992,8 +2865,8 @@ __b_append_all(bstring *dest, const bstring *join, ...)
         }
         va_end(va);
 
-        b_alloc(dest, size);
-        va_start(va2, join);
+        b_alloc(dest, size + 1);
+        va_start(va2, join_end);
 
         for (;;) {
                 const bstring *src = va_arg(va2, const bstring *);
@@ -3013,7 +2886,13 @@ __b_append_all(bstring *dest, const bstring *join, ...)
         }
         va_end(va2);
 
-        dest->data[dest->slen] = '\0';
+        if (join_end || !join) 
+                dest->data[dest->slen] = '\0';
+        else
+                dest->data[(dest->slen -= join->slen)] = '\0';
+        if (join && !join_end)
+                size -= join->slen;
+
         return (dest->slen == size) ? BSTR_OK : BSTR_ERR;
 }
 
@@ -3021,6 +2900,19 @@ __b_append_all(bstring *dest, const bstring *join, ...)
 /*============================================================================*/
 /* SOME CRAPPY ADDITIONS! */
 /*============================================================================*/
+
+
+int
+b_strcmp_fast_wrap(const void *vA, const void *vB)
+{
+        const bstring *sA = *(bstring **)(vA);
+        const bstring *sB = *(bstring **)(vB);
+
+        if (sA->slen == sB->slen)
+                return memcmp(sA->data, sB->data, sA->slen);
+        else
+                return sA->slen - sB->slen;
+}
 
 
 bstring *
@@ -3114,6 +3006,7 @@ __b_dump_list(FILE *fp, const b_list *list, const char *listname)
         fprintf(fp, "Dumping list \"%s\"\n", listname);
         for (unsigned i = 0; i < list->qty; ++i)
                 b_fputs(fp, list->lst[i], b_tmp("\n"));
+        fputc('\n', fp);
 }
 
 
