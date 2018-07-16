@@ -76,8 +76,8 @@ struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 extern struct backups backup_pointers;
 extern FILE *decodelog, *cmdlog;
 extern const char *program_name;
-extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main, printmutex,
-    readlocksocket, readlockstdin, update_mutex;
+extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main_mutex, mpack_print_mutex,
+    mpack_socket_mutex, mpack_stdin_mutex, update_mutex;
 
 struct backups backup_pointers = { NULL, 0, 0 };
 
@@ -88,10 +88,10 @@ FILE *          vpipe;
 FILE *          cmdlog;
 const char *    program_name;
 const char *    HOME;
-pthread_mutex_t event_mutex    = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t ftdata_mutex   = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mpack_main     = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t printmutex     = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t readlocksocket = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t readlockstdin  = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t update_mutex   = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t event_mutex        = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t ftdata_mutex       = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mpack_main_mutex   = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mpack_print_mutex  = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mpack_stdin_mutex  = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t update_mutex       = PTHREAD_MUTEX_INITIALIZER;

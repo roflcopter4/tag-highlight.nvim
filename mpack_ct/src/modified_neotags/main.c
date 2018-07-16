@@ -94,7 +94,11 @@ tag_cmp(const void *vA, const void *vB)
 
 
 #define DATA (list->lst)
-#define PRINT(IT) (fprintf(fp, "%s#%c\t%s\n", ft, DATA[IT]->kind, BS(DATA[IT]->b)))
+#ifdef DEBUG
+#  define PRINT(IT) (fprintf(fp, "%s#%c\t%s\n", ft, DATA[IT]->kind, BS(DATA[IT]->b)))
+#else
+#  define PRINT(...)
+#endif
 
 static void
 print_tags(const struct taglist *list, const char *ft)
@@ -394,8 +398,12 @@ do_tok_search(void *vdata)
                         add_tag_to_list(&ret, tag);
                 }
 #endif
-#define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
+#ifdef DEBUG
+#  define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
                                     kind, BS(match_lang), BS(name), name->slen, (REASON)))
+#else
+#  define REJECT_TAG(...)
+#endif
 
                 if (!in_order(data->equiv, data->order, &kind))
                         REJECT_TAG("not in order");

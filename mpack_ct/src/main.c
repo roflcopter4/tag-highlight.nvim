@@ -24,6 +24,10 @@
         mpack_array_to_blist(nvim_get_var(sockfd, B(PKG "#" VARNAME_), \
                                           MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
+#define TDIFF(STV1, STV2)                                          \
+        (((long double)(tv2.tv_usec - tv1.tv_usec) / 1000000.0L) + \
+         (long double)(tv2.tv_sec - tv1.tv_sec))
+
 extern FILE    *decodelog, *cmdlog;
 static FILE    *logfile;
 static bstring *vpipename, *servername, *mes_servername;
@@ -37,7 +41,7 @@ static int         create_socket(bstring **name);
 static comp_type_t get_compression_type(void);
 
 static void piss_around(void);
-_Noreturn static inline void pthread_exit_wrapper(UNUSED int x);
+noreturn static void pthread_exit_wrapper(UNUSED int x);
 
 
 /*============================================================================*/
@@ -83,7 +87,7 @@ main(int argc, char *argv[])
 
         assert(settings.enabled);
 
-        piss_around();
+        /* piss_around(); */
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
@@ -170,9 +174,7 @@ interrupt_loop(void *vdata)
                 update_highlight(bufnum, bdata);
                 gettimeofday(&tv2, NULL);
 
-                SHOUT_("Time for initialization: %fs",
-                       ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
-                           (double)(tv2.tv_sec - tv1.tv_sec));
+                SHOUT_("Time for initialization: %Lfs", TDIFF(tv1, tv2));
         }
 
         for (;;) {
@@ -201,18 +203,13 @@ interrupt_loop(void *vdata)
                                         }
                                         update_highlight(bufnum, bdata);
                                         gettimeofday(&tv2, NULL);
-                                        SHOUT_("Time for initialization: %fs",
-                                              ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
-                                                  (double)(tv2.tv_sec - tv1.tv_sec));
+                                        SHOUT_("Time for initialization: %Lfs", TDIFF(tv1, tv2));
                                 }
                         } else if (prev != bufnum) {
                                 update_highlight(bufnum, bdata);
                                 gettimeofday(&tv2, NULL);
-                                SHOUT_("Time for update: %fs",
-                                      ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
-                                          (double)(tv2.tv_sec - tv1.tv_sec));
+                                SHOUT_("Time for update: %Lfs", TDIFF(tv1, tv2));
                         }
-
 
                         break;
                 }
@@ -235,11 +232,8 @@ interrupt_loop(void *vdata)
                         if (update_taglist(bdata)) {
                                 update_highlight(curbuf, bdata);
                                 gettimeofday(&tv2, NULL);
-                                SHOUT_("Time for update: %fs",
-                                      ((double)(tv2.tv_usec - tv1.tv_usec) / 1000000) +
-                                          (double)(tv2.tv_sec - tv1.tv_sec));
+                                SHOUT_("Time for update: %Lfs", TDIFF(tv1, tv2));
                         }
-
 
                         break;
                 }
@@ -251,7 +245,6 @@ interrupt_loop(void *vdata)
                         clear_highlight(nvim_get_current_buf(0), NULL);
                         pthread_kill(mainloop, SIGUSR1);
                         pthread_exit(NULL);
-                        break; /* NOTREACHED */
                 }
                 /*
                  * User called the clear highlight command.
@@ -379,34 +372,11 @@ get_compression_type(void) {
 static void
 piss_around(void)
 {
-        struct atomic_call_array *calls = xmalloc(sizeof *calls);
-        calls->mlen = 32;
-        calls->fmt  = nmalloc(sizeof(char *), calls->mlen);
-        calls->args = nmalloc(sizeof(union atomic_call_args *), calls->mlen);
-
-        calls->args[0]        = nmalloc(sizeof(union atomic_call_args), 2);
-        calls->fmt[0]         = strdup("s[s]");
-        calls->args[0][0].str = b_lit2bstr("nvim_command");
-        calls->args[0][1].str = b_lit2bstr("echom 'hello, faggot!'");
-
-        calls->args[1]        = nmalloc(sizeof(union atomic_call_args), 2);
-        calls->fmt[1]         = strdup("s[s]");
-        calls->args[1][0].str = b_lit2bstr("nvim_command");
-        calls->args[1][1].str = b_lit2bstr("echom 'goodbye, faggot!'");
-
-        calls->args[2]        = nmalloc(sizeof(union atomic_call_args), 2);
-        calls->fmt[2]         = strdup("s[s]");
-        calls->args[2][0].str = B("nvim_command");
-        calls->args[2][1].str = B("echom 'uhm, you are a, faggot!'");
-
-        calls->qty = 3;
-
-        nvim_call_atomic(0, calls);
-        destroy_call_array(calls);
+        nvim_get_api_info(0);
 }
 
 
-_Noreturn static inline void
+noreturn static void
 pthread_exit_wrapper(UNUSED int x)
 {
         pthread_exit(NULL);

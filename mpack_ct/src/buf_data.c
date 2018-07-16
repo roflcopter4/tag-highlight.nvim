@@ -311,7 +311,7 @@ check_project_directories(bstring *dir)
                 tmp->data[tmp->slen -= 3] = '\0';
 
                 if (strstr(BS(dir), BS(tmp)))
-                        b_add_to_list(candidates, tmp);
+                        b_add_to_list(&candidates, tmp);
                 else
                         b_destroy(tmp);
         }
@@ -380,7 +380,7 @@ init_filetype(int fd, struct ftdata_s *ft)
                         xfree(equiv->entries[i]);
 
                         b_writeallow(toadd);
-                        b_add_to_list(ft->equiv, toadd);
+                        b_add_to_list(&ft->equiv, toadd);
                 }
 
                 xfree(equiv->entries);

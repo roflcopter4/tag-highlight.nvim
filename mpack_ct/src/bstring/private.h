@@ -13,6 +13,9 @@
 #endif
 
 #include "bstrlib.h"
+
+#include "unused.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -35,9 +38,28 @@
 #  error "Must include a header that declares write()"
 #endif
 
-#ifndef __GNUC__
-#  define __attribute__((...))
+#ifdef __GNUC__
+#  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#else
+#  define FUNC_NAME (__func__)
 #endif
+
+#if (__GNUC__ >= 4)
+#  define BSTR_PUBLIC  __attribute__((__visibility__("default")))
+#  define BSTR_PRIVATE __attribute__((__visibility__("hidden")))
+#  define INLINE       __attribute__((__always_inline__)) static inline
+#  define PURE         __attribute__((__pure__))
+#else
+#  define BSTR_PUBLIC
+#  define BSTR_PRIVATE
+#  define INLINE static inline
+#  define PURE
+#endif
+
+typedef unsigned int uint;
+
+
+/*============================================================================*/
 
 #ifdef HAVE_ERR
 #  include <err.h>
@@ -68,43 +90,28 @@
 #define MAX(a, b) (((a) >= (b)) ? (a) : (b))
 #define MIN(a, b) (((a) <= (b)) ? (a) : (b))
 
-
-/*
- * Just a length safe wrapper for memmove.
- */
-#define b_BlockCopy(D, buf, blen)                    \
-        do {                                         \
-                if ((blen) > 0)                      \
-                        memmove((D), (buf), (blen)); \
-        } while (0);
+#define psub(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
 
 
-#ifdef __GNUC__
-#  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
-#else
-#  define FUNC_NAME (__func__)
-#endif
-
-
-/* #define DEBUG */
+/*============================================================================*/
 
 /* 
  * Debugging aids
  */
 #if defined(DEBUG)
-#  define RUNTIME_ERROR()                                                  \
-        do {                                                               \
-                void *arr[128];                                            \
-                size_t num     = backtrace(arr, 128);                      \
-                char **strings = backtrace_symbols(arr, num);              \
-                                                                           \
-                warnx("Runtime error in func %s in bstrlib.c, line %d\n"   \
-                      "STACKTRACE: ", FUNC_NAME, __LINE__);                \
-                for (unsigned i = 0; i < num; ++i)                         \
-                        fprintf(stderr, "  -  %s\n", strings[i]);          \
-                                                                           \
-                free(strings);                                             \
-                return BSTR_ERR;                                           \
+#  define RUNTIME_ERROR()                                                   \
+        do {                                                                \
+                void *arr[128];                                             \
+                size_t num     = backtrace(arr, 128);                       \
+                char **strings = backtrace_symbols(arr, num);               \
+                                                                            \
+                warnx("Runtime error in func %s in bstrlib.c, line %d\n"    \
+                      "STACKTRACE: ", FUNC_NAME, __LINE__);                 \
+                for (unsigned i_ = 0; i_ < num; ++i_)                       \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);          \
+                                                                            \
+                free(strings);                                              \
+                return BSTR_ERR;                                            \
         } while (0)
 #  define RETURN_NULL()                                                  \
         do {                                                             \
@@ -114,8 +121,8 @@
                                                                          \
                 warnx("Null return in func %s in bstrlib.c, line %d\n"   \
                       "STACKTRACE: ", FUNC_NAME, __LINE__);              \
-                for (unsigned i = 0; i < num; ++i)                       \
-                        fprintf(stderr, "  -  %s\n", strings[i]);        \
+                for (unsigned i_ = 0; i_ < num; ++i_)                       \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);        \
                                                                          \
                 free(strings);                                           \
                 return NULL;                                             \
@@ -139,6 +146,9 @@
 /* #  define ALLOCATION_ERROR(RETVAL) return (RETVAL) */
 #  define ALLOCATION_ERROR(RETVAL) abort();
 #endif
+
+
+/*============================================================================*/
 
 
 #if defined(__GNUC__) && !defined(HAVE_VASPRINTF)
@@ -190,6 +200,75 @@ xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
         return ret;
 }
 #endif
+
+/*============================================================================*/
+
+
+#define BS_BUFF_SZ (1024)
+
+#ifndef BSTRLIB_AGGRESSIVE_MEMORY_FOR_SPEED_TRADEOFF
+#  define LONG_LOG_BITS_QTY (3)
+#  define LONG_BITS_QTY (1 << LONG_LOG_BITS_QTY)
+#  define LONG_TYPE uchar
+#  define CFCLEN ((1 << CHAR_BIT) / LONG_BITS_QTY)
+   struct char_field {
+           LONG_TYPE content[CFCLEN];
+   };
+#  define testInCharField(cf, c)                  \
+       ((cf)->content[(c) >> LONG_LOG_BITS_QTY] & \
+        ((1ll) << ((c) & (LONG_BITS_QTY - 1))))
+
+#  define setInCharField(cf, idx)                                  \
+       do {                                                        \
+               int c = (uint)(idx);                                \
+               (cf)->content[c >> LONG_LOG_BITS_QTY] |=            \
+                   (LONG_TYPE)(1llu << (c & (LONG_BITS_QTY - 1))); \
+       } while (0)
+#else
+#  define CFCLEN (1 << CHAR_BIT)
+   struct charField {
+           uchar content[CFCLEN];
+   };
+#  define testInCharField(cf, c)  ((cf)->content[(uchar)(c)])
+#  define setInCharField(cf, idx) (cf)->content[(uint int)(idx)] = ~0
+#endif
+
+
+struct gen_b_list {
+        bstring *bstr;
+        b_list *bl;
+};
+
+
+/*============================================================================*/
+
+
+/* bstrlib.c */
+BSTR_PRIVATE uint snapUpSize(uint i);
+
+/* char_fields.c */
+BSTR_PRIVATE int build_char_field(struct char_field *cf, const bstring *bstr);
+BSTR_PRIVATE void invert_char_field(struct char_field *cf);
+BSTR_PRIVATE int b_inchrCF(const uchar *data, const uint len, const uint pos, const struct char_field *cf);
+BSTR_PRIVATE int b_inchrrCF(const uchar *data, const uint pos, const struct char_field *cf);
+
+/* b_list.c */
+BSTR_PRIVATE int b_scb(void *parm, const uint ofs, const uint len);
+
+
+/*============================================================================*/
+
+
+/*
+ * There were some pretty horrifying if statements in the original
+ * implementation. I've tried to make them at least somewhat saner with these
+ * macros that at least explain what the checks are trying to accomplish.
+ */
+#define IS_NULL(BSTR)   (!(BSTR) || !(BSTR)->data)
+#define INVALID(BSTR)   (IS_NULL(BSTR))
+#define NO_WRITE(BSTR)  (((BSTR)->flags & BSTR_WRITE_ALLOWED) == 0)
+#define NO_ALLOC(BSTR)  (((BSTR)->flags & BSTR_DATA_FREEABLE) == 0)
+#define IS_STATIC(BSTR) (NO_WRITE(BSTR) && NO_ALLOC(BSTR))
 
 
 #endif /* private.h */

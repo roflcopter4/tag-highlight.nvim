@@ -4,11 +4,20 @@ set (tag_highlight_SOURCES
      archive/archive_util_xz.c
      archive/getlines.c
      archive/writefile.c
+
      bstring/bstrlib.c
+     bstring/additions.c
+     bstring/b_list.c
+     bstring/b_stream.c
+     bstring/char_fields.c
+     bstring/never_use.c
+
      contrib/bsd_funcs.c
+
      modified_neotags/main.c
      modified_neotags/strip.c
      modified_neotags/tok.c
+
      buf_data.c
      constants.c
      ctags.c
@@ -19,9 +28,9 @@ set (tag_highlight_SOURCES
      mpack_decode.c
      mpack_encode.c
      mpack_print.c
+     parse.c
      update.c
      util.c
-     parse.c
 )
 
 # if (LZMA_SUPPORT)

@@ -56,7 +56,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
                 if (*tok == '\0')
                         continue;
-                b_add_to_list(tags, b_refblk(tok, (char *)(buf) - tok - 1));
+                b_add_to_list(&tags, b_refblk(tok, (char *)(buf) - tok - 1));
         }
 }
 

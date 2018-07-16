@@ -22,12 +22,12 @@ static void print_string(const mpack_obj *result, bool ind);
                 (((OBJ)->type == M_UINT_16) ? (int16_t)(OBJ)->data.num : \
                  (((OBJ)->type == M_UINT_8) ? (int8_t)(OBJ)->data.num))
 
-#define LOG(STRING) b_puts(butt, B(STRING))
+#define LOG(STRING) b_puts(print_log, B(STRING))
 
-extern pthread_mutex_t printmutex;
+extern pthread_mutex_t mpack_print_mutex;
 static int             indent    = 0;
 static int             recursion = 0;
-static FILE *          butt      = NULL;
+static FILE *          print_log      = NULL;
 
 
 __attribute__((always_inline))
@@ -37,30 +37,33 @@ pindent(void)
         if (indent <= 0)
                 return;
         for (int i = 0; i < (indent * 4); ++i)
-                fputc(' ', butt);
+                fputc(' ', print_log);
 }
 
 
 void
 mpack_print_object(const mpack_obj *result, FILE *fp)
 {
+#ifndef DEBUG
+        return;
+#endif
         assert(result != NULL);
         assert(fp != NULL);
 
-        pthread_mutex_lock(&printmutex);
+        pthread_mutex_lock(&mpack_print_mutex);
         recursion = 0;
-        butt = fp;
+        print_log = fp;
         do_mpack_print_object(result);
-        butt = NULL;
-        pthread_mutex_unlock(&printmutex);
+        print_log = NULL;
+        pthread_mutex_unlock(&mpack_print_mutex);
 }
 
 
 static void
 do_mpack_print_object(const mpack_obj *result)
 {
-        assert(butt != NULL);
-        if (ferror(butt))
+        assert(print_log != NULL);
+        if (ferror(print_log))
                 abort();
         ++recursion;
 
@@ -78,7 +81,7 @@ do_mpack_print_object(const mpack_obj *result)
         }
 
         if (--recursion == 0)
-                fputc('\n', butt);
+                fputc('\n', print_log);
 }
 
 extern FILE *whyy;
@@ -86,14 +89,14 @@ extern FILE *whyy;
 static void
 print_array(const mpack_obj *result)
 {
-        if (ferror(butt))
+        if (ferror(print_log))
                 abort();
         pindent();
 
         if (!result->data.arr || result->data.arr->qty == 0) {
-                b_fputs(butt, B("[]\n"));
+                b_fputs(print_log, B("[]\n"));
         } else {
-                b_fputs(butt, B("[\n"));
+                b_fputs(print_log, B("[\n"));
 
                 ++indent;
                 for (unsigned i = 0; i < result->data.arr->qty; ++i)
@@ -102,7 +105,7 @@ print_array(const mpack_obj *result)
                 --indent;
 
                 pindent();
-                b_fputs(butt, B("]\n"));
+                b_fputs(print_log, B("]\n"));
         }
 }
 
@@ -110,34 +113,34 @@ print_array(const mpack_obj *result)
 static void
 print_dict(const mpack_obj *result)
 {
-        if (ferror(butt))
+        if (ferror(print_log))
                 abort();
         pindent();
-        b_fputs(butt, B("{\n"));
+        b_fputs(print_log, B("{\n"));
         ++indent;
 
         for (unsigned i = 0; i < result->data.dict->qty; ++i) {
                 pindent();
-                /* b_fputs(butt, B("KEY:  ")); */
+                /* b_fputs(print_log, B("KEY:  ")); */
                 print_string(result->data.dict->entries[i]->key, 0);
 
-                fseek(butt, -1, SEEK_CUR);
+                fseek(print_log, -1, SEEK_CUR);
                 int tmp = indent;
 
                 switch (mpack_type(result->data.dict->entries[i]->value)) {
                 case MPACK_ARRAY:
                 case MPACK_DICT:
-                        b_fputs(butt, B("  => (\n"));
+                        b_fputs(print_log, B("  => (\n"));
 
                         ++indent;
                         do_mpack_print_object(result->data.dict->entries[i]->value);
                         --indent;
 
                         pindent();
-                        b_fputs(butt, B(")\n"));
+                        b_fputs(print_log, B(")\n"));
                         break;
                 default:
-                        b_fputs(butt, B("  =>  "));
+                        b_fputs(print_log, B("  =>  "));
 
                         indent = 0;
                         do_mpack_print_object(result->data.dict->entries[i]->value);
@@ -149,19 +152,19 @@ print_dict(const mpack_obj *result)
 
         --indent;
         pindent();
-        b_fputs(butt, B("}\n"));
+        b_fputs(print_log, B("}\n"));
 }
 
 
 static void
 print_string(const mpack_obj *result, const bool ind)
 {
-        if (ferror(butt))
+        if (ferror(print_log))
                 abort();
         if (ind)
                 pindent();
 
-        fprintf(butt, "\"%s\"\n", BS(result->data.str));
+        fprintf(print_log, "\"%s\"\n", BS(result->data.str));
 }
 
 
@@ -169,7 +172,7 @@ static void
 print_ext(const mpack_obj *result)
 {
         pindent();
-        fprintf(butt, "Type: %d -> Data: %d\n",
+        fprintf(print_log, "Type: %d -> Data: %d\n",
                 mpack_type(result), result->data.ext->num);
 }
 
@@ -177,11 +180,11 @@ print_ext(const mpack_obj *result)
 static void
 print_nil(UNUSED const mpack_obj *result)
 {
-        if (ferror(butt))
+        if (ferror(print_log))
                 abort();
         pindent();
 
-        b_fputs(butt, B("NIL\n"));
+        b_fputs(print_log, B("NIL\n"));
 }
 
 
@@ -190,18 +193,18 @@ print_bool(const mpack_obj *result)
 {
         pindent();
         if (result->data.boolean)
-                b_fputs(butt, B("true\n"));
+                b_fputs(print_log, B("true\n"));
         else
-                b_fputs(butt, B("false\n"));
+                b_fputs(print_log, B("false\n"));
 }
 
 
 static void
 print_number(const mpack_obj *result)
 {
-        if (ferror(butt))
+        if (ferror(print_log))
                 abort();
         pindent();
 
-        fprintf(butt, "%"PRId64"\n", result->data.num);
+        fprintf(print_log, "%"PRId64"\n", result->data.num);
 }

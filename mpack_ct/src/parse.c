@@ -328,7 +328,7 @@ breakdown_file(const struct bufdata *const bdata)
                 }
 
         next_line:
-                b_add_to_list(list, repl);
+                b_add_to_list(&list, repl);
                 esc = false;
         }
 

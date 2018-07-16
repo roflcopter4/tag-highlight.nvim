@@ -23,9 +23,10 @@
 #endif
 /*===========================================================================*/
 
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
+#endif
 #define USE_XMALLOC
-
-#include "bstring/bstrlib.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -37,6 +38,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "bstring/bstrlib.h"
 
 #include "data.h"
 
@@ -72,13 +75,14 @@ struct backups {
 #  define O_BINARY 0
 #endif
 
-#define ARRSIZ(ARR_)    (sizeof(ARR_) / sizeof(*(ARR_)))
-#define modulo(iA, iB)  (((iA) % (iB) + (iB)) % (iB))
-#define stringify(VAR_) #VAR_
-#define nputs(STR_)     fputs((STR_), stdout)
-#define eprintf(...)    fprintf(stderr, __VA_ARGS__)
-#define xfree(PTR_)     (free(PTR_), (PTR_) = NULL)
-#define SLS(STR_)       ("" STR_ ""), (sizeof(STR_) - 1)
+#define ARRSIZ(ARR_)     (sizeof(ARR_) / sizeof(*(ARR_)))
+#define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
+#define stringify(VAR_)  #VAR_
+#define nputs(STR_)      fputs((STR_), stdout)
+#define eprintf(...)     fprintf(stderr, __VA_ARGS__)
+#define xfree(PTR_)      (free(PTR_), (PTR_) = NULL)
+#define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
+#define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
 
 #define MAX(IA_, IB_)                   \
         __extension__({                 \
@@ -122,10 +126,17 @@ struct backups {
 #  define eprintf warnx
 #  define echo    warnx
 #else
+#  undef eprintf
 #  define warnx(...)
 #  define nvprintf warnx
 #  define eprintf warnx
 #  define echo warnx
+#  define warn warnx
+#  define err(...) abort()
+#  define errx(...) abort()
+/* #  define SHOUT_(...) fprintf(stderr, __VA_ARGS__) */
+#  define SHOUT_(...)
+/* #  define fprintf(...) */
 #endif
 
 #if defined(__GNUC__)
@@ -143,6 +154,7 @@ struct backups {
 #define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)
 #define static_assert _Static_assert
 #define thread_local  _Thread_local
+#define noreturn      _Noreturn
 
 
 /*===========================================================================*/
@@ -183,7 +195,6 @@ extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 
 #define b_dump_list_nvim(LST_) __b_dump_list_nvim((LST_), #LST_)
 
 extern void __b_dump_list_nvim(const b_list *list, const char *listname);
-extern void b_list_remove_dups(b_list **listp);
 
 
 #ifdef __cplusplus

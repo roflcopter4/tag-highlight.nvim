@@ -5,8 +5,8 @@
 #include "mpack.h"
 #include "mpack_code.h"
 extern FILE *decodelog;
-extern pthread_mutex_t readlockstdin;
-extern pthread_mutex_t readlocksocket;
+extern pthread_mutex_t mpack_stdin_mutex;
+extern pthread_mutex_t mpack_socket_mutex;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
@@ -59,9 +59,9 @@ decode_stream(int32_t fd, const enum message_types expected_type)
 
         if (fd == 1) {
                 fd  = 0;
-                mut = &readlockstdin;
+                mut = &mpack_stdin_mutex;
         } else
-                mut = &readlocksocket;
+                mut = &mpack_socket_mutex;
 
         pthread_mutex_lock(mut);
 
@@ -489,7 +489,7 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         do {
                 ssize_t n = read(fd, dest, (nbytes - nread));
                 if (n != (-1))
-                        nread += n;
+                        nread += (size_t)n;
         } while (nread > nbytes);
 }
 

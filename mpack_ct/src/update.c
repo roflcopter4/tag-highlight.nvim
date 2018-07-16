@@ -21,8 +21,6 @@ static int  handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
 static struct atomic_call_array * update_commands(struct bufdata *bdata, struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
-UNUSED static b_list *copy_blist(const b_list *list);
-UNUSED static b_list *clone_blist(const b_list *list);
 static void add_cmd_call(struct atomic_call_array **calls, bstring *cmd);
 
 
@@ -38,11 +36,7 @@ void
 update_highlight(const int bufnum, struct bufdata *bdata)
 {
         pthread_mutex_lock(&update_mutex);
-        /* static bool in_progress = false;
-        if (in_progress)
-                return;
-        in_progress = true; */
-        bdata       = null_find_bufdata(bufnum, bdata);
+        bdata = null_find_bufdata(bufnum, bdata);
 
         if (!bdata->ft->restore_cmds_initialized) {
                 b_list *restored_groups = blist_from_var(0, "restored_groups",
@@ -56,7 +50,6 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 
         if (bdata->cmd_cache) {
                 update_from_cache(bdata);
-                /* in_progress = false; */
                 pthread_mutex_unlock(&update_mutex);
                 return;
         }
@@ -91,7 +84,6 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 nvim_command(0, bdata->ft->restore_cmds, 1);
         }
 
-        /* in_progress = false; */
         pthread_mutex_unlock(&update_mutex);
 }
 
@@ -140,7 +132,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                         handle_kind(cmd, ctr, bdata->ft, tags, &info[i]);
                         fprintf(cmdlog, "%s\n\n", BS(cmd));
                         /* nvim_command(0, cmd, 1);
-                        b_add_to_list(bdata->cmd_cache, cmd); */
+                        b_add_to_list(&bdata->cmd_cache, cmd); */
                         add_cmd_call(&calls, cmd);
                 }
 
@@ -267,7 +259,7 @@ get_restore_cmds(b_list *restored_groups)
                                 b_catblk(cmd, ptr, (tmp - ptr));
                                 b_conchar(cmd, ' ');
 #endif
-                                b_add_to_list(toks, b_fromblk(ptr, ((ptrdiff_t)tmp - (ptrdiff_t)ptr)));
+                                b_add_to_list(&toks, b_fromblk(ptr, ((ptrdiff_t)tmp - (ptrdiff_t)ptr)));
                                 while (isblank(*++tmp))
                                         ;
                                 if (strncmp((ptr = tmp), "links to ", 9) == 0)
@@ -286,7 +278,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_join_append_all(cmd, B(" "), 1, B("| hi! link "),
                                           restored_groups->lst[i], bt_fromcstr(link_name));
 
-                        b_add_to_list(allcmds, cmd);
+                        b_add_to_list(&allcmds, cmd);
                 }
 
                 b_free(output);
@@ -317,35 +309,6 @@ update_from_cache(struct bufdata *bdata)
 
 
 /*======================================================================================*/
-
-
-static b_list *
-copy_blist(const b_list *list)
-{
-        b_list *ret = b_list_create_alloc(list->qty);
-
-        for (unsigned i = 0; i < list->qty; ++i) {
-                ret->lst[ret->qty] = b_strcpy(list->lst[i]);
-                b_writeallow(ret->lst[ret->qty]);
-                ++ret->qty;
-        }
-
-        return ret;
-}
-
-
-static b_list *
-clone_blist(const b_list *list)
-{
-        b_list *ret = b_list_create_alloc(list->qty);
-
-        for (unsigned i = 0; i < list->qty; ++i) {
-                ret->lst[ret->qty] = b_clone_swap(list->lst[i]);
-                ++ret->qty;
-        }
-
-        return ret;
-}
 
 
 static void

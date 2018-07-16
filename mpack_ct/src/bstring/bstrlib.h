@@ -43,11 +43,10 @@
 #ifndef BSTRLIB_H
 #define BSTRLIB_H
 
-#if __GNUC__ >= 4
-#  define BSTR_PUBLIC  __attribute__((visibility("default")))
-#  define BSTR_PRIVATE __attribute__((visibility("hidden")))
-#  define INLINE       __attribute__((always_inline)) static inline
-#  define PURE         __attribute__((pure))
+#if (__GNUC__ >= 4)
+#  define BSTR_PUBLIC  __attribute__((__visibility__("default")))
+#  define BSTR_PRIVATE __attribute__((__visibility__("hidden")))
+#  define INLINE       __attribute__((__always_inline__)) static inline
 #  ifndef _GNU_SOURCE
 #    define _GNU_SOURCE
 #  endif
@@ -55,10 +54,9 @@
 #  define BSTR_PUBLIC
 #  define BSTR_PRIVATE
 #  define INLINE static inline
-#  define PURE
 #endif
 
-#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
+#if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
 #  define BSTR_PRINTF(format, argument) __attribute__((__format__(__printf__, format, argument)))
 #  define BSTR_UNUSED __attribute__((__unused__))
 #else
@@ -66,7 +64,7 @@
 #  define BSTR_UNUSED
 #endif
 
-#ifndef __GNUC__
+#if !defined(__GNUC__)
 #  define __attribute__(...)
 #endif
 
@@ -92,13 +90,7 @@ typedef unsigned char uchar;
 #define BSTR_DATA_FREEABLE 0x04u
 #define BSTR_LIST_END      0x08u
 
-#if defined(__GNUC__)
-#  define PACK(...) __VA_ARGS__ __attribute__((__packed__))
-#elif defined(_MSC_VER)
-#  define PACK(...) __pragma( pack(push, 1) ) __VA_ARGS__ __pragma( pack(pop) )
-#else
-#  define PACK(...) __VA_ARGS__
-#endif
+#define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 
 
 #pragma pack(push, 1)
@@ -222,16 +214,6 @@ BSTR_PUBLIC bstring *b_strcpy(const bstring *bstr);
  */
 BSTR_PUBLIC int b_assign(bstring *a, const bstring *bstr);
 
-/**
- * Overwrite the bstring *a with the middle of contents of bstring *b
- * starting from position left and running for a length len.
- *
- * left and len are clamped to the ends of b as with the function bmidstr.
- * Note that the bstring *a must be a well defined and writable bstring. If
- * an error occurs BSTR_ERR is returned and a is not overwritten.
- */
-BSTR_PUBLIC int b_assign_midstr(bstring *a, const bstring *bstr,
-                                int64_t left, unsigned len);
 
 /**
  * Overwrite the string a with the contents of char * string str.
@@ -270,7 +252,8 @@ BSTR_PUBLIC int b_assign_blk(bstring *a, const void *s, unsigned len);
  */
 BSTR_PUBLIC int b_free(bstring *bstr);
 
-INLINE int __b_destroy(bstring **bstr)
+INLINE int
+__b_destroy(bstring **bstr)
 {
         int ret = b_free(*bstr);
         if (ret == BSTR_OK)
@@ -371,7 +354,7 @@ BSTR_PUBLIC int b_concat(bstring *b0, const bstring *b1);
  * The value BSTR_OK is returned if the operation is successful, otherwise
  * BSTR_ERR is returned.
  */
-BSTR_PUBLIC int b_conchar(bstring *bstr, char c);
+/* BSTR_PUBLIC int b_conchar(bstring *bstr, char c); */
 
 /**
  * Concatenate the char * string s to the end of bstring b.
@@ -389,56 +372,6 @@ BSTR_PUBLIC int b_catcstr(bstring *bstr, const char * buf);
  */
 BSTR_PUBLIC int b_catblk(bstring *bstr, const void * buf, unsigned len);
 
-/**
- * Inserts the bstring s2 into s1 at position pos.
- *
- * If the position pos is past the end of s1, then the character "fill" is
- * appended as necessary to make up the gap between the end of s1 and pos. The
- * value BSTR_OK is returned if the operation is successful, otherwise BSTR_ERR
- * is returned.
- */
-BSTR_PUBLIC int b_insert(bstring *b1, unsigned pos, const bstring *b2, uchar fill);
-
-/**
- * Inserts the character fill repeatedly into s1 at position pos for a
- * length len.
- *
- * If the position pos is past the end of s1, then the character "fill" is
- * appended as necessary to make up the gap between the end of s1 and the
- * position pos + len (exclusive). The value BSTR_OK is returned if the
- * operation is successful, otherwise BSTR_ERR is returned.
- */
-BSTR_PUBLIC int b_insertch(bstring *bstr, unsigned pos, unsigned len, uchar fill);
-
-/**
- * Replace a section of a bstring from pos for a length len with the bstring b2.
- *
- * If the position pos is past the end of b1 then the character "fill" is
- * appended as necessary to make up the gap between the end of b1 and pos.
- */
-BSTR_PUBLIC int b_replace(bstring *b1, unsigned pos, unsigned len,
-                          const bstring *b2, uchar fill);
-
-/**
- * Removes characters from pos to pos+len-1 and shifts the tail of the bstring
- * starting from pos+len to pos.
- *
- * len must be positive for this call to have any effect. The section of the
- * bstring described by (pos, len) is clamped to boundaries of the bstring b.
- * The value BSTR_OK is returned if the operation is successful, otherwise
- * BSTR_ERR is returned.
- */
-BSTR_PUBLIC int b_delete(bstring *bstr, int64_t pos, unsigned len);
-
-/**
- * Overwrite the bstring b0 starting at position pos with the bstring b1.
- *
- * If the position pos is past the end of b0, then the character "fill" is
- * appended as necessary to make up the gap between the end of b0 and pos.  If
- * b1 is NULL, it behaves as if it were a 0-length bstring. The value BSTR_OK is
- * returned if the operation is successful, otherwise BSTR_ERR is returned.
- */
-BSTR_PUBLIC int b_setstr(bstring *b0, unsigned pos, const bstring *b1, uchar fill);
 
 /**
  * Truncate the bstring to at most n characters.
@@ -451,7 +384,6 @@ BSTR_PUBLIC int b_trunc(bstring *bstr, unsigned n);
 
 /*============================================================================*/
 /* Scan/search functions */
-
 
 /**
  * Compare two bstrings without differentiating between case.
@@ -487,16 +419,6 @@ BSTR_PUBLIC int b_strnicmp(const bstring *b0, const bstring *b1, unsigned n);
 BSTR_PUBLIC int b_iseq_caseless(const bstring *b0, const bstring *b1);
 
 /**
- * Compare beginning of bstring b0 with a block of memory of length len without
- * differentiating between case for equality.
- *
- * If the beginning of b0 differs from the memory block other than in case (or
- * if b0 is too short), 0 is returned, if the bstrings are the same, 1 is
- * returned, if there is an error, -1 is returned.
- */
-BSTR_PUBLIC int b_is_stem_eq_caseless_blk(const bstring *b0, const void *blk, unsigned len);
-
-/**
  * Compare the bstring b0 and b1 for equality.
  *
  * If the bstrings differ, 0 is returned, if the bstrings are the same, 1 is
@@ -508,15 +430,6 @@ BSTR_PUBLIC int b_is_stem_eq_caseless_blk(const bstring *b0, const void *blk, un
  * because of its different treatment of the '\0' character.
  */
 BSTR_PUBLIC int b_iseq(const bstring *b0, const bstring *b1);
-
-/**
- * Compare beginning of bstring b0 with a block of memory of length len for equality.
- *
- * If the beginning of b0 differs from the memory block (or if b0 is too short),
- * 0 is returned, if the bstrings are the same, 1 is returned, if there is an
- * error, -1 is returned.
- */
-BSTR_PUBLIC int b_is_stem_eq_blk(const bstring *b0, const void *blk, unsigned len);
 
 /**
  * Compare the bstring b and char * string s.
@@ -585,50 +498,6 @@ BSTR_PUBLIC int b_strcmp(const bstring *b0, const bstring *b1);
 BSTR_PUBLIC int b_strncmp(const bstring *b0, const bstring *b1, unsigned n);
 
 /**
- * Search for the bstring s2 in s1 starting at position pos and looking in a
- * forward (increasing) direction.
- *
- * If it is found then it returns with the first position after pos where it is
- * found, otherwise it returns BSTR_ERR.  The algorithm used is brute force;
- * O(m*n).
- */
-BSTR_PUBLIC int64_t b_instr(const bstring *b1, unsigned pos, const bstring *b2);
-
-/**
- * Search for the bstring s2 in s1 starting at position pos and looking in a
- * backward (decreasing) direction.
- *
- * If it is found then it returns with the first position after pos where it is
- * found, otherwise return BSTR_ERR.  Note that the current position at pos is
- * tested as well -- so to be disjoint from a previous forward search it is
- * recommended that the position be backed up (decremented) by one position.
- * The algorithm used is brute force; O(m*n).
- */
-BSTR_PUBLIC int64_t b_instrr(const bstring *b1, unsigned pos, const bstring *b2);
-
-/**
- * Search for the bstring s2 in s1 starting at position pos and looking in a
- * forward (increasing) direction but without regard to case.
- *
- * If it is found then it returns with the first position after pos where it is
- * found, otherwise it returns BSTR_ERR. The algorithm used is brute force;
- * O(m*n).
- */
-BSTR_PUBLIC int64_t b_instr_caseless(const bstring *b1, unsigned pos, const bstring *b2);
-
-/**
- * Search for the bstring s2 in s1 starting at position pos and looking in a
- * backward (decreasing) direction but without regard to case.
- *
- * If it is found then it returns with the first position after pos where it is
- * found, otherwise return BSTR_ERR. Note that the current position at pos is
- * tested as well -- so to be disjoint from a previous forward search it is
- * recommended that the position be backed up (decremented) by one position.
- * The algorithm used is brute force; O(m*n).
- */
-BSTR_PUBLIC int64_t b_instrr_caseless(const bstring *b1, unsigned pos, const bstring *b2);
-
-/**
  * Search for the character c in b forwards from the position pos
  * (inclusive).
  *
@@ -658,7 +527,7 @@ BSTR_PUBLIC int64_t b_strrchrp(const bstring *bstr, int ch, unsigned pos);
  *
  * Returns the position of the found character or BSTR_ERR if it is not found.
  */
-#define b_strrchr(b, c) b_strrchrp((b), (c), b_length(b) - 1)
+#define b_strrchr(b, c) b_strrchrp((b), (c), ((b)->slen - 1u))
 
 /**
  * Search for the first position in b0 starting from pos or after, in which
@@ -695,56 +564,6 @@ BSTR_PUBLIC int64_t b_ninchr(const bstring *b0, unsigned pos, const bstring *b1)
  * position does not exist in b0, then BSTR_ERR is returned.
  */
 BSTR_PUBLIC int64_t b_ninchrr(const bstring *b0, unsigned pos, const bstring *b1);
-
-/**
- * Replace all occurrences of the find substring with a replace bstring after a
- * given position in the bstring b.
- *
- * The find bstring must have a length > 0 otherwise BSTR_ERR is returned. This
- * function does not perform recursive per character replacement; that is to say
- * successive searches resume at the position after the last replace.
- *
- * So for example:
- *
- * \code
- * b_findreplace(a0 = b_fromcstr("aabaAb"),
- *               a1 = b_fromcstr("a"),
- *               a2 = b_fromcstr("aa"), 0);
- * \endcode
- *
- * Should result in changing a0 to "aaaabaaAb".
- *
- * This function performs exactly (b->slen - position) bstring comparisons, and
- * data movement is bounded above by character volume equivalent to size of the
- * output bstring.
- */
-BSTR_PUBLIC int64_t b_findreplace(bstring *bstr, const bstring *find,
-                                  const bstring *repl, unsigned pos);
-
-/**
- * Replace all occurrences of the find substring, ignoring case, with a replace
- * bstring after a given position in the bstring b.
- *
- * The find bstring must have a length > 0 otherwise BSTR_ERR is returned. This
- * function does not perform recursive per character replacement; that is to say
- * successive searches resume at the position after the last replace.
- *
- * So for example:
- *
- * \code
- * b_findreplacecaseless(a0 = b_fromcstr("AAbaAb"), a1 = b_fromcstr("a"),
- * a2 = b_fromcstr("aa"), 0);
- * \endcode
- *
- * Should result in changing a0 to "aaaabaaaab".
- *
- * This function performs exactly (b->slen - position) bstring comparisons, and
- * data movement is bounded above by character volume equivalent to size of the
- * output bstring.
- */
-BSTR_PUBLIC int64_t b_findreplace_caseless(bstring *bstr, const bstring *find,
-                                           const bstring *repl, unsigned pos);
-
 
 /*============================================================================*/
 /* List of string container functions */
@@ -848,87 +667,9 @@ BSTR_PUBLIC b_list *b_splitstr(const bstring *str, const bstring *splitStr);
  */
 BSTR_PUBLIC bstring *b_join(const b_list *bl, const bstring *sep);
 
-/**
- * Iterate the set of disjoint sequential substrings over str starting at
- * position pos divided by the character splitChar.
- *
- * The parm passed to bsplitcb is passed on to cb. If the function cb returns a
- * value < 0, then further iterating is halted and this value is returned by
- * bsplitcb.
- *
- * Note: Non-destructive modification of str from within the cb function
- * while performing this split is not undefined. bsplitcb behaves in
- * sequential lock step with calls to cb. I.e., after returning from a cb
- * that return a non-negative integer, bsplitcb continues from the position
- * 1 character after the last detected split character and it will halt
- * immediately if the length of str falls below this point. However, if the
- * cb function destroys str, then it *must* return with a negative value,
- * otherwise bsplitcb will continue in an undefined manner.
- *
- * This function is provided as an incremental alternative to bsplit that is
- * abortable and which does not impose additional memory allocation.
- */
-BSTR_PUBLIC int b_splitcb(const bstring *str, uchar splitChar, unsigned pos,
-                          b_cbfunc cb, void *parm);
-
-/**
- * Iterate the set of disjoint sequential substrings over str starting at
- * position pos divided by any of the characters in splitStr.
- *
- * An empty splitStr causes the whole str to be iterated once. The parm passed
- * to bsplitcb is passed on to cb. If the function cb returns a value < 0, then
- * further iterating is halted and this value is returned by bsplitcb.
- *
- * Note: Non-destructive modification of str from within the cb function
- * while performing this split is not undefined. bsplitscb behaves in
- * sequential lock step with calls to cb. I.e., after returning from a cb
- * that return a non-negative integer, bsplitscb continues from the position
- * 1 character after the last detected split character and it will halt
- * immediately if the length of str falls below this point. However, if the
- * cb function destroys str, then it *must* return with a negative value,
- * otherwise bsplitscb will continue in an undefined manner.
- *
- * This function is provided as an incremental alternative to bsplits that
- * is abortable and which does not impose additional memory allocation.
- */
-BSTR_PUBLIC int b_splitscb(const bstring *str, const bstring *splitStr, unsigned pos,
-                           b_cbfunc cb, void *parm);
-
-/**
- * Iterate the set of disjoint sequential substrings over str starting at
- * position pos divided by the entire substring splitStr.
- *
- * An empty splitStr causes each character of str to be iterated. The parm
- * passed to bsplitcb is passed on to cb. If the function cb returns a value <
- * 0, then further iterating is halted and this value is returned by bsplitcb.
- *
- * Note: Non-destructive modification of str from within the cb function
- * while performing this split is not undefined. bsplitstrcb behaves in
- * sequential lock step with calls to cb. I.e., after returning from a cb
- * that return a non-negative integer, bsplitstrcb continues from the position
- * 1 character after the last detected split character and it will halt
- * immediately if the length of str falls below this point. However, if the
- * cb function destroys str, then it *must* return with a negative value,
- * otherwise bsplitscb will continue in an undefined manner.
- *
- * This function is provided as an incremental alternative to bsplitstr that
- * is abortable and which does not impose additional memory allocation.
- */
-BSTR_PUBLIC int b_splitstrcb(const bstring *str, const bstring *splitStr,
-                             unsigned pos, b_cbfunc cb, void *parm);
-
 
 /*============================================================================*/
 /* Miscellaneous functions */
-
-/**
- * Replicate the starting bstring, b, end to end repeatedly until it
- * surpasses len characters, then chop the result to exactly len characters.
- *
- * This function operates in-place. This function will return with BSTR_ERR
- * if b is NULL or of length 0, otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int b_pattern(bstring *bstr, unsigned len);
 
 /**
  * Convert contents of bstring to upper case.
@@ -945,30 +686,6 @@ BSTR_PUBLIC int b_toupper(bstring *bstr);
  * otherwise BSTR_OK is returned.
  */
 BSTR_PUBLIC int b_tolower(bstring *bstr);
-
-/**
- * Delete whitespace contiguous from the left end of the bstring.
- *
- * This function will return with BSTR_ERR if b is NULL or of length 0,
- * otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int b_ltrimws(bstring *bstr);
-
-/**
- * Delete whitespace contiguous from the right end of the bstring.
- *
- * This function will return with BSTR_ERR if b is NULL or of length 0,
- * otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int b_rtrimws(bstring *bstr);
-
-/**
- * Delete whitespace contiguous from both ends of the bstring.
- *
- * This function will return with BSTR_ERR if b is NULL or of length 0,
- * otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int b_trimws(bstring *bstr);
 
 
 /*============================================================================*/
@@ -1136,283 +853,6 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 
 
 /*============================================================================*/
-/* Stream functions */
-
-
-typedef unsigned (*bs_cbfunc)(void *parm, unsigned ofs, const bstring *lst);
-
-/**
- * Wrap a given open stream (described by a fread compatible function pointer
- * and stream handle) into an open bStream suitable for the bstring library
- * streaming functions.
- */
-BSTR_PUBLIC struct bStream *bs_open(bNread read_ptr, void *parm);
-
-/**
- * Close the bStream, and return the handle to the stream that was originally
- * used to open the given stream.
- *
- * If s is NULL or detectably invalid, NULL will be returned.
- */
-BSTR_PUBLIC void *bs_close(struct bStream * buf);
-
-/**
- * Set the length of the buffer used by the bStream.
- *
- * If sz is the macro BSTR_BS_BUFF_LENGTH_GET (which is 0), the length is not
- * set. If s is NULL or sz is negative, the function will return with BSTR_ERR,
- * otherwise this function returns with the previous length.
- */
-BSTR_PUBLIC int bs_bufflength(struct bStream * buf, unsigned sz);
-
-/**
- * Read a bstring terminated by the terminator character or the end of the
- * stream from the bStream (s) and return it into the parameter r.
- *
- * The matched terminator, if found, appears at the end of the line read. If the
- * stream has been exhausted of all available data, before any can be read,
- * BSTR_ERR is returned. This function may read additional characters into the
- * stream buffer from the core stream that are not returned, but will be
- * retained for subsequent read operations. When reading from high speed
- * streams, this function can perform significantly faster than bgets.
- */
-BSTR_PUBLIC int bs_readln(bstring *r, struct bStream * buf, char terminator);
-
-/**
- * Read a bstring terminated by any character in the terminators bstring or the
- * end of the stream from the bStream (s) and return it into the parameter r.
- *
- * This function may read additional characters from the core stream that are
- * not returned, but will be retained for subsequent read operations.
- */
-BSTR_PUBLIC int bs_readlns(bstring *r, struct bStream * buf, const bstring *term);
-
-/**
- * Read a bstring of length n (or, if it is fewer, as many bytes as is
- * remaining) from the bStream.
- *
- * This function will read the minimum required number of additional characters
- * from the core stream. When the stream is at the end of the file BSTR_ERR is
- * returned, otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int bs_read(bstring *r, struct bStream * buf, unsigned n);
-
-/**
- * Read a bstring terminated by the terminator character or the end of the
- * stream from the bStream (s) and concatenate it to the parameter r.
- *
- * The matched terminator, if found, appears at the end of the line read. If the
- * stream has been exhausted of all available data, before any can be read,
- * BSTR_ERR is returned. This function may read additional characters into the
- * stream buffer from the core stream that are not returned, but will be
- * retained for subsequent read operations. When reading from high speed
- * streams, this function can perform significantly faster than bgets.
- */
-BSTR_PUBLIC int bs_readlna(bstring *r, struct bStream * buf, char terminator);
-
-/**
- * Read a bstring terminated by any character in the terminators bstring or the
- * end of the stream from the bStream (s) and concatenate it to the parameter r.
- *
- * If the stream has been exhausted of all available data, before any can be
- * read, BSTR_ERR is returned. This function may read additional characters from
- * the core stream that are not returned, but will be retained for subsequent
- * read operations.
- */
-BSTR_PUBLIC int bs_readlnsa(bstring *r, struct bStream *buf, const bstring *term);
-
-/**
- * Read a bstring of length n (or, if it is fewer, as many bytes as is
- * remaining) from the bStream and concatenate it to the parameter r.
- *
- * This function will read the minimum required number of additional characters
- * from the core stream. When the stream is at the end of the file BSTR_ERR is
- * returned, otherwise BSTR_OK is returned.
- */
-BSTR_PUBLIC int bs_reada(bstring *r, struct bStream *buf, unsigned n);
-
-/**
- * Insert a bstring into the bStream at the current position.
- *
- * These characters will be read prior to those that actually come from the core
- * stream.
- */
-BSTR_PUBLIC int bs_unread(struct bStream *buf, const bstring *bstr);
-
-/**
- * Return the number of currently buffered characters from the bStream that will
- * be read prior to reads from the core stream, and append it to the the
- * parameter r.
- */
-BSTR_PUBLIC int bs_peek(bstring *r, const struct bStream *buf);
-
-/**
- * Iterate the set of disjoint sequential substrings over the stream s divided
- * by any character from the bstring *splitStr.
- *
- * The parm passed to bssplitscb is passed on to cb. If the function cb returns
- * a value < 0, then further iterating is halted and this return value is
- * returned by bssplitscb.
- *
- * Note: At the point of calling the cb function, the bStream pointer is pointed
- * exactly at the position right after having read the split character. The cb
- * function can act on the stream by causing the bStream pointer to move, and
- * bssplitscb will continue by starting the next split at the position of the
- * pointer after the return from cb.
- *
- * However, if the cb causes the bStream s to be destroyed then the cb must
- * return with a negative value, otherwise bssplitscb will continue in an
- * undefined manner.
- *
- * This function is provided as way to incrementally parse through a file or
- * other generic stream that in total size may otherwise exceed the practical or
- * desired memory available. As with the other split callback based functions
- * this is abortable and does not impose additional memory allocation.
- */
-BSTR_PUBLIC int bs_splitscb(struct bStream *buf, const bstring *split_str,
-                            bs_cbfunc cb, void *parm);
-
-/**
- * Iterate the set of disjoint sequential substrings over the stream s divided
- * by the entire substring splitStr.
- *
- * The parm passed to bssplitstrcb is passed on to cb. If the function cb
- * returns a value < 0, then further iterating is halted and this return value
- * is returned by bssplitstrcb.
- *
- * Note: At the point of calling the cb function, the bStream pointer is pointed
- * exactly at the position right after having read the split character. The cb
- * function can act on the stream by causing the bStream pointer to move, and
- * bssplitstrcb will continue by starting the next split at the position of the
- * pointer after the return from cb.
- *
- * However, if the cb causes the bStream s to be destroyed then the cb must
- * return with a negative value, otherwise bssplitscb will continue in an
- * undefined manner.
- *
- * This function is provided as way to incrementally parse through a file or
- * other generic stream that in total size may otherwise exceed the practical or
- * desired memory available. As with the other split callback based functions
- * this is abortable and does not impose additional memory allocation.
- */
-BSTR_PUBLIC int bs_splitstrcb(struct bStream *buf, const bstring *split_str,
-                              bs_cbfunc cb, void *parm);
-
-/**
- * Return the defacto "EOF" (end of file) state of a stream (1 if the bStream is
- * in an EOF state, 0 if not, and BSTR_ERR if stream is closed or detectably
- * erroneous).
- *
- * When the readPtr callback returns a value <= 0 the stream reaches its "EOF"
- * state. Note that bunread with non-empty content will essentially turn off
- * this state, and the stream will not be in its "EOF" state so long as its
- * possible to read more data out of it.
- *
- * Also note that the semantics of b_seof() are slightly different from
- * something like feof(), i.e., reaching the end of the stream does not
- * necessarily guarantee that b_seof() will return with a value indicating that
- * this has happened. b_seof() will only return indicating that it has reached
- * the "EOF" and an attempt has been made to read past the end of the bStream.
- */
-BSTR_PUBLIC int bs_eof(const struct bStream * buf);
-
-
-/*============================================================================*/
-/* Accessor macros */
-
-
-/**
- * Returns the length of the bstring.
- *
- * If the bstring is NULL err is returned.
- */
-#define b_lengthe(b, e) \
-        (((b) == NULL) ? (unsigned)(e) : ((b)->slen))
-
-/**
- * Returns the length of the bstring.
- *
- * If the bstring is NULL, the length returned is 0.
- */
-#define b_length(b) (b_lengthe((b), 0))
-
-#define BLEN(b) b_length(b)
-
-/**
- * Returns the char * data portion of the bstring *b offset by off.
- *
- * If b is NULL, err is returned.
- */
-#define b_dataoffe(b, o, e)                 \
-        (((b) == NULL || (b)->data == NULL) \
-             ? (char *)(e)                  \
-             : ((char *)(b)->data) + (o))
-
-/**
- * Returns the char * data portion of the bstring *b offset by off.
- *
- * If b is NULL, NULL is returned.
- */
-#define b_dataoff(b, o) (b_dataoffe((b), (o), NULL))
-
-/**
- * Returns the char * data portion of the bstring *b.
- *
- * If b is NULL, err is returned.
- */
-#define b_datae(b, e) (b_dataoffe(b, 0, e))
-
-/**
- * Returns the char * data portion of the bstring *b.
- *
- * If b is NULL, NULL is returned.
- */
-#define b_data(b) (b_dataoff(b, 0))
-
-/**
- * Dumber macro which simply returns the data of a bstring cast to char *. No
- * checking is performed. The program is hopeless anyway if it is accessing NULL
- * memory and should crash.
- */
-#ifdef __GNUC__
-#  define BS(BSTR_)                                                 \
-        __extension__({                                             \
-                _Static_assert(sizeof(*BSTR_) == sizeof(bstring) && \
-                               sizeof((BSTR_)->flags) == 1,         \
-                               "Pointer is not a bstring");         \
-                (char *)((BSTR_)->data);                            \
-        })
-#  define BTS(BSTR_)                                               \
-        __extension__({                                            \
-                _Static_assert(sizeof(BSTR_) == sizeof(bstring) && \
-                               sizeof((BSTR_).flags) == 1,         \
-                               "Pointer is not a bstring");        \
-                (char *)((BSTR_).data);                            \
-        })
-#else
-#  define BS(BSTR_)  ((char *)((BSTR_)->data))
-#  define BTS(BSTR_) ((char *)((BSTR_).data))
-#endif
-
-/**
- * Returns the p'th character of the bstring *b.
- *
- * If the position p refers to a position that does not exist in the bstring or
- * the bstring is NULL, then c is returned.
- */
-#define b_chare(b, p, e) \
-        ((((unsigned)(p)) < (unsigned)b_length(b)) ? ((b)->data[(p)]) : (e))
-
-/**
- * Returns the p'th character of the bstring *b.
- *
- * If the position p refers to a position that does not exist in the bstring or
- * the bstring is NULL, then '\0' is returned.
- */
-#define b_char(b, p) b_chare((b), (p), '\0')
-
-
-/*============================================================================*/
 /* Static constant string initialization macro */
 
 /**
@@ -1439,6 +879,33 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
 /*============================================================================*/
 /* MY ADDITIONS */
 
+
+/**
+ * Dumber macro which simply returns the data of a bstring cast to char *. No
+ * checking is performed. The program is hopeless anyway if it is accessing NULL
+ * memory and should crash.
+ */
+#ifdef __GNUC__
+#  define BS(BSTR_)                                                 \
+        __extension__({                                             \
+                _Static_assert(sizeof(*BSTR_) == sizeof(bstring) && \
+                               sizeof((BSTR_)->flags) == 1,         \
+                               "Pointer is not a bstring");         \
+                (char *)((BSTR_)->data);                            \
+        })
+#  define BTS(BSTR_)                                               \
+        __extension__({                                            \
+                _Static_assert(sizeof(BSTR_) == sizeof(bstring) && \
+                               sizeof((BSTR_).flags) == 1,         \
+                               "Pointer is not a bstring");        \
+                (char *)((BSTR_).data);                            \
+        })
+#else
+#  define BS(BSTR_)  ((char *)((BSTR_)->data))
+#  define BTS(BSTR_) ((char *)((BSTR_).data))
+#endif
+
+
 /**
  * Initialize a bstring without any casting. seful when a constant expression is
  * required, such as in global or static variable initializers. The argument
@@ -1450,14 +917,6 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
                 .mlen  = 0,                       \
                 .data  = (uchar *)("" CSTR ""),   \
                 .flags = 0x00u                    \
-        }
-
-#define bt_fromarray(CSTR)                   \
-        (bstring){                           \
-                .slen  = (sizeof(CSTR) - 1), \
-                .mlen  = 0,                  \
-                .data  = (uchar *)(CSTR),    \
-                .flags = 0x00u               \
         }
 
 /**
@@ -1473,10 +932,43 @@ BSTR_PUBLIC int bs_eof(const struct bStream * buf);
 #define B(CSTR)     b_tmp(CSTR)
 
 
+/**
+ * Creates a static bstring reference to existing memory without copying it.
+ * Unlike the return from b_tmp, this will accept non-literal strings, and the
+ * data is modifyable by default. However, b_free will refuse to free the data,
+ * and the object itself is stack memory and therefore also not freeable.
+ */
+#define bt_fromblk(BLK, LEN) \
+        ((bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }})
+
+/**
+ * Return a static bstring derived from a cstring. Identical to bt_fromblk
+ * except that the length field is derived through a call to strlen(). Beware
+ * that this macro evaluates its argument twice!
+ */
+#define bt_fromcstr(STR_) \
+        ((bstring[]){{ strlen(STR_), 0, ((uchar *)(STR_)), BSTR_WRITE_ALLOWED }})
+
+#define bt_fromarray(CSTR) \
+        ((bstring[]){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
+
+
+#define b_static_fromblk(BLK, LEN) \
+        ((bstring){ (LEN), 0, ((uchar *)(BLK)), 0x00u })
+
+#define b_static_fromcstr(CSTR) \
+        ((bstring){ strlen(CSTR), 0, ((uchar *)(CSTR)), 0x00u })
+
+#define b_static_fromarray(CSTR) \
+        ((bstring){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
+
+
+
 #define b_litsiz                   b_staticBlkParms
 #define b_lit2bstr(LIT_STR)        b_blk2bstr(b_staticBlkParms(LIT_STR))
 #define b_assignlit(BSTR, LIT_STR) b_assign_blk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_catlit(BSTR, LIT_STR)    b_catblk((BSTR), b_staticBlkParms(LIT_STR))
+#define b_fromlit(LIT_STR)         b_lit2bstr(LIT_STR)
 
 
 /**
@@ -1497,9 +989,7 @@ BSTR_PUBLIC bstring *b_clone(const bstring *const src);
 BSTR_PUBLIC bstring *b_clone_swap(bstring *src);
 BSTR_PUBLIC bstring *b_ll2str(const long long value);
 BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB);
-
-
-/*----------------------------------------------------------------------------*/
+BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB);
 
 
 /**
@@ -1516,40 +1006,10 @@ BSTR_PUBLIC bstring *b_refblk(void *blk, unsigned len);
  * Required to be an inline function to avoid evaluating the arguments twice via
  * the necessary strlen() call.
  */
-INLINE PURE bstring *b_refcstr(char *str)
+INLINE bstring *b_refcstr(char *str)
 {
         return b_refblk(str, strlen(str));
 }
-
-
-/**
- * Creates a static bstring reference to existing memory without copying it.
- * Unlike the return from b_tmp, this will accept non-literal strings, and the
- * data is modifyable by default. However, b_free will refuse to free the data,
- * and the object itself is stack memory and therefore also not freeable.
- */
-#define bt_fromblk(BLK, LEN) \
-        ((bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }})
-
-/**
- * Return a static bstring derived from a cstring. Identical to bt_fromblk
- * except that the length field is derived through a call to strlen(). This is
- * defined as an inline function to avoid any potential double evaluation of
- * side effects that may happen if it were a macro.
- */
-#define bt_fromcstr(STR_) \
-        ((bstring[]){{ strlen(STR_), 0, ((uchar *)(STR_)), BSTR_WRITE_ALLOWED }})
-#if 0
-INLINE bstring *bt_fromcstr(void *str)
-{
-        return (bstring[]){{
-                .slen  = strlen(str),
-                .mlen  = 0,
-                .data  = (uchar *)(str),
-                .flags = 0x00u
-        }};
-}
-#endif
 
 
 /*----------------------------------------------------------------------------*/
@@ -1559,7 +1019,8 @@ INLINE bstring *bt_fromcstr(void *str)
  * Simple wrapper for fgetc that casts the void * paramater to a FILE * object
  * to avoid compiler warnings.
  */
-INLINE int b_fgetc(void *param)
+INLINE int
+b_fgetc(void *param)
 {
         return fgetc((FILE *)param);
 }
@@ -1568,7 +1029,8 @@ INLINE int b_fgetc(void *param)
  * Simple wrapper for fread that casts the void * paramater to a FILE * object
  * to avoid compiler warnings.
  */
-INLINE size_t b_fread(void *buf, const size_t size, const size_t nelem, void *param)
+INLINE size_t
+b_fread(void *buf, const size_t size, const size_t nelem, void *param)
 {
         return fread(buf, size, nelem, (FILE *)param);
 }
@@ -1620,216 +1082,67 @@ BSTR_PUBLIC void __b_fputs(FILE *fp, bstring *bstr, ...);
  * rather than a FILE * object and fwrite(3);
  */
 BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
-
-
-#define b_free_all(...)    __b_free_all(__VA_ARGS__, B_LIST_END_MARK)
-#define b_puts(...)        __b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
-#define b_warn(...)        __b_fputs(stderr, __VA_ARGS__, B_LIST_END_MARK)
-#define b_fputs(__FP, ...) __b_fputs(__FP, __VA_ARGS__,   B_LIST_END_MARK)
-#define b_write(__FD, ...) __b_write(__FD, __VA_ARGS__,   B_LIST_END_MARK)
-
-
 BSTR_PUBLIC void __b_dump_list(FILE *fp, const b_list *list, const char *listname);
-BSTR_PUBLIC void __b_add_to_list(b_list **list, bstring *bstr);
 
+#define b_free_all(...)        __b_free_all(__VA_ARGS__, B_LIST_END_MARK)
+#define b_puts(...)            __b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
+#define b_warn(...)            __b_fputs(stderr, __VA_ARGS__, B_LIST_END_MARK)
+#define b_fputs(__FP, ...)     __b_fputs(__FP, __VA_ARGS__,   B_LIST_END_MARK)
+#define b_write(__FD, ...)     __b_write(__FD, __VA_ARGS__,   B_LIST_END_MARK)
 #define b_dump_list(FP_, LST_) __b_dump_list((FP_), (LST_), #LST_)
-#define b_add_to_list(LST_, BSTR) __b_add_to_list((&(LST_)), (BSTR))
 
 
+#define B_LIST_FOREACH(BLIST, VAR, CTR)                                    \
+        for (bstring *VAR = ((BLIST)->lst[((CTR) = 0)]);                   \
+             (CTR) < (BLIST)->qty && (((VAR) = (BLIST)->lst[(CTR)]) || 1); \
+             ++(CTR))
 
-/*============================================================================*/
+#define B_LIST_SORT_FAST(BLIST)                                    \
+        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), \
+              &b_strcmp_fast_wrap)
 
-/**
- * The bsStatic macro allows for static declarations of literal string
- * constants as bstring structures.
- *
- * The resulting tagbstring does not need to be freed or destroyed. Note that
- * this macro is only well defined for string literal arguments. For more
- * general string pointers, use the btfromcstr macro.
- *
- * The resulting bstring is permanently write protected. Attempts
- * to write to this bstring from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
- * tagbstring has no effect.
- */
-/**
- * Fill in the tagbstring t with the '\0' terminated char buffer s.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member is just assigned s, and slen is assigned the strlen of s.  The s
- * parameter is accessed exactly once in this macro.
- *
- * The resulting bstring is initially write protected. Attempts
- * to write to this bstring in a write protected state from any
- * bstrlib function will lead to BSTR_ERR being returned. Invoke the
- * bwriteallow on this bstring to make it writeable (though this
- * requires that s be obtained from a function compatible with malloc.)
- */
-/**
- * Fill in the tagbstring t with the data buffer s with length len.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member of t is just assigned s, and slen is assigned len. Note that the
- * buffer is not appended with a '\0' character. The s and len parameters are
- * accessed exactly once each in this macro.
- *
- * The resulting bstring is initially write protected. Attempts to write to this
- * bstring in a write protected state from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoke the bwriteallow on this bstring to make it
- * writeable (though this requires that s be obtained from a function compatible
- * with malloc.)
- */
-#define b_static_refblk(BLK, LEN) \
-        ((bstring){ (LEN), 0, ((uchar *)(BLK)), 0x00u })
+#define B_LIST_BSEARCH_FAST(BLIST, ITEM_)             \
+        bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, \
+                sizeof(*((BLIST)->lst)), &b_strcmp_fast_wrap)
 
-#define blk2tbstr(s, l) b_static_refblk(s, l)
+#define B_LIST_SORT(BLIST) \
+        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_wrap)
 
-#define b_static_refcstr(STR_) \
-        ((bstring){ strlen(STR_), 0, ((uchar *)(STR_)), 0x00u })
 
-#if 0
-INLINE PURE bstring b_static_refcstr(char *str)
+#define BSTR_M_DEL_SRC   0x01
+#define BSTR_M_SORT      0x02
+#define BSTR_M_SORT_FAST 0x04
+#define BSTR_M_DEL_DUPS  0x08
+
+BSTR_PUBLIC int     b_add_to_list(b_list **list, bstring *bstr);
+BSTR_PUBLIC int     b_list_merge(b_list **dest, b_list *src, int flags);
+BSTR_PUBLIC int     b_list_remove_dups(b_list **listp);
+BSTR_PUBLIC b_list *b_list_copy(const b_list *list);
+BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
+
+BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
+BSTR_PUBLIC b_list *b_strsep(bstring *str, const char *const delim, const int refonly);
+
+
+/*----------------------------------------------------------------------------*/
+
+extern void abort(void);
+
+INLINE int
+b_conchar(bstring *bstr, const char ch)
 {
-        return (bstring){
-                .slen  = strlen(str),
-                .mlen  = 0,
-                .data  = (uchar *)(str),
-                .flags = 0x00u
-        };
+        if (!bstr || !bstr->data || ((bstr->flags & BSTR_WRITE_ALLOWED) == 0))
+                abort();
+
+        if (bstr->mlen < (bstr->slen + 2))
+                if (b_alloc(bstr, bstr->slen + 2) != BSTR_OK)
+                        abort();
+
+        bstr->data[bstr->slen++] = (uchar)ch;
+        bstr->data[bstr->slen]   = (uchar)'\0';
+
+        return BSTR_OK;
 }
-#endif
-
-/**
- * Fill the tagbstring t with the substring from b, starting from position pos
- * with a length len.
- *
- * The segment is clamped by the boundaries of the bstring b. This action is
- * purely reference oriented; no memory management is done. Note that the buffer
- * is not appended with a '\0' character. Note that the t parameter to this
- * macro may be accessed multiple times. Note that the contents of t will become
- * undefined if the contents of b change or are destroyed.
- *
- * The resulting bstring is permanently write protected. Attempts to write to
- * this bstring in a write protected state from any bstrlib function will lead
- * to BSTR_ERR being returned. Invoking the bwriteallow macro on this bstring
- * will have no effect.
- */
-#define bmid2tbstr(t, b, p, l)                                                \
-        do {                                                                  \
-                const bstring *bstrtmp_s = (b);                               \
-                if (bstrtmp_s && bstrtmp_s->data && bstrtmp_s->slen >= 0) {   \
-                        int bstrtmp_left = (p);                               \
-                        int bstrtmp_len = (l);                                \
-                        if (bstrtmp_left < 0) {                               \
-                                bstrtmp_len += bstrtmp_left;                  \
-                                bstrtmp_left = 0;                             \
-                        }                                                     \
-                        if (bstrtmp_len > bstrtmp_s->slen - bstrtmp_left)     \
-                                bstrtmp_len = bstrtmp_s->slen - bstrtmp_left; \
-                        if (bstrtmp_len <= 0) {                               \
-                                (t).data = (uchar *)"";                       \
-                                (t).slen = 0;                                 \
-                        } else {                                              \
-                                (t).data = bstrtmp_s->data + bstrtmp_left;    \
-                                (t).slen = bstrtmp_len;                       \
-                        }                                                     \
-                } else {                                                      \
-                        (t).data = (uchar *)"";                               \
-                        (t).slen = 0;                                         \
-                }                                                             \
-                (t).mlen  = 0;                                        \
-                (t).flags = 0x00u;                                            \
-        } while (0);
-
-/**
- * Fill in the tagbstring t with the data buffer s with length len after it
- * has been left trimmed.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member of t is just assigned to a pointer inside the buffer s. Note
- * that the buffer is not appended with a '\0' character. The s and len
- * parameters are accessed exactly once each in this macro.
- *
- * The resulting bstring is permanently write protected. Attempts
- * to write to this bstring from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
- * tagbstring has no effect.
- */
-#define bt_fromblkltrimws(t, s, l)                                       \
-        do {                                                             \
-                unsigned bstrtmp_idx  = 0;                               \
-                unsigned bstrtmp_len  = (l);                             \
-                uchar    *bstrtmp_s   = (s);                             \
-                if (bstrtmp_s && bstrtmp_len >= 0)                       \
-                        for (; bstrtmp_idx < bstrtmp_len; bstrtmp_idx++) \
-                                if (!isspace(bstrtmp_s[bstrtmp_idx]))    \
-                                        break;                           \
-                (t).data  = bstrtmp_s + bstrtmp_idx;                     \
-                (t).slen  = bstrtmp_len - bstrtmp_idx;                   \
-                (t).mlen  = 0;                                           \
-                (t).flags = 0x00u;                                       \
-        } while (0);
-
-/**
- * Fill in the tagbstring t with the data buffer s with length len after it
- * has been right trimmed.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member of t is just assigned to a pointer inside the buffer s. Note
- * that the buffer is not appended with a '\0' character. The s and len
- * parameters are accessed exactly once each in this macro.
- *
- * The resulting bstring is permanently write protected. Attempts
- * to write to this bstring from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
- * tagbstring has no effect.
- */
-#define bt_fromblkrtrimws(t, s, l)                                    \
-        do {                                                          \
-                unsigned bstrtmp_len  = (l)-1;                        \
-                uchar    *bstrtmp_s   = (s);                          \
-                if (bstrtmp_s && bstrtmp_len >= 0)                    \
-                        for (; bstrtmp_len >= 0; bstrtmp_len--)       \
-                                if (!isspace(bstrtmp_s[bstrtmp_len])) \
-                                        break;                        \
-                (t).data  = bstrtmp_s;                                \
-                (t).slen  = bstrtmp_len + 1;                          \
-                (t).mlen  = 0;                                        \
-                (t).flags = 0x00u;                                    \
-        } while (0);
-
-/**
- * Fill in the tagbstring t with the data buffer s with length len after it
- * has been left and right trimmed.
- *
- * This action is purely reference oriented; no memory management is done. The
- * data member of t is just assigned to a pointer inside the buffer s. Note
- * that the buffer is not appended with a '\0' character. The s and len
- * parameters are accessed exactly once each in this macro.
- *
- * The resulting bstring is permanently write protected. Attempts
- * to write to this bstring from any bstrlib function will lead to
- * BSTR_ERR being returned. Invoking the bwriteallow macro onto this struct
- * tagbstring has no effect.
- */
-#define bt_fromblktrimws(t, s, l)                                         \
-        do {                                                              \
-                unsigned bstrtmp_idx = 0;                                 \
-                unsigned bstrtmp_len = (l)-1;                             \
-                uchar    *bstrtmp_s  = (s);                               \
-                if (bstrtmp_s && bstrtmp_len >= 0) {                      \
-                        for (; bstrtmp_idx <= bstrtmp_len; bstrtmp_idx++) \
-                                if (!isspace(bstrtmp_s[bstrtmp_idx]))     \
-                                        break;                            \
-                        for (; bstrtmp_len >= bstrtmp_idx; bstrtmp_len--) \
-                                if (!isspace(bstrtmp_s[bstrtmp_len]))     \
-                                        break;                            \
-                }                                                         \
-                (t).data  = bstrtmp_s + bstrtmp_idx;                      \
-                (t).slen  = bstrtmp_len + 1 - bstrtmp_idx;                \
-                (t).mlen  = 0;                                            \
-                (t).flags = 0x00u;                                        \
-        } while (0);
 
 
 /*============================================================================*/
@@ -1874,6 +1187,9 @@ INLINE PURE bstring b_static_refcstr(char *str)
 #undef BSTR_PRIVATE
 #undef BSTR_PUBLIC
 #undef INLINE
+#ifdef _MSC_VER
+#  undef __attribute__
+#endif
 
 #ifdef __cplusplus
 }
