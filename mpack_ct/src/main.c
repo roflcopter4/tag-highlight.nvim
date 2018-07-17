@@ -10,23 +10,12 @@
 #include "highlight.h"
 #include "mpack.h"
 
-#undef nvim_get_var_l
-#undef blist_from_var
-
-#define nvim_get_var_num(VARNAME_, FATAL_)                                 \
-        numptr_to_num(nvim_get_var(sockfd, B(PKG "#" VARNAME_), MPACK_NUM, \
-                                   NULL, (FATAL_)))
-
-#define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
-        nvim_get_var(sockfd, B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
-
-#define blist_from_var(VARNAME_, KEY_, FATAL_)                         \
-        mpack_array_to_blist(nvim_get_var(sockfd, B(PKG "#" VARNAME_), \
-                                          MPACK_ARRAY, (KEY_), (FATAL_)), true)
+#define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
+        nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
 #define TDIFF(STV1, STV2)                                          \
         (((long double)(tv2.tv_usec - tv1.tv_usec) / 1000000.0L) + \
-         (long double)(tv2.tv_sec - tv1.tv_sec))
+         ((long double)(tv2.tv_sec - tv1.tv_sec)))
 
 extern FILE    *decodelog, *cmdlog;
 static FILE    *logfile;
@@ -65,9 +54,11 @@ main(int argc, char *argv[])
                 sigaction(SIGUSR1, &temp2, NULL);
         }
 
+#ifdef DEBUG
         mpack_log = safe_fopen_fmt("%s/mpack.log", "w+", HOME);
         decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", HOME);
         cmdlog    = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
+#endif
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
         sockfd    = create_socket(&servername);
 
@@ -76,14 +67,14 @@ main(int argc, char *argv[])
         vpipe = safe_fopen(BS(vpipename), "r+");
 
         settings.comp_type       = get_compression_type();
-        settings.comp_level      = nvim_get_var_num("compression_level", 1);
-        settings.ctags_args      = blist_from_var  ("ctags_args", NULL, 1);
-        settings.enabled         = nvim_get_var_num("enabled", 1);
-        settings.ignored_tags    = nvim_get_var_l  ("ignored_tags", MPACK_DICT, NULL, 1);
-        settings.norecurse_dirs  = blist_from_var  ("norecurse_dirs", NULL, 1);
-        settings.ignored_ftypes  = blist_from_var  ("ignore", NULL, 1);
-        settings.use_compression = nvim_get_var_num("use_compression", 1);
-        settings.verbose         = nvim_get_var_num("verbose", 1);
+        settings.comp_level      = nvim_get_var_num_pkg(0, "compression_level", 1);
+        settings.ctags_args      = blist_from_var_pkg  (0, "ctags_args", NULL, 1);
+        settings.enabled         = nvim_get_var_num_pkg(0, "enabled", 1);
+        settings.ignored_tags    = nvim_get_var_pkg    (0, "ignored_tags", MPACK_DICT, NULL, 1);
+        settings.norecurse_dirs  = blist_from_var_pkg  (0, "norecurse_dirs", NULL, 1);
+        settings.ignored_ftypes  = blist_from_var_pkg  (0, "ignore", NULL, 1);
+        settings.use_compression = nvim_get_var_num_pkg(0, "use_compression", 1);
+        settings.verbose         = nvim_get_var_num_pkg(0, "verbose", 1);
 
         assert(settings.enabled);
 
@@ -97,8 +88,8 @@ main(int argc, char *argv[])
                         sleep(3);
                         echo("Retrying (attempt number %u)\n", attempts);
                 }
-                mpack_array_t *buflist = nvim_list_bufs(0);
 
+                mpack_array_t *buflist = nvim_list_bufs(0);
                 for (unsigned i = 0; i < buflist->qty; ++i)
                         new_buffer(0, buflist->items[i]->data.ext->num);
                 destroy_mpack_array(buflist);
@@ -117,7 +108,7 @@ main(int argc, char *argv[])
 
 /*============================================================================*/
 
-#define WAIT_TIME (0.2l)
+#define WAIT_TIME (0.1L)
 
 
 /*
@@ -164,7 +155,7 @@ interrupt_loop(void *vdata)
                 assert(bdata);
 
                 while (!bdata->lines->qty)
-                        fsleep(0.10L);
+                        fsleep(WAIT_TIME);
 
                 /* extern int main_hl_id;
                 my_parser(bufnum, bdata);
@@ -174,12 +165,11 @@ interrupt_loop(void *vdata)
                 update_highlight(bufnum, bdata);
                 gettimeofday(&tv2, NULL);
 
-                SHOUT_("Time for initialization: %Lfs", TDIFF(tv1, tv2));
+                SHOUT("Time for initialization: %Lfs", TDIFF(tv1, tv2));
         }
 
         for (;;) {
-                bstring *tmp = B_GETS(vpipe, '\n');
-                tmp->data[--tmp->slen] = '\0';
+                bstring *tmp = B_GETS(vpipe, '\n', false);
                 echo("Recieved \"%s\"; waking up!\n", BS(tmp));
 
                 switch (tmp->data[0]) {
@@ -188,27 +178,31 @@ interrupt_loop(void *vdata)
                  */
                 case 'A':
                 case 'D': {
+                        fsleep(WAIT_TIME);
                         const int prev = bufnum;
                         gettimeofday(&tv1, NULL);
-                        bufnum = nvim_get_current_buf(0);
+                        bufnum                = nvim_get_current_buf(0);
                         struct bufdata *bdata = find_buffer(bufnum);
 
                         if (!bdata) {
                                 if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
                                         nvim_buf_attach(1, bufnum);
                                         bdata = find_buffer(bufnum);
+
                                         while (bdata->lines->qty == 0) {
                                                 echo("sleeping");
-                                                fsleep(0.15L);
+                                                fsleep(WAIT_TIME);
                                         }
                                         update_highlight(bufnum, bdata);
+
                                         gettimeofday(&tv2, NULL);
-                                        SHOUT_("Time for initialization: %Lfs", TDIFF(tv1, tv2));
+                                        SHOUT("Time for initialization: %Lfs",
+                                               TDIFF(tv1, tv2));
                                 }
                         } else if (prev != bufnum) {
                                 update_highlight(bufnum, bdata);
                                 gettimeofday(&tv2, NULL);
-                                SHOUT_("Time for update: %Lfs", TDIFF(tv1, tv2));
+                                SHOUT("Time for update: %Lfs", TDIFF(tv1, tv2));
                         }
 
                         break;
@@ -232,7 +226,7 @@ interrupt_loop(void *vdata)
                         if (update_taglist(bdata)) {
                                 update_highlight(curbuf, bdata);
                                 gettimeofday(&tv2, NULL);
-                                SHOUT_("Time for update: %Lfs", TDIFF(tv1, tv2));
+                                SHOUT("Time for update: %Lfs", TDIFF(tv1, tv2));
                         }
 
                         break;
@@ -330,7 +324,6 @@ create_socket(bstring **name)
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        assert((*name)->slen + 1 < sizeof(addr.sun_path));
         memcpy(addr.sun_path, (*name)->data, (*name)->slen + 1);
 
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -346,7 +339,7 @@ create_socket(bstring **name)
 
 static comp_type_t
 get_compression_type(void) {
-        bstring *tmp = nvim_get_var_l("compression_type", MPACK_STRING, NULL, 0);
+        bstring *tmp = nvim_get_var_pkg(0, "compression_type", MPACK_STRING, NULL, 0);
         enum comp_type_e  ret = COMP_NONE;
 
         if (b_iseq(tmp, B("gzip")))

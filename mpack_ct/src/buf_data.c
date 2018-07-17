@@ -60,7 +60,7 @@ new_buffer(const int fd, const int bufnum)
         }
 
         if (!tmp) {
-                echo("Can't identify buffer %d, bailing!\n", bufnum);
+                echo("Can't identify buffer %d, (ft '%s') bailing!\n", bufnum, BS(ft));
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                 b_destroy(ft);
                 return false;
@@ -307,9 +307,7 @@ check_project_directories(bstring *dir)
                 /* return b_refblk(dir, len); */
 
         bstring *tmp;
-        while ((tmp = B_GETS(fp, '\n'))) {
-                tmp->data[tmp->slen -= 3] = '\0';
-
+        while ((tmp = B_GETS(fp, '\n', false))) {
                 if (strstr(BS(dir), BS(tmp)))
                         b_add_to_list(&candidates, tmp);
                 else

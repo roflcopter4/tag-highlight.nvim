@@ -14,8 +14,8 @@ extern bool update_taglist(struct bufdata *bdata);
 
 extern int getlines(b_list *tags, enum comp_type_e comptype, const bstring *filename);
 
-extern void update_highlight(const int bufnum, struct bufdata *bdata);
-extern void clear_highlight(const int bufnum, struct bufdata *bdata);
+extern void update_highlight(int bufnum, struct bufdata *bdata);
+extern void clear_highlight(int bufnum, struct bufdata *bdata);
 
 
 /* FROM NEOTAGS */
@@ -34,8 +34,8 @@ extern b_list  * tokenize(struct bufdata *bdata, bstring *vimbuf);
 extern struct taglist * findemtagers(struct bufdata *bdata, b_list *toks) __attribute__((warn_unused_result));
 
 
-extern int my_highlight(const int bufnum, struct bufdata *bdata);
-extern void my_parser(const int bufnum, struct bufdata *bdata);
+extern int my_highlight(int bufnum, struct bufdata *bdata);
+extern void my_parser(int bufnum, struct bufdata *bdata);
 
 
 #endif /* highlight.h */

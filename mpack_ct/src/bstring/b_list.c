@@ -147,6 +147,7 @@ b_list_allocmin(b_list *sl, uint msz)
 }
 
 
+#if 0
 /*============================================================================*/
 /* Splitting */
 /*============================================================================*/
@@ -244,6 +245,7 @@ b_splits(const bstring *str, const bstring *splitStr)
 
         return g.bl;
 }
+#endif
 
 
 bstring *

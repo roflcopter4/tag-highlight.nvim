@@ -191,21 +191,34 @@ numptr_to_num(int64_t *ptr)
 }
 
 
+#define blist_from_var(FD__, VARNAME_, KEY_, FATAL_) \
+        mpack_array_to_blist(                        \
+            nvim_get_var((FD__), B(VARNAME_), MPACK_ARRAY, (KEY_), (FATAL_)), true)
+
+#define nvim_get_var_num(FD__, VARNAME_, FATAL_) \
+        numptr_to_num(nvim_get_var((FD__), B(VARNAME_), MPACK_NUM, NULL, (FATAL_)))
+
+
 #define PKG "tag_highlight"
 
-#define nvim_get_var_l(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
-        nvim_get_var((FD__), b_tmp(VARNAME_), (EXPECT_), (KEY_), (FATAL_))
+#define blist_from_var_pkg(FD__, VARNAME_, KEY_, FATAL_) \
+        mpack_array_to_blist(                            \
+            nvim_get_var((FD__), B(PKG "#" VARNAME_), MPACK_ARRAY, (KEY_), (FATAL_)), true)
 
-#define blist_from_var(FD__, VARNAME_, KEY_, FATAL_)                   \
-        mpack_array_to_blist(nvim_get_var((FD__), B(PKG "#" VARNAME_), \
-                                          MPACK_ARRAY, (KEY_), (FATAL_)), true)
+#define nvim_get_var_num_pkg(FD__, VARNAME_, FATAL_) \
+        numptr_to_num(nvim_get_var((FD__), B(PKG "#" VARNAME_), MPACK_NUM, NULL, (FATAL_)))
+
 
 extern FILE *mpack_log;
-#define print_and_destroy(RESULT_)                \
-        do {                                      \
+#ifdef DEBUG
+#  define print_and_destroy(RESULT_)                    \
+        do {                                            \
                 mpack_print_object(RESULT_, mpack_log); \
-                mpack_destroy(RESULT_);           \
+                mpack_destroy(RESULT_);                 \
         } while (0)
+#else
+#  define print_and_destroy(RESULT_) mpack_destroy(RESULT_)
+#endif
 
 
 /*============================================================================*/

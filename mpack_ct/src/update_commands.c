@@ -24,9 +24,15 @@ static bstring *get_restore_cmds(b_list *restored_groups);
 static void add_cmd_call(struct atomic_call_array **calls, bstring *cmd);
 
 
-extern FILE *cmdlog;
 extern pthread_mutex_t update_mutex;
 static unsigned usable = 0;
+
+#ifdef DEBUG
+extern FILE *cmdlog;
+#  define LOGCMD(...) fprintf(cmdlog, __VA_ARGS__)
+#else
+#  define LOGCMD(...)
+#endif
 
 
 /*======================================================================================*/
@@ -39,8 +45,8 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         bdata = null_find_bufdata(bufnum, bdata);
 
         if (!bdata->ft->restore_cmds_initialized) {
-                b_list *restored_groups = blist_from_var(0, "restored_groups",
-                                                         &bdata->ft->vim_name, 0);
+                b_list *restored_groups = blist_from_var_pkg(
+                                0, "restored_groups", &bdata->ft->vim_name, 0);
                 if (restored_groups) {
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
                         b_list_destroy(restored_groups);
@@ -80,7 +86,7 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         b_destroy(joined);
 
         if (bdata->ft->restore_cmds) {
-                fprintf(cmdlog, "%s\n\n", BS(bdata->ft->restore_cmds));
+                LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
                 nvim_command(0, bdata->ft->restore_cmds, 1);
         }
 
@@ -130,7 +136,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 if (ctr != tags->qty) {
                         bstring *cmd = b_alloc_null(0x4000);
                         handle_kind(cmd, ctr, bdata->ft, tags, &info[i]);
-                        fprintf(cmdlog, "%s\n\n", BS(cmd));
+                        LOGCMD("%s\n\n", BS(cmd));
                         /* nvim_command(0, cmd, 1);
                         b_add_to_list(&bdata->cmd_cache, cmd); */
                         add_cmd_call(&calls, cmd);
@@ -143,8 +149,10 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                         b_destroy(info[i].suffix);
         }
 
+#ifdef DEBUG
         fputs("\n\n\n\n", cmdlog);
         fflush(cmdlog);
+#endif
 
         return calls;
 }

@@ -227,6 +227,7 @@ b_clone(const bstring *const src)
                          .mlen  = src->mlen,
                          .flags = (src->flags & (~((uint8_t)BSTR_DATA_FREEABLE))),
                          .data  = src->data};
+        ret->flags |= BSTR_CLONE;
 
         b_writeprotect(ret);
         return ret;
@@ -246,6 +247,7 @@ b_clone_swap(bstring *src)
                          .data  = src->data};
 
         src->flags &= (~((uint8_t)BSTR_DATA_FREEABLE));
+        src->flags |= BSTR_CLONE;
         b_writeprotect(src);
 
         return ret;
@@ -388,36 +390,35 @@ b_list_remove_dups(b_list **listp)
         if (!listp || !*listp || !(*listp)->lst || (*listp)->qty == 0)
                 RUNTIME_ERROR();
 
-        b_list *list = *listp;
-        b_list *toks = b_list_create_alloc(list->qty * 10);
+        b_list *toks = b_list_create_alloc((*listp)->qty * 10);
 
-        for (unsigned i = 0; i < list->qty; ++i) {
-                b_list *tmp = b_split(list->lst[i], ' ');
+        for (unsigned i = 0; i < (*listp)->qty; ++i) {
+                /* b_list *tmp = b_split(list->lst[i], ' '); */
+                b_list *tmp = b_strsep((*listp)->lst[i], " ", 0);
                 for (unsigned x = 0; x < tmp->qty; ++x)
                         b_add_to_list(&toks, tmp->lst[x]);
                 free(tmp->lst);
                 free(tmp);
         }
 
-        b_list_destroy(list);
-        list = toks;
+        b_list_destroy(*listp);
 
-        qsort(list->lst, list->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
+        qsort(toks->lst, toks->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
 
-        b_list *uniq = b_list_create_alloc(list->qty);
-        uniq->lst[0] = list->lst[0];
+        b_list *uniq = b_list_create_alloc(toks->qty);
+        uniq->lst[0] = toks->lst[0];
         uniq->qty    = 1;
         b_writeprotect(uniq->lst[0]);
 
-        for (unsigned i = 1; i < list->qty; ++i) {
-                if (!b_iseq(list->lst[i], list->lst[i-1])) {
-                        uniq->lst[uniq->qty] = list->lst[i];
+        for (unsigned i = 1; i < toks->qty; ++i) {
+                if (!b_iseq(toks->lst[i], toks->lst[i-1])) {
+                        uniq->lst[uniq->qty] = toks->lst[i];
                         b_writeprotect(uniq->lst[uniq->qty]);
                         ++uniq->qty;
                 }
         }
 
-        b_list_destroy(list);
+        b_list_destroy(toks);
         for (unsigned i = 0; i < uniq->qty; ++i)
                 b_writeallow(uniq->lst[i]);
 
@@ -444,7 +445,7 @@ b_strstr(const bstring *const haystack, const bstring *needle, const uint pos)
         if (!ptr)
                 return (-1);
 
-        return (int64_t)((ptrdiff_t)ptr - (ptrdiff_t)haystack->data);
+        return (int64_t)psub(ptr, haystack->data);
 }
 
 
@@ -454,18 +455,20 @@ b_strsep(bstring *str, const char *const delim, const int refonly)
         if (INVALID(str) || NO_WRITE(str) || !delim)
                 RETURN_NULL();
 
-        b_list  *ret  = b_list_create();
-        char    *data = (char *)str->data;
-        char    *tok;
+        b_list *ret  = b_list_create();
+        char   *data = (char *)str->data;
+        char   *tok;
 
         if (refonly)
                 while ((tok = strsep(&data, delim)))
-                        b_add_to_list(&ret, (data) ? b_refblk(tok, (psub(data, tok) - 1u))
-                                                   : b_refcstr(tok));
+                        b_add_to_list(&ret,
+                                data ? b_refblk(tok, (psub(data, tok) - 1u))
+                                     : b_refcstr(tok));
         else
                 while ((tok = strsep(&data, delim)))
-                        b_add_to_list(&ret, (data) ? b_fromblk(tok, (psub(data, tok) - 1u))
-                                                   : b_fromcstr(tok));
+                        b_add_to_list(&ret,
+                                data ? b_fromblk(tok, (psub(data, tok) - 1u))
+                                     : b_fromcstr(tok));
 
         return ret;
 }

@@ -16,6 +16,12 @@ static void add_hl_call(struct atomic_call_array **calls,
 
 static b_list * breakdown_file(const struct bufdata *bdata);
 
+#ifdef DEBUG
+#  define B_LOG b_fputs
+#else
+#  define B_LOG(...)
+#endif
+
 
 /*======================================================================================*/
 
@@ -65,7 +71,7 @@ my_parser(const int bufnum, struct bufdata *bdata)
 
         b_list *stripped = breakdown_file(bdata);
         for (unsigned i = 0; i < stripped->qty; ++i)
-                b_fputs(aaaaa, stripped->lst[i], B("\n"));
+                B_LOG(aaaaa, stripped->lst[i], B("\n"));
 
         for (unsigned i = 0; i < tags->qty; ++i) {
                 /* const char   *tagend = strchr(BS(tags->lst[i]), '\t');

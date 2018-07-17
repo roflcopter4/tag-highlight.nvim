@@ -77,6 +77,7 @@ typedef unsigned char uchar;
 #include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -89,6 +90,7 @@ typedef unsigned char uchar;
 #define BSTR_FREEABLE      0x02u
 #define BSTR_DATA_FREEABLE 0x04u
 #define BSTR_LIST_END      0x08u
+#define BSTR_CLONE         0x10u
 
 #define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 
@@ -804,7 +806,7 @@ typedef size_t (*bNread)(void *buff, size_t elsize, size_t nelem, void *parm);
  * assumed to terminate the stream in addition to the terminator character. This
  * is consistent with the semantics of fgets.)
  */
-BSTR_PUBLIC bstring *b_gets(bNgetc getc_ptr, void *parm, char terminator);
+BSTR_PUBLIC bstring *b_gets(bNgetc getc_ptr, void *parm, int terminator, bool keepend);
 
 
 /**
@@ -830,7 +832,7 @@ BSTR_PUBLIC bstring *b_read(bNread read_ptr, void *parm);
  * returned in other normal cases.
  */
 BSTR_PUBLIC int b_getsa(bstring *bstr, bNgetc getc_ptr, void *parm,
-                        char terminator);
+                        int terminator, bool keepend);
 
 /**
  * Read from a stream and concatenate to a bstring.
@@ -841,7 +843,7 @@ BSTR_PUBLIC int b_getsa(bstring *bstr, bNgetc getc_ptr, void *parm,
  * returned in other normal cases.
  */
 BSTR_PUBLIC int b_assign_gets(bstring *bstr, bNgetc getc_ptr, void *parm,
-                              char terminator);
+                              int terminator, bool keepend);
 
 /**
  * Read an entire stream and append it to a bstring, verbatim.
@@ -1035,8 +1037,8 @@ b_fread(void *buf, const size_t size, const size_t nelem, void *param)
         return fread(buf, size, nelem, (FILE *)param);
 }
 
-#define B_GETS(PARAM, TERM) b_gets(&b_fgetc, (PARAM), (TERM))
-#define B_READ(PARAM)       b_read(&b_fread, (PARAM))
+#define B_GETS(PARAM, TERM, END_) b_gets(&b_fgetc, (PARAM), (TERM), (END_))
+#define B_READ(PARAM, END_)       b_read(&b_fread, (PARAM), (END_))
 
 
 /*----------------------------------------------------------------------------*/

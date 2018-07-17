@@ -113,30 +113,27 @@ struct backups {
                  (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))) * 1000000000.0l)}}, \
             NULL)
 
+void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
+void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4) aNORET;
+
+#define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
+#define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
+
 #ifdef DEBUG
-   void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
-   void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4) aNORET;
 #  define warn(...)       __warn(true, __VA_ARGS__)
 #  define warnx(...)      __warn(false, __VA_ARGS__)
-#  define SHOUT_(...)      __warn(false, __VA_ARGS__)
-#  define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
-#  define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
-#  undef eprintf
+#  define SHOUT(...)      __warn(false, __VA_ARGS__)
 #  define nvprintf warnx
-#  define eprintf warnx
 #  define echo    warnx
 #else
 #  undef eprintf
+#  define warn(...)
 #  define warnx(...)
-#  define nvprintf warnx
-#  define eprintf warnx
-#  define echo warnx
-#  define warn warnx
-#  define err(...) abort()
-#  define errx(...) abort()
-/* #  define SHOUT_(...) fprintf(stderr, __VA_ARGS__) */
-#  define SHOUT_(...)
-/* #  define fprintf(...) */
+#  define nvprintf(...)
+#  define eprintf(...)
+#  define echo(...)
+#  define SHOUT(...) __warn(false, __VA_ARGS__)
+/* #  define SHOUT(...) */
 #endif
 
 #if defined(__GNUC__)

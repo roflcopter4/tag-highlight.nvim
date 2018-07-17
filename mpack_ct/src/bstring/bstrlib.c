@@ -153,8 +153,9 @@ int
 b_free(bstring *bstr)
 {
         if (!bstr)
-                RUNTIME_ERROR();
-        if (NO_WRITE(bstr))
+                return BSTR_ERR;
+                /* RUNTIME_ERROR(); */
+        if (!(bstr->flags & BSTR_WRITE_ALLOWED) && !IS_CLONE(bstr))
                 return BSTR_ERR;
                 /* RUNTIME_ERROR(); */
 
@@ -783,6 +784,10 @@ b_strrchrp(const bstring *bstr, const int ch, const uint pos)
 }
 
 
+/* ============================================================================
+ * READ
+ * ============================================================================ */
+
 
 int
 b_reada(bstring *bstr, const bNread read_ptr, void *parm)
@@ -818,13 +823,17 @@ b_read(const bNread read_ptr, void *parm)
 }
 
 
-int
-b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const char terminator)
+/* ============================================================================
+ * GETS
+ * ============================================================================ */
+
+
+inline static int
+do_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator,
+        const bool keepend, const uint init)
 {
-        if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
-                RUNTIME_ERROR();
-        uint i = 0;
-        int ch;
+        int  ch;
+        uint i = init;
 
         while ((ch = getc_ptr(parm)) >= 0) {
                 if (i > (bstr->mlen - 2)) {
@@ -837,50 +846,42 @@ b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const char termi
                         break;
         }
 
+        bstr->slen    = ((keepend || i == 0) ? i : --i);
         bstr->data[i] = (uchar)'\0';
-        bstr->slen = i;
 
         return (i == 0 && ch < 0);
-        /* return (i == 0) ? BSTR_ERR : BSTR_OK; */
 }
 
 
 int
-b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const char terminator)
+b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
 {
         if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
                 RUNTIME_ERROR();
-        int ch;
-        uint i = bstr->slen;
+        
+        return do_gets(bstr, getc_ptr, parm, terminator, keepend, 0);
+}
 
-        while ((ch = getc_ptr(parm)) >= 0) {
-                if (i > (bstr->mlen - 2)) {
-                        bstr->slen = i;
-                        if (b_alloc(bstr, i + 2) != BSTR_OK)
-                                RUNTIME_ERROR();
-                }
-                bstr->data[i++] = (uchar)ch;
-                if (ch == terminator)
-                        break;
-        }
 
-        bstr->data[i] = (uchar)'\0';
-        bstr->slen    = i;
-
-        /* return (i == 0) ? BSTR_ERR : BSTR_OK; */
-        return (i == 0 && ch < 0);
+int
+b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
+{
+        if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
+                RUNTIME_ERROR();
+        
+        return do_gets(bstr, getc_ptr, parm, terminator, keepend, bstr->slen);
 }
 
 
 bstring *
-b_gets(const bNgetc getc_ptr, void *parm, const char terminator)
+b_gets(const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
 {
-        bstring *buff = b_alloc_null(128);
-        if (b_getsa(buff, getc_ptr, parm, terminator) != BSTR_OK) {
-                b_free(buff);
-                buff = NULL;
-        }
-        return buff;
+        bstring *buf = b_alloc_null(128);
+
+        if (do_gets(buf, getc_ptr, parm, terminator, keepend, 0) != BSTR_OK)
+                b_destroy(buf);
+
+        return buf;
 }
 
 

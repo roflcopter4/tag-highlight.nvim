@@ -49,7 +49,8 @@ let g:tag_highlight#c#R = {
 
 let g:tag_highlight#c#v = { 'group': 'cGlobalVar' }
 
-let g:tag_highlight#c#equivalent = { 'p': 'f' }
+let g:tag_highlight#c#equivalent = { 'p': 'f',
+                                 \   'x': 'v', }
 
 highlight def link cClassTag	tag_highlight_TypeTag
 highlight def link cEnumTypeTag	tag_highlight_EnumTypeTag

@@ -103,8 +103,8 @@ if g:tag_highlight#run_ctags
     if s:found
         call s:InitVar('ctags_args', [
                 \   '--fields=+l',
-                \   '--c-kinds=+p',
-                \   '--c++-kinds=+p',
+                \   '--c-kinds=+px',
+                \   '--c++-kinds=+px',
                 \   '--sort=yes',
                 \   "--exclude='.mypy_cache'",
                 \   '--regex-go=''/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/''',

@@ -266,8 +266,9 @@ BSTR_PRIVATE int b_scb(void *parm, const uint ofs, const uint len);
  */
 #define IS_NULL(BSTR)   (!(BSTR) || !(BSTR)->data)
 #define INVALID(BSTR)   (IS_NULL(BSTR))
-#define NO_WRITE(BSTR)  (((BSTR)->flags & BSTR_WRITE_ALLOWED) == 0)
-#define NO_ALLOC(BSTR)  (((BSTR)->flags & BSTR_DATA_FREEABLE) == 0)
+#define IS_CLONE(BSTR)  ((BSTR)->flags & BSTR_CLONE)
+#define NO_WRITE(BSTR)  (!((BSTR)->flags & BSTR_WRITE_ALLOWED) || IS_CLONE(BSTR))
+#define NO_ALLOC(BSTR)  (!((BSTR)->flags & BSTR_DATA_FREEABLE))
 #define IS_STATIC(BSTR) (NO_WRITE(BSTR) && NO_ALLOC(BSTR))
 
 

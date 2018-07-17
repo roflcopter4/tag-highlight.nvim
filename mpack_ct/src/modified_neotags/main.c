@@ -9,7 +9,7 @@
 #  define SEPCHAR ';'
 #else
 #  include <alloca.h>
-#  define __CONST__ const
+#  define CONST__ const
 #  define SEPCHAR ':'
 #endif
 
@@ -25,31 +25,30 @@
 
 static bool is_c_or_cpp;
 
-UNUSED static void print_tags(const struct taglist *list, const char *ft);
-UNUSED static void print_tags_vim(const struct taglist *list, const char *ft);
 
 static struct taglist * tok_search(const struct bufdata *bdata, b_list *vimbuf);
 static void *do_tok_search(void *vdata);
 
+#ifdef DEBUG
 static FILE *thislog;
+#endif
 
 
 struct taglist *
 findemtagers(struct bufdata *bdata, b_list *toks)
 {
+#ifdef DEBUG
         thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);
+#endif
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
 
         struct taglist *list = tok_search(bdata, toks);
         if (!list)
                 return NULL;
 
-        /* if (bdata->ft->id == FT_VIM) */
-                /* print_tags_vim(list, BTS(bdata->ft->vim_name)); */
-        /* else */
-                /* print_tags(list, BTS(bdata->ft->vim_name)); */
-
+#ifdef DEBUG
         fclose(thislog);
+#endif
         return list;
 
 }
@@ -80,9 +79,6 @@ tag_cmp(const void *vA, const void *vB)
                         ret = memcmp(sA->b->data, sB->b->data, sA->b->slen);
                 else
                         ret = sA->b->slen - sB->b->slen;
-                /* ret = b_strcmp(sA->b, sB->b); */
-                /* ret = strcmp(BS(sA->b), BS(sB->b)); */
-                /* ret = memcmp(BS(sA->b), BS(sB->b), MIN(sA->b->slen, sB->b->slen)); */
         } else
                 ret = sA->kind - sB->kind;
 
@@ -92,6 +88,16 @@ tag_cmp(const void *vA, const void *vB)
 
 /* ========================================================================== */
 
+
+#if 0
+
+UNUSED static void print_tags(const struct taglist *list, const char *ft);
+UNUSED static void print_tags_vim(const struct taglist *list, const char *ft);
+
+        if (bdata->ft->id == FT_VIM)
+                print_tags_vim(list, BTS(bdata->ft->vim_name));
+        else
+                print_tags(list, BTS(bdata->ft->vim_name));
 
 #define DATA (list->lst)
 #ifdef DEBUG
@@ -141,6 +147,7 @@ print_tags_vim(const struct taglist *list, const char *ft)
 }
 
 #undef DATA
+#endif
 
 
 /* ========================================================================== */
@@ -162,11 +169,11 @@ in_order(const b_list *equiv, const bstring *order, char *kind)
 
 
 static bool
-is_correct_lang(const bstring *lang, __CONST__ bstring *match_lang)
+is_correct_lang(const bstring *lang, CONST__ bstring *match_lang)
 {
 #ifdef DOSISH
         if (match_lang->data[match_lang->len - 1] == '\r')
-                match_lang->data[match_lang->len - 1] = '\0';
+                match_lang->data[--match_lang->len] = '\0';
 #endif
         if (b_iseq_caseless(match_lang, lang))
                 return true;
@@ -202,8 +209,6 @@ struct pdata {
         bstring **lst;
         unsigned num;
 };
-
-/* FILE *logfile; */
 
 
 static struct taglist *
@@ -297,7 +302,6 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 }
 
 #define INIT_MAX ((data->num / 2) * 3)
-/* #define cur_str  (data->lst[i]->data) */
 #define cur_str  (cpy->data)
 #define STRSEP(BSTR, SEP) ((uchar *)(strsep((char **)(&(BSTR)), (SEP))))
 #define STRCHR(BSTR, CH)  ((uchar *)(strchr((char *)(BSTR), (CH))))
@@ -315,7 +319,6 @@ do_tok_search(void *vdata)
         for (unsigned i = 0; i < data->num; ++i) {
                 /* Skip empty lines and comments. */
                 if (!data->lst[i] || !data->lst[i]->data || !data->lst[i]->data[0] ) {
-                        /* b_fputs(logfile, b_tmp("Skipping a NULL tag.\n")); */
                         continue;
                 }
                 if (data->lst[i]->data[0] == '!')
@@ -335,7 +338,6 @@ do_tok_search(void *vdata)
                 cur_str          = STRCHR(cur_str, '\t');
 
                 char *tok, kind = '\0';
-                /* bstring *match_lang = (bstring[]){{ 0, 0, NULL, 0u }}; */
                 bstring *match_lang = NULL;
 
                 /* Extract the 'kind' and 'language' fields. The former is the
@@ -360,7 +362,6 @@ do_tok_search(void *vdata)
                 }
 
                 if (!kind || !match_lang || !match_lang->data) {
-                        /* b_fputs(logfile, b_tmp("Couldn't find lang/kind for tag "), name, b_tmp(".\n")); */
                         free(cpy_data);
                         free(cpy);
                         continue;
@@ -384,26 +385,24 @@ do_tok_search(void *vdata)
                  *    4) are present in the current vim buffer.
                  * If invalid, just move on. 
                  */
-#if 0
+#ifndef DEBUG
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
-                     (/* b_iseq(data->filename, match_file) || */
+                     (b_iseq(data->filename, match_file) ||
                       bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
-                              sizeof(*data->vim_buf->lst), &b_strcmp_fast_wrap)))
+                              sizeof(bstring *), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
                         struct tag *tag = xmalloc(sizeof(*tag));
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
-#endif
-#ifdef DEBUG
+
+#else
+
 #  define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
                                     kind, BS(match_lang), BS(name), name->slen, (REASON)))
-#else
-#  define REJECT_TAG(...)
-#endif
 
                 if (!in_order(data->equiv, data->order, &kind))
                         REJECT_TAG("not in order");
@@ -411,20 +410,11 @@ do_tok_search(void *vdata)
                         REJECT_TAG("wrong language");
                 else if (skip_tag(data->skip, name))
                         REJECT_TAG("in skip list");
-                /* else if (!(b_iseq(data->filename, match_file) || */
-                           /* bsearch(&name, data->vim_buf->lst, data->vim_buf->qty, */
-                                   /* sizeof(*data->vim_buf->lst), &b_strcmp_wrap))) */
-                        /* REJECT_TAG("not in buffer"); */
                 else if (!(b_iseq(data->filename, match_file))) {
                         REJECT_TAG("not in specified file");
                         if (bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
                                      sizeof(bstring *), &b_strcmp_fast_wrap))
                                 goto lazy;
-                        /* for (unsigned i = 0; i < data->vim_buf->qty; ++i) {
-                                fprintf(thislog, "Comparing \"%s\" with \"%s\".\n", BS(name), BS(data->vim_buf->lst[i]));
-                                if (b_iseq(name, data->vim_buf->lst[i]))
-                                        goto lazy;
-                        } */
                         REJECT_TAG("also not in buffer");
                 } else {
 lazy:
@@ -435,6 +425,7 @@ lazy:
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
+#endif
 
                 free(cpy_data);
                 free(cpy);

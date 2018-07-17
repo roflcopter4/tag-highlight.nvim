@@ -131,17 +131,23 @@ handle_line_event(const unsigned index, mpack_obj **items)
                 }
         }
 
+#ifdef DEBUG
         assert(ll_verify_size(bdata->lines));
         unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
-        if (bdata->ctick == ctick)
-                assert((unsigned)bdata->lines->qty == nvim_buf_line_count(0, bdata->num));
+
+        if (bdata->ctick == ctick) {
+                int n = (int)nvim_buf_line_count(0, bdata->num);
+                if (((bdata->lines->qty) ?: 1) != n)
+                        errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
+                             bdata->lines->qty, n);
+        }
+#endif
 
         /* const unsigned linecount = nvim_buf_line_count(0, bdata->num);
         ASSERTX(linecount == (unsigned)bdata->lines->qty,
                 "ERROR: Linecount: %u, qty: %d! (odiff %u)",
                 linecount, bdata->lines->qty, odiff); */
 
-#if 0
 #ifdef DEBUG
         bstring *fn = nvim_call_function(0, b_tmp("tempname"), MPACK_STRING, NULL, 1);
         int tempfd  = open(BS(fn), O_CREAT|O_WRONLY|O_TRUNC|O_BINARY, 0600);
@@ -151,7 +157,6 @@ handle_line_event(const unsigned index, mpack_obj **items)
         b_free(fn);
 
         echo("Done writing file");
-#endif
 #endif
         
         free(new_lines->lst);

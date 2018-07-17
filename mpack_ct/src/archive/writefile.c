@@ -154,18 +154,16 @@ write_lzma(struct top_dir *topdir)
         strm.avail_out = size;
         strm.avail_in  = size;
 
-        fputs("Running lzma code now\n", stderr);
+        eprintf("Running lzma code now\n");
         int iter = 1;
 
         do {
-                fprintf(stderr, "Iteration number %d\n", iter++);
+                eprintf("Iteration number %d\n", iter++);
                 /* ret = lzma_code(&strm, LZMA_RUN); */
                 ret = lzma_code(&strm, LZMA_FINISH);
         } while (ret == LZMA_OK);
 
-        /* fputs("Done! now finishing!\n", stderr);
-        ret = lzma_code(&strm, LZMA_FINISH); */
-        fputs("Done!\n", stderr);
+        eprintf("Done!\n");
 
         if (ret != LZMA_STREAM_END)
                 warnx("Unexpected error on line %d in file %s: %d => %s",

@@ -509,11 +509,10 @@ get_expect(mpack_obj *        result,
 
         void      *ret = NULL;
         int64_t    value;
-        assert(mpack_log != NULL);
         mpack_print_object(result, mpack_log);
 
         if (mpack_type(cur) == MPACK_NIL) {
-                fprintf(stderr, "Neovim returned nil!\n");
+                eprintf("Neovim returned nil!\n");
                 return NULL;
         }
         if (mpack_type(cur) != expect) {
@@ -863,7 +862,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         enum encode_fmt_next_type   next_type = OWN_VALIST;
 
         if (size_hint)
-                fprintf(stderr, "Using arr_size %u for encoding\n", arr_size);
+                eprintf("Using arr_size %u for encoding\n", arr_size);
 
         va_list      args;
         int          ch;
@@ -914,8 +913,11 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
         if (sub_lengths[0] == 0)
                 goto cleanup;
-        else
-                pack = mpack_make_new(sub_lengths[0], true);
+#ifdef DEBUG
+        pack = mpack_make_new(sub_lengths[0], true);
+#else
+        pack = mpack_make_new(sub_lengths[0], false);
+#endif
 
         /* Screw pointer arithmetic. It always breaks things.
          * Let's just use lots of cryptic counters. */

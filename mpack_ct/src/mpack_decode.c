@@ -70,7 +70,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                /* fprintf(stderr, "For some incomprehensible reason the pack's type is %d.\n",
+                /* eprintf("For some incomprehensible reason the pack's type is %d.\n",
                      mpack_type(ret)); */
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
@@ -82,8 +82,8 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (expected_type != MES_ANY &&
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
-                fprintf(stderr, "Expected %d but got %ld\n",
-                     expected_type, ret->data.arr->items[0]->data.num);
+                eprintf("Expected %d but got %ld\n",
+                        expected_type, ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
                 case MES_REQUEST: 
@@ -113,8 +113,8 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                fprintf(stderr, "For some incomprehensible reason the pack's type is %d.\n",
-                     mpack_type(ret));
+                eprintf("For some incomprehensible reason the pack's type is %d.\n",
+                        mpack_type(ret));
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
                 abort();
@@ -124,8 +124,8 @@ decode_obj(bstring *buf, const enum message_types expected_type)
             expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
         {
                 if (buf != 0)
-                        fprintf(stderr, "Expected %d but got %ld\n", expected_type,
-                             ret->data.arr->items[0]->data.num);
+                        eprintf("Expected %d but got %ld\n", expected_type,
+                                ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
                 case MES_REQUEST:      errx(1, "This will NEVER happen.");
@@ -290,8 +290,6 @@ decode_string(read_fn READ, void *src, const uint8_t byte, const struct mpack_ma
                 READ(src, item->data.str->data, size);
 
         item->data.str->data[size] = (uchar)'\0';
-
-        /* b_fputs(decodelog, b_tmp(" : \""), item->data.str, b_tmp("\"\n")); */
 
         return item;
 }

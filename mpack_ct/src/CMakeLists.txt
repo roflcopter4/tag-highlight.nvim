@@ -8,7 +8,7 @@ set (tag_highlight_SOURCES
      bstring/bstrlib.c
      bstring/additions.c
      bstring/b_list.c
-     bstring/b_stream.c
+     # bstring/b_stream.c
      bstring/char_fields.c
      bstring/never_use.c
 
@@ -29,7 +29,7 @@ set (tag_highlight_SOURCES
      mpack_encode.c
      mpack_print.c
      parse.c
-     update.c
+     update_commands.c
      util.c
 )
 

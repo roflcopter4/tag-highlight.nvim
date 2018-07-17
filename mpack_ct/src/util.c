@@ -109,7 +109,6 @@ int64_t
 __xatoi(const char *const str, const bool strict)
 {
         char *endptr;
-        eprintf("str is %s\n", str);
         const long long int val = strtol(str, &endptr, 10);
 
         if ((endptr == str) || (strict && *endptr != '\0'))

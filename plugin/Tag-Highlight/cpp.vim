@@ -19,7 +19,8 @@ let g:tag_highlight#cpp#f = {
             \ }
 let g:tag_highlight#cpp#v = { 'group': 'cppGlobalVar' }
 
-let g:tag_highlight#cpp#equivalent = { 'p': 'f' }
+let g:tag_highlight#cpp#equivalent = { 'p': 'f',
+                                   \   'x': 'v', }
 
 highlight def link cppClassTag		tag_highlight_TypeTag
 highlight def link cppEnumTypeTag	tag_highlight_EnumTypeTag
