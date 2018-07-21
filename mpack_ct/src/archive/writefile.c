@@ -1,5 +1,4 @@
 #include "archive_util.h"
-#include <fcntl.h>
 
 #ifdef HAVE_CONFIG_H
 #  include "util.h"

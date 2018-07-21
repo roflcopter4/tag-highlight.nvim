@@ -1,6 +1,5 @@
 #include "util.h"
 #include <dirent.h>
-#include <fcntl.h>
 #include <sys/stat.h>
 
 #include "archive/archive_util.h"
@@ -561,7 +560,11 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         B_LIST_FOREACH (src_dirs, dir, i) {
                 unsigned x;
                 int      dirfd = open(BS(dir), O_RDONLY|O_DIRECTORY);
-                assert(dirfd > 2);
+                /* assert(dirfd > 2); */
+                if (dirfd == (-1)) {
+                        warn("Failed to open directory '%s'", BS(dir));
+                        continue;
+                }
 
                 B_LIST_FOREACH (includes_clone, file, x) {
                         struct stat st;

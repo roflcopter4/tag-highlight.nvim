@@ -40,7 +40,7 @@
 #include <string.h>
 
 #include "bstring/bstrlib.h"
-
+#include "contrib/bsd_funcs.h"
 #include "data.h"
 
 extern const char *HOME;
@@ -68,6 +68,7 @@ struct backups {
 #  define PATHSEP '\\'
     extern char * basename(char *path);
 #else
+#  include <fcntl.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
 #endif

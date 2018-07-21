@@ -1,5 +1,4 @@
 #include "util.h"
-#include <fcntl.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -48,10 +47,11 @@ main(int argc, char *argv[])
         HOME         = getenv("HOME");
 
         {
-                /* const struct sigaction temp1 = {{exit}, {{0}}, 0, 0};
+#if 0
+                const struct sigaction temp1 = {{exit}, {{0}}, 0, 0};
                 sigaction(SIGTERM, &temp1, NULL);
-                sigaction(SIGPIPE, &temp1, NULL); */
-
+                sigaction(SIGPIPE, &temp1, NULL);
+#endif
                 const struct sigaction temp2 = {{pthread_exit_wrapper}, {{0}}, 0, 0};
                 sigaction(SIGUSR1, &temp2, NULL);
         }

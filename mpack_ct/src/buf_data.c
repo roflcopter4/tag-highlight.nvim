@@ -1,5 +1,4 @@
 #include "util.h"
-#include <fcntl.h>
 
 #include "data.h"
 #include "highlight.h"

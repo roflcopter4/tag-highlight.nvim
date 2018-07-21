@@ -1,5 +1,4 @@
 #include "util.h"
-#include <fcntl.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 

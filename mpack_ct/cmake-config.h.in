@@ -6,6 +6,8 @@
 #cmakedefine HAVE_REALLOCARRAY
 #cmakedefine HAVE_STRDUPA
 #cmakedefine HAVE_STRLCPY
+#cmakedefine HAVE_STRLCAT
+#cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_STRSEP
 #cmakedefine LZMA_SUPPORT
 #cmakedefine USE_PTHREADS

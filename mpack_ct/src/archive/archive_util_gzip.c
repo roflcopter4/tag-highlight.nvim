@@ -1,6 +1,5 @@
 #include "archive_util.h"
 #include "util.h"
-#include <fcntl.h>
 #include <sys/stat.h>
 
 

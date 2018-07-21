@@ -13,6 +13,7 @@
 
 /*============================================================================*/
 /*============================================================================*/
+#ifndef HAVE_STRLCPY
 /* strlcpy */
 
 /* $OpenBSD: strlcpy.c,v 1.12 2015/01/15 03:54:12 millert Exp $ */
@@ -39,7 +40,7 @@
  * Returns strlen(src); if retval >= dst_size, truncation occurred.
  */
 size_t
-mytags_strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size)
+strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size)
 {
         const char *orig_src = src;
         size_t nleft = dst_size;
@@ -62,8 +63,10 @@ mytags_strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_si
         return (src - orig_src - 1);  /* count does not include NUL */
 }
 
+#endif
 /*============================================================================*/
 /*============================================================================*/
+#ifndef HAVE_STRLCAT
 /* strlcat */
 
 /* $OpenBSD: strlcat.c,v 1.15 2015/03/02 21:41:08 millert Exp $ */
@@ -91,7 +94,7 @@ mytags_strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_si
  * If retval >= dst_size, truncation occurred.
  */
 size_t
-mytags_strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
+strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
 {
         const char *orig_dst = dst;
         const char *orig_src = src;
@@ -119,8 +122,10 @@ mytags_strlcat(char * __restrict dst, const char * __restrict src, size_t dst_si
         return (dst_len + (src - orig_src));  /* count does not include NUL */
 }
 
+#endif
 /*============================================================================*/
 /*============================================================================*/
+#ifndef HAVE_STRTONUM
 /* strtonum */
 
 /*-
@@ -146,8 +151,8 @@ mytags_strlcat(char * __restrict dst, const char * __restrict src, size_t dst_si
 #define TOOSMALL 2
 #define TOOLARGE 3
 
-long long
-mytags_strtonum(const char *numstr,
+int64_t
+strtonum(const char *numstr,
          long long minval,
          long long maxval,
          const char **errstrp)
@@ -187,10 +192,10 @@ mytags_strtonum(const char *numstr,
         return (ret);
 }
 
-
+#endif
+/*============================================================================*/
+/*============================================================================*/
 #ifndef HAVE_STRSEP
-/*============================================================================*/
-/*============================================================================*/
 /* strsep */
 
 /*-
@@ -254,5 +259,5 @@ strsep(char **stringp, const char *delim)
         }
         /* NOTREACHED */
 }
-#endif
 
+#endif
