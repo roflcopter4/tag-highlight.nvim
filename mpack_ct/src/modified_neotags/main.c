@@ -35,7 +35,7 @@ static FILE *thislog;
 
 
 struct taglist *
-findemtagers(struct bufdata *bdata, b_list *toks)
+process_tags(struct bufdata *bdata, b_list *toks)
 {
 #ifdef DEBUG
         thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);

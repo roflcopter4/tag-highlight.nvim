@@ -31,8 +31,9 @@ struct taglist {
 
 extern bstring * strip_comments(struct bufdata *bdata);
 extern b_list  * tokenize(struct bufdata *bdata, bstring *vimbuf);
-extern struct taglist * findemtagers(struct bufdata *bdata, b_list *toks) __attribute__((warn_unused_result));
+extern struct taglist * process_tags(struct bufdata *bdata, b_list *toks) __attribute__((warn_unused_result));
 
+extern b_list * parse_json(const bstring *json_path, const bstring *filename, b_list *includes);
 
 extern int my_highlight(int bufnum, struct bufdata *bdata);
 extern void my_parser(int bufnum, struct bufdata *bdata);

@@ -73,19 +73,21 @@ struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0};
 struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
 struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 
+extern int decode_log_raw;
 extern struct backups backup_pointers;
-extern FILE *decodelog, *cmdlog;
+extern FILE *decode_log, *cmd_log;
 extern const char *program_name;
 extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main_mutex, mpack_print_mutex,
     mpack_socket_mutex, mpack_stdin_mutex, update_mutex;
 
 struct backups backup_pointers = { NULL, 0, 0 };
 
-int             sockfd;
-FILE *          decodelog;
+int             sockfd = (-1);
+int             decode_log_raw = (-1);
+FILE *          decode_log;
 FILE *          mpack_log;
+FILE *          cmd_log;
 FILE *          vpipe;
-FILE *          cmdlog;
 const char *    program_name;
 const char *    HOME;
 pthread_mutex_t event_mutex        = PTHREAD_MUTEX_INITIALIZER;

@@ -29,8 +29,8 @@ extern pthread_mutex_t update_mutex;
 static unsigned usable = 0;
 
 #ifdef DEBUG
-extern FILE *cmdlog;
-#  define LOGCMD(...) fprintf(cmdlog, __VA_ARGS__)
+extern FILE *cmd_log;
+#  define LOGCMD(...) fprintf(cmd_log, __VA_ARGS__)
 #else
 #  define LOGCMD(...)
 #endif
@@ -64,7 +64,7 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         bstring *joined = strip_comments(bdata);
         b_list  *toks   = tokenize(bdata, joined);
 
-        struct taglist *tags = findemtagers(bdata, toks);
+        struct taglist *tags = process_tags(bdata, toks);
         if (tags) {
                 usable = 0;
                 echo("Got %u total tags\n", tags->qty);
@@ -149,8 +149,8 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
         }
 
 #ifdef DEBUG
-        fputs("\n\n\n\n", cmdlog);
-        fflush(cmdlog);
+        fputs("\n\n\n\n", cmd_log);
+        fflush(cmd_log);
 #endif
 
         return calls;

@@ -2,7 +2,7 @@
 set (tag_highlight_SOURCES
      archive/archive_util_gzip.c
      archive/archive_util_xz.c
-     archive/getlines.c
+     archive/readfile.c
      archive/writefile.c
 
      bstring/bstrlib.c

@@ -396,9 +396,6 @@ find_includes(struct bufdata *bdata, struct top_dir *topdir)
 }
 
 
-extern b_list * parse_json(const bstring *json_path, const bstring *filename, b_list *includes);
-
-
 static b_list *
 find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
 {

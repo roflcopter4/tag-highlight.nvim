@@ -149,7 +149,7 @@ analyze_tags(struct bufdata *bdata)
 {
         bstring        *joined = strip_comments(bdata);
         b_list         *toks   = tokenize(bdata, joined);
-        struct taglist *tags   = findemtagers(bdata, toks);
+        struct taglist *tags   = process_tags(bdata, toks);
 
         b_list_destroy(toks);
         b_destroy(joined);

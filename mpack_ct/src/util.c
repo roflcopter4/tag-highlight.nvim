@@ -1,4 +1,5 @@
 #include "util.h"
+#include <fcntl.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 
@@ -37,17 +38,45 @@ safe_fopen_fmt(const char *const restrict fmt,
 {
         va_list va;
         va_start(va, mode);
-        bstring *filename = b_vformat(fmt, va);
+        char buf[PATH_MAX + 1];
+        vsnprintf(buf, PATH_MAX + 1, fmt, va);
         va_end(va);
 
-        FILE *fp = fopen(BS(filename), mode);
+        FILE *fp = fopen(buf, mode);
         if (!fp)
-                err(1, "Failed to open file \"%s\"", BS(filename));
-        if (!file_is_reg(BS(filename)))
-                errx(1, "Invalid filetype \"%s\"\n", BS(filename));
+                err(1, "Failed to open file \"%s\"", buf);
+        if (!file_is_reg(buf))
+                errx(1, "Invalid filetype \"%s\"\n", buf);
 
-        b_free(filename);
         return fp;
+}
+
+
+int
+safe_open(const char *const filename, const int flags, const int mode)
+{
+        int fd = open(filename, flags, mode);
+        if (fd == (-1))
+                err(1, "Failed to open file '%s'", filename);
+        return fd;
+}
+
+
+int
+safe_open_fmt(const char *const restrict fmt,
+              const int flags, const int mode, ...)
+{
+        va_list va;
+        va_start(va, mode);
+        char buf[PATH_MAX + 1];
+        vsnprintf(buf, PATH_MAX + 1, fmt, va);
+        va_end(va);
+
+        int fd = open(buf, flags, mode);
+        if (fd == (-1))
+                err(1, "Failed to open file \"%s\"", buf);
+
+        return fd;
 }
 
 

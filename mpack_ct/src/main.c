@@ -17,8 +17,9 @@
         (((long double)(tv2.tv_usec - tv1.tv_usec) / 1000000.0L) + \
          ((long double)(tv2.tv_sec - tv1.tv_sec)))
 
-extern FILE    *decodelog, *cmdlog;
-static FILE    *logfile;
+extern int      decode_log_raw;
+extern FILE    *decode_log, *cmd_log;
+static FILE    *main_log;
 static bstring *vpipename, *servername, *mes_servername;
 static struct timeval tv1, tv2;
 
@@ -34,18 +35,17 @@ noreturn static void pthread_exit_wrapper(UNUSED int x);
 
 extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
-
 /*============================================================================*/
 
 
 int
 main(int argc, char *argv[])
 {
+        atexit(exit_cleanup);
         gettimeofday(&tv1, NULL);
         extern const char *program_name;
         program_name = basename(argv[0]);
         HOME         = getenv("HOME");
-        assert(atexit(exit_cleanup) == 0);
 
         {
                 /* const struct sigaction temp1 = {{exit}, {{0}}, 0, 0};
@@ -57,9 +57,12 @@ main(int argc, char *argv[])
         }
 
 #ifdef DEBUG
-        mpack_log = safe_fopen_fmt("%s/mpack.log", "w+", HOME);
-        decodelog = safe_fopen_fmt("%s/stream_decode.log", "w", HOME);
-        cmdlog    = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
+        mpack_log  = safe_fopen_fmt("%s/mpack.log", "wb+", HOME);
+        decode_log = safe_fopen_fmt("%s/stream_decode.log", "wb", HOME);
+        cmd_log    = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
+
+        decode_log_raw = safe_open_fmt(
+            "%s/decode_raw.log", O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0644, HOME);
 #endif
         vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
         sockfd    = create_socket(&servername);
@@ -81,7 +84,6 @@ main(int argc, char *argv[])
         assert(settings.enabled);
 
         /* piss_around(); */
-
         get_pcre2_matches(B("\\d+ \\w+"), B("donkey 2834 asdf 32 iuu"), 0);
 
         /* Initialize all opened buffers. */
@@ -124,13 +126,13 @@ buffer_event_loop(UNUSED void *vdata)
         for (unsigned i = 0; i < buffers.mkr; ++i)
                 nvim_buf_attach(1, buffers.lst[i]->num);
 
-        logfile = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+", HOME);
+        main_log = safe_fopen_fmt("%s/.tag_highlight_log/buflog", "w+", HOME);
 
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
                 if (event) {
-                        mpack_print_object(event, logfile);
-                        fflush(logfile);
+                        mpack_print_object(event, main_log);
+                        fflush(main_log);
 
                         handle_nvim_event(event);
 
@@ -300,17 +302,19 @@ exit_cleanup(void)
 
         if (mpack_log)
                 fclose(mpack_log);
-        if (decodelog)
-                fclose(decodelog);
-        if (cmdlog)
-                fclose(cmdlog);
-        if (logfile)
-                fclose(logfile);
+        if (decode_log)
+                fclose(decode_log);
+        if (cmd_log)
+                fclose(cmd_log);
+        if (main_log)
+                fclose(main_log);
         if (vpipe) {
                 fclose(vpipe);
                 unlink(BS(vpipename));
                 b_free(vpipename);
         }
+        if (decode_log_raw > 0)
+                close(decode_log_raw);
         close(sockfd);
 }
 

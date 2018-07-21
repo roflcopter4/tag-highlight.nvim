@@ -92,12 +92,12 @@ handle_line_event(const unsigned index, mpack_obj **items)
         unsigned        diff      = (last - first);
         const unsigned  iters     = MAX(diff, repl_list->qty);
 
-        echo("EVENT %d - first: %u, last: %u, diff: %u, llqty: %d, newqty: %u",
-             bdata->ctick, first, last, diff, bdata->lines->qty, repl_list->qty);
+        /* echo("EVENT %d - first: %u, last: %u, diff: %u, llqty: %d, newqty: %u",
+             bdata->ctick, first, last, diff, bdata->lines->qty, repl_list->qty); */
         
         if (repl_list->qty) {
                 if (first == 0 && last == 0) {
-                        echo("before!");
+                        /* echo("before!"); */
                         ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, (-1));
                 } else {
                         const unsigned olen = bdata->lines->qty;
@@ -111,20 +111,20 @@ handle_line_event(const unsigned index, mpack_obj **items)
                                                 /* echo("replacing line %u", first + i); */
                                                 replace_line(bdata, repl_list, first + i, i);
                                         } else {
-                                                echo("Removing lines %u - %u, total: %d lines",
-                                                     first + i, last, bdata->lines->qty);
+                                                /* echo("Removing lines %u - %u, total: %d lines",
+                                                     first + i, last, bdata->lines->qty); */
                                                 ll_delete_range_at(bdata->lines, first + i, diff+1);
-                                                echo("Now there are %d lines", bdata->lines->qty);
+                                                /* echo("Now there are %d lines", bdata->lines->qty); */
 
                                                 break;
                                         }
                                 } else {
                                         if ((first + i) >= (unsigned)bdata->lines->qty) {
-                                                echo("after!");
+                                                /* echo("after!"); */
                                                 ll_insert_blist_after_at(
                                                     bdata->lines, (first + i), repl_list, i, (-1));
                                         } else {
-                                                echo("before!");
+                                                /* echo("before!"); */
                                                 ll_insert_blist_before_at(
                                                     bdata->lines, (first + i), repl_list, i, (-1));
                                         }
@@ -135,12 +135,12 @@ handle_line_event(const unsigned index, mpack_obj **items)
                 }
         } else {
                 if (first == last) {
-                        echo("I have no idea what to do here.");
+                        /* echo("I have no idea what to do here."); */
                         /* ll_delete_at(bdata->lines, first); */
                         /* ll_insert_after_at(bdata->lines, first, b_fromlit("")); */
                 } else {
-                        echo("Removing lines %u - %u, total: %d lines",
-                             first, last, bdata->lines->qty);
+                        /* echo("Removing lines %u - %u, total: %d lines",
+                             first, last, bdata->lines->qty); */
                         ll_delete_range_at(bdata->lines, first, diff);
                 }
         }
@@ -171,15 +171,17 @@ handle_line_event(const unsigned index, mpack_obj **items)
                         errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
                              bdata->lines->qty, n);
         } else {
+#if 0
                 if (bdata->lines->qty != n)
                         echo("Internal line count (%d) is incorrect. Actual: %d",
                              bdata->lines->qty, n);
+#endif
         }
 #endif
 
         free(repl_list->lst);
         free(repl_list);
-        echo("\n\n\n");
+        /* echo("\n\n\n"); */
 }
 
 

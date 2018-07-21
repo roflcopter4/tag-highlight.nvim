@@ -4,6 +4,8 @@
 #include "data.h"
 #include "mpack.h"
 #include "mpack_code.h"
+
+extern int decode_log_raw;
 extern FILE *decodelog;
 extern pthread_mutex_t mpack_stdin_mutex;
 extern pthread_mutex_t mpack_socket_mutex;
@@ -101,6 +103,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
                 return decode_stream(fd, expected_type);
         }
 
+        UNUSED ssize_t n = write(decode_log_raw, "\n\n", 2);
         return ret;
 }
 
@@ -489,6 +492,8 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
                 if (n != (-1))
                         nread += (size_t)n;
         } while (nread > nbytes);
+
+        UNUSED ssize_t n = write(decode_log_raw, dest, nbytes);
 }
 
 

@@ -166,6 +166,8 @@ extern int64_t __xatoi       (const char *str, bool strict);
 extern int     find_num_cpus (void);
 extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR;
 extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
+extern int     safe_open     (const char *filename, int flags, int mode) aWUR;
+extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
 extern void    add_backup    (struct backups *list, void *item);
 extern void    free_backups  (struct backups *list);
 extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
