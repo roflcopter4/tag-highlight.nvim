@@ -153,12 +153,17 @@ __err(UNUSED const int status, const bool print_err, const char *const __restric
         /* exit(status); */
 }
 
+static FILE *echo_log = NULL;
 
 void
 __warn(const bool print_err, const char *const __restrict fmt, ...)
 {
-        va_list ap;
-        va_start(ap, fmt);
+        if (!echo_log)
+                echo_log = safe_fopen_fmt("%s/echo.log", "wb", HOME);
+
+        va_list ap1, ap2;
+        va_start(ap1, fmt);
+        va_start(ap2, fmt);
         char buf[0x8000];
 
         if (print_err)
@@ -167,8 +172,12 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
                 snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
 
         /* vfprintf(stderr, buf, ap); */
-        nvim_vprintf(sockfd, buf, ap);
-        va_end(ap);
+        nvim_vprintf(sockfd, buf, ap1);
+        vfprintf(echo_log, buf, ap2);
+        fflush(echo_log);
+
+        va_end(ap1);
+        va_end(ap2);
 }
 /* #endif */
 

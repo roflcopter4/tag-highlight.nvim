@@ -61,6 +61,7 @@ struct ll_node_s {
 
 extern linked_list *ll_make_new    (void);
 extern ll_node     *ll_at          (linked_list *list, int index);
+/* extern ll_node     *ll_at          (const linked_list *list, ll_node *ref, const int ref_ind, int index); */
 extern void ll_add                 (linked_list *list, bstring *data);
 extern void ll_append              (linked_list *list, bstring *data);
 extern void ll_delete_node         (linked_list *list, ll_node *node);

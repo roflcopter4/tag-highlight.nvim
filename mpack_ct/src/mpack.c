@@ -44,7 +44,7 @@ extern pthread_mutex_t mpack_main_mutex;
         } while (0)
 
 
-#define validate_expect(EXPECT, ...)                               \
+#define VALIDATE_EXPECT(EXPECT, ...)                               \
         do {                                                       \
                 const mpack_type_t lst[] = {__VA_ARGS__};          \
                 bool found = false;                                \
@@ -344,7 +344,7 @@ nvim_get_option(int                fd,
                 const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main_mutex);
-        validate_expect(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
+        VALIDATE_EXPECT(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
         WRITE_API("s", optname);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
@@ -369,7 +369,7 @@ nvim_buf_get_option(int                fd,
                     const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main_mutex);
-        validate_expect(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
+        VALIDATE_EXPECT(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
         WRITE_API("d:s", bufnum, optname);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
@@ -513,6 +513,8 @@ get_expect(mpack_obj *        result,
 
         if (mpack_type(cur) == MPACK_NIL) {
                 eprintf("Neovim returned nil!\n");
+                if (destroy)
+                        mpack_destroy(result);
                 return NULL;
         }
         if (mpack_type(cur) != expect) {
@@ -577,7 +579,7 @@ write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
 #ifdef DEBUG
         size_t nbytes;
         char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
-        int rawlog = open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC, 0644);
+        int rawlog = open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
         nbytes     = write(rawlog, "\n", 1);
         nbytes    += write(rawlog, (*pack->packed)->data, (*pack->packed)->slen);
         nbytes    += write(rawlog, "\n", 1);
@@ -857,9 +859,10 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
-        const unsigned              arr_size  = (size_hint) ? ENCODE_FMT_ARRSIZE + (size_hint * 6) : ENCODE_FMT_ARRSIZE;
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
+        const unsigned              arr_size  = (size_hint) ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
+                                                            : ENCODE_FMT_ARRSIZE;
 
         if (size_hint)
                 eprintf("Using arr_size %u for encoding\n", arr_size);
@@ -921,18 +924,18 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
         /* Screw pointer arithmetic. It always breaks things.
          * Let's just use lots of cryptic counters. */
-        len_ctr                = 1;
-        unsigned subctr_ctr    = 1;
-        unsigned a_arg_ctr     = 0;
-        unsigned a_arg_subctr  = 0;
-        mpack_obj  *cur_obj    = pack;
-        mpack_obj **obj_stackp = obj_stack;
-        int        *cur_ctr    = &sub_ctrs[0];
-        len_stackp             = len_stack;
-        *(len_stackp++)        = cur_ctr;
-        *(obj_stackp++)        = cur_obj;
-        *cur_ctr               = 0;
-        ptr                    = fmt;
+        len_ctr                  = 1;
+        unsigned    subctr_ctr   = 1;
+        unsigned    a_arg_ctr    = 0;
+        unsigned    a_arg_subctr = 0;
+        mpack_obj  *cur_obj      = pack;
+        mpack_obj **obj_stackp   = obj_stack;
+        int        *cur_ctr      = &sub_ctrs[0];
+        len_stackp               = len_stack;
+        *(len_stackp++)          = cur_ctr;
+        *(obj_stackp++)          = cur_obj;
+        *cur_ctr                 = 0;
+        ptr                      = fmt;
 
         while ((ch = *ptr++)) {
                 switch (ch) {

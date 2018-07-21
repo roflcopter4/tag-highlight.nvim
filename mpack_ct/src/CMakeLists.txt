@@ -13,6 +13,8 @@ set (tag_highlight_SOURCES
      bstring/never_use.c
 
      contrib/bsd_funcs.c
+     contrib/jsmn/jsmn.c
+     json.c
 
      modified_neotags/main.c
      modified_neotags/strip.c
@@ -31,6 +33,8 @@ set (tag_highlight_SOURCES
      parse.c
      update_commands.c
      util.c
+
+     regex.c
 )
 
 # if (LZMA_SUPPORT)
@@ -71,6 +75,12 @@ else()
 
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
+
+    target_link_libraries(tag_highlight -lpcre2-8)
+
+    # add_library(JSMN STATIC IMPORTED)
+    # set_property(TARGET JSMN PROPERTY IMPORTED_LOCATION ./contrib/jsmn/jsmn.a)
+    # target_link_libraries(tag_highlight JSMN)
 
     if (ISCLANG)
         target_link_libraries (tag_highlight -fuse-ld=lld)

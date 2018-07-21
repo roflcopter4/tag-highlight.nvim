@@ -18,7 +18,8 @@ struct cmd_info {
 
 static int  handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
                         const struct taglist  *tags, const struct cmd_info *info);
-static struct atomic_call_array * update_commands(struct bufdata *bdata, struct taglist *tags);
+static struct atomic_call_array *update_commands(struct bufdata *bdata,
+                                                 struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
 static void add_cmd_call(struct atomic_call_array **calls, bstring *cmd);
@@ -106,7 +107,8 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
+                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1,
+                                                      PKG "#%s#%c",
                                                       BTS(bdata->ft->vim_name), ch);
 
                 info[i].kind   = ch;
@@ -125,7 +127,6 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
         struct atomic_call_array *calls = NULL;
         add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
-        /* nvim_command(0, B("ownsyntax"), 1); */
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 unsigned ctr = 0;
@@ -137,8 +138,6 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                         bstring *cmd = b_alloc_null(0x4000);
                         handle_kind(cmd, ctr, bdata->ft, tags, &info[i]);
                         LOGCMD("%s\n\n", BS(cmd));
-                        /* nvim_command(0, cmd, 1);
-                        b_add_to_list(&bdata->cmd_cache, cmd); */
                         add_cmd_call(&calls, cmd);
                 }
 
@@ -167,35 +166,54 @@ handle_kind(bstring *cmd, unsigned i,
         bstring *group_id = b_format("_tag_highlight_%s_%c_%s", BTS(ft->vim_name),
                                      info->kind, BS(info->group));
 
-        b_join_append_all(cmd, B(" "), 1, B("silent! syntax clear"), group_id, B("|"));
+        b_join_append_all(cmd, B(" "), 1,
+                          B("silent! syntax clear"),
+                          group_id,
+                          B("|"));
 
         if (info->prefix || info->suffix) {
                 bstring *prefix = (info->prefix) ?: B("\\C\\<");
                 bstring *suffix = (info->suffix) ?: B("\\>");
 
-                b_append_all(cmd, B("syntax match "), group_id, B(" /"),
-                             prefix, B("\\%("), tags->lst[i++]->b);
+                b_append_all(cmd, B("syntax match "),
+                             group_id,
+                             B(" /"),
+                             prefix,
+                             B("\\%("),
+                             tags->lst[i++]->b);
 
-                for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i) {
+                for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
+                {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
                                 b_append_all(cmd, B("\\|"), tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_append_all(cmd, B("\\)"), suffix, B("/ display | hi def link "),
-                             group_id, B(" "), info->group);
+                b_append_all(cmd, B("\\)"),
+                             suffix,
+                             B("/ display | hi def link "),
+                             group_id,
+                             B(" "),
+                             info->group);
         } else {
-                b_join_append_all(cmd, B(" "), 1, B("syntax keyword"), group_id, tags->lst[i++]->b);
+                b_join_append_all(cmd, B(" "), 1,
+                                  B("syntax keyword"),
+                                  group_id,
+                                  tags->lst[i++]->b);
 
-                for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i) {
+                for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
+                {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
                                 b_join_append_all(cmd, B(" "), 1, tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_join_append_all(cmd, B(" "), 1, B("display | hi def link"), group_id, info->group);
+                b_join_append_all(cmd, B(" "), 1,
+                                  B("display | hi def link"),
+                                  group_id,
+                                  info->group);
         }
 
         b_destroy(group_id);
@@ -213,10 +231,11 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
         bstring *cmd = b_alloc_null(8192);
 
         for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
-                const int     ch    = bdata->ft->order->data[i];
-                mpack_dict_t *dict  = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1, PKG "#%s#%c",
-                                                     BTS(bdata->ft->vim_name), ch);
-                bstring      *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
+                const int     ch   = bdata->ft->order->data[i];
+                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1,
+                                                      PKG "#%s#%c",
+                                                      BTS(bdata->ft->vim_name), ch);
+                bstring *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
 
                 b_formata(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
                           BTS(bdata->ft->vim_name), ch, BS(group));
@@ -248,10 +267,12 @@ get_restore_cmds(b_list *restored_groups)
                 if (!output)
                         continue;
 
-                cmd       = b_alloc_null(output->slen);
+                cmd       = b_alloc_null(64u + output->slen);
                 char *ptr = strstr(BS(output), "xxx");
                 ptr += 4;
                 assert(!isblank(*ptr));
+                b_append_all(cmd, B("syntax clear "),
+                             restored_groups->lst[i], B(" | "));
 
                 b_list *toks = b_list_create();
 
@@ -260,14 +281,12 @@ get_restore_cmds(b_list *restored_groups)
                 if (strncmp(ptr, SLS("match /")) != 0) {
                         char *tmp;
                         char link_name[1024];
-                        b_join_append_all(cmd, B(" "), 1, B("syntax keyword"), restored_groups->lst[i]);
+                        b_join_append_all(cmd, B(" "), 1,
+                                          B("syntax keyword"),
+                                          restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
-#if 0
-                                b_catblk(cmd, ptr, (tmp - ptr));
-                                b_conchar(cmd, ' ');
-#endif
-                                b_add_to_list(&toks, b_fromblk(ptr, ((ptrdiff_t)tmp - (ptrdiff_t)ptr)));
+                                b_add_to_list(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
                                 while (isblank(*++tmp))
                                         ;
                                 if (strncmp((ptr = tmp), "links to ", 9) == 0)
@@ -276,15 +295,17 @@ get_restore_cmds(b_list *restored_groups)
                         }
 
                         b_list_remove_dups(&toks);
-                        for (unsigned x = 1; x < toks->qty; ++x) {
+                        for (unsigned x = 0; x < toks->qty; ++x) {
                                 b_concat(cmd, toks->lst[x]);
                                 b_conchar(cmd, ' ');
                         }
                         b_list_destroy(toks);
 
                         strlcpy(link_name, (ptr += 9), 1024);
-                        b_join_append_all(cmd, B(" "), 1, B("| hi! link "),
-                                          restored_groups->lst[i], bt_fromcstr(link_name));
+                        b_join_append_all(cmd, B(" "), 1,
+                                          B("| hi! link "),
+                                          restored_groups->lst[i],
+                                          bt_fromcstr(link_name));
 
                         b_add_to_list(&allcmds, cmd);
                 }
@@ -304,13 +325,6 @@ update_from_cache(struct bufdata *bdata)
 {
         echo("Updating from cache.");
         nvim_call_atomic(0, bdata->calls);
-#if 0
-        nvim_command(0, B("ownsyntax"), 1);
-
-        for (unsigned i = 0; i < bdata->cmd_cache->qty; ++i)
-                nvim_command(0, bdata->cmd_cache->lst[i], 1);
-#endif
-
         if (bdata->ft->restore_cmds)
                 nvim_command(0, bdata->ft->restore_cmds, 1);
 }
@@ -325,15 +339,20 @@ add_cmd_call(struct atomic_call_array **calls, bstring *cmd)
         assert(calls);
         if (!*calls) {
                 echo("allocating calls...");
-                (*calls)            = xmalloc(sizeof **calls);
-                (*calls)->mlen      = 16;
-                (*calls)->fmt       = calloc(sizeof(char *), (*calls)->mlen);
-                (*calls)->args      = calloc(sizeof(union atomic_call_args *), (*calls)->mlen);
-                (*calls)->qty       = 0;
+                (*calls)        = xmalloc(sizeof **calls);
+                (*calls)->mlen  = 16;
+                (*calls)->fmt   = calloc(sizeof(char *), (*calls)->mlen);
+                (*calls)->args  = calloc(sizeof(union atomic_call_args *),
+                                         (*calls)->mlen);
+                (*calls)->qty   = 0;
         } else if ((*calls)->qty >= (*calls)->mlen-1) {
-                (*calls)->mlen     *= 2;
-                (*calls)->fmt       = nrealloc((*calls)->fmt, sizeof(char *), (*calls)->mlen);
-                (*calls)->args      = nrealloc((*calls)->args, sizeof(union atomic_call_args *), (*calls)->mlen);
+                (*calls)->mlen *= 2;
+                (*calls)->fmt   = nrealloc((*calls)->fmt,
+                                           sizeof(char *),
+                                           (*calls)->mlen);
+                (*calls)->args  = nrealloc((*calls)->args,
+                                           sizeof(union atomic_call_args *),
+                                           (*calls)->mlen);
         }
 
         (*calls)->args[(*calls)->qty]        = nmalloc(sizeof(union atomic_call_args), 2);

@@ -66,11 +66,12 @@ struct buffer_list {
                 uint32_t ctick;
                 uint32_t last_ctick;
                 uint16_t num;
+                int32_t  ref_ind;
 
                 bstring         *filename;
                 b_list          *cmd_cache;
                 linked_list     *lines;
-                ll_node         *current;
+                ll_node         *lastref;
                 struct ftdata_s *ft;
                 struct top_dir  *topdir;
                 struct atomic_call_array *calls;

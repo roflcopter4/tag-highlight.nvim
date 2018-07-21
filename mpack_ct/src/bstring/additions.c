@@ -85,7 +85,7 @@ __b_concat_all(const bstring *join, const int join_end, ...)
         }
         va_end(va);
 
-        bstring *dest = b_alloc_null(size + 1);
+        bstring *dest = b_alloc_null(size + 1 + j_size);
         dest->slen = 0;
         va_start(va2, join_end);
 
@@ -100,7 +100,7 @@ __b_concat_all(const bstring *join, const int join_end, ...)
                                 if (j_size) {
                                         memcpy((dest->data + dest->slen), join->data,
                                                join->slen);
-                                        dest->slen += src->slen;
+                                        dest->slen += j_size;
                                 }
                         }
                 }

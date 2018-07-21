@@ -1,0 +1,3 @@
+[submodule "mpack_ct/src/contrib/jsmn"]
+	path = mpack_ct/src/contrib/jsmn
+	url = /home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/mpack_ct/src/contrib/jsmn

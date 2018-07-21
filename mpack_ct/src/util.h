@@ -179,7 +179,8 @@ extern void *  xrealloc      (void *ptr, const size_t size)     aWUR aALSZ(2);
 #endif
 
 #define HAVE_REALLOCARRAY
-#if defined(HAVE_REALLOCARRAY)
+
+#ifdef HAVE_REALLOCARRAY
 extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
 #  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
 #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))

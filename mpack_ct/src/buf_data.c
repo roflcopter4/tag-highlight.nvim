@@ -92,12 +92,16 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
         bdata->num       = bufnum;
         bdata->filename  = nvim_buf_get_name(fd, bufnum);
         bdata->ft        = ft;
-        bdata->current   = NULL;
+        bdata->lastref   = NULL;
+        bdata->ref_ind   = (-1);
         bdata->cmd_cache = NULL;
         bdata->ctick     = bdata->last_ctick = 0;
         bdata->lines     = ll_make_new();
         bdata->topdir    = init_topdir(fd, bdata);
         bdata->calls     = NULL;
+
+        /* ll_insert_after(bdata->lines, NULL, b_fromlit("")); */
+        ll_append(bdata->lines, b_fromlit(""));
 
         return bdata;
 }
@@ -135,7 +139,7 @@ destroy_bufdata(struct bufdata **bdata)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 struct bufdata *
@@ -183,7 +187,7 @@ is_bad_buffer(const int bufnum)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 static struct top_dir *
@@ -342,7 +346,7 @@ check_project_directories(bstring *dir)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 static void
@@ -359,8 +363,8 @@ init_filetype(int fd, struct ftdata_s *ft)
 
         mpack_array_t *tmp = dict_get_key(settings.ignored_tags,
                                           MPACK_ARRAY, &ft->vim_name, false);
-        if (tmp)
-                ft->ignored_tags = mpack_array_to_blist(tmp, false);
+
+        ft->ignored_tags = (tmp) ? mpack_array_to_blist(tmp, false) : NULL;
 
         mpack_dict_t *equiv = nvim_get_var_fmt(
             fd, MPACK_DICT, NULL, false, "tag_highlight#%s#equivalent", BTS(ft->vim_name));
@@ -383,8 +387,10 @@ init_filetype(int fd, struct ftdata_s *ft)
 
                 xfree(equiv->entries);
                 xfree(equiv);
-        } else
+        } else {
+                echo("No equiv...");
                 ft->equiv = NULL;
+        }
 
         pthread_mutex_unlock(&ftdata_mutex);
 }

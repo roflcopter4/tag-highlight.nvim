@@ -1,3 +1,4 @@
+
 #include "util.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -16,6 +17,17 @@
                 echo("NOW at is %p, head: %p, tail: %p, qty: %d\n", V(at), \
                      V(list->head), V(list->tail), list->qty);             \
         } while (0)
+
+#define ASSERTIONS()                                                         \
+        /* ASSERTX(end > 0, "Start: %d, End (%d) is not > 0!", start, end); */     \
+        /* ASSERTX(start >= 0, "End: %d, Start (%d) is not >= 0!", end, start); */ \
+        ASSERTX((start >= 0 && (end > 0 || start == end)),                   \
+                "Start (%d), end (%d)", start, end);                         \
+        ASSERTX(start <= end, "Start (%d) is not < end (%d)!", start, end);   \
+        ASSERTX((blist->qty > 0), "blist->qty (%u) is not > 0!", blist->qty);  \
+        /* assert(blist->qty > 0); */ \
+        ASSERTX((unsigned)end <= blist->qty,                                 \
+                "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
 
 static inline void free_data(ll_node *node) __attribute__((always_inline));
 
@@ -48,11 +60,14 @@ ll_add(linked_list *list, bstring *data)
         list->head = node;
         ++list->qty;
 }
+#endif
 
 
 void
 ll_append(linked_list *list, bstring *data)
 {
+        assert(list);
+        assert(data && data->data);
         ll_node *node = xmalloc(sizeof *node);
 
         if (list->tail)
@@ -66,7 +81,6 @@ ll_append(linked_list *list, bstring *data)
         list->tail = node;
         ++list->qty;
 }
-#endif
 
 
 /*============================================================================*/
@@ -135,8 +149,15 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         assert(list && blist && blist->lst);
         start = (start >= 0) ? start : (start + (int)blist->qty + 1);
         end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
-        assert((end > 0) && (start >= 0) && (start < end) &&
-               (blist->qty > 0) && ((unsigned)end <= blist->qty));
+
+        /* assert((end > 0) && (start >= 0) && (start < end) &&
+               (blist->qty > 0) && ((unsigned)end <= blist->qty)); */
+        /* ASSERTX(end > 0, "End (%d) is not > 0!", end);
+        ASSERTX(start >= 0, "Start (%d) is not >= 0!", start);
+        ASSERTX(start < end, "Start (%d) is not < end (%d)!", start, end);
+        ASSERTX(blist->qty > 0, "blist->qty (%u) is not > 0!", blist->qty);
+        ASSERTX((unsigned)end <= blist->qty, "End (%d) is not <= blist->qty (%u)!", end, blist->qty); */
+        ASSERTIONS();
 
         const int diff = end - start;
         if (diff == 1) {
@@ -150,6 +171,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         tmp[0]->data   = blist->lst[start];
         tmp[0]->prev   = at;
         int i          = 1;
+        ++list->qty;
 
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
@@ -160,12 +182,15 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                         abort();
                 }
                 tmp[i]         = xmalloc(sizeof **tmp);
-                tmp[i]->data   = blist->lst[i];
+                tmp[i]->data   = blist->lst[x];
                 tmp[i]->prev   = tmp[i-1];
                 tmp[i-1]->next = tmp[i];
+                ++list->qty;
         }
 
+        /* const int last = i; */
         const int last = i - 1;
+        /* echo("Last %d, i %d", last, i); */
 
         if (at) {
                 tmp[last]->next = at->next;
@@ -180,7 +205,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         if (!list->tail || at == list->tail)
                 list->tail = tmp[last];
 
-        list->qty += diff;
+        /* list->qty += diff; */
         free(tmp);
         MSG2();
 }
@@ -192,8 +217,10 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         assert(list && blist && blist->lst);
         start = (start >= 0) ? start : (start + (int)blist->qty + 1);
         end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
-        assert((end > 0) && (start >= 0) && (start < end) &&
-               (blist->qty > 0) && ((unsigned)end <= blist->qty));
+
+        /* assert((end > 0) && (start >= 0) && (start < end) &&
+               (blist->qty > 0) && ((unsigned)end <= blist->qty)); */
+        ASSERTIONS();
 
         const int diff = end - start;
         if (diff == 1) {
@@ -209,6 +236,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
 
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
+                assert(blist->lst[x]);
                 if (!(blist->lst[x] && blist->lst[x]->data)) {
                         FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
                         b_dump_list(fp, blist);
@@ -244,13 +272,24 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
 
 
 void
-ll_delete_range(linked_list *list, ll_node *at, unsigned range)
+ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
 {
-        assert(list && list->qty >= (int)range);
+        assert(list);
+        /* if (at == list->head->next)
+                assert(list->qty + 1 >= (int)range);
+        else
+                assert(list->qty >= (int)range); */
+        assert(list->qty >= (int)range);
+
         if (range == 0)
                 return;
-        echo("removing: at is %p, head: %p, tail: %p, qty: %d\n",
-             V(at), V(list->head), V(list->tail), list->qty);
+        if (range == 1) {
+                assert(at);
+                ll_delete_node(list, at);
+                return;
+        }
+        echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
+             V(at), V(list->head), V(list->tail), range, list->qty);
 
         ll_node *current      = at;
         ll_node *next         = NULL;
@@ -322,6 +361,76 @@ ll_at(linked_list *list, int index)
 
         return current;
 }
+
+
+#if 0
+ll_node *
+ll_at(const linked_list *list, ll_node *ref, const int ref_ind, int index)
+{
+        if (!list || list->qty == 0)
+                return NULL;
+        if (index == 0)
+                return list->head;
+        if (index == (-1) || index == list->qty)
+                return list->tail;
+
+        if (index < 0)
+                index += list->qty;
+        if (index < 0 || index > list->qty) {
+                warnx("Failed to find node: index: %d, qty %d",
+                      index, list->qty);
+                return NULL;
+        }
+
+        int       start;
+        bool      forward;
+        ll_node * current;
+        const int hdiff = index;
+        const int tdiff = list->qty - index;
+
+        if (ref && ref_ind > 0) {
+                const int rdiff     = (ref_ind - index);
+                const int abs_rdiff = abs(rdiff);
+                const int minimum   = MIN(hdiff, MIN(tdiff, abs_rdiff));
+
+                if (minimum == hdiff) {
+                        start   = 0;
+                        current = list->head;
+                        forward = true;
+                } else if (minimum == tdiff) {
+                        start   = (list->qty - 1);
+                        current = list->tail;
+                        forward = false;
+                } else {
+                        start   = abs_rdiff;
+                        current = ref;
+                        forward = (rdiff > 0);
+                }
+        } else {
+                if (MIN(hdiff, tdiff) == hdiff) {
+                        start   = 0;
+                        current = list->head;
+                        forward = true;
+                } else {
+                        start   = (list->qty - 1);
+                        current = list->tail;
+                        forward = false;
+                }
+        }
+
+        if (forward) {
+                int x = start;
+                while (x++ != index)
+                        current = current->next;
+        } else {
+                int x = start;
+                while (x-- != index)
+                        current = current->prev;
+        }
+
+        return current;
+}
+#endif
 
 
 void

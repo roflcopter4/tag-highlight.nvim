@@ -112,6 +112,8 @@ endif()
 add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("${PROJECT_SOURCE_DIR}/src")
+include_directories("${PROJECT_SOURCE_DIR}/src/contrib/jsmn")
+
 configure_file(cmake-config.h.in config.h)
 
 add_subdirectory(src)

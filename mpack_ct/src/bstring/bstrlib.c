@@ -224,7 +224,7 @@ b_fromcstr_alloc(const uint mlen, const char *const str)
 
 
 bstring *
-b_blk2bstr(const void *blk, const uint len)
+b_fromblk(const void *blk, const uint len)
 {
         if (!blk)
                 RETURN_NULL();

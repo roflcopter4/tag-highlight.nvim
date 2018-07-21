@@ -5,6 +5,7 @@
 #include "mpack.h"
 
 #define BT bt_init
+/* #define WRITE_BUF_UPDATES */
 
 extern pthread_mutex_t event_mutex, update_mutex;
 
@@ -18,14 +19,16 @@ static const struct event_id {
 };
 
 
+#if defined(DEBUG) && defined(WRITE_BUF_UPDATES)
 static inline void b_write_ll(int fd, linked_list *ll);
-static        void handle_line_event(unsigned index, mpack_obj **items);
-static        void replace_line(unsigned index, b_list *new_lines,
-                                unsigned lineno, unsigned replno);
-static const struct event_id * id_event(mpack_obj *event);
+#endif
+static void handle_line_event(unsigned index, mpack_obj **items);
+static void replace_line(struct bufdata *bdata, b_list *repl_list,
+                         unsigned lineno, unsigned replno);
+static const struct event_id *id_event(mpack_obj *event);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 void
@@ -73,7 +76,7 @@ handle_nvim_event(mpack_obj *event)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 static void
@@ -81,114 +84,129 @@ handle_line_event(const unsigned index, mpack_obj **items)
 {
         assert(!items[5]->data.boolean);
         struct bufdata *bdata     = buffers.lst[index];
+        b_list         *repl_list = mpack_array_to_blist(items[4]->data.arr, true);
+        items[4]->data.arr        = NULL;
         bdata->ctick              = items[1]->data.num;
         const unsigned  first     = items[2]->data.num;
         const unsigned  last      = items[3]->data.num;
         unsigned        diff      = (last - first);
-        b_list         *new_lines = mpack_array_to_blist(items[4]->data.arr, true);
-        const unsigned  iters     = MAX(diff, new_lines->qty);
-        items[4]->data.arr        = NULL;
+        const unsigned  iters     = MAX(diff, repl_list->qty);
 
-        echo("first: %u, last: %u, llqty: %d, newqty: %u\n",
-             first, last, bdata->lines->qty, new_lines->qty);
-
-        if (bdata->lines->qty == 0) {
-                ll_insert_blist_after_at(bdata->lines, 0, new_lines, 0, (-1));
-        } else if (new_lines->qty == 0) {
-                if (first == last) {
-                        echo("ERROR: First (%d) == last (%d)!\n", first, last);
+        echo("EVENT %d - first: %u, last: %u, diff: %u, llqty: %d, newqty: %u",
+             bdata->ctick, first, last, diff, bdata->lines->qty, repl_list->qty);
+        
+        if (repl_list->qty) {
+                if (first == 0 && last == 0) {
+                        echo("before!");
+                        ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, (-1));
                 } else {
-                        echo("Removing lines %u to %u, bdata has %d lines\n",
+                        const unsigned olen = bdata->lines->qty;
+
+                        /* This loop is only meaningful when replacing lines. All other
+                         * paths break after the first iteration. */
+                        for (unsigned i = 0; i < iters; ++i) {
+                                if (diff && i < olen) {
+                                        --diff;
+                                        if (i < repl_list->qty) {
+                                                /* echo("replacing line %u", first + i); */
+                                                replace_line(bdata, repl_list, first + i, i);
+                                        } else {
+                                                echo("Removing lines %u - %u, total: %d lines",
+                                                     first + i, last, bdata->lines->qty);
+                                                ll_delete_range_at(bdata->lines, first + i, diff+1);
+                                                echo("Now there are %d lines", bdata->lines->qty);
+
+                                                break;
+                                        }
+                                } else {
+                                        if ((first + i) >= (unsigned)bdata->lines->qty) {
+                                                echo("after!");
+                                                ll_insert_blist_after_at(
+                                                    bdata->lines, (first + i), repl_list, i, (-1));
+                                        } else {
+                                                echo("before!");
+                                                ll_insert_blist_before_at(
+                                                    bdata->lines, (first + i), repl_list, i, (-1));
+                                        }
+
+                                        break;
+                                }
+                        }
+                }
+        } else {
+                if (first == last) {
+                        echo("I have no idea what to do here.");
+                        /* ll_delete_at(bdata->lines, first); */
+                        /* ll_insert_after_at(bdata->lines, first, b_fromlit("")); */
+                } else {
+                        echo("Removing lines %u - %u, total: %d lines",
                              first, last, bdata->lines->qty);
                         ll_delete_range_at(bdata->lines, first, diff);
                 }
-        } else {
-                const unsigned olen = bdata->lines->qty;
-
-                for (unsigned i = 0; i < iters; ++i) {
-                        if (diff) {
-                                --diff;
-                                if (i < new_lines->qty) {
-                                        replace_line(index, new_lines, first + i, i);
-                                } else {
-                                        echo("Removing lines %u to %u, bdata has %d lines\n",
-                                             first + i, last, bdata->lines->qty);
-                                        ll_delete_range_at(bdata->lines, first + i, last);
-                                        echo("Now there are %d lines\n", bdata->lines->qty);
-                                        break;
-                                }
-                        } else {
-                                if ((first + i) >= olen) {
-                                        echo("after!");
-                                        ll_insert_blist_after_at(bdata->lines, first + i, new_lines, i, (-1));
-                                } else {
-                                        echo("before!");
-                                        ll_insert_blist_before_at(bdata->lines, first + i, new_lines, i, (-1));
-                                }
-
-                                break;
-                        }
-                }
         }
 
-#ifdef DEBUG
-        assert(ll_verify_size(bdata->lines));
-        unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
-
-        if (bdata->ctick == ctick) {
-                int n = (int)nvim_buf_line_count(0, bdata->num);
-                if (((bdata->lines->qty) ?: 1) != n)
-                        errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
-                             bdata->lines->qty, n);
-        }
-#endif
-
-        /* const unsigned linecount = nvim_buf_line_count(0, bdata->num);
-        ASSERTX(linecount == (unsigned)bdata->lines->qty,
-                "ERROR: Linecount: %u, qty: %d! (odiff %u)",
-                linecount, bdata->lines->qty, odiff); */
+        /* Neovim always considers there to be at least one line in any buffer.
+         * An empty buffer therefore must have one empty line. */
+        if (bdata->lines->qty == 0)
+                ll_append(bdata->lines, b_fromlit(""));
 
 #ifdef DEBUG
-        bstring *fn = nvim_call_function(0, b_tmp("tempname"), MPACK_STRING, NULL, 1);
+#  ifdef WRITE_BUF_UPDATES
+        bstring *fn = nvim_call_function(0, B("tempname"), MPACK_STRING, NULL, 1);
         int tempfd  = open(BS(fn), O_CREAT|O_WRONLY|O_TRUNC|O_BINARY, 0600);
 
         b_write_ll(tempfd, bdata->lines);
         close(tempfd);
+        echo("Done writing file - %s", BS(fn));
         b_free(fn);
 
-        echo("Done writing file");
+#  endif
+
+        assert(ll_verify_size(bdata->lines));
+        unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
+        int      n     = nvim_buf_line_count(0, bdata->num);
+
+        if (bdata->ctick == ctick) {
+                if (bdata->lines->qty != n)
+                        errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
+                             bdata->lines->qty, n);
+        } else {
+                if (bdata->lines->qty != n)
+                        echo("Internal line count (%d) is incorrect. Actual: %d",
+                             bdata->lines->qty, n);
+        }
 #endif
-        
-        free(new_lines->lst);
-        free(new_lines);
+
+        free(repl_list->lst);
+        free(repl_list);
+        echo("\n\n\n");
 }
 
 
 static void
-replace_line(const unsigned index, b_list *new_lines,
+replace_line(struct bufdata *bdata, b_list *repl_list,
              const unsigned lineno, const unsigned replno)
 {
-        struct bufdata *bdata = buffers.lst[index];
-        ll_node        *node  = ll_at(bdata->lines, lineno);
+        ll_node *node = ll_at(bdata->lines, lineno);
 
-        /* echo("Replacing line %u with replno %u, list is %d long and "
-                 "newlist is %u long\n",
-                 lineno, replno, bdata->lines->qty, new_lines->qty); */
+        /* echo("Replacing line %u with replno %u, list is %d long and newlist is %u long\n",
+             lineno, replno, bdata->lines->qty, repl_list->qty); */
 
         b_destroy(node->data);
 
-        node->data             = new_lines->lst[replno];
-        new_lines->lst[replno] = NULL;
+        node->data             = repl_list->lst[replno];
+        repl_list->lst[replno] = NULL;
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
+#if defined(DEBUG) && defined(WRITE_BUF_UPDATES)
 static inline void
 b_write_ll(int fd, linked_list *ll)
 {
-        echo("Writing list, size: %d, head: %p, tail: %p\n",
+        echo("Writing list, size: %d, head: %p, tail: %p",
              ll->qty, (void *)ll->head, (void *)ll->tail);
 
         bool done = false;
@@ -200,6 +218,7 @@ b_write_ll(int fd, linked_list *ll)
                 b_write(fd, node->data, B("\n"));
         }
 }
+#endif
 
 
 static const struct event_id *

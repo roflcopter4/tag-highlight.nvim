@@ -12,7 +12,7 @@ static inline void write_gzfile(struct top_dir *topdir);
 static b_list *    find_header_files(struct bufdata *bdata, struct top_dir *topdir);
 static b_list *    find_header_paths(const b_list *src_dirs, const b_list *includes);
 static b_list *    find_includes(struct bufdata *bdata, struct top_dir *topdir);
-static b_list *    find_src_dirs(struct bufdata *bdata, struct top_dir *topdir);
+static b_list *    find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes);
 static bstring *   analyze_line(const bstring *line);
 static void        recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs, const bstring *cur_header, int level);
 static void *      recurse_headers_thread(void *vdata);
@@ -204,7 +204,7 @@ static b_list *
 find_header_files(struct bufdata *bdata, struct top_dir *topdir)
 {
         b_list *includes = find_includes(bdata, topdir);
-        b_list *src_dirs = find_src_dirs(bdata, topdir);
+        b_list *src_dirs = find_src_dirs(bdata, topdir, includes);
         
         if (!includes || !src_dirs) {
                 if (includes)
@@ -213,6 +213,9 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                         b_list_destroy(src_dirs);
                 return NULL;
         }
+
+        b_dump_list_nvim(includes);
+        b_dump_list_nvim(src_dirs);
 
         b_list *headers = find_header_paths(src_dirs, includes);
         b_list_destroy(includes);
@@ -393,8 +396,11 @@ find_includes(struct bufdata *bdata, struct top_dir *topdir)
 }
 
 
+extern b_list * parse_json(const bstring *json_path, const bstring *filename, b_list *includes);
+
+
 static b_list *
-find_src_dirs(struct bufdata *bdata, struct top_dir *topdir)
+find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
 {
         b_list  *src_dirs;
         char     path[PATH_STR];
@@ -416,6 +422,16 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir)
                         errx(1, "Cannot continue.");
         }
 
+        {
+                bstring *tmp = bt_fromcstr(path);
+                src_dirs = parse_json(tmp, bdata->filename, includes);
+                if (!src_dirs) {
+                        echo("Found nothing at all!!!");
+                        src_dirs = b_list_create();
+                }
+        }
+
+#if 0
         echo("opening file \"%s\"", path);
         bstring *line = NULL, *cmd = NULL;
         b_list  *tmp  = b_list_create();
@@ -439,6 +455,7 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir)
                 }
         }
 
+        fclose(compile);
         b_list_destroy(tmp);
         src_dirs = b_list_create();
 
@@ -465,6 +482,7 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir)
         } else {
                 b_add_to_list(&src_dirs, b_strcpy(topdir->pathname));
         }
+#endif
 
 
 skip :  {
@@ -517,7 +535,6 @@ analyze_line(const bstring *line)
                                         ret = b_fromblk(&str[i], slen);
                                 }
                         }
-#if 0
                         else if (str[i] == '<') {
                                 ++i;
                                 uchar *end = memchr(&str[i], '>', len - i);
@@ -527,7 +544,6 @@ analyze_line(const bstring *line)
                                         ret = b_fromblk(&str[i], slen);
                                 }
                         }
-#endif
                 }
         }
 

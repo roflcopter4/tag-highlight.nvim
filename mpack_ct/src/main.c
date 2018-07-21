@@ -32,6 +32,8 @@ static comp_type_t get_compression_type(void);
 static void piss_around(void);
 noreturn static void pthread_exit_wrapper(UNUSED int x);
 
+extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
+
 
 /*============================================================================*/
 
@@ -80,6 +82,8 @@ main(int argc, char *argv[])
 
         /* piss_around(); */
 
+        get_pcre2_matches(B("\\d+ \\w+"), B("donkey 2834 asdf 32 iuu"), 0);
+
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
@@ -108,7 +112,7 @@ main(int argc, char *argv[])
 
 /*============================================================================*/
 
-#define WAIT_TIME (0.1L)
+#define WAIT_TIME (0.2L)
 
 
 /*
@@ -154,7 +158,7 @@ interrupt_loop(void *vdata)
                 struct bufdata *bdata = find_buffer(bufnum);
                 assert(bdata);
 
-                while (!bdata->lines->qty)
+                while (bdata->lines->qty <= 1)
                         fsleep(WAIT_TIME);
 
                 /* extern int main_hl_id;
@@ -189,7 +193,7 @@ interrupt_loop(void *vdata)
                                         nvim_buf_attach(1, bufnum);
                                         bdata = find_buffer(bufnum);
 
-                                        while (bdata->lines->qty == 0) {
+                                        while (bdata->lines->qty <= 1) {
                                                 echo("sleeping");
                                                 fsleep(WAIT_TIME);
                                         }

@@ -175,9 +175,9 @@ BSTR_PUBLIC bstring *b_alloc_null(unsigned len);
  * referencing it. Compare with the blk2tbstr macro. If an error occurs NULL is
  * returned.
  */
-BSTR_PUBLIC bstring *b_blk2bstr(const void *blk, unsigned len);
+BSTR_PUBLIC bstring *b_fromblk(const void *blk, unsigned len);
 
-#define b_fromblk(BLK_, LENGTH_) b_blk2bstr((BLK_), (LENGTH_))
+#define b_blk2bstr(BLK_, LENGTH_) b_fromblk((BLK_), (LENGTH_))
 
 /**
  * Create a '\0' terminated char buffer which contains the contents of the
@@ -860,14 +860,14 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 /**
  * The bsStaticBlkParms macro emits a pair of comma seperated parameters
  * corresponding to the block parameters for the block functions in Bstrlib
- * (i.e., b_blk2bstr, bcatblk, blk2tbstr, bisstemeqblk, bisstemeqcaselessblk).
+ * (i.e., b_fromblk, bcatblk, blk2tbstr, bisstemeqblk, bisstemeqcaselessblk).
  *
  * Note that this macro is only well defined for string literal arguments.
  *
  * Examples:
  *
  * \code
- * bstring * b = b_blk2bstr(b_staticBlkParms("Fast init."));
+ * bstring * b = b_fromblk(b_staticBlkParms("Fast init."));
  * b_catblk(b, b_staticBlkParms("No frills fast concatenation."));
  * \endcode
  *
@@ -967,7 +967,7 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 
 
 #define b_litsiz                   b_staticBlkParms
-#define b_lit2bstr(LIT_STR)        b_blk2bstr(b_staticBlkParms(LIT_STR))
+#define b_lit2bstr(LIT_STR)        b_fromblk(b_staticBlkParms(LIT_STR))
 #define b_assignlit(BSTR, LIT_STR) b_assign_blk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_catlit(BSTR, LIT_STR)    b_catblk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_fromlit(LIT_STR)         b_lit2bstr(LIT_STR)
@@ -1061,7 +1061,7 @@ BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, int join
 #define b_append_all(BDEST, ...) \
         __b_append_all((BDEST), NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
 
-#define b_join_all(BDEST, JOIN_, END_, ...) \
+#define b_join_all(JOIN_, END_, ...) \
         __b_concat_all((JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
 #define b_join_append_all(BDEST, JOIN_, END_, ...) \
         __b_append_all((BDEST), (JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
