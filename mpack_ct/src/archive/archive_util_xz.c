@@ -283,9 +283,10 @@ lzma_message_strm(int code)
 
 #define XZ_FILE_INFO_INIT { NULL, 0, 0, true, 50000002 }
 
-void
+int
 xz_size(struct archive_size *size, const char *filename)
 {
+        int ret;
         struct xz_file *file = io_open_src(filename);
         if (file == NULL)
                 err(1, "Failed to open file %s", filename);
@@ -297,8 +298,12 @@ xz_size(struct archive_size *size, const char *filename)
                 size->uncompressed = lzma_index_uncompressed_size(xfi.idx);
                 lzma_index_end(xfi.idx, NULL);
                 safe_close(file->fd);
+                ret = 1;
         } else {
                 safe_close(file->fd);
-                errx(1, "Error is fatal, exiting.\n");
+                warnx("Error: cannot read file.\n");
+                ret = 0;
         }
+
+        return ret;
 }

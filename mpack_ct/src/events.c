@@ -15,6 +15,7 @@ static const struct event_id {
     { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
     { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
     { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
+    { BT("vim_event_update"),           EVENT_VIM_UPDATE }
 };
 
 
@@ -45,27 +46,42 @@ handle_nvim_event(mpack_obj *event)
 #define D (event->data.arr->items[2]->data.arr->items)
         pthread_mutex_lock(&event_mutex);
         pthread_mutex_lock(&update_mutex);
-        const struct event_id *type   = id_event(event);
-        const unsigned         bufnum = D[0]->data.ext->num;
-        const int              index  = find_buffer_ind(bufnum);
+        const struct event_id *type = id_event(event);
 
-        assert(index >= 0);
-        struct bufdata *bdata = buffers.lst[index];
-        assert(bdata != NULL);
+        if (type->id == EVENT_VIM_UPDATE) {
+                /* int *intp = xmalloc(sizeof(int));
+                *intp = D[0]->data.str->data[0]; */
+                pthread_t         tmp;
+                pthread_attr_t    attr;
+                struct int_pdata *data = xmalloc(sizeof(*data));
+                const int         val  = D[0]->data.str->data[0];
+                *data = (struct int_pdata){val, pthread_self()};
 
-        switch (type->id) {
-        case EVENT_BUF_LINES:
-                handle_line_event(index, D);
-                break;
-        case EVENT_BUF_CHANGED_TICK:
-                bdata->ctick = D[1]->data.num;
-                break;
-        case EVENT_BUF_DETACH:
-                destroy_bufdata(buffers.lst + index);
-                echo("Detaching from buffer %d\n", bufnum);
-                break;
-        default:
-                abort();
+                pthread_attr_init(&attr);
+                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                pthread_create(&tmp, &attr, interrupt_call, data);
+        } else {
+                const unsigned bufnum = D[0]->data.ext->num;
+                const int      index  = find_buffer_ind(bufnum);
+
+                assert(index >= 0);
+                struct bufdata *bdata = buffers.lst[index];
+                assert(bdata != NULL);
+
+                switch (type->id) {
+                case EVENT_BUF_LINES:
+                        handle_line_event(index, D);
+                        break;
+                case EVENT_BUF_CHANGED_TICK:
+                        bdata->ctick = D[1]->data.num;
+                        break;
+                case EVENT_BUF_DETACH:
+                        destroy_bufdata(buffers.lst + index);
+                        echo("Detaching from buffer %d\n", bufnum);
+                        break;
+                default:
+                        abort();
+                }
         }
 
         pthread_mutex_unlock(&event_mutex);
@@ -91,12 +107,8 @@ handle_line_event(const unsigned index, mpack_obj **items)
         unsigned        diff      = (last - first);
         const unsigned  iters     = MAX(diff, repl_list->qty);
 
-        /* echo("EVENT %d - first: %u, last: %u, diff: %u, llqty: %d, newqty: %u",
-             bdata->ctick, first, last, diff, bdata->lines->qty, repl_list->qty); */
-        
         if (repl_list->qty) {
                 if (first == 0 && last == 0) {
-                        /* echo("before!"); */
                         ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, (-1));
                 } else {
                         const unsigned olen = bdata->lines->qty;
@@ -107,41 +119,25 @@ handle_line_event(const unsigned index, mpack_obj **items)
                                 if (diff && i < olen) {
                                         --diff;
                                         if (i < repl_list->qty) {
-                                                /* echo("replacing line %u", first + i); */
                                                 replace_line(bdata, repl_list, first + i, i);
                                         } else {
-                                                /* echo("Removing lines %u - %u, total: %d lines",
-                                                     first + i, last, bdata->lines->qty); */
                                                 ll_delete_range_at(bdata->lines, first + i, diff+1);
-                                                /* echo("Now there are %d lines", bdata->lines->qty); */
-
                                                 break;
                                         }
                                 } else {
-                                        if ((first + i) >= (unsigned)bdata->lines->qty) {
-                                                /* echo("after!"); */
+                                        if ((first + i) >= (unsigned)bdata->lines->qty)
                                                 ll_insert_blist_after_at(
                                                     bdata->lines, (first + i), repl_list, i, (-1));
-                                        } else {
-                                                /* echo("before!"); */
+                                        else
                                                 ll_insert_blist_before_at(
                                                     bdata->lines, (first + i), repl_list, i, (-1));
-                                        }
 
                                         break;
                                 }
                         }
                 }
-        } else {
-                if (first == last) {
-                        /* echo("I have no idea what to do here."); */
-                        /* ll_delete_at(bdata->lines, first); */
-                        /* ll_insert_after_at(bdata->lines, first, b_fromlit("")); */
-                } else {
-                        /* echo("Removing lines %u - %u, total: %d lines",
-                             first, last, bdata->lines->qty); */
-                        ll_delete_range_at(bdata->lines, first, diff);
-                }
+        } else if (first != last) {
+                ll_delete_range_at(bdata->lines, first, diff);
         }
 
         /* Neovim always considers there to be at least one line in any buffer.
@@ -162,19 +158,19 @@ handle_line_event(const unsigned index, mpack_obj **items)
 #  endif
 
         assert(ll_verify_size(bdata->lines));
-        unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
-        int      n     = nvim_buf_line_count(0, bdata->num);
+        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
+        const int      n     = nvim_buf_line_count(0, bdata->num);
 
         if (bdata->ctick == ctick) {
                 if (bdata->lines->qty != n)
                         errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
                              bdata->lines->qty, n);
         } else {
-#if 0
+#  if 0
                 if (bdata->lines->qty != n)
                         echo("Internal line count (%d) is incorrect. Actual: %d",
                              bdata->lines->qty, n);
-#endif
+#  endif
         }
 #endif
 
@@ -228,11 +224,12 @@ id_event(mpack_obj *event)
         const struct event_id *type = NULL;
         bstring *typename = event->data.arr->items[1]->data.str;
 
-        for (unsigned i = 0; i < ARRSIZ(event_list); ++i)
+        for (unsigned i = 0; i < ARRSIZ(event_list); ++i) {
                 if (b_iseq(typename, &event_list[i].name)) {
                         type = &event_list[i];
                         break;
                 }
+        }
 
         if (!type)
                 errx(1, "Failed to identify event type.\n");

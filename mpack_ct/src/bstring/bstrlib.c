@@ -38,6 +38,8 @@
 
 #include "private.h"
 
+#include "bstrlib.h"
+
 
 /**
  * Compute the snapped size for a given requested size.
@@ -363,7 +365,7 @@ b_catcstr(bstring *bstr, const char *buf)
 
         bstr->slen += i;
 
-        /* Need to explicitely resize and concatenate tail */
+        /* Need to explicitly resize and concatenate tail */
         return b_catblk(bstr, buf, strlen(buf));
 }
 
@@ -375,7 +377,7 @@ b_catblk(bstring *bstr, const void *buf, const uint len)
 
         if (INVALID(bstr) || NO_WRITE(bstr) || !buf)
                 RUNTIME_ERROR();
-        if ((nl = bstr->slen + len) > UINT_MAX)
+        if ((nl = (uint64_t)bstr->slen + (uint64_t)len) > UINT_MAX)
                 RUNTIME_ERROR();
         if (bstr->mlen <= nl && b_alloc(bstr, nl + 1) == BSTR_ERR)
                 RUNTIME_ERROR();
@@ -770,17 +772,18 @@ b_strrchrp(const bstring *bstr, const int ch, const uint pos)
 {
         if (IS_NULL(bstr) || bstr->slen <= pos)
                 RUNTIME_ERROR();
-#if 0
-        for (int64_t i = pos; i >= 0; --i)
-                if (bstr->data[i] == (uchar)ch)
-                        return i;
-#endif
+#ifdef HAVE_MEMRCHR
         char *ptr = memrchr(bstr->data, ch, pos);
 
         if (ptr)
                 return (int64_t)((ptrdiff_t)ptr - (ptrdiff_t)bstr->data);
+#else
+        for (int64_t i = pos; i >= 0; --i)
+                if (bstr->data[i] == (uchar)ch)
+                        return i;
 
-        return BSTR_ERR;
+        return (-1);
+#endif
 }
 
 
@@ -900,7 +903,7 @@ b_gets(const bNgetc getc_ptr, void *parm, const int terminator, const bool keepe
 
 
 bstring *
-b_format(const char *fmt, ...)
+b_format(const char *const fmt, ...)
 {
         if (!fmt)
                 RETURN_NULL();
@@ -913,7 +916,7 @@ b_format(const char *fmt, ...)
 }
 
 int
-b_format_assign(bstring *bstr, const char *fmt, ...)
+b_format_assign(bstring *bstr, const char *const fmt, ...)
 {
         if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();
@@ -928,7 +931,7 @@ b_format_assign(bstring *bstr, const char *fmt, ...)
 }
 
 int
-b_formata(bstring *bstr, const char *fmt, ...)
+b_formata(bstring *bstr, const char *const fmt, ...)
 {
         if (!fmt || INVALID(bstr) || NO_WRITE(bstr))
                 RUNTIME_ERROR();
@@ -943,7 +946,7 @@ b_formata(bstring *bstr, const char *fmt, ...)
 }
 
 bstring *
-b_vformat(const char *fmt, va_list arglist)
+b_vformat(const char *const fmt, va_list arglist)
 {
         if (!fmt || !arglist)
                 RETURN_NULL();
@@ -961,7 +964,7 @@ b_vformat(const char *fmt, va_list arglist)
 #else
         /*
          * Without asprintf, because we can't determine the length of the
-         * resulting string beforehand, a serch has to be performed using the
+         * resulting string beforehand, a search has to be performed using the
          * truncating "vsnprintf" call (to avoid buffer overflows) on increasing
          * potential sizes for the output result. The function is supposed to
          * return the result that would have been printed if enough space were
@@ -1001,7 +1004,7 @@ b_vformat(const char *fmt, va_list arglist)
 }
 
 int
-b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist)
+b_vformat_assign(bstring *bstr, const char *const fmt, va_list arglist)
 {
         if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();
@@ -1013,7 +1016,7 @@ b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist)
 }
 
 int
-b_vformata(bstring *bstr, const char *fmt, va_list arglist)
+b_vformata(bstring *bstr, const char *const fmt, va_list arglist)
 {
         if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();

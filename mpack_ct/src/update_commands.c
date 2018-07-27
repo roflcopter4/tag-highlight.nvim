@@ -1,6 +1,5 @@
 #include "util.h"
 
-#include "contrib/bsd_funcs.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
@@ -81,16 +80,15 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 }
                 xfree(tags->lst);
                 xfree(tags);
+
+                if (bdata->ft->restore_cmds) {
+                        LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
+                        nvim_command(0, bdata->ft->restore_cmds, 1);
+                }
         }
 
         b_list_destroy(toks);
         b_destroy(joined);
-
-        if (bdata->ft->restore_cmds) {
-                LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
-                nvim_command(0, bdata->ft->restore_cmds, 1);
-        }
-
         pthread_mutex_unlock(&update_mutex);
 }
 
@@ -99,7 +97,8 @@ static struct atomic_call_array *
 update_commands(struct bufdata *bdata, struct taglist *tags)
 {
         const unsigned ngroups = bdata->ft->order->slen;
-        struct cmd_info info[ngroups];
+        //struct cmd_info info[ngroups];
+        struct cmd_info *info = nalloca(ngroups, sizeof(*info));
 
         if (bdata->cmd_cache)
                 b_list_destroy(bdata->cmd_cache);
@@ -172,8 +171,8 @@ handle_kind(bstring *cmd, unsigned i,
                           B("|"));
 
         if (info->prefix || info->suffix) {
-                bstring *prefix = (info->prefix) ?: B("\\C\\<");
-                bstring *suffix = (info->suffix) ?: B("\\>");
+                bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
+                bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
                 b_append_all(cmd, B("syntax match "),
                              group_id,
@@ -262,6 +261,7 @@ get_restore_cmds(b_list *restored_groups)
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
                 bstring *cmd = b_format("syntax list %s", BS(restored_groups->lst[i]));
+                //echo("Our next command is '%s'", BS(cmd));
                 bstring *output = nvim_command_output(0, cmd, MPACK_STRING, NULL, 0);
                 b_destroy(cmd);
                 if (!output)
@@ -269,6 +269,11 @@ get_restore_cmds(b_list *restored_groups)
 
                 cmd       = b_alloc_null(64u + output->slen);
                 char *ptr = strstr(BS(output), "xxx");
+                if (!ptr) {
+                        b_free(output);
+                        continue;
+                }
+
                 ptr += 4;
                 assert(!isblank(*ptr));
                 b_append_all(cmd, B("syntax clear "),
@@ -286,7 +291,7 @@ get_restore_cmds(b_list *restored_groups)
                                           restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
-                                b_add_to_list(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
+                                b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
                                 while (isblank(*++tmp))
                                         ;
                                 if (strncmp((ptr = tmp), "links to ", 9) == 0)
@@ -301,13 +306,14 @@ get_restore_cmds(b_list *restored_groups)
                         }
                         b_list_destroy(toks);
 
-                        strlcpy(link_name, (ptr += 9), 1024);
+                        size_t n = strlcpy(link_name, (ptr += 9), 1024);
+                        assert(n > 0);
                         b_join_append_all(cmd, B(" "), 1,
                                           B("| hi! link "),
                                           restored_groups->lst[i],
-                                          bt_fromcstr(link_name));
+                                          btp_fromcstr(link_name));
 
-                        b_add_to_list(&allcmds, cmd);
+                        b_list_append(&allcmds, cmd);
                 }
 
                 b_free(output);

@@ -1,4 +1,5 @@
 #include "util.h"
+#include <dirent.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 
@@ -8,7 +9,11 @@
 #define GUESS 100
 #define INC   10
 
-#define safe_stat(PATH, ST)                                     \
+#ifdef DOSISH
+#  define restrict __restrict
+#endif
+
+#define SAFE_STAT(PATH, ST)                                     \
      do {                                                       \
              if ((stat((PATH), (ST)) != 0))                     \
                      err(1, "Failed to stat file '%s", (PATH)); \
@@ -54,9 +59,17 @@ safe_fopen_fmt(const char *const restrict fmt,
 int
 safe_open(const char *const filename, const int flags, const int mode)
 {
-        int fd = open(filename, flags, mode);
-        if (fd == (-1))
-                err(1, "Failed to open file '%s'", filename);
+#ifdef DOSISH
+        const int fd = open(filename, flags, _S_IREAD|_S_IWRITE);
+#else
+        const int fd = open(filename, flags, mode);
+#endif
+        //if (fd == (-1))
+        //        err(1, "Failed to open file '%s'", filename);
+        if (fd == (-1)) {
+                fprintf(stderr, "Failed to open file \"%s\": %s\n", filename, strerror(errno));
+                abort();
+        }
         return fd;
 }
 
@@ -71,9 +84,16 @@ safe_open_fmt(const char *const restrict fmt,
         vsnprintf(buf, PATH_MAX + 1, fmt, va);
         va_end(va);
 
-        int fd = open(buf, flags, mode);
-        if (fd == (-1))
-                err(1, "Failed to open file \"%s\"", buf);
+        errno = 0;
+#ifdef DOSISH
+        const int fd = open(buf, flags, _S_IREAD|_S_IWRITE);
+#else
+        const int fd = open(buf, flags, mode);
+#endif
+        if (fd == (-1)) {
+                fprintf(stderr, "Failed to open file \"%s\": %s\n", buf, strerror(errno));
+                abort();
+        }
 
         return fd;
 }
@@ -82,13 +102,15 @@ safe_open_fmt(const char *const restrict fmt,
 bool
 file_is_reg(const char *filename)
 {
-        struct stat st = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                          {0}, {0}, {0}, {0, 0, 0}};
-        safe_stat(filename, &st);
+        //struct stat st = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        //                  {0}, {0}, {0}, {0, 0, 0}};
+        struct stat st;
+        SAFE_STAT(filename, &st);
         return S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode);
 }
 
 
+#if 0
 #ifdef USE_XMALLOC
 void *
 xmalloc(const size_t size)
@@ -131,6 +153,54 @@ xreallocarray(void *ptr, size_t num, size_t size)
         return tmp;
 }
 #endif
+#endif
+
+#ifdef USE_XMALLOC
+void *
+xmalloc_(const size_t size, const bstring *caller, const int lineno)
+{
+        void *tmp = malloc(size);
+        if (tmp == NULL)
+                err(100, "Malloc call failed - attempted %zu bytes"
+                         "Called from %s on line %d.", size, BS(caller), lineno);
+        return tmp;
+}
+
+
+void *
+xcalloc_(const int num, const size_t size, const bstring *caller, const int lineno)
+{
+        void *tmp = calloc(num, size);
+        if (tmp == NULL)
+                err(101, "Calloc call failed - attempted %zu bytes"
+                         "Called from %s on line %d.", size, BS(caller), lineno);
+        return tmp;
+}
+#endif
+
+
+void *
+xrealloc_(void *ptr, const size_t size, const bstring *caller, const int lineno)
+{
+        void *tmp = realloc(ptr, size);
+        if (tmp == NULL)
+                err(102, "Realloc call failed - attempted %zu bytes.\n"
+                         "Called from %s on line %d.", size, BS(caller), lineno);
+        return tmp;
+}
+
+
+#ifdef HAVE_REALLOCARRAY
+void *
+xreallocarray_(void *ptr, size_t num, size_t size, const bstring *caller, const int lineno)
+{
+        void *tmp = reallocarray(ptr, num, size);
+        if (tmp == NULL)
+                err(103, "Realloc call failed - attempted %zu bytes"
+                         "Called from %s on line %d.", size, BS(caller), lineno);
+        return tmp;
+}
+#endif
 
 
 int64_t
@@ -162,17 +232,18 @@ basename(char *path)
 
 
 /* #ifndef HAVE_ERR */
+#define ERRSTACKSIZE (6384)
 void
 __err(UNUSED const int status, const bool print_err, const char *const __restrict fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        char buf[0x8000];
+        char buf[ERRSTACKSIZE];
 
         if (print_err)
-                snprintf(buf, 0x8000, "%s: %s: %s\n", program_name, fmt, strerror(errno));
+                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_name, fmt, strerror(errno));
         else
-                snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
+                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_name, fmt);
 
         vfprintf(stderr, buf, ap);
         va_end(ap);
@@ -192,12 +263,12 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         va_list ap1, ap2;
         va_start(ap1, fmt);
         va_start(ap2, fmt);
-        char buf[0x8000];
+        char buf[ERRSTACKSIZE];
 
         if (print_err)
-                snprintf(buf, 0x8000, "%s: %s: %s\n", program_name, fmt, strerror(errno));
+                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_name, fmt, strerror(errno));
         else
-                snprintf(buf, 0x8000, "%s: %s\n", program_name, fmt);
+                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_name, fmt);
 
         /* vfprintf(stderr, buf, ap); */
         nvim_vprintf(sockfd, buf, ap1);

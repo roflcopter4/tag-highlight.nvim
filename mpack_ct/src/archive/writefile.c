@@ -7,7 +7,11 @@
 #endif
 #include <sys/stat.h>
 
-#define safe_stat(PATH, ST)                                     \
+#ifdef DOSISH
+#  define fsync(FILDES)
+#endif
+
+#define SAFE_STAT(PATH, ST)                                     \
      do {                                                       \
              if ((stat((PATH), (ST)) != 0))                     \
                      err(1, "Failed to stat file '%s", (PATH)); \
@@ -67,7 +71,7 @@ write_gzip(struct top_dir *topdir)
         free(buf);
 }
 
-
+#ifdef LZMA_SUPPORT
 #include <lzma.h>
 
 #if 0
@@ -191,3 +195,4 @@ write_lzma(struct top_dir *topdir)
         free(out_buf);
         /* b_free(asswipe); */
 }
+#endif

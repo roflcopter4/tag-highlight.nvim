@@ -1,4 +1,5 @@
 #include "util.h"
+#include <dirent.h>
 
 #include "data.h"
 #include "mpack.h"
@@ -13,28 +14,33 @@ static unsigned        sok_count, io_count;
 extern pthread_mutex_t mpack_main_mutex;
 
 /* #define ENCODE_FMT_ARRSIZE 524288 */
+#ifdef DOSISH
+#  define restrict __restrict
+#endif
 #define ENCODE_FMT_ARRSIZE 8192
 #define STD_API_FMT "d:d:s:"
 #define DAI data.arr->items
 #define DDE data.dict->entries
 
-#define COUNT(FD_)           (((FD_) == 1) ? io_count : sok_count)
-#define INC_COUNT(FD_)       (((FD_) == 1) ? io_count++ : sok_count++)
-#define CHECK_DEF_FD(FD__)   ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
+#define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
+#define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
+#define CHECK_DEF_FD(FD__) ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
+
+#define encode_fmt_api(FD__, FMT_, ...) \
+        encode_fmt(0, STD_API_FMT "[" FMT_ "]", 0, INC_COUNT(FD__), __VA_ARGS__)
+
+#define WRITE_API__(FMT_, ...)                                           \
+        do {                                                             \
+                static bstring func[] = {{.data = NULL}};                \
+                if (!func[0].data)                                       \
+                        func[0] = bt_fromarray(__func__);                \
+                CHECK_DEF_FD(fd);                                        \
+                mpack_obj *pack = encode_fmt_api(fd, FMT_, __VA_ARGS__); \
+                write_and_clean(fd, pack, func);                         \
+        } while (0)
 
 #define WRITE_API(FMT_, ...) WRITE_API__(FMT_, func, __VA_ARGS__)
 #define WRITE_API_NIL()      WRITE_API__("", func)
-
-#define WRITE_API__(...)                                           \
-        do {                                                       \
-                static bstring func[] = {{.data = NULL}};          \
-                if (!func[0].data)                                 \
-                        func[0] = b_static_fromarray(__func__);    \
-                CHECK_DEF_FD(fd);                                  \
-                mpack_obj *pack = encode_fmt_api(fd, __VA_ARGS__); \
-                write_and_clean(fd, pack, func);                   \
-        } while (0)
-
 
 #define FATAL(...)                                      \
         do {                                            \
@@ -61,9 +67,6 @@ extern pthread_mutex_t mpack_main_mutex;
                              FUNC_NAME, __LINE__, __FILE__);       \
         } while (0)
 
-#define encode_fmt_api(FD__, FMT_, ...) \
-        encode_fmt(0, (STD_API_FMT "[" FMT_ "]"), 0, INC_COUNT(FD__), __VA_ARGS__)
-
 
 /*============================================================================*/
 
@@ -75,10 +78,10 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
         CHECK_DEF_FD(fd);
         bstring *func;
         switch (type) {
-        case STANDARD: func = B("nvim_out_write");   break;
-        case ERROR:    func = B("nvim_err_write");   break;
-        case ERROR_LN: func = B("nvim_err_writeln"); break;
-        default:       errx(1, "Should be unreachable!");
+        case NW_STANDARD: func = B("nvim_out_write");   break;
+        case NW_ERROR:    func = B("nvim_err_write");   break;
+        case NW_ERROR_LN: func = B("nvim_err_writeln"); break;
+        default:          errx(1, "Should be unreachable!");
         }
 
         mpack_obj *pack = encode_fmt_api(fd, "s", func, mes);
@@ -92,7 +95,7 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 }
 
 void
-nvim_printf(int fd, const char *const restrict fmt, ...)
+nvim_printf(const int fd, const char *const restrict fmt, ...)
 {
         va_list va;
         va_start(va, fmt);
@@ -104,7 +107,7 @@ nvim_printf(int fd, const char *const restrict fmt, ...)
 }
 
 void
-nvim_vprintf(int fd, const char *const restrict fmt, va_list args)
+nvim_vprintf(const int fd, const char *const restrict fmt, va_list args)
 {
         bstring *tmp = b_vformat(fmt, args);
         nvim_out_write(fd, tmp);
@@ -225,7 +228,7 @@ nvim_command(int fd, const bstring *cmd, const bool fatal)
         WRITE_API("s", cmd);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        bool       ret    = mpack_type(result->DAI[2]) == MPACK_NIL;
+        const bool ret    = mpack_type(result->DAI[2]) == MPACK_NIL;
 
         if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
                 bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
@@ -492,6 +495,21 @@ nvim_call_atomic(int fd, const struct atomic_call_array *calls)
 /*============================================================================*/
 
 
+bstring *
+get_notification(int fd)
+{
+        /* No mutex to lock here. */
+        CHECK_DEF_FD(fd);
+        mpack_obj *result = decode_stream(fd, MES_NOTIFICATION);
+        bstring   *ret    = b_strcpy(result->DAI[1]->data.str);
+        print_and_destroy(result);
+        return ret;
+}
+
+
+/*============================================================================*/
+
+
 static void *
 get_expect(mpack_obj *        result,
            const mpack_type_t expect,
@@ -500,6 +518,7 @@ get_expect(mpack_obj *        result,
            const bool         is_retval)
 {
         mpack_obj *cur;
+        assert(result != NULL);
 
         if (is_retval)
                 cur = RETVAL;
@@ -509,6 +528,7 @@ get_expect(mpack_obj *        result,
         void      *ret = NULL;
         int64_t    value;
         mpack_print_object(result, mpack_log);
+        fflush(mpack_log);
 
         if (mpack_type(cur) == MPACK_NIL) {
                 eprintf("Neovim returned nil!\n");
@@ -575,14 +595,14 @@ num_from_ext:
 static void
 write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
 {
-#ifdef DEBUG
-        size_t nbytes;
+#if defined(DEBUG) && defined(LOG_RAW_MPACK)
+        size_t nbytes = 0;
         char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
-        int rawlog = open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
+        const int rawlog = safe_open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
         nbytes     = write(rawlog, "\n", 1);
         nbytes    += write(rawlog, (*pack->packed)->data, (*pack->packed)->slen);
         nbytes    += write(rawlog, "\n", 1);
-        assert(nbytes == (*pack->packed)->slen + 2);
+        assert(nbytes == (*pack->packed)->slen /*+ 2*/);
         close(rawlog);
 
         if (func)
@@ -590,8 +610,8 @@ write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
                         "Writing request no %d to fd %d: \"%s\"\n",
                         COUNT(fd) - 1, fd, BS(func));
 
-        mpack_print_object(pack, mpack_log);
 #endif
+        mpack_print_object(pack, mpack_log);
         b_write(fd, *pack->packed);
         mpack_destroy(pack);
 }
@@ -620,7 +640,7 @@ mpack_destroy(mpack_obj *root)
                                 break;
                         case MPACK_DICT:
                                 if (cur->data.dict) {
-                                        for (uint j = 0; j < cur->data.dict->qty; ++j)
+                                        for (unsigned j = 0; j < cur->data.dict->qty; ++j)
                                                 free(cur->DDE[j]);
                                         free(cur->DDE);
                                         free(cur->data.dict);
@@ -727,7 +747,7 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
         if (destroy) {
                 for (unsigned i = 0; i < size; ++i) {
                         b_writeprotect(array->items[i]->data.str);
-                        b_add_to_list(&ret, array->items[i]->data.str);
+                        b_list_append(&ret, array->items[i]->data.str);
                 }
 
                 destroy_mpack_array(array);
@@ -736,7 +756,7 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
                         b_writeallow(ret->lst[i]);
         } else {
                 for (unsigned i = 0; i < size; ++i)
-                        b_add_to_list(&ret, array->items[i]->data.str);
+                        b_list_append(&ret, array->items[i]->data.str);
         }
 
         return ret;
@@ -745,7 +765,7 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
 
 b_list *
 blist_from_var_fmt(
-    int fd, const bstring *key, const bool fatal, const char *fmt, ...)
+    const int fd, const bstring *key, const bool fatal, const char *fmt, ...)
 {
         va_list va;
         va_start(va, fmt);
@@ -759,7 +779,7 @@ blist_from_var_fmt(
 
 
 void *
-nvim_get_var_fmt(int                fd,
+nvim_get_var_fmt(const int          fd,
                  const mpack_type_t expect,
                  const bstring *    key,
                  const bool         fatal,
@@ -811,6 +831,7 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 /*============================================================================*/
 
 
+#if 0
 #define NEXT(TYPE_NAME_, MEMBER_)                                            \
         __extension__({                                                      \
                 TYPE_NAME_ ret__ = (TYPE_NAME_)0;                            \
@@ -847,10 +868,44 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
                 }                                         \
                 (TYPE_NAME_)ret__;                        \
         })
+#endif
+
+#define NEXT(VAR_, TYPE_NAME_, MEMBER_)                                       \
+        do {                                                                  \
+                switch (next_type) {                                          \
+                case OWN_VALIST:                                              \
+                        (VAR_) = va_arg(args, TYPE_NAME_);                    \
+                        break;                                                \
+                case OTHER_VALIST:                                            \
+                        assert(ref != NULL);                                  \
+                        (VAR_) = va_arg(*ref, TYPE_NAME_);                    \
+                        break;                                                \
+                case ATOMIC_UNION:                                            \
+                        assert(a_args);                                       \
+                        assert(a_args[a_arg_ctr]);                            \
+                        (VAR_) = ((a_args[a_arg_ctr][a_arg_subctr]).MEMBER_); \
+                        ++a_arg_subctr;                                       \
+                        break;                                                \
+                }                                                             \
+        } while (0)
+
+#define NEXT_NO_ATOMIC(VAR_, TYPE_NAME_)                                   \
+        do {                                                               \
+                switch (next_type) {                                       \
+                case OWN_VALIST:                                           \
+                        (VAR_) = va_arg(args, TYPE_NAME_);                 \
+                        break;                                             \
+                case OTHER_VALIST:                                         \
+                        assert(ref != NULL);                               \
+                        (VAR_) = va_arg(*ref, TYPE_NAME_);                 \
+                        break;                                             \
+                case ATOMIC_UNION: abort();                                \
+                }                                                          \
+        } while (0)
 
 #define ENCODE(TYPE, VALUE) \
         mpack_encode_##TYPE(pack, cur_obj->data.arr, &(cur_obj->DAI[(*cur_ctr)++]), (VALUE))
-#define two3rds(NUM_) ((2 * (NUM_)) / 3)
+#define TWO_THIRDS(NUM_) ((2 * (NUM_)) / 3)
 
 enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 
@@ -868,15 +923,15 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
         va_list      args;
         int          ch;
-        int         *sub_lengths = nmalloc(sizeof(int), arr_size);
-        int         *sub_ctrs    = nmalloc(sizeof(int), arr_size);
-        int        **len_stack   = nmalloc(sizeof(int *), two3rds(arr_size));
-        mpack_obj  **obj_stack   = nmalloc(sizeof(mpack_obj *), two3rds(arr_size));
-        va_list     *ref         = NULL;
-        const char  *ptr         = fmt;
+        int *        sub_lengths = nmalloc(sizeof(int), arr_size);
+        int *        sub_ctrs    = nmalloc(sizeof(int), arr_size);
+        int **       len_stack   = nmalloc(sizeof(int *), TWO_THIRDS(arr_size));
+        mpack_obj ** obj_stack   = nmalloc(sizeof(mpack_obj *), TWO_THIRDS(arr_size));
+        va_list *    ref         = NULL;
+        const char * ptr         = fmt;
         unsigned     len_ctr     = 0;
-        int        **len_stackp  = len_stack;
-        int         *cur_len     = &sub_lengths[len_ctr++];
+        int **       len_stackp  = len_stack;
+        int *        cur_len     = &sub_lengths[len_ctr++];
         *cur_len                 = 0;
 
         va_start(args, fmt);
@@ -902,14 +957,18 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case '0': case '1': case '2': case '3': case '4':
                 case '5': case '6': case '7': case '8': case '9':
                         *cur_len += xatoi(ptr - 1);
-                        ptr = strchrnul(ptr, ']');
+                        ptr = strchr(ptr, ']');
+                        if (!ptr)
+                                goto BREAK1;
                         break;
-                case ':': case '.': case ' ': case ',': case '!': case '@': case '*':
+                case ':': case '.': case ' ': case ',':
+                case '!': case '@': case '*':
                         break;
                 default:
                         errx(1, "Illegal character \"%c\" found in format.", ch);
                 }
         }
+BREAK1:;
 
         mpack_obj *pack = NULL;
 
@@ -939,17 +998,23 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         while ((ch = *ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
-                        bool arg = NEXT(int, boolean);
+                        //bool arg = NEXT(int, boolean);
+                        bool arg = 0;
+                        NEXT(arg, int, boolean);
                         ENCODE(boolean, arg);
                         break;
                 }
                 case 'd': case 'D': {
-                        int arg = NEXT(int, num);
+                        //int arg = NEXT(int, num);
+                        int arg = 0;
+                        NEXT(arg, int, num);
                         ENCODE(integer, arg);
                         break;
                 }
                 case 's': case 'S': {
-                        bstring *arg = NEXT(bstring *, str);
+                        //bstring *arg = NEXT(bstring *, str);
+                        bstring *arg = NULL;
+                        NEXT(arg, bstring *, str);
                         ENCODE(string, arg);
                         break;
                 }
@@ -975,16 +1040,20 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         for (; *cur_ctr < cur_obj->data.arr->qty; ++(*cur_ctr))
                                 cur_obj->DAI[*cur_ctr] = NULL;
 
-                        ptr = strchrnul(ptr, ']');
+                        ptr = strchr(ptr, ']');
+                        if (!ptr)
+                                goto BREAK2;
                         break;
 
                 case '!':
-                        ref = NEXT_NO_ATOMIC(va_list *);
+                        //ref = NEXT_NO_ATOMIC(va_list *);
+                        NEXT_NO_ATOMIC(ref, va_list *);
                         next_type = OTHER_VALIST;
                         break;
 
                 case '@':
-                        a_args       = NEXT_NO_ATOMIC(union atomic_call_args **);
+                        //a_args       = NEXT_NO_ATOMIC(union atomic_call_args **);
+                        NEXT_NO_ATOMIC(a_args, union atomic_call_args **);
                         a_arg_ctr    = 0;
                         a_arg_subctr = 0;
                         assert(a_args[a_arg_ctr]);
@@ -1006,6 +1075,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 }
         }
 
+BREAK2:
 cleanup:
         free(sub_lengths);
         free(sub_ctrs);

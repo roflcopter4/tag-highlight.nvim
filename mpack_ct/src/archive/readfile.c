@@ -6,7 +6,7 @@
 #endif
 #include <sys/stat.h>
 
-#define safe_stat(PATH, ST)                                     \
+#define SAFE_STAT(PATH, ST)                                     \
      do {                                                       \
              if ((stat((PATH), (ST)) != 0))                     \
                      err(1, "Failed to stat file '%s", (PATH)); \
@@ -14,10 +14,10 @@
 
 
 static void ll_strsep      (b_list *tags, uint8_t *buf);
-static void plain_getlines (b_list *tags, const bstring *filename);
-static void gz_getlines    (b_list *tags, const bstring *filename);
+static int plain_getlines (b_list *tags, const bstring *filename);
+static int gz_getlines    (b_list *tags, const bstring *filename);
 #ifdef LZMA_SUPPORT
-static void xz_getlines    (b_list *tags, const bstring *filename);
+static int xz_getlines    (b_list *tags, const bstring *filename);
 #endif
 
 extern struct backups backup_pointers;
@@ -28,21 +28,22 @@ extern struct backups backup_pointers;
 int
 getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
 {
+        int ret;
         warnx("Attempting to read tag file %s", BS(filename));
 
         if (comptype == COMP_NONE)
-                plain_getlines(tags, filename);
+                ret = plain_getlines(tags, filename);
         else if (comptype == COMP_GZIP)
-                gz_getlines(tags, filename);
+                ret = gz_getlines(tags, filename);
 #ifdef LZMA_SUPPORT
         else if (comptype == COMP_LZMA)
-                xz_getlines(tags, filename);
+                ret = xz_getlines(tags, filename);
 #endif
         else {
                 warnx("Unknown compression type!");
-                return 0;
+                ret = 0;
         }
-        return 1; /* 1 indicates success here... */
+        return ret; /* 1 indicates success here... */
 }
 
 
@@ -56,7 +57,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
                 if (*tok == '\0')
                         continue;
-                b_add_to_list(&tags, b_refblk(tok, (char *)(buf) - tok - 1));
+                b_list_append(&tags, b_refblk(tok, (char *)(buf) - tok - 1));
         }
 }
 
@@ -77,13 +78,13 @@ ll_strsep(b_list *tags, uint8_t *buf)
 /* PLAIN */
 
 
-static void
+static int
 plain_getlines(b_list *tags, const bstring *filename)
 {
         FILE *fp = safe_fopen(BS(filename), "rb");
         struct stat st;
 
-        safe_stat(BS(filename), &st);
+        SAFE_STAT(BS(filename), &st);
         uint8_t *buffer = xmalloc(st.st_size + 1LL);
 
         if (fread(buffer, 1, st.st_size, fp) != (size_t)st.st_size || ferror(fp))
@@ -93,6 +94,8 @@ plain_getlines(b_list *tags, const bstring *filename)
 
         fclose(fp);
         ll_strsep(tags, buffer);
+
+        return 1;
 }
 
 
@@ -102,7 +105,7 @@ plain_getlines(b_list *tags, const bstring *filename)
 #include <zlib.h>
 
 
-static void
+static int
 gz_getlines(b_list *tags, const bstring *filename)
 {
         struct archive_size size;
@@ -110,8 +113,10 @@ gz_getlines(b_list *tags, const bstring *filename)
         report_size(&size);
 
         gzFile gfp = gzopen(BS(filename), "rb");
-        if (!gfp)
-                err(1, "Failed to open file");
+        if (!gfp) {
+                warn("Failed to open file '%s'", BS(filename));
+                return 0;
+        }
 
         /* Magic macros to the rescue. */
         uint8_t *out_buf = xmalloc(size.uncompressed + 1);
@@ -123,6 +128,8 @@ gz_getlines(b_list *tags, const bstring *filename)
         /* Always remember to null terminate the thing. */
         out_buf[size.uncompressed] = '\0';
         ll_strsep(tags, out_buf);
+
+        return 1;
 }
 
 
@@ -135,11 +142,12 @@ gz_getlines(b_list *tags, const bstring *filename)
 
 
 /* It would be nice if there were some magic macros to read an xz file too. */
-static void
+static int
 xz_getlines(b_list *tags, const bstring *filename)
 {
-        struct archive_size size;
-        xz_size(&size, BS(filename));
+        struct archive_size size = {0, 0};
+        if (!xz_size(&size, BS(filename)))
+                return 0;
         report_size(&size);
 
         uint8_t *in_buf  = xmalloc(size.archive + 1);
@@ -189,5 +197,6 @@ xz_getlines(b_list *tags, const bstring *filename)
         free(in_buf);
 
         ll_strsep(tags, out_buf);
+        return 1;
 }
 #endif

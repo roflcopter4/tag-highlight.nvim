@@ -9,9 +9,11 @@
 #cmakedefine HAVE_STRLCAT
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_STRSEP
-#cmakedefine LZMA_SUPPORT
-#cmakedefine USE_PTHREADS
+#cmakedefine HAVE_MEMRCHR
+#cmakedefine HAVE_STRCHRNUL
+#cmakedefine HAVE_GETTIMEOFDAY
 
+#cmakedefine LZMA_SUPPORT
 #cmakedefine HAVE_UNISTD_H
 
 #define VERSION "1.1.1"

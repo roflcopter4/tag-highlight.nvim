@@ -23,10 +23,10 @@
         } while (0)
 
 #ifdef DOSISH
-#  define DOSCHECK() \
-        (cpy[i] == ':' || cpy[i] == '/')
+#  define DOSCHECK(CH_) \
+        ((CH_) == ':' || (CH_) == '/')
 #else
-#  define DOSCHECK() (false)
+#  define DOSCHECK(CH_) (false)
 #endif
 
 
@@ -193,19 +193,19 @@ static struct top_dir *
 init_topdir(const int fd, struct bufdata *bdata)
 {
         /* Emulate dirname() */
-        int     ret;
-        int64_t pos  = b_strrchr(bdata->filename, SEPCHAR);
-        bstring *dir = b_strcpy(bdata->filename);
+        int           ret  = (-1);
+        const int64_t pos  = b_strrchr(bdata->filename, SEPCHAR);
+        bstring      *dir  = b_strcpy(bdata->filename);
 
         if (pos < 0)
                 abort();
 
-        dir->data[pos]   = '\0';
-        dir->slen        = pos;
-        dir              = check_project_directories(dir);
-        bool     recurse = check_norecurse_directories(dir);
-        bool     is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
-        bstring *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
+        dir->data[pos]     = '\0';
+        dir->slen          = pos;
+        dir                = check_project_directories(dir);
+        const bool recurse = check_norecurse_directories(dir);
+        const bool is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
+        bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
 
         if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
                 for (unsigned i = 0; i < top_dirs.mlen; ++i) {
@@ -234,7 +234,7 @@ init_topdir(const int fd, struct bufdata *bdata)
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), MPACK_STRING, NULL, 1);
-        tmp->tmpfd    = open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
+        tmp->tmpfd    = safe_open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tmp->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
         tmp->ftid     = bdata->ft->id;
         tmp->index    = top_dirs.mkr;
@@ -254,11 +254,11 @@ init_topdir(const int fd, struct bufdata *bdata)
         {
                 char buf[8192];
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tmp->tmpfname));
-                nvim_command(0, bt_fromblk(buf, n), 0);
+                nvim_command(0, btp_fromblk(buf, n), 0);
         }
 
         for (unsigned i = 0; i < base->slen && i < tmp->gzfile->mlen; ++i) {
-                if (base->data[i] == SEPCHAR || DOSCHECK()) {
+                if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i])) {
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                         tmp->gzfile->data[tmp->gzfile->slen++] = '_';
                 } else
@@ -312,7 +312,7 @@ check_project_directories(bstring *dir)
         bstring *tmp;
         while ((tmp = B_GETS(fp, '\n', false))) {
                 if (strstr(BS(dir), BS(tmp)))
-                        b_add_to_list(&candidates, tmp);
+                        b_list_append(&candidates, tmp);
                 else
                         b_destroy(tmp);
         }
@@ -349,7 +349,7 @@ check_project_directories(bstring *dir)
 
 
 static void
-init_filetype(int fd, struct ftdata_s *ft)
+init_filetype(const int fd, struct ftdata_s *ft)
 {
         if (ft->initialized)
                 return;
@@ -381,7 +381,7 @@ init_filetype(int fd, struct ftdata_s *ft)
                         xfree(equiv->entries[i]);
 
                         b_writeallow(toadd);
-                        b_add_to_list(&ft->equiv, toadd);
+                        b_list_append(&ft->equiv, toadd);
                 }
 
                 xfree(equiv->entries);

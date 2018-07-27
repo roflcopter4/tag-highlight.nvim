@@ -5,13 +5,15 @@
 
 #ifdef DOSISH
 #  include <malloc.h>
-#  define __CONST__
+#  define CONST__
 #  define SEPCHAR ';'
 #else
 #  include <alloca.h>
 #  define CONST__ const
 #  define SEPCHAR ':'
 #endif
+
+//#define LOG_NEOTAGS
 
 #define REQUIRED_INPUT 9
 #define free_list(LST)                               \
@@ -109,7 +111,7 @@ UNUSED static void print_tags_vim(const struct taglist *list, const char *ft);
 static void
 print_tags(const struct taglist *list, const char *ft)
 {
-        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", HOME);
+        FILE *fp = safe_fopen_fmt("%s/final_output.log", "ab", HOME);
 
         /* Always print the first tag. */
         PRINT(0);
@@ -128,7 +130,7 @@ print_tags(const struct taglist *list, const char *ft)
 static void
 print_tags_vim(const struct taglist *list, const char *ft)
 {
-        FILE *fp = safe_fopen_fmt("%s/final_output.log", "a", HOME);
+        FILE *fp = safe_fopen_fmt("%s/final_output.log", "ab", HOME);
         char *tmp;
 
         /* Always print the first tag. */
@@ -172,8 +174,8 @@ static bool
 is_correct_lang(const bstring *lang, CONST__ bstring *match_lang)
 {
 #ifdef DOSISH
-        if (match_lang->data[match_lang->len - 1] == '\r')
-                match_lang->data[--match_lang->len] = '\0';
+        if (match_lang->data[match_lang->slen - 1] == '\r')
+                match_lang->data[--match_lang->slen] = '\0';
 #endif
         if (b_iseq_caseless(match_lang, lang))
                 return true;
@@ -217,8 +219,10 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         struct top_dir *topdir = bdata->topdir;
         b_list         *tags   = topdir->tags;
 
-        if (tags->qty == 0)
-                errx(1, "No tags found!");
+        if (tags->qty == 0) {
+                warnx("No tags found!");
+                return NULL;
+        }
 
         int num_threads = find_num_cpus();
         if (num_threads <= 0)
@@ -327,8 +331,9 @@ do_tok_search(void *vdata)
                 bstring *cpy      = b_strcpy(data->lst[i]);
                 uchar   *cpy_data = cpy->data;
 
-                bstring *name       = (bstring[]){{ 0, 0, NULL, 0u }};
-                bstring *match_file = (bstring[]){{ 0, 0, NULL, 0u }};
+                bstring name[]       = {{ 0, 0, NULL, 0u }};
+                bstring match_file[] = {{ 0, 0, NULL, 0u }};
+                bstring *namep = name;
 
                 /* The name is first, followed by two fields we don't need. */
                 name->data       = STRSEP(cur_str, "\t");
@@ -338,7 +343,7 @@ do_tok_search(void *vdata)
                 cur_str          = STRCHR(cur_str, '\t');
 
                 char *tok, kind = '\0';
-                bstring *match_lang = NULL;
+                bstring match_lang[] = {{0, 0, NULL, 0u}};
 
                 /* Extract the 'kind' and 'language' fields. The former is the
                  * only one that is 1 character long, and the latter is prefaced. */
@@ -346,7 +351,7 @@ do_tok_search(void *vdata)
                         if (tok[0] && !tok[1])
                                 kind = *tok;
                         else if (strncmp(tok, "language:", 9) == 0) {
-                                match_lang = (cur_str)
+                                *match_lang = (cur_str)
                                            ? bt_fromblk(tok+9, (cur_str - (uchar*)(tok+9)) - 1)
                                            : bt_fromcstr(tok+9);
 #if 0
@@ -361,7 +366,7 @@ do_tok_search(void *vdata)
                         }
                 }
 
-                if (!kind || !match_lang || !match_lang->data) {
+                if (!kind || !match_lang[0].data) {
                         free(cpy_data);
                         free(cpy);
                         continue;
@@ -385,12 +390,12 @@ do_tok_search(void *vdata)
                  *    4) are present in the current vim buffer.
                  * If invalid, just move on. 
                  */
-#ifndef DEBUG
+#if !defined(DEBUG) || !defined(LOG_NEOTAGS)
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
                      (b_iseq(data->filename, match_file) ||
-                      bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
+                      bsearch(&namep, data->vim_buf->lst, data->vim_buf->qty,
                               sizeof(bstring *), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);

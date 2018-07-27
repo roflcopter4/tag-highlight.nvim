@@ -14,6 +14,7 @@ enum event_types {
         EVENT_BUF_LINES,
         EVENT_BUF_CHANGED_TICK,
         EVENT_BUF_DETACH,
+        EVENT_VIM_UPDATE,
 };
 
 
@@ -61,22 +62,23 @@ struct top_dir {
         b_list  *tags;
 };
 
+struct bufdata {
+        uint32_t ctick;
+        uint32_t last_ctick;
+        uint16_t num;
+        int32_t  ref_ind;
+
+        bstring         *filename;
+        b_list          *cmd_cache;
+        linked_list     *lines;
+        ll_node         *lastref;
+        struct ftdata_s *ft;
+        struct top_dir  *topdir;
+        struct atomic_call_array *calls;
+};
+        
 struct buffer_list {
-        struct bufdata {
-                uint32_t ctick;
-                uint32_t last_ctick;
-                uint16_t num;
-                int32_t  ref_ind;
-
-                bstring         *filename;
-                b_list          *cmd_cache;
-                linked_list     *lines;
-                ll_node         *lastref;
-                struct ftdata_s *ft;
-                struct top_dir  *topdir;
-                struct atomic_call_array *calls;
-        } *lst[512];
-
+        struct bufdata *lst[512];
         struct bad_bufs_s {
                 int lst[512];
                 uint16_t qty;
@@ -91,6 +93,11 @@ struct top_dir_list {
         struct top_dir *lst[512];
         uint16_t mkr;
         uint16_t mlen;
+};
+
+struct int_pdata {
+        int val;
+        int parent_tid;
 };
 
 
@@ -130,6 +137,7 @@ extern void destroy_bufdata(struct bufdata **bdata);
 extern void handle_unexpected_notification(mpack_obj *note);
 extern enum event_types handle_nvim_event(mpack_obj *event);
 
+extern void *interrupt_call(void *vdata);
 
 
 /*---------------------------------------------------------------------------*/

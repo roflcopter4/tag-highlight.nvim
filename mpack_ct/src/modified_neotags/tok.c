@@ -39,7 +39,7 @@ do_tokenize(b_list *list, char *vimbuf, cmp_f check)
                if (!tok[0])
                        continue;
                bstring *tmp = b_refblk(tok, vimbuf - tok - 1);
-               b_add_to_list(&list, tmp);
+               b_list_append(&list, tmp);
         }
 }
 
@@ -90,13 +90,13 @@ tokenize_vim(b_list *list, char *vimbuf, cmp_f check)
                if (!tok[0])
                        continue;
                bstring *tmp = b_refblk(tok, vimbuf - tok - 1);
-               b_add_to_list(&list, tmp);
+               b_list_append(&list, tmp);
 
                if ((col = strchr(tok, ':'))) {
                        if (!(vimbuf - col))
                                continue;
                        tmp = b_refblk(tok, vimbuf - col);
-                       b_add_to_list(&list, tmp);
+                       b_list_append(&list, tmp);
                }
         }
 }

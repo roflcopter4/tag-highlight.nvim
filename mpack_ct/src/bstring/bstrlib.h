@@ -80,6 +80,7 @@ typedef unsigned char uchar;
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define BSTR_ERR (-1)
@@ -233,7 +234,7 @@ BSTR_PUBLIC int b_assign_cstr(bstring *a, const char *str);
  * Note that the bstring a must be a well defined and writable bstring. If
  * an error occurs BSTR_ERR is returned and a is not overwritten.
  */
-BSTR_PUBLIC int b_assign_blk(bstring *a, const void *s, unsigned len);
+BSTR_PUBLIC int b_assign_blk(bstring *a, const void *buf, unsigned len);
 
 
 /*============================================================================*/
@@ -934,6 +935,7 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 #define B(CSTR)     b_tmp(CSTR)
 
 
+#if 0
 /**
  * Creates a static bstring reference to existing memory without copying it.
  * Unlike the return from b_tmp, this will accept non-literal strings, and the
@@ -963,6 +965,26 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 
 #define b_static_fromarray(CSTR) \
         ((bstring){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
+#endif
+
+#define bt_fromblk(BLK, LEN) \
+        ((bstring){ (LEN), 0, ((uchar *)(BLK)), 0x00u })
+
+#define bt_fromcstr(CSTR) \
+        ((bstring){ strlen(CSTR), 0, ((uchar *)(CSTR)), 0x00u })
+
+#define bt_fromarray(CSTR) \
+        ((bstring){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
+
+
+#define btp_fromblk(BLK, LEN) \
+        ((bstring[]){{ (LEN), 0, ((uchar *)(BLK)), 0x00u }})
+
+#define btp_fromcstr(STR_) \
+        ((bstring[]){{ strlen(STR_), 0, ((uchar *)(STR_)), 0x00u }})
+
+#define btp_fromarray(CSTR) \
+        ((bstring[]){{ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u }})
 
 
 
@@ -981,7 +1003,7 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
  *
  * This is rarely useful.
  */
-BSTR_PUBLIC bstring *b_clone(const bstring *const src);
+BSTR_PUBLIC bstring *b_clone(const bstring *src);
 
 /**
  * Similar to b_clone() except the original bstring is designated as the clone
@@ -1067,6 +1089,9 @@ BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, int join
         __b_append_all((BDEST), (JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
 
 
+BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
+
+
 /**
  * Safely free several bstrings.
  */
@@ -1116,7 +1141,7 @@ BSTR_PUBLIC void __b_dump_list(FILE *fp, const b_list *list, const char *listnam
 #define BSTR_M_SORT_FAST 0x04
 #define BSTR_M_DEL_DUPS  0x08
 
-BSTR_PUBLIC int     b_add_to_list(b_list **list, bstring *bstr);
+BSTR_PUBLIC int     b_list_append(b_list **list, bstring *bstr);
 BSTR_PUBLIC int     b_list_merge(b_list **dest, b_list *src, int flags);
 BSTR_PUBLIC int     b_list_remove_dups(b_list **listp);
 BSTR_PUBLIC b_list *b_list_copy(const b_list *list);
@@ -1125,10 +1150,16 @@ BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
 BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
 BSTR_PUBLIC b_list *b_strsep(bstring *str, const char *const delim, const int refonly);
 
+BSTR_PUBLIC int64_t b_strpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
+BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
+#define b_strpbrk(BSTR_, DELIM_) b_strpbrk_pos((BSTR_), 0, (DELIM_))
+#define b_strrpbrk(BSTR_, DELIM_) b_strrpbrk_pos((BSTR_), ((BSTR_)->slen), (DELIM_))
+
+BSTR_PUBLIC bstring *b_dirname(const bstring *path);
+BSTR_PUBLIC bstring *b_basename(const bstring *path);
+
 
 /*----------------------------------------------------------------------------*/
-
-extern void abort(void);
 
 INLINE int
 b_conchar(bstring *bstr, const char ch)

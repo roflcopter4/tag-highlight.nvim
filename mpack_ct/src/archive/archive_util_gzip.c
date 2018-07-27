@@ -29,7 +29,7 @@
 
 static int open_and_stat(const char *name);
 static inline void read_error(const char *filename);
-static void get_size(struct archive_size *size, int fd, const char *name);
+static void get_size(struct archive_size *size, int ifd, const char *name);
 
 
 //=============================================================================
@@ -91,7 +91,7 @@ get_size(struct archive_size *size, int ifd, const char *name)
 }
 
 
-void
+int
 gzip_size(struct archive_size *size, const char *name)
 {
         int fd = open_and_stat(name);
@@ -99,4 +99,5 @@ gzip_size(struct archive_size *size, const char *name)
                 exit(127);
         get_size(size, fd, name);
         close(fd);
+        return 0;
 }

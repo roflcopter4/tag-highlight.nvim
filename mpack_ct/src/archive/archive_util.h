@@ -11,15 +11,16 @@ struct archive_size {
 };
 
 
-void gzip_size(struct archive_size *size, const char *name);
-void xz_size(struct archive_size *size, const char *filename);
-char * lzma_message_strm(int code);
+extern int   gzip_size(struct archive_size *size, const char *name);
+extern int   xz_size(struct archive_size *size, const char *filename);
+extern char *lzma_message_strm(int code);
 
+extern int getlines(b_list *tags, enum comp_type_e comptype, const bstring *filename);
 
-void write_plain(struct top_dir *topdir);
-void write_gzip(struct top_dir *topdir);
-void write_lzma(struct top_dir *topdir);
-void lazy_write_lzma(struct top_dir *topdir);
+extern void write_plain(struct top_dir *topdir);
+extern void write_gzip(struct top_dir *topdir);
+extern void write_lzma(struct top_dir *topdir);
+extern void lazy_write_lzma(struct top_dir *topdir);
 
 
 #endif /* archive_util.h */

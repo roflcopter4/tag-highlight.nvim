@@ -1,6 +1,10 @@
 #ifndef SRC_MPACK_H
 #define SRC_MPACK_H
 
+#ifdef _WIN32
+#  define __attribute__(...)
+#endif
+
 #include "bstring/bstrlib.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -21,7 +25,7 @@ enum mpack_types {
 };
 
 enum message_types { MES_ANY = 0, MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION };
-enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
+enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
 
 
 #define MPACK_HAS_PACKED	0x80	/* 10000000 */ 
@@ -35,8 +39,8 @@ enum nvim_write_type { STANDARD, ERROR, ERROR_LN };
 
 typedef enum   mpack_types      mpack_type_t;
 typedef struct mpack_item       mpack_obj;
-typedef struct mpack_ext_s      mpack_ext_t;
-typedef struct mpack_array_s    mpack_array_t;
+typedef struct mpack_ext        mpack_ext_t;
+typedef struct mpack_array      mpack_array_t;
 typedef struct mpack_dictionary mpack_dict_t;
 
 #pragma pack(push, 1)
@@ -64,13 +68,13 @@ struct mpack_dictionary {
         uint16_t max;
 };
 
-struct mpack_array_s {
+struct mpack_array {
         mpack_obj **items;
         uint16_t    qty;
         uint16_t    max;
 };
 
-struct mpack_ext_s {
+struct mpack_ext {
         int8_t   type;
         uint32_t num;
 };
@@ -103,11 +107,11 @@ struct atomic_call_array {
 
 /* API Wrappers */
 extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
-extern void       nvim_printf  (int fd, const char *restrict fmt, ...) __attribute__((format(printf, 2, 3)));
-extern void       nvim_vprintf (int fd, const char *restrict fmt, va_list args);
+extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((format(printf, 2, 3)));
+extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
 
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
-extern b_list   * nvim_buf_get_lines      (int fd, unsigned buf, int start, int end);
+extern b_list   * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end);
 extern bstring  * nvim_buf_get_name       (int fd, int bufnum);
 extern void     * nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
 extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
@@ -121,8 +125,7 @@ extern bstring  * nvim_get_current_line   (int fd);
 extern void     * nvim_get_option         (int fd, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
 extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-
-extern unsigned   nvim_buf_get_changedtick(int fd, const int bufnum, const bool fatal);
+extern unsigned   nvim_buf_get_changedtick(int fd, int bufnum, bool fatal);
 extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
 extern void     * nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
@@ -130,15 +133,18 @@ extern void       nvim_subscribe          (int fd, const bstring *event);
 extern void nvim_call_atomic(int fd, const struct atomic_call_array *calls);
 
 
+extern bstring * get_notification(int fd);
+
+
 /* Decode and Destroy */
-extern mpack_obj * decode_pack        (bstring *buf, bool skip_3);
+//extern mpack_obj * decode_pack        (bstring *buf, bool skip_3);
 extern mpack_obj * decode_stream      (int fd, enum message_types expected_type);
 extern void        mpack_print_object (const mpack_obj *result, FILE *fp);
 extern void        mpack_destroy      (mpack_obj *root);
 extern void        free_stack_push    (struct item_free_stack *list, void *item);
 
-mpack_obj * decode_stream(int fd, const enum message_types expected_type);
-mpack_obj * decode_obj(bstring *buf, const enum message_types expected_type);
+//mpack_obj * decode_stream(int fd, enum message_types expected_type);
+//mpack_obj * decode_obj(bstring *buf, enum message_types expected_type);
 
 
 /* Encode */
@@ -150,8 +156,8 @@ extern void        mpack_encode_boolean (mpack_obj *root, mpack_array_t *parent,
 extern mpack_obj * encode_fmt           (unsigned size_hint, const char *fmt, ...);
 
 /* Convenience Macros */
-#define nvim_out_write(FD, MES) __nvim_write((FD), STANDARD, (MES))
-#define nvim_err_write(FD, MES) __nvim_write((FD), ERROR, (MES))
+#define nvim_out_write(FD, MES) __nvim_write((FD), NW_STANDARD, (MES))
+#define nvim_err_write(FD, MES) __nvim_write((FD), NW_ERROR, (MES))
 
 
 /*============================================================================*/
@@ -160,7 +166,7 @@ extern mpack_obj * encode_fmt           (unsigned size_hint, const char *fmt, ..
 extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
 extern b_list * blist_from_var_fmt  (int fd, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 extern void   * nvim_get_var_fmt    (int fd, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
-extern void   * dict_get_key        (mpack_dict_t *dict, const mpack_type_t expect, const bstring *key, const bool fatal);
+extern void   * dict_get_key        (mpack_dict_t *dict, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     destroy_call_array  (struct atomic_call_array *calls);
 
 

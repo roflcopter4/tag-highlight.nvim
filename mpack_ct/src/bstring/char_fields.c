@@ -34,6 +34,8 @@
 
 #include "private.h"
 
+#include "bstrlib.h"
+
 
 /*
  * Convert a bstring to charField
@@ -41,7 +43,7 @@
 /*PRIVATE*/ int
 build_char_field(struct char_field *cf, const bstring *bstr)
 {
-        if (IS_NULL(bstr) || bstr->slen <= 0)
+        if (IS_NULL(bstr) || bstr->slen == 0)
                 RUNTIME_ERROR();
         memset(cf->content, 0, sizeof(struct char_field));
         for (uint i = 0; i < bstr->slen; ++i)
@@ -114,9 +116,9 @@ b_inchrr(const bstring *b0, uint pos, const bstring *b1)
                 RUNTIME_ERROR();
         if (pos == b0->slen)
                 pos--;
-        if (1 == b1->slen)
+        if (b1->slen == 1)
                 return b_strrchrp(b0, b1->data[0], pos);
-        if (0 > build_char_field(&chrs, b1))
+        if (build_char_field(&chrs, b1) > 0)
                 RUNTIME_ERROR();
 
         return b_inchrrCF(b0->data, pos, &chrs);

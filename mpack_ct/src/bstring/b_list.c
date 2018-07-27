@@ -33,6 +33,10 @@
  */
 
 #include "private.h"
+#include <assert.h>
+#include <inttypes.h>
+
+#include "bstrlib.h"
 
 /* 
  * This file was broken off from the main bstrlib.c file in a forlorn effort to
@@ -41,7 +45,7 @@
 
 
 /*============================================================================*/
-/* General oparations */
+/* General operations */
 /*============================================================================*/
 
 b_list *
@@ -283,6 +287,47 @@ b_join(const b_list *bl, const bstring *sep)
                 total += v;
         }
         bstr->data[total] = (uchar)'\0';
+
+        return bstr;
+}
+
+
+bstring *
+b_join_quote(const b_list *bl, const bstring *sep, const int ch)
+{
+        if (!bl || INVALID(sep) || !ch)
+                RETURN_NULL();
+        uint       i;
+        const uint sepsize = (sep) ? sep->slen : 0;
+        int64_t    total   = 1;
+
+        B_LIST_FOREACH(bl, bstr, i)
+                total += bstr->slen + sepsize + 2u;
+        if (total > UINT32_MAX)
+                RETURN_NULL();
+
+        bstring *bstr = xmalloc(sizeof(bstring));
+        bstr->mlen    = total - (2 * sepsize);
+        bstr->slen    = 0;
+        bstr->data    = xmalloc(total);
+        bstr->flags   = BSTR_STANDARD;
+
+        B_LIST_FOREACH(bl, cur, i) {
+                if (sep && i > 0) {
+                        memcpy(bstr->data + bstr->slen, sep->data, sep->slen);
+                        bstr->slen += sep->slen;
+                }
+
+                bstr->data[bstr->slen++] = (uchar)ch;
+                memcpy((bstr->data + bstr->slen), cur->data, cur->slen);
+                bstr->slen += cur->slen;
+                bstr->data[bstr->slen++] = (uchar)ch;
+        }
+
+        bstr->data[bstr->slen] = (uchar)'\0';
+
+        if (bstr->slen != bstr->mlen)
+                warnx("Failed operation, %u is smaller than %"PRId64"!", bstr->slen, total);
 
         return bstr;
 }

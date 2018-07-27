@@ -8,11 +8,9 @@
 
 
 extern bool run_ctags(struct bufdata *bdata, struct top_dir *topdir);
-extern bool check_gzfile(struct bufdata *bdata);
-extern void get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir);
-extern bool update_taglist(struct bufdata *bdata);
-
-extern int getlines(b_list *tags, enum comp_type_e comptype, const bstring *filename);
+/* extern bool check_gzfile(struct bufdata *bdata); */
+extern int get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir);
+extern int update_taglist(struct bufdata *bdata);
 
 extern void update_highlight(int bufnum, struct bufdata *bdata);
 extern void clear_highlight(int bufnum, struct bufdata *bdata);

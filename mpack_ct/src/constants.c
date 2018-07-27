@@ -1,4 +1,5 @@
 #include "util.h"
+#include <setjmp.h>
 
 #include "data.h"
 #include "mpack.h"
@@ -73,6 +74,7 @@ struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0};
 struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
 struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 
+extern jmp_buf  exit_buf;
 extern int decode_log_raw;
 extern struct backups backup_pointers;
 extern FILE *decode_log, *cmd_log;
@@ -97,3 +99,4 @@ pthread_mutex_t mpack_print_mutex  = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mpack_stdin_mutex  = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t update_mutex       = PTHREAD_MUTEX_INITIALIZER;
+jmp_buf         exit_buf;

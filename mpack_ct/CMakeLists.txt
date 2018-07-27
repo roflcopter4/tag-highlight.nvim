@@ -3,6 +3,7 @@ project (tag_highlight C)
 include (FindPkgConfig)
 include (CheckFunctionExists)
 include (CheckSymbolExists)
+include (CheckIncludeFile)
 
 if (MSVC OR MINGW)
     set(ISWIN 1)
@@ -19,31 +20,34 @@ option(STATIC_LIBS_ONLY "Build with only static libraries.")
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
-if (ISWIN)
+if (MSVC)
     set (LZMA_SUPPORT 1)
     set (USE_PTHREADS 1)
+    include_directories("${CMAKE_SOURCE_DIR}/contrib/include")
+    message(WARNING "Automatically enabling threads and lzma for Windows")
 else()
     find_package (ZLIB REQUIRED)
     find_package (Threads REQUIRED)
     find_package (LibLZMA)
 endif()
 
-find_package(LibArchive REQUIRED)
+# find_package(LibArchive REQUIRED)
 # pkg_check_modules(mytags_LIBARCHIVE libarchive)
 
 set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE -DHAVE_CONFIG_H)
 
-CHECK_SYMBOL_EXISTS (reallocarray "stdlib.h" HAVE_REALLOCARRAY)
-CHECK_SYMBOL_EXISTS (vasprintf    "stdio.h"  HAVE_VASPRINTF)
-CHECK_SYMBOL_EXISTS (asprintf     "stdio.h"  HAVE_ASPRINTF)
-CHECK_SYMBOL_EXISTS (strlcpy      "string.h" HAVE_STRLCPY)
-CHECK_SYMBOL_EXISTS (strlcat      "string.h" HAVE_STRLCAT)
-CHECK_SYMBOL_EXISTS (strtonum     "string.h" HAVE_STRTONUM)
-CHECK_SYMBOL_EXISTS (strsep       "string.h" HAVE_STRSEP)
-CHECK_SYMBOL_EXISTS (strdupa      "string.h" HAVE_STRDUPA)
-CHECK_SYMBOL_EXISTS (err          "err.h"    HAVE_ERR)
-
-CHECK_INCLUDE_FILE ("unistd.h" HAVE_UNISTD_H)
+CHECK_SYMBOL_EXISTS (reallocarray "stdlib.h"   HAVE_REALLOCARRAY)
+CHECK_SYMBOL_EXISTS (vasprintf    "stdio.h"    HAVE_VASPRINTF)
+CHECK_SYMBOL_EXISTS (asprintf     "stdio.h"    HAVE_ASPRINTF)
+CHECK_SYMBOL_EXISTS (strlcpy      "string.h"   HAVE_STRLCPY)
+CHECK_SYMBOL_EXISTS (strlcat      "string.h"   HAVE_STRLCAT)
+CHECK_SYMBOL_EXISTS (strtonum     "string.h"   HAVE_STRTONUM)
+CHECK_SYMBOL_EXISTS (strsep       "string.h"   HAVE_STRSEP)
+CHECK_SYMBOL_EXISTS (strdupa      "string.h"   HAVE_STRDUPA)
+CHECK_SYMBOL_EXISTS (memrchr      "string.h"   HAVE_MEMRCHR)
+CHECK_SYMBOL_EXISTS (strchrnul    "string.h"   HAVE_STRCHRNUL)
+CHECK_SYMBOL_EXISTS (err          "err.h"      HAVE_ERR)
+CHECK_SYMBOL_EXISTS (gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
@@ -57,8 +61,8 @@ endif()
 
 if (THREADS_HAVE_PTHREAD_ARG)
     set (USE_PTHREADS 1)
-else()
-    message(FATAL_ERROR "POSIX pthreads are required!")
+#else()
+#    message(FATAL_ERROR "POSIX pthreads are required!")
 endif()
 
 ###############################################################################
@@ -72,10 +76,11 @@ if (MSVC)
     set (CMAKE_C_FLAGS_RELEASE "/MP /GS /TC /GL /W3 /Gm- /Ox /Ob2 /Zc:inline /fp:fast /Gd /Oi /MD /FC /Ot /arch:AVX2")
     
     set (CMAKE_BUILD_TYPE Release)
-    set (CMAKE_C_FLAGS_DEBUG "/GS /TC /Wall /ZI /Gm- /Od /RTC1 /Gd /Oi /MD /FC")
+    set (CMAKE_C_FLAGS_DEBUG "/GS /TC /Wall /ZI /Gm- /Od /RTC1 /Gd /Oi /MD /FC /MP /MDd /DDEBUG")
     set (CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_RELEASE})
     set (CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE})
 else()
+    CHECK_INCLUDE_FILE ("unistd.h" HAVE_UNISTD_H)
     if (NOT BUILD_DIST) 
         set (MARCH_SETTING "-march=native")
     endif()
@@ -88,12 +93,13 @@ else()
     if (CLANG_STR_SEARCH EQUAL -1)
         message("Not clang!")
         set (ISCLANG 0)
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
--Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
--Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
--Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
--Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches \
--Wvarargs -Wchkp -Winit-self")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat")
+#        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
+#-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
+#-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
+#-Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
+#-Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches \
+#-Wvarargs -Wchkp -Winit-self")
     else()
         set (ISCLANG 1)
         message("Is clang!")
@@ -116,7 +122,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/jsmn")
 
-configure_file(cmake-config.h.in config.h)
+configure_file(cmake-config.h.in topconfig.h)
 
 add_subdirectory(src)
 

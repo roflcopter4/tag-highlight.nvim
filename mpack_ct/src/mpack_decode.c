@@ -47,7 +47,7 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
-/* #define LOG(...) fprintf(decodelog, __VA_ARGS__) */
+//#define LOG(...) fprintf(stderr, __VA_ARGS__)
 #define LOG(...)
 
 
@@ -72,19 +72,19 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                /* eprintf("For some incomprehensible reason the pack's type is %d.\n",
-                     mpack_type(ret)); */
                 mpack_print_object(ret, mpack_log);
                 fflush(mpack_log);
+                eprintf("For some incomprehensible reason the pack's type is %d.\n",
+                        mpack_type(ret));
                 abort();
         }
 
         pthread_mutex_unlock(mut);
 
         if (expected_type != MES_ANY &&
-            expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
+            expected_type != (ret->data.arr->items[0]->data.num + 1))
         {
-                eprintf("Expected %d but got %ld\n",
+                eprintf("Expected %d but got %"PRId64"\n",
                         expected_type, ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
@@ -103,7 +103,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
                 return decode_stream(fd, expected_type);
         }
 
-        UNUSED ssize_t n = write(decode_log_raw, "\n\n", 2);
+        //UNUSED ssize_t n = write(decode_log_raw, "\n\n", 2);
         return ret;
 }
 
@@ -124,10 +124,10 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         }
 
         if (expected_type != MES_ANY &&
-            expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1))
+            expected_type != ((uint32_t)ret->data.arr->items[0]->data.num + 1u))
         {
                 if (buf != 0)
-                        eprintf("Expected %d but got %ld\n", expected_type,
+                        eprintf("Expected %d but got %"PRId64"\n", expected_type,
                                 ret->data.arr->items[0]->data.num);
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
@@ -148,7 +148,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
 
 
 static mpack_obj *
-do_decode(read_fn READ, void *src)
+do_decode(const read_fn READ, void *src)
 {
         uint8_t byte = 0;
         READ(src, &byte, 1);
@@ -173,7 +173,7 @@ do_decode(read_fn READ, void *src)
 
 
 static mpack_obj *
-decode_array(read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_array(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -214,7 +214,7 @@ decode_array(read_fn READ, void *src, const uint8_t byte, const struct mpack_mas
 
 
 static mpack_obj *
-decode_dictionary(read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -256,7 +256,7 @@ decode_dictionary(read_fn READ, void *src, const uint8_t byte, const struct mpac
 
 
 static mpack_obj *
-decode_string(read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_string(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -299,7 +299,7 @@ decode_string(read_fn READ, void *src, const uint8_t byte, const struct mpack_ma
 
 
 static mpack_obj *
-decode_integer(read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         int64_t    value   = 0;
@@ -343,7 +343,7 @@ decode_integer(read_fn READ, void *src, const uint8_t byte, const struct mpack_m
 
 
 static mpack_obj *
-decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint64_t   value   = 0;
@@ -374,7 +374,7 @@ decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_
                 }
         }
 
-        ASSERTX(value <= INT64_MAX, "Value (%lu) is too large!\n", value);
+        //ASSERTX(value <= INT64_MAX, "Value (%lu) is too large!\n", value);
         item->flags    = MPACK_NUM;
         item->data.num = (int64_t)value;
 
@@ -385,7 +385,7 @@ decode_unsigned(read_fn READ, void *src, const uint8_t byte, const struct mpack_
 
 
 static mpack_obj *
-decode_ext(read_fn READ, void *src, const struct mpack_masks *mask)
+decode_ext(const read_fn READ, void *src, const struct mpack_masks *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   value   = 0;
@@ -417,8 +417,8 @@ decode_ext(read_fn READ, void *src, const struct mpack_masks *mask)
         item->data.ext->type = type;
         item->data.ext->num  = value;
 
-        LOG("It is an extention thingy! -> 0x%0X : data => %d, %d\n",
-            byte, type, value);
+        LOG("It is an extention thingy! -> : data => %d, %d\n",
+            type, value);
 
         return item;
 }

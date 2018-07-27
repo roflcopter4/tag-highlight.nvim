@@ -1,5 +1,4 @@
 #include "util.h"
-#include <inttypes.h>
 
 #include "mpack.h"
 
@@ -47,6 +46,7 @@ mpack_print_object(const mpack_obj *result, FILE *fp)
 #ifndef DEBUG
         return;
 #endif
+        //eprintf("Printing an object.....\n");
         assert(result != NULL);
         assert(fp != NULL);
 
@@ -56,6 +56,7 @@ mpack_print_object(const mpack_obj *result, FILE *fp)
         do_mpack_print_object(result);
         print_log = NULL;
         pthread_mutex_unlock(&mpack_print_mutex);
+        //eprintf("DONE!\n");
 }
 
 
@@ -125,7 +126,7 @@ print_dict(const mpack_obj *result)
                 print_string(result->data.dict->entries[i]->key, 0);
 
                 fseek(print_log, -1, SEEK_CUR);
-                int tmp = indent;
+                const int tmp = indent;
 
                 switch (mpack_type(result->data.dict->entries[i]->value)) {
                 case MPACK_ARRAY:

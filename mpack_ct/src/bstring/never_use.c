@@ -34,6 +34,8 @@
 
 #include "private.h"
 
+#include "bstrlib.h"
+
 #define upcase(c)   (toupper((uchar)(c)))
 #define downcase(c) (tolower((uchar)(c)))
 #define wspace(c)   (isspace((uchar)(c)))
