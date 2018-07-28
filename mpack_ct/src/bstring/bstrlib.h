@@ -1157,12 +1157,17 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 #define b_strpbrk(BSTR_, DELIM_) b_strpbrk_pos((BSTR_), 0, (DELIM_))
 #define b_strrpbrk(BSTR_, DELIM_) b_strrpbrk_pos((BSTR_), ((BSTR_)->slen), (DELIM_))
 
-BSTR_PUBLIC bstring *b_dirname(const bstring *path);
-BSTR_PUBLIC bstring *b_basename(const bstring *path);
+BSTR_PUBLIC bstring *  b_dirname(const bstring *path);
+BSTR_PUBLIC bstring *  b_basename(const bstring *path);
+BSTR_PUBLIC bstring *  b_sprintf(const bstring *fmt, ...);
+BSTR_PUBLIC bstring *  b_vsprintf(const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_fprintf(FILE *out_fp, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_dprintf(const int out_fd, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vdprintf(const int out_fd, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_sprintf_append(bstring *dest, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vsprintf_append(bstring *dest, const bstring *fmt, va_list args);
 
-BSTR_PUBLIC bstring *b_sprintf(const bstring *fmt, ...);
-BSTR_PUBLIC bstring *b_vsprintf(const bstring *fmt, va_list args);
-BSTR_PUBLIC int      b_fprintf(FILE *out_fp, const bstring *fmt, ...);
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)
 

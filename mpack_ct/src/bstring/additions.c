@@ -3,6 +3,7 @@
  */
 
 #include "private.h"
+#include <assert.h>
 #include <inttypes.h>
 
 #include "bstrlib.h"
@@ -70,6 +71,7 @@ strsep(char **stringp, const char *delim)
 }
 #endif
 
+#if 0
 static char *
 _memsep(char **stringp, const unsigned len, const char *delim)
 {
@@ -91,6 +93,7 @@ _memsep(char **stringp, const unsigned len, const char *delim)
 
         return NULL;
 }
+#endif
 
 
 /*============================================================================*/
@@ -708,199 +711,10 @@ b_basename(const bstring *path)
 bstring *
 b_sprintf(const bstring *fmt, ...)
 {
-        if (INVALID(fmt))
-                RETURN_NULL();
-
-        va_list  ap;
-        int64_t  pos[1024];
-        unsigned len  = fmt->slen;
-        int64_t  pcnt = 0;
-        int64_t  i    = 0;
-        memset(pos, 0, sizeof(pos));
+        va_list ap;
         va_start(ap, fmt);
-
-        for (; i < fmt->slen; ++pcnt) {
-                int     islong = 0;
-                pos[pcnt] = b_strchrp(fmt, '%', i) + 1ll;
-                if (pos[pcnt] == 0)
-                        break;
-
-                int ch = fmt->data[pos[pcnt]];
-
-        len_restart:
-                /* warnx("run 1, currnt pos is %ld, ch: %c, len: %u", pos[pcnt], ch, len); */
-                switch (ch) {
-                case 's': {
-                        bstring *next = va_arg(ap, bstring *);
-                        if (INVALID(next)) {
-                                warnx("Invalid bstring supplied to %s", __func__);
-                                va_end(ap);
-                                RETURN_NULL();
-                        }
-                        len = (len - 2u) + next->slen;
-                        i   = pos[pcnt] + 2;
-
-                        break;
-                }
-                case 'd':
-                case 'u':
-                        switch (islong) {
-                        case 0:
-                                (void)va_arg(ap, int);
-                                len = (len - 2u) + 11u;
-                                i   = pos[pcnt] + 2;
-                                break;
-                        case 1: (void)va_arg(ap, long);
-#if INT_MAX == LONG_MAX
-                                len = (len - 3u) + 11u;
-#else
-                                len = (len - 3u) + 21u;
-#endif
-                                i   = pos[pcnt] + 3;
-                                break;
-                        case 2:
-                                (void)va_arg(ap, long long);
-                                len = (len - 4u) + 21u;
-                                i   = pos[pcnt] + 4;
-                                break;
-                        default:
-                                abort();
-                        }
-
-                        break;
-                case 'l':
-                        ++islong;
-                        ch = fmt->data[pos[pcnt] + islong];
-                        goto len_restart;
-                case 'z':
-                        islong = 2;
-                        ch = fmt->data[pos[pcnt] + 1];
-                        goto len_restart;
-                case 'c':
-                        (void)va_arg(ap, int);
-                        --len;
-                        i = pos[pcnt] + 2;
-                        break;
-                case '%':
-                        --len;
-                        i = pos[pcnt] + 2;
-                        break;
-                default:
-                        errx(1, "Value '%c' is not legal.", ch);
-                }
-        }
+        bstring *ret = b_vsprintf(fmt, ap);
         va_end(ap);
-        va_start(ap, fmt);
-
-        bstring *ret = b_alloc_null(len + 1);
-        int64_t  x;
-        pcnt = i = x = 0;
-
-        for (; pos[pcnt] > 0; ++pcnt) {
-                int islong   = 0;
-                int ch       = fmt->data[pos[pcnt]];
-                int64_t diff = (pos[pcnt]) - x - 1ll;
-                if (diff >= 0)
-                        memcpy(ret->data + i, fmt->data + x, diff);
-                
-                i += diff;
-                x += diff;
-str_restart:
-                /* warnx("currnt pos is %ld, pcnt: %ld, ch: '%c'", pos[pcnt], pcnt, ch); */
-                switch (ch) {
-                case 's': {
-                        bstring *next = va_arg(ap, bstring *);
-                        memcpy(ret->data + i, next->data, next->slen);
-                        i += next->slen;
-                        x  = pos[pcnt] + 1;
-
-                        break;
-                }
-                case 'd': {
-                        char buf[64];
-                        int n = 0;
-
-                        switch (islong) {
-                        case 0: {
-                                int next = va_arg(ap, int);
-                                n = snprintf(buf, 64, "%d", next);
-                                x = pos[pcnt] + 1;
-                                break;
-                        }
-                        case 1: {
-                                long next = va_arg(ap, long);
-                                n = snprintf(buf, 64, "%ld", next);
-                                x = pos[pcnt] + 2;
-                                break;
-                        }
-                        case 2: {
-                                long long next = va_arg(ap, long long);
-                                n = snprintf(buf, 64, "%lld", next);
-                                x = pos[pcnt] + 3;
-                                break;
-                        }
-                        default:
-                                abort();
-                        }
-
-                        memcpy(ret->data + i, buf, n);
-                        i += n;
-
-                        break;
-                }
-                case 'u': {
-                        char buf[64];
-                        int n = 0;
-
-                        switch (islong) {
-                        case 0: {
-                                unsigned next = va_arg(ap, unsigned);
-                                n = snprintf(buf, 64, "%u", next);
-                                x = pos[pcnt] + 1;
-                        } break;
-                        case 1: {
-                                long unsigned next = va_arg(ap, long unsigned);
-                                n = snprintf(buf, 64, "%lu", next);
-                                x = pos[pcnt] + 2;
-                        } break;
-                        case 2: {
-                                long long unsigned next = va_arg(ap, long long unsigned);
-                                n = snprintf(buf, 64, "%llu", next);
-                                x = pos[pcnt] + 3;
-                        } break;
-                        default:
-                                abort();
-                        }
-
-                        memcpy(ret->data + i, buf, n);
-                        i += n;
-
-                        break;
-                }
-                case 'c': {
-                        int next = va_arg(ap, int);
-                        ret->data[i++] = (uchar)next;
-
-                        break;
-                }
-                case 'l':
-                        ++islong;
-                        ch = fmt->data[pos[pcnt] + islong];
-                        goto str_restart;
-                case 'z':
-                        islong = 2;
-                        ch = fmt->data[pos[pcnt] + 1];
-                        goto str_restart;
-                case '%':
-                        ret->data[i++] = '%';
-                        break;
-                default:
-                        errx(1, "Value '%c' is not legal.", ch);
-                }
-        }
-
-        va_end(ap);
-        ret->data[(ret->slen = i)] = '\0';
         return ret;
 }
 
@@ -919,6 +733,8 @@ b_vsprintf(const bstring *fmt, va_list args)
         memset(pos, 0, sizeof(pos));
         va_copy(cpy, args);
 
+        /* warnx("fmt is \"%s\"", BS(fmt)); */
+
         for (; i < fmt->slen; ++pcnt) {
                 int     islong = 0;
                 pos[pcnt] = b_strchrp(fmt, '%', i) + 1ll;
@@ -928,13 +744,12 @@ b_vsprintf(const bstring *fmt, va_list args)
                 int ch = fmt->data[pos[pcnt]];
 
         len_restart:
-                /* warnx("run 1, currnt pos is %ld, ch: %c, len: %u", pos[pcnt], ch, len); */
                 switch (ch) {
                 case 's': {
                         bstring *next = va_arg(cpy, bstring *);
                         if (INVALID(next)) {
                                 warnx("Invalid bstring supplied to %s", __func__);
-                                va_end(args);
+                                va_end(cpy);
                                 RETURN_NULL();
                         }
                         len = (len - 2u) + next->slen;
@@ -963,6 +778,11 @@ b_vsprintf(const bstring *fmt, va_list args)
                                 len = (len - 4u) + 21u;
                                 i   = pos[pcnt] + 4;
                                 break;
+                        case 3:
+                                (void)va_arg(cpy, size_t);
+                                len = (len - 3u) + 21u;
+                                i   = pos[pcnt] + 3;
+                                break;
                         default:
                                 abort();
                         }
@@ -973,7 +793,7 @@ b_vsprintf(const bstring *fmt, va_list args)
                         ch = fmt->data[pos[pcnt] + islong];
                         goto len_restart;
                 case 'z':
-                        islong = 2;
+                        islong = 3;
                         ch = fmt->data[pos[pcnt] + 1];
                         goto len_restart;
                 case 'c':
@@ -991,28 +811,33 @@ b_vsprintf(const bstring *fmt, va_list args)
         }
 
         va_end(cpy);
-        bstring *ret = b_alloc_null(len + 1);
+        bstring *ret = b_alloc_null(snapUpSize(len + 1u));
         int64_t  x;
         pcnt = i = x = 0;
 
-        for (; pos[pcnt] > 0; ++pcnt) {
-                int islong   = 0;
-                int ch       = fmt->data[pos[pcnt]];
-                int64_t diff = (pos[pcnt]) - x - 1ll;
+        for (; ; ++pcnt) {
+                const int64_t diff = (pos[pcnt] == 0) ? (int64_t)fmt->slen - x
+                                                      : pos[pcnt] - x - 1ll;
                 if (diff >= 0)
                         memcpy(ret->data + i, fmt->data + x, diff);
                 
+                int islong = 0;
+                int ch     = fmt->data[pos[pcnt]];
                 i += diff;
                 x += diff;
+
+                if (pos[pcnt] == 0)
+                        break;
+
 str_restart:
-                /* warnx("currnt pos is %ld, pcnt: %ld, ch: '%c'", pos[pcnt], pcnt, ch); */
                 switch (ch) {
                 case 's': {
                         bstring *next = va_arg(args, bstring *);
                         memcpy(ret->data + i, next->data, next->slen);
+                        /* size_t slen = strlen(BS(next));
+                        assert(slen == (size_t)next->slen); */
                         i += next->slen;
                         x  = pos[pcnt] + 1;
-
                         break;
                 }
                 case 'd': {
@@ -1038,13 +863,18 @@ str_restart:
                                 x = pos[pcnt] + 3;
                                 break;
                         }
+                        case 3: {
+                                ssize_t next = va_arg(args, ssize_t);
+                                n = snprintf(buf, 64, "%zd", next);
+                                x = pos[pcnt] + 2;
+                                break;
+                        }
                         default:
                                 abort();
                         }
 
                         memcpy(ret->data + i, buf, n);
                         i += n;
-
                         break;
                 }
                 case 'u': {
@@ -1056,30 +886,38 @@ str_restart:
                                 unsigned next = va_arg(args, unsigned);
                                 n = snprintf(buf, 64, "%u", next);
                                 x = pos[pcnt] + 1;
-                        } break;
+                                break;
+                        }
                         case 1: {
                                 long unsigned next = va_arg(args, long unsigned);
                                 n = snprintf(buf, 64, "%lu", next);
                                 x = pos[pcnt] + 2;
-                        } break;
+                                break;
+                        }
                         case 2: {
                                 long long unsigned next = va_arg(args, long long unsigned);
                                 n = snprintf(buf, 64, "%llu", next);
                                 x = pos[pcnt] + 3;
-                        } break;
+                                break;
+                        }
+                        case 3: {
+                                size_t next = va_arg(args, size_t);
+                                n = snprintf(buf, 64, "%zu", next);
+                                x = pos[pcnt] + 2;
+                                break;
+                        }
                         default:
                                 abort();
                         }
 
                         memcpy(ret->data + i, buf, n);
                         i += n;
-
                         break;
                 }
                 case 'c': {
-                        int next = va_arg(args, int);
+                        int next       = va_arg(args, int);
                         ret->data[i++] = (uchar)next;
-
+                        x += 2;
                         break;
                 }
                 case 'l':
@@ -1087,11 +925,12 @@ str_restart:
                         ch = fmt->data[pos[pcnt] + islong];
                         goto str_restart;
                 case 'z':
-                        islong = 2;
+                        islong = 3;
                         ch = fmt->data[pos[pcnt] + 1];
                         goto str_restart;
                 case '%':
                         ret->data[i++] = '%';
+                        x += 2;
                         break;
                 default:
                         errx(1, "Value '%c' is not legal.", ch);
@@ -1100,4 +939,105 @@ str_restart:
 
         ret->data[(ret->slen = i)] = '\0';
         return ret;
+}
+
+
+int
+b_fprintf(FILE *out_fp, const bstring *fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        int ret = b_vfprintf(out_fp, fmt, ap);
+        va_end(ap);
+
+        return ret;
+}
+
+
+int
+b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args)
+{
+        if (INVALID(fmt) || !out_fp)
+                RUNTIME_ERROR();
+
+        bstring *toprint = b_vsprintf(fmt, args);
+        if (!toprint)
+                RUNTIME_ERROR();
+
+        int ret = fwrite(toprint->data, 1, toprint->slen, out_fp);
+        b_free(toprint);
+        return ret;
+}
+
+
+int
+b_dprintf(const int out_fd, const bstring *fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        int ret = b_vdprintf(out_fd, fmt, ap);
+        va_end(ap);
+
+        return ret;
+}
+
+
+int
+b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
+{
+        if (INVALID(fmt) || out_fd < 0)
+                RUNTIME_ERROR();
+
+        bstring *toprint = b_vsprintf(fmt, args);
+        if (!toprint)
+                RUNTIME_ERROR();
+
+        int ret = write(out_fd, toprint->data, toprint->slen);
+        b_free(toprint);
+        return ret;
+}
+
+
+int
+b_sprintf_append(bstring *dest, const bstring *fmt, ...)
+{
+        if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
+                RUNTIME_ERROR();
+        va_list ap;
+        va_start(ap, fmt);
+        int ret = b_vsprintf_append(dest, fmt, ap);
+        va_end(ap);
+
+        return ret;
+}
+
+
+int
+b_vsprintf_append(bstring *dest, const bstring *fmt, va_list args)
+{
+        if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
+                RUNTIME_ERROR();
+
+        bstring *app = b_vsprintf(fmt, args);
+        if (INVALID(app))
+                RUNTIME_ERROR();
+
+        const unsigned newlen = snapUpSize(dest->slen + app->slen + 1u);
+
+        if (dest->mlen >= newlen) {
+                memcpy(dest->data + dest->slen, app->data, app->slen);
+        } else {
+                uchar *buf = xmalloc(newlen);
+                memcpy(buf, dest->data, dest->slen);
+                memcpy(buf + dest->slen, app->data, app->slen);
+                free(dest->data);
+                dest->data = buf;
+        }
+
+        dest->slen += app->slen;
+        dest->data[dest->slen] = '\0';
+        assert(dest->slen == strlen(BS(dest)));
+        dest->mlen = newlen;
+
+        return BSTR_OK;
 }

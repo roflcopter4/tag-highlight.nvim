@@ -68,7 +68,7 @@ extern pthread_mutex_t mpack_main_mutex;
         } while (0)
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 void
@@ -86,8 +86,7 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 
         mpack_obj *pack = encode_fmt_api(fd, "s", func, mes);
         write_and_clean(fd, pack, func);
-
-        mpack_obj *tmp = decode_stream(fd, MES_RESPONSE);
+        mpack_obj *tmp  = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
 
         mpack_print_object(tmp, mpack_log);
@@ -115,7 +114,7 @@ nvim_vprintf(const int fd, const char *const restrict fmt, va_list args)
 }
 
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 #define RETVAL (result->DAI[3])
 
@@ -130,7 +129,7 @@ nvim_buf_attach(int fd, const int bufnum)
         return NULL;
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 void *
 nvim_list_bufs(int fd)
@@ -208,18 +207,17 @@ nvim_buf_get_name(int fd, const int bufnum)
         pthread_mutex_lock(&mpack_main_mutex);
         WRITE_API("d", bufnum);
 
+        char       fullname[PATH_MAX];
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         bstring   *ret    = get_expect(result, MPACK_STRING, NULL, true, true);
-
-        char fullname[PATH_MAX];
-        char *tmp = realpath(BS(ret), fullname);
+        char      *tmp    = realpath(BS(ret), fullname);
         b_assign_cstr(ret, tmp);
 
         pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 bool
 nvim_command(int fd, const bstring *cmd, const bool fatal)
@@ -317,7 +315,7 @@ nvim_call_function_args(int                 fd,
         return ret;
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 void *
 nvim_get_var(int                fd,
@@ -334,7 +332,6 @@ nvim_get_var(int                fd,
         void *ret = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to retrieve variable \"%s\".", BS(varname));
-
         return ret;
 }
 
@@ -350,17 +347,32 @@ nvim_get_option(int                fd,
         WRITE_API("s", optname);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void *     ret    = get_expect(result, expect, key, true, true);
+        void      *ret    = get_expect(result, expect, key, true, true);
 
-        FATAL("Failed to retrieve option \"%s\".", BS(optname));
+        FATAL("Failed to retrieve option \"g:%s\".", BS(optname));
 
         pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
+void *
+nvim_buf_get_var(int                fd,
+                 const int          bufnum,
+                 const bstring *    varname,
+                 const mpack_type_t expect,
+                 const bstring *    key,
+                 const bool         fatal)
+{
+        pthread_mutex_lock(&mpack_main_mutex);
+        WRITE_API("d:s", bufnum, varname);
 
-/* void *
-nvim_buf_get_var(int fd, const int bufnum, const bstring *optname, const mpack_type_t expect, ) */
+        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
+        pthread_mutex_unlock(&mpack_main_mutex);
+        void *ret = get_expect(result, expect, key, true, true);
+
+        FATAL("Failed to retrieve variable \"b:%s\".", BS(varname));
+        return ret;
+}
 
 void *
 nvim_buf_get_option(int                fd,
@@ -384,18 +396,20 @@ nvim_buf_get_option(int                fd,
 }
 
 unsigned
-nvim_buf_get_changedtick(int fd, const int bufnum, const bool fatal)
+nvim_buf_get_changedtick(int fd, const int bufnum)
 {
         pthread_mutex_lock(&mpack_main_mutex);
         WRITE_API("d", bufnum);
+
         mpack_obj      *result = decode_stream(fd, MES_RESPONSE);
         const unsigned  ret    = RETVAL->data.num;
+
         mpack_destroy(result);
         pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 int
 nvim_buf_add_highlight(int             fd,
@@ -433,7 +447,7 @@ nvim_buf_clear_highlight(int            fd,
         mpack_destroy(result);
 }
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 void
 nvim_get_api_info(int fd)
@@ -492,7 +506,7 @@ nvim_call_atomic(int fd, const struct atomic_call_array *calls)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 bstring *
@@ -507,7 +521,7 @@ get_notification(int fd)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 static void *
@@ -596,28 +610,25 @@ static void
 write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
 {
 #if defined(DEBUG) && defined(LOG_RAW_MPACK)
-        size_t nbytes = 0;
+        /* size_t nbytes = 0; */
         char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
         const int rawlog = safe_open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
-        nbytes     = write(rawlog, "\n", 1);
-        nbytes    += write(rawlog, (*pack->packed)->data, (*pack->packed)->slen);
-        nbytes    += write(rawlog, "\n", 1);
-        assert(nbytes == (*pack->packed)->slen /*+ 2*/);
+        /* dprintf(rawlog, "\n%s\n", BS(*pack->packed)); */
+        b_write(rawlog, B("\n"), *pack->packed, B("\n"));
         close(rawlog);
-
+#endif
         if (func)
                 fprintf(mpack_log, "=================================\n"
                         "Writing request no %d to fd %d: \"%s\"\n",
                         COUNT(fd) - 1, fd, BS(func));
 
-#endif
         mpack_print_object(pack, mpack_log);
         b_write(fd, *pack->packed);
         mpack_destroy(pack);
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 void
@@ -732,7 +743,7 @@ destroy_call_array(struct atomic_call_array *calls)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Type conversions */
 
 
@@ -828,7 +839,7 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 #if 0

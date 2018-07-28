@@ -3,6 +3,7 @@
 
 #include "linked_list.h"
 #include "mpack.h"
+#include <pthread.h>
 
 enum filetype_id {
         FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
@@ -96,8 +97,8 @@ struct top_dir_list {
 };
 
 struct int_pdata {
-        int val;
-        int parent_tid;
+        int       val;
+        pthread_t parent_tid;
 };
 
 

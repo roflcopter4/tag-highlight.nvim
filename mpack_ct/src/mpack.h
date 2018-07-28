@@ -110,11 +110,16 @@ extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring
 extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((format(printf, 2, 3)));
 extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
 
+extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
+extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
+extern unsigned   nvim_buf_get_changedtick(int fd, int bufnum);
 extern b_list   * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end);
 extern bstring  * nvim_buf_get_name       (int fd, int bufnum);
 extern void     * nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
+extern void     * nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
 extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
+extern void       nvim_call_atomic        (int fd, const struct atomic_call_array *calls);
 extern void     * nvim_call_function      (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     * nvim_call_function_args (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...);
 extern bool       nvim_command            (int fd, const bstring *cmd, bool fatal);
@@ -124,14 +129,8 @@ extern int        nvim_get_current_buf    (int fd);
 extern bstring  * nvim_get_current_line   (int fd);
 extern void     * nvim_get_option         (int fd, const bstring *optname, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
-extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-extern unsigned   nvim_buf_get_changedtick(int fd, int bufnum, bool fatal);
-extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
 extern void     * nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
-
-extern void nvim_call_atomic(int fd, const struct atomic_call_array *calls);
-
 
 extern bstring * get_notification(int fd);
 

@@ -105,11 +105,12 @@ main(int argc, char *argv[])
 
         assert(settings.enabled);
 
-        bstring *test = b_sprintf(B("you %s are a %s, you %d %ld %d!"), B("sir"), B("silly, silly man"), 893, 9838203l, (-293));
+        bstring *test = b_sprintf(B("you %s are a %s, you %d %ld %d!"), B("sir"),
+                                  B("silly, silly man"), 893, 9838203l, (-293));
         echo("Test is '%s'", BS(test));
         b_destroy(test);
 
-        tst(B("%s --- %d --- %s"), B("hi"), 42, B("bye"));
+        tst(B("%s --- %llu --- %s"), B("hi"), 0xFFFFFFFFFFllu, B("bye"));
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
@@ -240,7 +241,7 @@ interrupt_call(void *vdata)
 
                                 gettimeofday(&tv2, NULL);
                                 SHOUT("Time for initialization: %Lfs",
-                                       TDIFF(tv1, tv2));
+                                      TDIFF(tv1, tv2));
                         }
                 } else if (prev != bufnum) {
                         update_highlight(bufnum, bdata);
@@ -280,7 +281,7 @@ interrupt_call(void *vdata)
         case 'C': {
                 clear_highlight(nvim_get_current_buf(0), NULL);
 #ifdef DOSISH
-                pthread_kill(main_loop, SIGTERM);
+                pthread_kill(data->parent_tid, SIGTERM);
 #else
                 pthread_kill(data->parent_tid, SIGUSR1);
 #endif

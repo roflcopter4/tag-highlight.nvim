@@ -49,16 +49,13 @@ handle_nvim_event(mpack_obj *event)
         const struct event_id *type = id_event(event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                /* int *intp = xmalloc(sizeof(int));
-                *intp = D[0]->data.str->data[0]; */
                 pthread_t         tmp;
                 pthread_attr_t    attr;
                 struct int_pdata *data = xmalloc(sizeof(*data));
                 const int         val  = D[0]->data.str->data[0];
                 *data = (struct int_pdata){val, pthread_self()};
 
-                pthread_attr_init(&attr);
-                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                MAKE_PTHREAD_ATTR_DETATCHED(&attr);
                 pthread_create(&tmp, &attr, interrupt_call, data);
         } else {
                 const unsigned bufnum = D[0]->data.ext->num;
@@ -158,7 +155,7 @@ handle_line_event(const unsigned index, mpack_obj **items)
 #  endif
 
         assert(ll_verify_size(bdata->lines));
-        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num, 1);
+        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
         const int      n     = nvim_buf_line_count(0, bdata->num);
 
         if (bdata->ctick == ctick) {

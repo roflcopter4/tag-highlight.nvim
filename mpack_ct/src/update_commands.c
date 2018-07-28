@@ -96,9 +96,8 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 static struct atomic_call_array *
 update_commands(struct bufdata *bdata, struct taglist *tags)
 {
-        const unsigned ngroups = bdata->ft->order->slen;
-        //struct cmd_info info[ngroups];
-        struct cmd_info *info = nalloca(ngroups, sizeof(*info));
+        const unsigned   ngroups = bdata->ft->order->slen;
+        struct cmd_info *info    = nalloca(ngroups, sizeof(*info));
 
         if (bdata->cmd_cache)
                 b_list_destroy(bdata->cmd_cache);
@@ -162,57 +161,41 @@ handle_kind(bstring *cmd, unsigned i,
             const struct taglist  *tags,
             const struct cmd_info *info)
 {
-        bstring *group_id = b_format("_tag_highlight_%s_%c_%s", BTS(ft->vim_name),
-                                     info->kind, BS(info->group));
-
-        b_join_append_all(cmd, B(" "), 1,
-                          B("silent! syntax clear"),
-                          group_id,
-                          B("|"));
+        bstring *group_id = b_sprintf(B("_tag_highlight_%s_%c_%s"),
+                                      &ft->vim_name, info->kind, info->group);
+        b_sprintf_append(cmd, B("silent! syntax clear %s | "), group_id);
 
         if (info->prefix || info->suffix) {
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
-                b_append_all(cmd, B("syntax match "),
-                             group_id,
-                             B(" /"),
-                             prefix,
-                             B("\\%("),
-                             tags->lst[i++]->b);
+                b_sprintf_append(cmd, B("syntax match %s /%s\\%%(%s"),
+                                 group_id, prefix, tags->lst[i++]->b);
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
-                                b_append_all(cmd, B("\\|"), tags->lst[i]->b);
+                                b_sprintf_append(cmd, B("\\|%s"), tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_append_all(cmd, B("\\)"),
-                             suffix,
-                             B("/ display | hi def link "),
-                             group_id,
-                             B(" "),
-                             info->group);
+                b_sprintf_append(cmd, B("\\)%s/ display | hi def link %s %s"),
+                                 suffix, group_id, info->group);
         } else {
-                b_join_append_all(cmd, B(" "), 1,
-                                  B("syntax keyword"),
-                                  group_id,
-                                  tags->lst[i++]->b);
+                b_sprintf_append(cmd, B(" syntax keyword %s %s "),
+                                 group_id, tags->lst[i++]->b);
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
-                                b_join_append_all(cmd, B(" "), 1, tags->lst[i]->b);
+                                b_sprintf_append(cmd, B("%s "), tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_join_append_all(cmd, B(" "), 1,
-                                  B("display | hi def link"),
-                                  group_id,
-                                  info->group);
+                b_sprintf_append(cmd, B("display | hi def link %s %s"),
+                                 group_id, info->group);
         }
 
         b_destroy(group_id);
@@ -236,8 +219,8 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
                                                       BTS(bdata->ft->vim_name), ch);
                 bstring *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
 
-                b_formata(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
-                          BTS(bdata->ft->vim_name), ch, BS(group));
+                b_sprintf_append(cmd, B("silent! syntax clear _tag_highlight_%s_%c_%s"),
+                                 &bdata->ft->vim_name, ch, group);
 
                 if (i < (bdata->ft->order->slen - 1))
                         b_concat(cmd, B(" | "));
@@ -276,8 +259,7 @@ get_restore_cmds(b_list *restored_groups)
 
                 ptr += 4;
                 assert(!isblank(*ptr));
-                b_append_all(cmd, B("syntax clear "),
-                             restored_groups->lst[i], B(" | "));
+                b_sprintf_append(cmd, B("syntax clear %s | "), restored_groups->lst[i]);
 
                 b_list *toks = b_list_create();
 
@@ -286,9 +268,7 @@ get_restore_cmds(b_list *restored_groups)
                 if (strncmp(ptr, SLS("match /")) != 0) {
                         char *tmp;
                         char link_name[1024];
-                        b_join_append_all(cmd, B(" "), 1,
-                                          B("syntax keyword"),
-                                          restored_groups->lst[i]);
+                        b_sprintf_append(cmd, B("syntax keyword %s "), restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
                                 b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
@@ -308,10 +288,8 @@ get_restore_cmds(b_list *restored_groups)
 
                         size_t n = strlcpy(link_name, (ptr += 9), 1024);
                         assert(n > 0);
-                        b_join_append_all(cmd, B(" "), 1,
-                                          B("| hi! link "),
-                                          restored_groups->lst[i],
-                                          btp_fromcstr(link_name));
+                        b_sprintf_append(cmd, B(" | hi! link %s %s"),
+                                         restored_groups->lst[i], btp_fromcstr(link_name));
 
                         b_list_append(&allcmds, cmd);
                 }

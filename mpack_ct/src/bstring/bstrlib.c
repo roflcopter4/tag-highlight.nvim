@@ -763,7 +763,7 @@ b_strchrp(const bstring *bstr, const int ch, const uint pos)
         if (ptr)
                 return (int64_t)((ptrdiff_t)ptr - (ptrdiff_t)bstr->data);
 
-        return BSTR_ERR;
+        return (-1);
 }
 
 
@@ -781,9 +781,8 @@ b_strrchrp(const bstring *bstr, const int ch, const uint pos)
         for (int64_t i = pos; i >= 0; --i)
                 if (bstr->data[i] == (uchar)ch)
                         return i;
-
-        return (-1);
 #endif
+        return (-1);
 }
 
 
