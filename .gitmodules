@@ -1,3 +1,6 @@
 [submodule "mpack_ct/src/contrib/jsmn"]
 	path = mpack_ct/src/contrib/jsmn
-	url = /home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/mpack_ct/src/contrib/jsmn
+	url = https://github.com/zserge/jsmn
+[submodule "mpack_ct/win32_libs"]
+	path = mpack_ct/win32_libs
+	url = https://github.com/roflcopter4/win32_libs

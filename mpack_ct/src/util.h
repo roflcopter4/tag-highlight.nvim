@@ -4,9 +4,9 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
-#ifndef DEBUG
+/* #ifndef DEBUG
 #  define DEBUG
-#endif
+#endif */
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding

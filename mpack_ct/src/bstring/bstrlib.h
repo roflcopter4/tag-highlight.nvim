@@ -1150,6 +1150,8 @@ BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
 BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
 BSTR_PUBLIC b_list *b_strsep(bstring *str, const char *const delim, const int refonly);
 
+/*----------------------------------------------------------------------------*/
+
 BSTR_PUBLIC int64_t b_strpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
 BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
 #define b_strpbrk(BSTR_, DELIM_) b_strpbrk_pos((BSTR_), 0, (DELIM_))
@@ -1158,6 +1160,11 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 BSTR_PUBLIC bstring *b_dirname(const bstring *path);
 BSTR_PUBLIC bstring *b_basename(const bstring *path);
 
+BSTR_PUBLIC bstring *b_sprintf(const bstring *fmt, ...);
+BSTR_PUBLIC bstring *b_vsprintf(const bstring *fmt, va_list args);
+BSTR_PUBLIC int      b_fprintf(FILE *out_fp, const bstring *fmt, ...);
+#define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
+#define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)
 
 /*----------------------------------------------------------------------------*/
 

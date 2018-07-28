@@ -275,7 +275,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         echo("base: %s\ngzfile: %s", BS(base), BS(tmp->gzfile));
         assert(ret == BSTR_OK);
 
-        get_initial_taglist(bdata, tmp);
+        /* get_initial_taglist(bdata, tmp); */
         top_dirs.lst[top_dirs.mkr] = tmp;
         NEXT_MKR(top_dirs);
         if (!recurse || is_c)

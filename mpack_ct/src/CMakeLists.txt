@@ -70,11 +70,11 @@ add_executable(tag_highlight ${tag_highlight_SOURCES})
 # target_link_libraries(tag_highlight ${tag_highlight_MSGPACK_LIBRARIES})
 
 if (ISWIN)
-    include_directories(tag_highlight "${CMAKE_SOURCE_DIR}/contrib/include")
+    include_directories(tag_highlight "${CMAKE_SOURCE_DIR}/win32_libs/include")
     target_link_libraries(tag_highlight
-        "${CMAKE_SOURCE_DIR}/contrib/lib/libz.lib"
-        "${CMAKE_SOURCE_DIR}/contrib/lib/liblzma.lib"
-        "${CMAKE_SOURCE_DIR}/contrib/lib/libpthread.lib")
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/libz.lib"
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib"
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/libpthread.lib")
     target_link_libraries(tag_highlight archive_util bstring neotags contrib)
 else()
     if (LZMA_SUPPORT)

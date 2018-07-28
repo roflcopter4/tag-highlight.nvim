@@ -93,8 +93,10 @@ bool
 run_ctags(struct bufdata *bdata, struct top_dir *topdir)
 {
         assert(topdir != NULL);
-        if (!bdata->lines || bdata->lines->qty == 0)
+        if (!bdata->lines || bdata->lines->qty == 0) {
+                echo("File is empty, cannot run ctags");
                 return false;
+        }
 
         b_list *headers = NULL;
 #ifdef DEBUG
@@ -170,6 +172,9 @@ get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir)
                                 b_write(topdir->tmpfd, topdir->tags->lst[i], B("\n"));
                 } else {
                         warnx("Could not read file. Running ctags.");
+                        if (bdata->lines->qty <= 1)
+                                return 0;
+                        echo("linecount -> %d", bdata->lines->qty);
                         goto force_ctags;
                 }
         } else {

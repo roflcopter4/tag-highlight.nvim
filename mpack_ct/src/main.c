@@ -43,6 +43,17 @@ NORETURN static void sigusr_wrap(UNUSED int _);
 /*============================================================================*/
 
 
+void tst(const bstring *s, ...)
+{
+        va_list ap;
+        va_start(ap, s);
+        bstring *tmp = b_vsprintf(s, ap);
+        va_end(ap);
+        b_fputs(stderr, tmp, B("\n"));
+        b_destroy(tmp);
+}
+
+
 int
 main(int argc, char *argv[])
 {
@@ -70,7 +81,7 @@ main(int argc, char *argv[])
         }
 #endif
 #ifdef DEBUG
-        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb+", HOME);
+        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", HOME);
         decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", HOME);
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
         decode_log_raw = safe_open_fmt(
@@ -94,6 +105,12 @@ main(int argc, char *argv[])
 
         assert(settings.enabled);
 
+        bstring *test = b_sprintf(B("you %s are a %s, you %d %ld %d!"), B("sir"), B("silly, silly man"), 893, 9838203l, (-293));
+        echo("Test is '%s'", BS(test));
+        b_destroy(test);
+
+        tst(B("%s --- %d --- %s"), B("hi"), 42, B("bye"));
+
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
@@ -106,6 +123,7 @@ main(int argc, char *argv[])
                 mpack_array_t *buflist = nvim_list_bufs(0);
                 for (unsigned i = 0; i < buflist->qty; ++i)
                         new_buffer(0, buflist->items[i]->data.ext->num);
+
                 destroy_mpack_array(buflist);
         }
 
@@ -176,6 +194,7 @@ async_init_buffers(UNUSED void *vdata)
         nvim_buf_clear_highlight(0, bufnum, main_hl_id, 0, -1);
         sleep(2); */
 
+        get_initial_taglist(bdata, bdata->topdir);
         update_highlight(bufnum, bdata);
         gettimeofday(&tv2, NULL);
         SHOUT("Time for initialization: %Lfs", TDIFF(tv1, tv2));
@@ -207,6 +226,7 @@ interrupt_call(void *vdata)
                 struct bufdata *bdata = find_buffer(bufnum);
 
                 if (!bdata) {
+                        echo("is new buffer...");
                         if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
                                 nvim_buf_attach(1, bufnum);
                                 bdata = find_buffer(bufnum);
@@ -215,6 +235,7 @@ interrupt_call(void *vdata)
                                         echo("sleeping");
                                         fsleep(WAIT_TIME);
                                 }
+                                get_initial_taglist(bdata, bdata->topdir);
                                 update_highlight(bufnum, bdata);
 
                                 gettimeofday(&tv2, NULL);
@@ -387,7 +408,7 @@ get_compression_type(const int fd) {
                 ret = COMP_NONE;
         else
                 echo("Warning: unrecognized compression type \"%s\", "
-                     "defaulting to no compression.\n", BS(tmp));
+                     "defaulting to no compression.", BS(tmp));
 
         echo("Comp type is %s", BS(tmp));
 
