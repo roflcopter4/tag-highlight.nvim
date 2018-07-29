@@ -116,7 +116,7 @@ typedef struct tagbstring   bstring;
 typedef struct bstring_list b_list;
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Copy functions */
 
 
@@ -237,7 +237,7 @@ BSTR_PUBLIC int b_assign_cstr(bstring *a, const char *str);
 BSTR_PUBLIC int b_assign_blk(bstring *a, const void *buf, unsigned len);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Destroy function */
 
 
@@ -328,7 +328,7 @@ BSTR_PUBLIC int b_alloc(bstring *bstr, unsigned olen);
 BSTR_PUBLIC int b_allocmin(bstring *bstr, unsigned len);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Substring extraction */
 
 
@@ -385,7 +385,7 @@ BSTR_PUBLIC int b_catblk(bstring *bstr, const void * buf, unsigned len);
 BSTR_PUBLIC int b_trunc(bstring *bstr, unsigned n);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Scan/search functions */
 
 /**
@@ -568,7 +568,7 @@ BSTR_PUBLIC int64_t b_ninchr(const bstring *b0, unsigned pos, const bstring *b1)
  */
 BSTR_PUBLIC int64_t b_ninchrr(const bstring *b0, unsigned pos, const bstring *b1);
 
-/*============================================================================*/
+/*======================================================================================*/
 /* List of string container functions */
 
 
@@ -621,7 +621,7 @@ BSTR_PUBLIC int b_list_alloc(b_list *sl, unsigned msz);
 BSTR_PUBLIC int b_list_allocmin(b_list *sl, unsigned msz);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* String split and join functions */
 
 typedef int (*b_cbfunc)(void *parm, unsigned ofs, unsigned len);
@@ -671,7 +671,7 @@ BSTR_PUBLIC b_list *b_splitstr(const bstring *str, const bstring *splitStr);
 BSTR_PUBLIC bstring *b_join(const b_list *bl, const bstring *sep);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Miscellaneous functions */
 
 /**
@@ -691,7 +691,7 @@ BSTR_PUBLIC int b_toupper(bstring *bstr);
 BSTR_PUBLIC int b_tolower(bstring *bstr);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* printf format functions */
 
 /**
@@ -766,7 +766,7 @@ BSTR_PUBLIC int b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist
 BSTR_PUBLIC int b_vformata(bstring *bstr, const char *fmt, va_list arglist);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Input functions */
 
 
@@ -855,7 +855,7 @@ BSTR_PUBLIC int b_assign_gets(bstring *bstr, bNgetc getc_ptr, void *parm,
 BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Static constant string initialization macro */
 
 /**
@@ -879,7 +879,7 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 #define b_staticBlkParms(cstr) ((void *)("" cstr "")), (sizeof(cstr) - 1)
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* MY ADDITIONS */
 
 
@@ -1036,7 +1036,7 @@ INLINE bstring *b_refcstr(char *str)
 }
 
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 /* Read wrappers */
 
 /**
@@ -1062,8 +1062,10 @@ b_fread(void *buf, const size_t size, const size_t nelem, void *param)
 #define B_GETS(PARAM, TERM, END_) b_gets(&b_fgetc, (PARAM), (TERM), (END_))
 #define B_READ(PARAM, END_)       b_read(&b_fread, (PARAM), (END_))
 
+BSTR_PUBLIC bstring *b_quickread(const char *__restrict fmt, ...);
 
-/*----------------------------------------------------------------------------*/
+
+/*--------------------------------------------------------------------------------------*/
 /* Some additional list operations. */
 
 /**
@@ -1077,20 +1079,16 @@ b_fread(void *buf, const size_t size, const size_t nelem, void *param)
  */
 BSTR_PUBLIC bstring *__b_concat_all(const bstring *join, int join_end, ...);
 BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, int join_end, ...);
-
 #define b_concat_all(...) \
         __b_concat_all(NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
 #define b_append_all(BDEST, ...) \
         __b_append_all((BDEST), NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
+#define b_join_all(JOIN, END, ...) \
+        __b_concat_all((JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
+#define b_join_append_all(BDEST, JOIN, END, ...) \
+        __b_append_all((BDEST), (JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
 
-#define b_join_all(JOIN_, END_, ...) \
-        __b_concat_all((JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
-#define b_join_append_all(BDEST, JOIN_, END_, ...) \
-        __b_append_all((BDEST), (JOIN_), (END_), __VA_ARGS__, B_LIST_END_MARK)
-
-
-BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
-
+/*--------------------------------------------------------------------------------------*/
 
 /**
  * Safely free several bstrings.
@@ -1109,14 +1107,14 @@ BSTR_PUBLIC void __b_fputs(FILE *fp, bstring *bstr, ...);
  * rather than a FILE * object and fwrite(3);
  */
 BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
-BSTR_PUBLIC void __b_dump_list(FILE *fp, const b_list *list, const char *listname);
+BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listname);
 
 #define b_free_all(...)        __b_free_all(__VA_ARGS__, B_LIST_END_MARK)
 #define b_puts(...)            __b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
 #define b_warn(...)            __b_fputs(stderr, __VA_ARGS__, B_LIST_END_MARK)
 #define b_fputs(__FP, ...)     __b_fputs(__FP, __VA_ARGS__,   B_LIST_END_MARK)
 #define b_write(__FD, ...)     __b_write(__FD, __VA_ARGS__,   B_LIST_END_MARK)
-#define b_dump_list(FP_, LST_) __b_dump_list((FP_), (LST_), #LST_)
+#define b_list_dump(FP_, LST_) __b_list_dump((FP_), (LST_), #LST_)
 
 
 #define B_LIST_FOREACH(BLIST, VAR, CTR)                                    \
@@ -1135,6 +1133,7 @@ BSTR_PUBLIC void __b_dump_list(FILE *fp, const b_list *list, const char *listnam
 #define B_LIST_SORT(BLIST) \
         qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_wrap)
 
+/*--------------------------------------------------------------------------------------*/
 
 #define BSTR_M_DEL_SRC   0x01
 #define BSTR_M_SORT      0x02
@@ -1147,10 +1146,13 @@ BSTR_PUBLIC int     b_list_remove_dups(b_list **listp);
 BSTR_PUBLIC b_list *b_list_copy(const b_list *list);
 BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
 
-BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
-BSTR_PUBLIC b_list *b_strsep(bstring *str, const char *const delim, const int refonly);
+BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
 
-/*----------------------------------------------------------------------------*/
+BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
+BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, const char delim);
+BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *const delim, const int refonly);
+
+/*--------------------------------------------------------------------------------------*/
 
 BSTR_PUBLIC int64_t b_strpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
 BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
@@ -1159,19 +1161,20 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 
 BSTR_PUBLIC bstring *  b_dirname(const bstring *path);
 BSTR_PUBLIC bstring *  b_basename(const bstring *path);
+
 BSTR_PUBLIC bstring *  b_sprintf(const bstring *fmt, ...);
 BSTR_PUBLIC bstring *  b_vsprintf(const bstring *fmt, va_list args);
 BSTR_PUBLIC int        b_fprintf(FILE *out_fp, const bstring *fmt, ...);
 BSTR_PUBLIC int        b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args);
 BSTR_PUBLIC int        b_dprintf(const int out_fd, const bstring *fmt, ...);
 BSTR_PUBLIC int        b_vdprintf(const int out_fd, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_sprintf_append(bstring *dest, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vsprintf_append(bstring *dest, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_sprintf_a(bstring *dest, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vsprintf_a(bstring *dest, const bstring *fmt, va_list args);
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)
 
-/*----------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------*/
 
 INLINE int
 b_conchar(bstring *bstr, const char ch)
@@ -1190,7 +1193,7 @@ b_conchar(bstring *bstr, const char ch)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 /* Write protection macros */
 
 

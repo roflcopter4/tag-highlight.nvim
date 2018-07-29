@@ -399,7 +399,7 @@ b_strcpy(const bstring *bstr)
         bstring *b0 = xmalloc(sizeof(bstring));
         uint i      = bstr->slen;
         uint j      = snapUpSize(i + 1);
-        b0->data    = malloc(j);
+        b0->data    = xmalloc(j);
 
         if (!b0->data) {
                 j        = i + 1;
@@ -755,8 +755,10 @@ b_iseq_cstr_caseless(const bstring *bstr, const char *buf)
 int64_t
 b_strchrp(const bstring *bstr, const int ch, const uint pos)
 {
-        if (IS_NULL(bstr) || bstr->slen <= pos)
+        if (IS_NULL(bstr) || bstr->slen < pos)
                 RUNTIME_ERROR();
+        if (bstr->slen == pos)
+                return (-1);
 
         char *ptr = memchr((bstr->data + pos), ch, (bstr->slen - pos));
 

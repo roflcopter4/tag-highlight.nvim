@@ -87,13 +87,14 @@ else()
 
     # set (WARNS "-fdiagnostics-color=always -Weverything")
     set (WARNS "-fdiagnostics-color=always -Wall")
+    # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
     string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
     if (CLANG_STR_SEARCH EQUAL -1)
         message("Not clang!")
         set (ISCLANG 0)
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -Og -g -Wextra -Wpedantic -Wformat")
 #        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 #-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
 #-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
@@ -103,14 +104,14 @@ else()
     else()
         set (ISCLANG 1)
         message("Is clang!")
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -Og -g -Wextra -Wpedantic -Wformat -Weverything \
 -Wno-sign-conversion -Wno-documentation-unknown-command -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros \
 -Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-conversion -Wno-padded")
     endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -Og -g")
-    set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} -O3")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O2 -g")
+    set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} ${SANIT} -O3")
 
     set (CMAKE_EXE_LINKER_FLAGS "-L/usr/local/lib")
     set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")

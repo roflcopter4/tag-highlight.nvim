@@ -164,7 +164,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 ll_insert_after(list, at, blist->lst[start]);
                 return;
         }
-        MSG1();
+        /* MSG1(); */
 
         ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
@@ -177,7 +177,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 assert((unsigned)i < blist->qty);
                 if (!(blist->lst[x] && blist->lst[x]->data)) {
                         FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
-                        b_dump_list(fp, blist);
+                        b_list_dump(fp, blist);
                         fclose(fp);
                         abort();
                 }
@@ -207,7 +207,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
 
         /* list->qty += diff; */
         free(tmp);
-        MSG2();
+        /* MSG2(); */
 }
 
 
@@ -227,7 +227,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 ll_insert_before(list, at, blist->lst[start]);
                 return;
         }
-        MSG1();
+        /* MSG1(); */
 
         ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
@@ -239,7 +239,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 assert(blist->lst[x]);
                 if (!(blist->lst[x] && blist->lst[x]->data)) {
                         FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
-                        b_dump_list(fp, blist);
+                        b_list_dump(fp, blist);
                         fclose(fp);
                         abort();
                 }
@@ -267,7 +267,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
 
         list->qty += diff;
         free(tmp);
-        MSG2();
+        /* MSG2(); */
 }
 
 
@@ -288,8 +288,8 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
                 ll_delete_node(list, at);
                 return;
         }
-        echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
-             V(at), V(list->head), V(list->tail), range, list->qty);
+        /* echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
+             V(at), V(list->head), V(list->tail), range, list->qty); */
 
         ll_node *current      = at;
         ll_node *next         = NULL;
@@ -317,8 +317,8 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
                 list->tail = prev;
 
 
-        echo("NOW: head: %p, tail: %p, qty: %d\n",
-             V(list->head), V(list->tail), list->qty);
+        /* echo("NOW: head: %p, tail: %p, qty: %d\n",
+             V(list->head), V(list->tail), list->qty); */
 }
 
 

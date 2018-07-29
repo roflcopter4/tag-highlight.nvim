@@ -136,14 +136,11 @@ extern bstring * get_notification(int fd);
 
 
 /* Decode and Destroy */
-//extern mpack_obj * decode_pack        (bstring *buf, bool skip_3);
-extern mpack_obj * decode_stream      (int fd, enum message_types expected_type);
 extern void        mpack_print_object (const mpack_obj *result, FILE *fp);
 extern void        mpack_destroy      (mpack_obj *root);
 extern void        free_stack_push    (struct item_free_stack *list, void *item);
-
-//mpack_obj * decode_stream(int fd, enum message_types expected_type);
-//mpack_obj * decode_obj(bstring *buf, enum message_types expected_type);
+extern mpack_obj * decode_stream      (int fd, enum message_types expected_type);
+extern mpack_obj * decode_obj         (bstring *buf, enum message_types expected_type);
 
 
 /* Encode */

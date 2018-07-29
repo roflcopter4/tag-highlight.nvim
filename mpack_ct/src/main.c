@@ -18,15 +18,15 @@
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
 #define TDIFF(STV1, STV2)                                          \
-        (((long double)(tv2.tv_usec - tv1.tv_usec) / 1000000.0L) + \
-         ((long double)(tv2.tv_sec - tv1.tv_sec)))
+        (((long double)((STV2).tv_usec - (STV1).tv_usec) / 1000000.0L) + \
+         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
 extern jmp_buf  exit_buf;
 extern int      decode_log_raw;
-extern FILE    *decode_log, *cmd_log;
+extern FILE    *decode_log, *cmd_log, *echo_log;
 static FILE    *main_log;
 static bstring *vpipename, *servername, *mes_servername;
-static struct timeval tv1, tv2;
+static struct timeval gtv;
 static pthread_t top_thread;
 
 
@@ -40,25 +40,14 @@ NORETURN static void sigusr_wrap(UNUSED int _);
 
 //extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
-/*============================================================================*/
-
-
-void tst(const bstring *s, ...)
-{
-        va_list ap;
-        va_start(ap, s);
-        bstring *tmp = b_vsprintf(s, ap);
-        va_end(ap);
-        b_fputs(stderr, tmp, B("\n"));
-        b_destroy(tmp);
-}
+/*======================================================================================*/
 
 
 int
 main(int argc, char *argv[])
 {
         atexit(exit_cleanup);
-        gettimeofday(&tv1, NULL);
+        gettimeofday(&gtv, NULL);
         extern const char *program_name;
         top_thread   = pthread_self();
         program_name = basename(argv[0]);
@@ -84,6 +73,7 @@ main(int argc, char *argv[])
         mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", HOME);
         decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", HOME);
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
+        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", HOME);
         decode_log_raw = safe_open_fmt(
             "%s/decode_raw.log", O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0644, HOME);
 #endif
@@ -104,13 +94,7 @@ main(int argc, char *argv[])
         settings.verbose         = nvim_get_var_num_pkg(0, "verbose", 1);
 
         assert(settings.enabled);
-
-        bstring *test = b_sprintf(B("you %s are a %s, you %d %ld %d!"), B("sir"),
-                                  B("silly, silly man"), 893, 9838203l, (-293));
-        echo("Test is '%s'", BS(test));
-        b_destroy(test);
-
-        tst(B("%s --- %llu --- %s"), B("hi"), 0xFFFFFFFFFFllu, B("bye"));
+        int initial_buf;
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
@@ -121,20 +105,24 @@ main(int argc, char *argv[])
                         echo("Retrying (attempt number %u)\n", attempts);
                 }
 
+                initial_buf = nvim_get_current_buf(0);
+                new_buffer(0, initial_buf);
+#if 0
                 mpack_array_t *buflist = nvim_list_bufs(0);
                 for (unsigned i = 0; i < buflist->qty; ++i)
                         new_buffer(0, buflist->items[i]->data.ext->num);
 
                 destroy_mpack_array(buflist);
+#endif
         }
 
         int retval = setjmp(exit_buf);
 
         if (retval == 0) {
-                pthread_t event_loop;
+                pthread_t      event_loop;
                 pthread_attr_t attr;
                 MAKE_PTHREAD_ATTR_DETATCHED(&attr);
-                pthread_create(&event_loop, &attr, &async_init_buffers, NULL);
+                pthread_create(&event_loop, &attr, &async_init_buffers, &initial_buf);
                 (void)buffer_event_loop(NULL);
         }
 
@@ -142,9 +130,9 @@ main(int argc, char *argv[])
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
-#define WAIT_TIME (0.2L)
+#define WAIT_TIME (0.05L)
 
 
 /*
@@ -180,10 +168,12 @@ buffer_event_loop(UNUSED void *vdata)
  * then apply the initial highlights.
  */
 static void *
-async_init_buffers(UNUSED void *vdata)
+async_init_buffers(void *vdata)
 {
-        const int       bufnum = nvim_get_current_buf(0);
+        /* const int       bufnum = nvim_get_current_buf(0); */
+        const int       bufnum = *(const int *)vdata;
         struct bufdata *bdata  = find_buffer(bufnum);
+        struct timeval  ltv;
         assert(bdata);
 
         while (bdata->lines->qty <= 1)
@@ -197,8 +187,8 @@ async_init_buffers(UNUSED void *vdata)
 
         get_initial_taglist(bdata, bdata->topdir);
         update_highlight(bufnum, bdata);
-        gettimeofday(&tv2, NULL);
-        SHOUT("Time for initialization: %Lfs", TDIFF(tv1, tv2));
+        gettimeofday(&ltv, NULL);
+        SHOUT("Time for startup: %Lfs", TDIFF(gtv, ltv));
 
         pthread_exit(NULL);
 }
@@ -210,6 +200,7 @@ interrupt_call(void *vdata)
         struct int_pdata      *data      = vdata;
         static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
         static int             bufnum    = 1;
+        struct timeval         ltv1, ltv2;
         pthread_mutex_lock(&int_mutex);
 
         echo("Recieved \"%c\"; waking up!\n", data->val);
@@ -220,14 +211,13 @@ interrupt_call(void *vdata)
          */
         case 'A':
         case 'D': {
-                fsleep(WAIT_TIME);
+                /* fsleep(WAIT_TIME); */
                 const int prev = bufnum;
-                gettimeofday(&tv1, NULL);
+                gettimeofday(&ltv1, NULL);
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
 
                 if (!bdata) {
-                        echo("is new buffer...");
                         if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
                                 nvim_buf_attach(1, bufnum);
                                 bdata = find_buffer(bufnum);
@@ -239,14 +229,16 @@ interrupt_call(void *vdata)
                                 get_initial_taglist(bdata, bdata->topdir);
                                 update_highlight(bufnum, bdata);
 
-                                gettimeofday(&tv2, NULL);
-                                SHOUT("Time for initialization: %Lfs",
-                                      TDIFF(tv1, tv2));
+                                gettimeofday(&ltv2, NULL);
+                                SHOUT("Time for file initialization: %Lfs",
+                                      TDIFF(ltv1, ltv2));
                         }
                 } else if (prev != bufnum) {
+                        if (!bdata->calls)
+                                get_initial_taglist(bdata, bdata->topdir);
                         update_highlight(bufnum, bdata);
-                        gettimeofday(&tv2, NULL);
-                        SHOUT("Time for update: %Lfs", TDIFF(tv1, tv2));
+                        gettimeofday(&ltv2, NULL);
+                        SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
                 }
 
                 break;
@@ -255,22 +247,22 @@ interrupt_call(void *vdata)
          * Buffer was written, or filetype/syntax was changed.
          */
         case 'B': {
-                gettimeofday(&tv1, NULL);
+                gettimeofday(&ltv1, NULL);
                 const int       curbuf = nvim_get_current_buf(0);
                 struct bufdata *bdata  = find_buffer(curbuf);
 
                 if (!bdata) {
-                        warnx("Failed to find buffer! %d -> p: %p\n",
+                        SHOUT("Failed to find buffer! %d -> p: %p\n",
                               curbuf, (void *)bdata);
                         break;
                 }
 
-                fsleep(WAIT_TIME);
+                /* fsleep(WAIT_TIME); */
 
                 if (update_taglist(bdata)) {
                         update_highlight(curbuf, bdata);
-                        gettimeofday(&tv2, NULL);
-                        SHOUT("Time for update: %Lfs", TDIFF(tv1, tv2));
+                        gettimeofday(&ltv2, NULL);
+                        SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
                 }
 
                 break;
@@ -305,7 +297,7 @@ interrupt_call(void *vdata)
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 /*
@@ -318,6 +310,7 @@ exit_cleanup(void)
 
         b_free(servername);
         b_free(mes_servername);
+        b_free(vpipename);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
@@ -348,10 +341,11 @@ exit_cleanup(void)
                 fclose(cmd_log);
         if (main_log)
                 fclose(main_log);
+        if (echo_log)
+                fclose(echo_log);
         if (vpipe) {
                 fclose(vpipe);
                 unlink(BS(vpipename));
-                b_free(vpipename);
         }
         if (decode_log_raw > 0)
                 close(decode_log_raw);
@@ -371,7 +365,7 @@ create_socket(bstring **name)
         *name = nvim_call_function(1, B("serverstart"), MPACK_STRING, NULL, 1);
 
 #if defined(DOSISH)
-        const int fd = safe_open(BS(*name), O_RDWR|O_BINARY, S_IWRITE|S_IREAD);
+        const int fd = safe_open(BS(*name), O_RDWR|O_BINARY, 0);
 #else
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
@@ -395,9 +389,9 @@ get_compression_type(const int fd) {
         bstring *tmp = nvim_get_var_pkg(fd, "compression_type", MPACK_STRING, NULL, 0);
         enum comp_type_e  ret = COMP_NONE;
 
-        if (b_iseq(tmp, B("gzip")))
+        if (b_iseq(tmp, B("gzip"))) {
                 ret = COMP_GZIP;
-        else if (b_iseq(tmp, B("lzma"))) {
+        } else if (b_iseq(tmp, B("lzma"))) {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
@@ -405,11 +399,12 @@ get_compression_type(const int fd) {
                       "supported in this build.");
                 ret = COMP_GZIP;
 #endif
-        } else if (b_iseq(tmp, B("none")))
+        } else if (b_iseq(tmp, B("none"))) {
                 ret = COMP_NONE;
-        else
+        } else {
                 echo("Warning: unrecognized compression type \"%s\", "
                      "defaulting to no compression.", BS(tmp));
+        }
 
         echo("Comp type is %s", BS(tmp));
 
@@ -418,7 +413,7 @@ get_compression_type(const int fd) {
 }
 
 
-/*============================================================================*/
+/*======================================================================================*/
 
 
 NORETURN static void

@@ -24,12 +24,10 @@ static b_list *    find_header_paths(const b_list *src_dirs, const b_list *inclu
 static b_list *    find_includes(struct bufdata *bdata, struct top_dir *topdir);
 static b_list *    find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes);
 static bstring *   analyze_line(const bstring *line);
-static void        recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs, const bstring *cur_header, int level);
+static void        recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
+                                   const bstring *cur_header, int level);
 static void *      recurse_headers_thread(void *vdata);
 static bstring *   find_file_in_dir_recurse(const bstring *dirpath, const bstring *find);
-
-__attribute__((format(printf, 3, 4))) static bool
-check_file(char *__restrict buf, size_t bufsize, const char *__restrict fmt, ...);
 
 __attribute__((format(printf, 2, 3))) static size_t
 realpath_fmt(char *__restrict buf, const char *__restrict fmt, ...);
@@ -42,12 +40,6 @@ struct pdata {
         const bstring *cur_header;
 };
 
-#ifdef DEBUG
-static FILE *header_log;
-#  define LOG_LIST(LIST_)  b_dump_list(header_log, LIST_)
-#else
-#  define LOG_LIST(LIST_)
-#endif
 static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*======================================================================================*/
@@ -64,28 +56,17 @@ static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
                         ++(PTR_);             \
         } while (0)
 
-#define COMMANDFILE "compile_commands.json"
-#define PATH_STR (PATH_MAX + 1)
-
-#if 0
-#define CHECK_FILE(BUF_, ...)                            \
-        __extension__({                                  \
-                snprintf((BUF_), PATH_STR, __VA_ARGS__); \
-                struct stat st;                          \
-                errno = 0;                               \
-                stat((BUF_), &st);                       \
-                errno;                                   \
-        })
-#endif
-
-#define LIT_STRLEN(STR_)       (sizeof(STR_) - 1llu)
-#define CHAR_AT(UCHAR_, CTR_)  ((char *)(&((UCHAR_)[CTR_])))
+#define COMMANDFILE           "compile_commands.json"
+#define PATH_STR              (PATH_MAX + 1)
+#define LIT_STRLEN(STR_)      (sizeof(STR_) - 1llu)
+#define CHAR_AT(UCHAR_, CTR_) ((char *)(&((UCHAR_)[CTR_])))
 
 #ifdef __GNUC__
 #  define VLA(VARIABLE, FIXED) (VARIABLE)
 #else
 #  define VLA(VARIABLE, FIXED) (FIXED)
 #endif
+
 /*======================================================================================*/
 
 
@@ -99,9 +80,6 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
         }
 
         b_list *headers = NULL;
-#ifdef DEBUG
-        header_log = safe_fopen_fmt("%s/headerlist.log", "wb", HOME);
-#endif
 
         if (topdir->is_c)
                 headers = find_header_files(bdata, topdir);
@@ -118,22 +96,18 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
 
         if (headers) {
                 B_LIST_SORT(headers);
-                LOG_LIST(headers);
-
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
-                b_formata(cmd, " \"-f%s\" \"%s\" %s", BS(topdir->tmpfname),
-                          BS(bdata->filename), BS(tmp));
-                b_destroy(tmp);
+                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\" %s"), topdir->tmpfname,
+                            bdata->filename, tmp);
 
+                b_destroy(tmp);
                 b_list_destroy(headers);
         } else if (topdir->recurse && !topdir->is_c) {
-                b_formata(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
-                          BTS(bdata->ft->ctags_name), BS(topdir->tmpfname),
-                          BS(topdir->pathname));
+                b_sprintf_a(cmd, B(" \"--languages=%s\" -R \"-f%s\" \"%s\""),
+                            &bdata->ft->ctags_name, topdir->tmpfname, topdir->pathname);
         } else {
                 echo("Not recursing!!!");
-                b_formata(cmd, " -f%s \"%s\"", BS(topdir->tmpfname),
-                          BS(bdata->filename));
+                b_sprintf_a(cmd, B(" -f%s \"%s\""), topdir->tmpfname, bdata->filename);
         }
 
         echo("Running ctags command \"%s\"\n", BS(cmd));
@@ -150,9 +124,6 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 echo("Ctags finished successfully.");
 
         b_free(cmd);
-#ifdef DEBUG
-        fclose(header_log);
-#endif
         return (status == 0);
 }
 
@@ -250,8 +221,8 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                 return NULL;
         }
 
-        /* b_dump_list_nvim(includes);
-        b_dump_list_nvim(src_dirs); */
+        /* b_list_dump_nvim(includes);
+        b_list_dump_nvim(src_dirs); */
 
         b_list *headers = find_header_paths(src_dirs, includes);
         b_list_destroy(includes);
@@ -266,10 +237,6 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                 b_list *searched = b_list_create();
 
 #ifdef SEARCH_WITH_THREADS
-                /* b_list       **all  = nmalloc(sizeof(b_list *), copy->qty);
-                pthread_t     *tid  = nmalloc(sizeof(pthread_t), copy->qty);
-                struct pdata **data = nmalloc(sizeof(struct pdata *), copy->qty); */
-
                 pthread_t     *tid  = nalloca(sizeof(pthread_t), copy->qty);
                 b_list       **all  = nalloca(sizeof(b_list *), copy->qty);
                 struct pdata **data = nalloca(sizeof(struct pdata *), copy->qty);
@@ -278,7 +245,6 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                         data[i]  = xmalloc(sizeof(struct pdata));
                         *data[i] = (struct pdata){&searched, src_dirs, copy->lst[i]};
                         pthread_create(&tid[i], NULL, &recurse_headers_thread, data[i]); 
-                        /* recurse_headers(&headers, &searched, src_dirs, file, 1); */
                 }
 
                 for (i = 0; i < copy->qty; ++i) {
@@ -288,8 +254,6 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                 for (i = 0; i < copy->qty; ++i)
                         if (all[i])
                                 b_list_merge(&headers, all[i], BSTR_M_DEL_SRC);
-
-                /* free_all(tid, all, data); */
 #else
                 B_LIST_FOREACH(copy, file, i)
                         recurse_headers(&headers, &searched, src_dirs, file, 1);
@@ -313,25 +277,24 @@ static void *
 recurse_headers_thread(void *vdata)
 {
         struct pdata *data = vdata;
-        /* if (b_list_bsearch_fast(*searched, cur_header))
-                return; */
 
         pthread_mutex_lock(&searched_mutex);
         b_list_append(data->searched, b_strcpy(data->cur_header)); 
-        /* B_LIST_SORT_FAST(*data->searched); */
         pthread_mutex_unlock(&searched_mutex);
 
         b_list  *includes = b_list_create();
-        FILE    *fp       = safe_fopen(BS(data->cur_header), "rb");
-        bstring *line     = NULL;
+        bstring  line[]   = {{0, 0, NULL, 0}};
+        bstring *slurp    = b_quickread(BS(data->cur_header));
+        uint8_t *bak      = slurp->data;
 
-        while ((line = B_GETS(fp, '\n', false))) {
+        while (b_memsep(line, slurp, '\n')) {
                 bstring *file = analyze_line(line);
                 if (file)
                         b_list_append(&includes, file);
                 b_free(line);
         }
-        fclose(fp);
+        free(slurp);
+        free(bak);
 
         b_list *headers = find_header_paths(data->src_dirs, includes);
         if (headers) {
@@ -339,7 +302,8 @@ recurse_headers_thread(void *vdata)
                 b_list *copy = b_list_copy(headers);
 
                 B_LIST_FOREACH (copy, file, i)
-                        recurse_headers(&headers, data->searched, data->src_dirs, file, 2);
+                        recurse_headers(&headers, data->searched,
+                                        data->src_dirs, file, 2);
 
                 b_list_destroy(copy);
                 b_list_remove_dups(&headers);
@@ -347,7 +311,6 @@ recurse_headers_thread(void *vdata)
 
         b_list_destroy(includes);
         pthread_exit(headers);
-        return NULL; /*NOTREACHED*/
 }
 
 
@@ -370,16 +333,18 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
         pthread_mutex_unlock(&searched_mutex);
 
         b_list  *includes = b_list_create();
-        FILE    *fp       = safe_fopen(BS(cur_header), "rb");
-        bstring *line     = NULL;
+        bstring  line[]   = {{0, 0, NULL, 0}};
+        bstring *slurp    = b_quickread(BS(cur_header));
+        uint8_t *bak      = slurp->data;
 
-        while ((line = B_GETS(fp, '\n', false))) {
+        while (b_memsep(line, slurp, '\n')) {
                 bstring *file = analyze_line(line);
                 if (file)
                         b_list_append(&includes, file);
                 b_free(line);
         }
-        fclose(fp);
+        free(slurp);
+        free(bak);
 
         b_list *new_headers = find_header_paths(src_dirs, includes);
         if (new_headers) {
@@ -400,25 +365,15 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
 static b_list *
 find_includes(struct bufdata *bdata, UNUSED struct top_dir *topdir)
 {
+        if (!bdata->lines || bdata->lines->qty == 0)
+                return NULL;
         b_list *includes = b_list_create();
 
-        if (!bdata->lines || bdata->lines->qty == 0) {
-                //unsigned i;
-                //b_list *lines = nvim_buf_get_lines(0, bdata->num, 0, -1);
-                //B_LIST_FOREACH (lines, cur, i) {
-                //        bstring *file = analyze_line(cur);
-                //        if (file)
-                //                b_list_append(&includes, file);
-                //}
-                //b_list_destroy(lines);
-        } else {
-                LL_FOREACH_F (bdata->lines, node) {
-                        bstring *file = analyze_line(node->data);
-                        if (file)
-                                b_list_append(&includes, file);
-                }
+        LL_FOREACH_F (bdata->lines, node) {
+                bstring *file = analyze_line(node->data);
+                if (file)
+                        b_list_append(&includes, file);
         }
-        
         if (includes->qty == 0) {
                 b_list_destroy(includes);
                 includes = NULL;
@@ -445,7 +400,8 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
                 json_file = find_file_in_dir_recurse(&tmp, B(COMMANDFILE));
 
                 if (!json_file) {
-                        slen = realpath_fmt(path, "%s%c..%c..", BS(topdir->pathname), PATHSEP, PATHSEP);
+                        slen = realpath_fmt(path, "%s%c..%c..", BS(topdir->pathname),
+                                            PATHSEP, PATHSEP);
                         tmp  = bt_fromblk(path, slen);
                         json_file = find_file_in_dir_recurse(&tmp, B(COMMANDFILE));
                 }
@@ -476,7 +432,6 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
         b_list_append(&src_dirs, b_lit2bstr("/usr/local/include")); */
 
         b_free(json_file);
-        LOG_LIST(src_dirs);
         fclose(yetanotherlog);
         return src_dirs;
 }
@@ -506,7 +461,7 @@ analyze_line(const bstring *line)
                                 ++i;
                                 uchar *end = memchr(&str[i], ch, len - i);
                                 if (end) {
-                                        const size_t slen = (size_t)PSUB(end, &str[i]);
+                                        const size_t slen = PSUB(end, &str[i]);
                                         ret = b_fromblk(&str[i], slen);
                                 }
                         }
@@ -528,7 +483,6 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
 
         /* I could sprinkle ifdefs throughout to avoid duplication, but
          * I consider this way to be much easier to read. */
-
 #ifdef DOSISH
         b_list *includes_clone = b_list_copy(includes);
         B_LIST_FOREACH(includes_clone, file, i) {
@@ -568,7 +522,8 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
                         if (file) {
                                 struct stat st;
                                 if (fstatat(dirfd, BS(file), &st, 0) == 0) {
-                                        b_list_append(&headers, b_concat_all(dir, B("/"), file));
+                                        b_list_append(&headers,
+                                                      b_concat_all(dir, B("/"), file));
                                         b_destroy(file);
                                         includes_clone->lst[x] = NULL;
                                         ++num;
@@ -592,17 +547,6 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
 
 /*======================================================================================*/
 
-
-#if 0
-static int alphasort_wrap(const void *va, const void *vb)
-{
-        const struct dirent **da = (const struct dirent **)va;
-        const struct dirent **db = (const struct dirent **)vb;
-
-        fprintf(yetanotherlog, "va: \"%s\", vb: \"%s\"\n", (*da)->d_name, (*db)->d_name);
-        return alphasort(da, db);
-}
-#endif
 
 static int myfilter(const struct dirent *dp)
 {
@@ -648,27 +592,6 @@ find_file_in_dir_recurse(const bstring *dirpath, const bstring *find)
 
         free(lst);
         return ret;
-}
-
-
-static bool
-check_file(char *buf, UNUSED const size_t bufsize, const char *const __restrict fmt, ...)
-{
-        char *new, tmp[PATH_MAX +1];
-        va_list ap;
-        va_start(ap, fmt);
-        UNUSED const size_t n = vsnprintf(tmp, PATH_MAX + 1, fmt, ap);
-        va_end(ap);
-        new = realpath(tmp, buf);
-
-        echo("Checking for file \"%s\"", buf);
-
-        struct stat st;
-        errno = 0;
-        stat(new, &st);
-        if (errno)
-                warn("Errno is not 0");
-        return (errno != ENOENT);
 }
 
 

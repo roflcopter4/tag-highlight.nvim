@@ -272,7 +272,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         else
                 ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags"));
 
-        echo("base: %s\ngzfile: %s", BS(base), BS(tmp->gzfile));
+        /* echo("base: %s\ngzfile: %s", BS(base), BS(tmp->gzfile)); */
         assert(ret == BSTR_OK);
 
         /* get_initial_taglist(bdata, tmp); */

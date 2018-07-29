@@ -77,7 +77,7 @@ struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 extern jmp_buf  exit_buf;
 extern int decode_log_raw;
 extern struct backups backup_pointers;
-extern FILE *decode_log, *cmd_log;
+extern FILE *decode_log, *cmd_log, *echo_log;
 extern const char *program_name;
 extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main_mutex, mpack_print_mutex,
     mpack_socket_mutex, mpack_stdin_mutex, update_mutex;
@@ -90,6 +90,7 @@ FILE *          decode_log;
 FILE *          mpack_log;
 FILE *          cmd_log;
 FILE *          vpipe;
+FILE *          echo_log;
 const char *    program_name;
 const char *    HOME;
 pthread_mutex_t event_mutex        = PTHREAD_MUTEX_INITIALIZER;

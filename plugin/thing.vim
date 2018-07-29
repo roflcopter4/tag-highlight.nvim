@@ -34,6 +34,8 @@ function! s:OnExit(job_id, data, event) dict
     let s:sock = 0
     let s:pipe = 0
     let s:init = 0
+    let s:seen_bufs = []
+    let s:new_bufs  = []
 endfunction
 
 "===============================================================================
@@ -41,33 +43,27 @@ endfunction
 function! s:NewBuf()
     sleep 50m
     if s:job1 !=# 0
+        let l:buf = nvim_get_current_buf()
         "if nvim_get_current_buf() ==# 1 && s:init < 2
         "    let s:init = 2
         "else
-            "echom writefile(['A'], s:pipe, 'b')
-            call rpcnotify(s:job1, "vim_event_update", 'A')
-            "call chansend(s:chid, ['A', ''])
-            "echom chansend(s:chid, ["A\n"])
-        "endif
+        if index(s:new_bufs, l:buf) == (-1)
+            call rpcnotify(s:job1, 'vim_event_update', 'A')
+            call add(s:new_bufs, l:buf)
+        endif
     endif
 endfunction
 
 function! s:UpdateTags()
     sleep 50m
     if s:job1 !=# 0
-        "call writefile(['B'], s:pipe, 'b')
-        call rpcnotify(s:job1, "vim_event_update", 'B')
-        "call chansend(s:chid, ['B', ''])
-        "echom chansend(s:chid, ['B'])
+        call rpcnotify(s:job1, 'vim_event_update', 'B')
     endif
 endfunction
 
 function! s:StopTagHighlight()
     if s:job1 != 0
-        "call writefile(['C'], s:pipe, 'b')
-        call rpcnotify(s:job1, "vim_event_update", 'C')
-        "call chansend(s:chid, ['C', ''])
-        "call chansend(s:chid, ['C'])
+        call rpcnotify(s:job1, 'vim_event_update', 'C')
     endif
 endfunction
 
@@ -78,23 +74,21 @@ function! s:BufChanged()
     "if s:init == 2
     "    let s:init = 3
     "elseif index(s:seen_bufs, l:buf) ==# (-1)
-    if index(s:seen_bufs, l:buf) ==# (-1)
+    if index(s:new_bufs, l:buf) == (-1)
+        call rpcnotify(s:job1, 'vim_event_update', 'A')
+        call add(s:new_bufs, l:buf)
+        call add(s:seen_bufs, l:buf)
+    elseif index(s:seen_bufs, l:buf) ==# (-1)
         call add(s:seen_bufs, l:buf)
     elseif s:init && s:job1 !=# 0
-        "call writefile(['D'], s:pipe, 'b')
-        call rpcnotify(s:job1, "vim_event_update", 'D')
-        "call chansend(s:chid, ['D', ''])
-        "echom chansend(s:chid, ['D'])
+        call rpcnotify(s:job1, 'vim_event_update', 'D')
     endif
 endfunction
 
 function! s:ClearBuffer()
     sleep 50m
     if s:init && s:job1 !=# 0
-        "call writefile(['E'], s:pipe, 'b')
-        call rpcnotify(s:job1, "vim_event_update", 'E')
-        "call chansend(s:chid, ['E', ''])
-        "call chansend(s:chid, ['E'])
+        call rpcnotify(s:job1, 'vim_event_update', 'E')
     endif
 endfunction
 
@@ -105,7 +99,8 @@ let s:pipe = 0
 let s:chid = 0
 let s:sock = 0
 let s:init = 0
-let s:seen_bufs = [1]
+let s:seen_bufs = []
+let s:new_bufs = []
 
 let s:rpc  = {  'rpc':       v:true, 
             \   'on_stderr': function('s:OnStderr'),
@@ -120,7 +115,9 @@ function! s:InitTagHighlight()
     let s:chid = 0
     let s:sock = 0
     let s:init = 0
-    let s:seen_bufs = [1]
+    let l:cur  = nvim_get_current_buf()
+    let s:seen_bufs = [l:cur]
+    let s:new_bufs = [l:cur]
 
     "let s:pipe = tempname()
     "call system('mkfifo ' . shellescape(s:pipe))

@@ -43,7 +43,7 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
          (IAT(NUM_, 4) << 030) | (IAT(NUM_, 5) << 020) |       \
          (IAT(NUM_, 6) << 010) | (IAT(NUM_, 7)))
 
-#define ERRMSG()                                                                           \
+#define ERRMSG()                                                                         \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
@@ -84,8 +84,8 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (expected_type != MES_ANY &&
             expected_type != (ret->data.arr->items[0]->data.num + 1))
         {
-                eprintf("Expected %d but got %"PRId64"\n",
-                        expected_type, ret->data.arr->items[0]->data.num);
+                /* eprintf("Expected %d but got %"PRId64"\n",
+                        expected_type, ret->data.arr->items[0]->data.num); */
 
                 switch (ret->data.arr->items[0]->data.num + 1) {
                 case MES_REQUEST: 
@@ -165,8 +165,8 @@ do_decode(const read_fn READ, void *src)
         case G_BOOL:   return decode_bool(mask);
         case G_NIL:    return decode_nil();
 
-        case G_BIN:    errx(2, "BIN not implemented.");
-        default:       errx(1, "Default (%d) reached at %d in %s - %s",
+        case G_BIN:    errx(2, "ERROR: Bin format is not implemented.");
+        default:       errx(3, "Default (%d) reached at %d in %s - %s",
                             mask->group, __LINE__, __FILE__, FUNC_NAME);
         }
 }
@@ -374,7 +374,6 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct 
                 }
         }
 
-        //ASSERTX(value <= INT64_MAX, "Value (%lu) is too large!\n", value);
         item->flags    = MPACK_NUM;
         item->data.num = (int64_t)value;
 
@@ -484,8 +483,8 @@ id_pack_type(const uint8_t byte)
 static void
 stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
-        const int32_t fd = *((int32_t *)src);
-        size_t nread = 0;
+        const int32_t fd    = *((int32_t *)src);
+        size_t        nread = 0;
 
         do {
                 ssize_t n = read(fd, dest, (nbytes - nread));
@@ -493,7 +492,9 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
                         nread += (size_t)n;
         } while (nread > nbytes);
 
+#ifdef DEBUG
         UNUSED ssize_t n = write(decode_log_raw, dest, nbytes);
+#endif
 }
 
 

@@ -5,13 +5,14 @@
 #include "private.h"
 #include <assert.h>
 #include <inttypes.h>
+#include <sys/stat.h>
 
 #include "bstrlib.h"
 
 
 /*============================================================================*/
 /*============================================================================*/
-#ifndef HAVE_STRSEP
+#ifdef _WIN32
 /*-
 * SPDX-License-Identifier: BSD-3-Clause
 *
@@ -94,6 +95,51 @@ _memsep(char **stringp, const unsigned len, const char *delim)
         return NULL;
 }
 #endif
+
+int
+b_memsep(bstring *dest, bstring *stringp, const char delim)
+{
+        /* uint8_t *ptr = stringp->data; */
+        dest->data = stringp->data;
+
+        if (!dest || !stringp)
+                errx(1, "invalid input strings");
+
+        if (!stringp->data || stringp->slen == 0)
+                return 0;
+
+        int64_t pos = b_strchr(stringp, delim);
+        if (pos >= 0) {
+                dest->data[pos]  = '\0';
+                dest->slen       = pos;
+                stringp->data    = stringp->data + pos + 1u;
+                stringp->slen   -= pos + 1u;
+                return 1;
+        }
+
+        dest->slen    = stringp->slen;
+        stringp->data = NULL;
+        stringp->slen = 0;
+        return 1;
+
+
+#if 0
+        for (unsigned i = 0; i < stringp->slen; ++i) {
+                const char *delimp = delim;
+                do {
+                        if (*delimp++ == ptr[i]) {
+                                dest->data[i]  = '\0';
+                                dest->slen     = i;
+                                stringp->data  = ptr + i + 1u;
+                                stringp->slen -= i + 1u;
+                                return i;
+                        }
+                } while (*delimp != '\0');
+        }
+#endif
+}
+
+
 
 
 /*============================================================================*/
@@ -346,47 +392,11 @@ b_clone_swap(bstring *src)
 }
 
 
-/* A 64 bit integer is at most 19 decimal digits long. That, plus one for the
- * null byte and plus one for a '+' or '-' sign gives a max size of 21. */
-#define INT64_MAX_CHARS 21
-
-bstring *
-b_ll2str(const long long value)
-{
-        /* Generate the (reversed) string representation. */
-        uint64_t inv = (value < 0) ? (-value) : (value);
-        bstring *ret = b_alloc_null(INT64_MAX_CHARS);
-        uchar   *ptr = ret->data;
-
-        do {
-                *ptr++ = (uchar)('0' + (inv % 10));
-                inv    = (inv / 10);
-        } while (inv > 0);
-
-        if (value < 0)
-                *ptr++ = (uchar)'-';
-
-        /* Compute length and add null term. */
-        ret->slen = (ptr - ret->data - 1);
-        *ptr      = (uchar)'\0';
-
-        /* Reverse the string. */
-        --ptr;
-        uchar *tmp = ret->data;
-        while (ret->data < ptr) {
-                char aux = *ret->data;
-                *tmp     = *ptr;
-                *ptr     = aux;
-                ++tmp;
-                --ptr;
-        }
-
-        return ret;
-}
+/*============================================================================*/
 
 
 void
-__b_dump_list(FILE *fp, const b_list *list, const char *listname)
+__b_list_dump(FILE *fp, const b_list *list, const char *listname)
 {
         fprintf(fp, "Dumping list \"%s\"\n", listname);
         for (unsigned i = 0; i < list->qty; ++i)
@@ -485,7 +495,6 @@ b_list_remove_dups(b_list **listp)
         b_list *toks = b_list_create_alloc((*listp)->qty * 10);
 
         for (unsigned i = 0; i < (*listp)->qty; ++i) {
-                /* b_list *tmp = b_split(list->lst[i], ' '); */
                 b_list *tmp = b_strsep((*listp)->lst[i], " ", 0);
                 for (unsigned x = 0; x < tmp->qty; ++x)
                         b_list_append(&toks, tmp->lst[x]);
@@ -542,15 +551,26 @@ b_strstr(const bstring *const haystack, const bstring *needle, const uint pos)
 
 
 b_list *
-b_strsep(bstring *str, const char *const delim, const int refonly)
+b_strsep(bstring *ostr, const char *const delim, const int refonly)
 {
-        if (INVALID(str) || NO_WRITE(str) || !delim)
+        if (INVALID(ostr) || NO_WRITE(ostr) || !delim)
                 RETURN_NULL();
 
-        b_list *ret  = b_list_create();
-        char   *data = (char *)str->data;
-        char   *tok;
+        b_list *ret   = b_list_create();
+        bstring tok[] = {{0, 0, NULL, 0}};
+        bstring str[] = {{ostr->slen, 0, ostr->data, ostr->flags}};
 
+        if (refonly)
+                while (b_memsep(tok, str, delim[0]))
+                        b_list_append(&ret, b_refblk(tok->data, tok->slen));
+        else
+                while (b_memsep(tok, str, delim[0]))
+                        b_list_append(&ret, b_fromblk(tok->data, tok->slen));
+
+
+#if 0
+        /* char   *data = (char *)str->data;
+        char   *tok; */
         if (refonly)
                 while ((tok = strsep(&data, delim)))
                         b_list_append(&ret,
@@ -561,6 +581,8 @@ b_strsep(bstring *str, const char *const delim, const int refonly)
                         b_list_append(&ret,
                                 data ? b_fromblk(tok, (psub(data, tok) - 1u))
                                      : b_fromcstr(tok));
+#endif
+
 
         return ret;
 }
@@ -645,10 +667,13 @@ b_strrpbrk_pos(const bstring *bstr, const uint pos, const bstring *delim)
                     delim->slen == 0 || pos > bstr->slen)
                 RUNTIME_ERROR();
 
-        for (uint i = pos; i >= 0; --i)
+        /* for (uint i = pos; i >= 0; --i) */
+        uint i = 0;
+        do {
                 for (uint x = 0; x < delim->slen; ++x)
                         if (bstr->data[i] == delim->data[x])
                                 return (int64_t)i;
+        } while (i-- > 0);
 
         return (-1);
 }
@@ -703,8 +728,128 @@ b_basename(const bstring *path)
 }
 
 
+bstring *
+b_quickread(const char *const __restrict fmt, ...)
+{
+        va_list ap;
+        char buf[PATH_MAX + 1];
+        va_start(ap, fmt);
+        vsnprintf(buf, PATH_MAX + 1, fmt, ap);
+        va_end(ap);
+
+        struct stat st;
+        FILE       *fp = fopen(buf, "rb");
+        if (!fp)
+                RETURN_NULL();
+        fstat(fileno(fp), &st);
+
+        bstring *ret  = b_alloc_null(st.st_size + 1);
+        ssize_t nread = fread(ret->data, 1, st.st_size, fp);
+        fclose(fp);
+        if (nread < 0) {
+                b_free(ret);
+                RETURN_NULL();
+        }
+
+        ret->slen        = (unsigned)nread;
+        ret->data[nread] = '\0';
+        return ret;
+}
+
+
 /*============================================================================*/
-/* Path operations */
+/* Minor helper functions */
+/*============================================================================*/
+
+
+/* A 64 bit integer is at most 19 decimal digits long. That, plus one for the
+ * null byte and plus one for a '+' or '-' sign gives a max size of 21. */
+#define INT64_MAX_CHARS 21
+
+bstring *
+b_ll2str(const long long value)
+{
+        /* Generate the (reversed) string representation. */
+        uchar *rev, *fwd;
+        uint64_t inv = (value < 0) ? (-value) : (value);
+        bstring *ret = b_alloc_null(INT64_MAX_CHARS + 1);
+        rev = fwd = ret->data;
+
+        do {
+                *rev++ = (uchar)('0' + (inv % 10));
+                inv    = (inv / 10);
+        } while (inv);
+
+        if (value < 0)
+                *rev++ = (uchar)'-';
+
+        /* Compute length and add null term. */
+        *rev--    = (uchar)'\0';
+        ret->slen = psub(rev, ret->data) + 1u;
+
+        /* Reverse the string. */
+        while (fwd < rev) {
+                const uchar swap = *fwd;
+                *fwd++           = *rev;
+                *rev--           = swap;
+        }
+
+        return ret;
+}
+
+
+static unsigned
+_tmp_ll2bstr(bstring *bstr, const long long value)
+{
+        uchar *rev, *fwd;
+        unsigned long long inv = (value < 0) ? (-value) : (value);
+        rev = fwd = bstr->data;
+
+        do {
+                *rev++ = (uchar)('0' + (inv % 10llu));
+                inv    = (inv / 10llu);
+        } while (inv);
+        if (value < 0)
+                *rev++ = (uchar)'-';
+
+        *rev--     = (uchar)'\0';
+        bstr->slen = psub(rev, bstr->data) + 1u;
+        while (fwd < rev) {
+                const uchar swap = *fwd;
+                *fwd++           = *rev;
+                *rev--           = swap;
+        }
+
+        return bstr->slen;
+}
+
+
+static unsigned
+_tmp_ull2bstr(bstring *bstr, const unsigned long long value)
+{
+        uchar *rev, *fwd;
+        unsigned long long inv = value;
+        rev = fwd = bstr->data;
+
+        do {
+                *rev++ = (uchar)('0' + (inv % 10llu));
+                inv    = (inv / 10llu);
+        } while (inv);
+
+        *rev--     = (uchar)'\0';
+        bstr->slen = psub(rev, bstr->data) + 1u;
+        while (fwd < rev) {
+                const uchar swap = *fwd;
+                *fwd++           = *rev;
+                *rev--           = swap;
+        }
+
+        return bstr->slen;
+}
+
+
+/*============================================================================*/
+/* Simple printf analogues. */
 /*============================================================================*/
 
 
@@ -726,14 +871,12 @@ b_vsprintf(const bstring *fmt, va_list args)
                 RETURN_NULL();
 
         va_list  cpy;
-        int64_t  pos[1024];
+        int64_t  pos[2048];
         unsigned len  = fmt->slen;
         int64_t  pcnt = 0;
         int64_t  i    = 0;
         memset(pos, 0, sizeof(pos));
         va_copy(cpy, args);
-
-        /* warnx("fmt is \"%s\"", BS(fmt)); */
 
         for (; i < fmt->slen; ++pcnt) {
                 int     islong = 0;
@@ -829,43 +972,42 @@ b_vsprintf(const bstring *fmt, va_list args)
                 if (pos[pcnt] == 0)
                         break;
 
-str_restart:
+        str_restart:
                 switch (ch) {
                 case 's': {
                         bstring *next = va_arg(args, bstring *);
                         memcpy(ret->data + i, next->data, next->slen);
-                        /* size_t slen = strlen(BS(next));
-                        assert(slen == (size_t)next->slen); */
                         i += next->slen;
                         x  = pos[pcnt] + 1;
                         break;
                 }
                 case 'd': {
-                        char buf[64];
+                        uchar buf[INT64_MAX_CHARS + 1];
                         int n = 0;
+                        bstring tmp = {0, 0, buf, 0};
 
                         switch (islong) {
                         case 0: {
                                 int next = va_arg(args, int);
-                                n = snprintf(buf, 64, "%d", next);
+                                n = _tmp_ll2bstr(&tmp, (long long)next);
                                 x = pos[pcnt] + 1;
                                 break;
                         }
                         case 1: {
                                 long next = va_arg(args, long);
-                                n = snprintf(buf, 64, "%ld", next);
+                                n = _tmp_ll2bstr(&tmp, (long long)next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
                         case 2: {
                                 long long next = va_arg(args, long long);
-                                n = snprintf(buf, 64, "%lld", next);
+                                n = _tmp_ll2bstr(&tmp, next);
                                 x = pos[pcnt] + 3;
                                 break;
                         }
                         case 3: {
                                 ssize_t next = va_arg(args, ssize_t);
-                                n = snprintf(buf, 64, "%zd", next);
+                                n = _tmp_ll2bstr(&tmp, next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
@@ -878,31 +1020,32 @@ str_restart:
                         break;
                 }
                 case 'u': {
-                        char buf[64];
+                        uchar buf[INT64_MAX_CHARS + 1];
                         int n = 0;
+                        bstring tmp[] = {{0, 0, buf, 0}};
 
                         switch (islong) {
                         case 0: {
                                 unsigned next = va_arg(args, unsigned);
-                                n = snprintf(buf, 64, "%u", next);
+                                n = _tmp_ull2bstr(tmp, (long long unsigned)next);
                                 x = pos[pcnt] + 1;
                                 break;
                         }
                         case 1: {
                                 long unsigned next = va_arg(args, long unsigned);
-                                n = snprintf(buf, 64, "%lu", next);
+                                n = _tmp_ull2bstr(tmp, (long long unsigned)next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
                         case 2: {
                                 long long unsigned next = va_arg(args, long long unsigned);
-                                n = snprintf(buf, 64, "%llu", next);
+                                n = _tmp_ull2bstr(tmp, next);
                                 x = pos[pcnt] + 3;
                                 break;
                         }
                         case 3: {
                                 size_t next = va_arg(args, size_t);
-                                n = snprintf(buf, 64, "%zu", next);
+                                n = _tmp_ull2bstr(tmp, next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
@@ -999,13 +1142,13 @@ b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
 
 
 int
-b_sprintf_append(bstring *dest, const bstring *fmt, ...)
+b_sprintf_a(bstring *dest, const bstring *fmt, ...)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();
         va_list ap;
         va_start(ap, fmt);
-        int ret = b_vsprintf_append(dest, fmt, ap);
+        int ret = b_vsprintf_a(dest, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1013,7 +1156,7 @@ b_sprintf_append(bstring *dest, const bstring *fmt, ...)
 
 
 int
-b_vsprintf_append(bstring *dest, const bstring *fmt, va_list args)
+b_vsprintf_a(bstring *dest, const bstring *fmt, va_list args)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();
@@ -1038,6 +1181,7 @@ b_vsprintf_append(bstring *dest, const bstring *fmt, va_list args)
         dest->data[dest->slen] = '\0';
         assert(dest->slen == strlen(BS(dest)));
         dest->mlen = newlen;
+        b_free(app);
 
         return BSTR_OK;
 }

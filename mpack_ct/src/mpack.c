@@ -13,8 +13,7 @@ static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
 static unsigned        sok_count, io_count;
 extern pthread_mutex_t mpack_main_mutex;
 
-/* #define ENCODE_FMT_ARRSIZE 524288 */
-#ifdef DOSISH
+#ifdef _MSC_VER
 #  define restrict __restrict
 #endif
 #define ENCODE_FMT_ARRSIZE 8192
@@ -24,7 +23,13 @@ extern pthread_mutex_t mpack_main_mutex;
 
 #define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
 #define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
-#define CHECK_DEF_FD(FD__) ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
+
+#define CHECK_DEF_FD(FD__)                                             \
+        do {                                                           \
+                if ((FD__) < 0)                                        \
+                        errx(1, "Invalid file descriptor %d", (FD__)); \
+                ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__));        \
+        } while (0)
 
 #define encode_fmt_api(FD__, FMT_, ...) \
         encode_fmt(0, STD_API_FMT "[" FMT_ "]", 0, INC_COUNT(FD__), __VA_ARGS__)
@@ -426,7 +431,6 @@ nvim_buf_add_highlight(int             fd,
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
         const int ret = RETVAL->data.num;
-        /* const int ret = numptr_to_num(get_expect(result, MPACK_NUM, NULL, true, true)); */
         print_and_destroy(result);
 
         return ret;
@@ -609,20 +613,20 @@ num_from_ext:
 static void
 write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
 {
-#if defined(DEBUG) && defined(LOG_RAW_MPACK)
-        /* size_t nbytes = 0; */
+#ifdef DEBUG
+#  ifdef LOG_RAW_MPACK
         char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
         const int rawlog = safe_open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
-        /* dprintf(rawlog, "\n%s\n", BS(*pack->packed)); */
         b_write(rawlog, B("\n"), *pack->packed, B("\n"));
         close(rawlog);
-#endif
+#  endif
         if (func)
                 fprintf(mpack_log, "=================================\n"
                         "Writing request no %d to fd %d: \"%s\"\n",
                         COUNT(fd) - 1, fd, BS(func));
 
         mpack_print_object(pack, mpack_log);
+#endif
         b_write(fd, *pack->packed);
         mpack_destroy(pack);
 }
@@ -842,45 +846,6 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 /*======================================================================================*/
 
 
-#if 0
-#define NEXT(TYPE_NAME_, MEMBER_)                                            \
-        __extension__({                                                      \
-                TYPE_NAME_ ret__ = (TYPE_NAME_)0;                            \
-                switch (next_type) {                                         \
-                case OWN_VALIST:                                             \
-                        ret__ = va_arg(args, TYPE_NAME_);                    \
-                        break;                                               \
-                case OTHER_VALIST:                                           \
-                        assert(ref != NULL);                                 \
-                        ret__ = va_arg(*ref, TYPE_NAME_);                    \
-                        break;                                               \
-                case ATOMIC_UNION:                                           \
-                        assert(a_args);                                      \
-                        assert(a_args[a_arg_ctr]);                           \
-                        ret__ = ((a_args[a_arg_ctr][a_arg_subctr]).MEMBER_); \
-                        ++a_arg_subctr;                                      \
-                        break;                                               \
-                }                                                            \
-                (TYPE_NAME_)ret__;                                           \
-        })
-
-#define NEXT_NO_ATOMIC(TYPE_NAME_)                        \
-        __extension__({                                   \
-                TYPE_NAME_ ret__ = 0;                     \
-                switch (next_type) {                      \
-                case OWN_VALIST:                          \
-                        ret__ = va_arg(args, TYPE_NAME_); \
-                        break;                            \
-                case OTHER_VALIST:                        \
-                        assert(ref != NULL);              \
-                        ret__ = va_arg(*ref, TYPE_NAME_); \
-                        break;                            \
-                case ATOMIC_UNION: abort();               \
-                }                                         \
-                (TYPE_NAME_)ret__;                        \
-        })
-#endif
-
 #define NEXT(VAR_, TYPE_NAME_, MEMBER_)                                       \
         do {                                                                  \
                 switch (next_type) {                                          \
@@ -897,21 +862,25 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
                         (VAR_) = ((a_args[a_arg_ctr][a_arg_subctr]).MEMBER_); \
                         ++a_arg_subctr;                                       \
                         break;                                                \
+                default:                                                      \
+                        abort();                                              \
                 }                                                             \
         } while (0)
 
-#define NEXT_NO_ATOMIC(VAR_, TYPE_NAME_)                                   \
-        do {                                                               \
-                switch (next_type) {                                       \
-                case OWN_VALIST:                                           \
-                        (VAR_) = va_arg(args, TYPE_NAME_);                 \
-                        break;                                             \
-                case OTHER_VALIST:                                         \
-                        assert(ref != NULL);                               \
-                        (VAR_) = va_arg(*ref, TYPE_NAME_);                 \
-                        break;                                             \
-                case ATOMIC_UNION: abort();                                \
-                }                                                          \
+#define NEXT_NO_ATOMIC(VAR_, TYPE_NAME_)                    \
+        do {                                                \
+                switch (next_type) {                        \
+                case OWN_VALIST:                            \
+                        (VAR_) = va_arg(args, TYPE_NAME_);  \
+                        break;                              \
+                case OTHER_VALIST:                          \
+                        assert(ref != NULL);                \
+                        (VAR_) = va_arg(*ref, TYPE_NAME_);  \
+                        break;                              \
+                case ATOMIC_UNION:                          \
+                default:                                    \
+                        abort();                            \
+                }                                           \
         } while (0)
 
 #define ENCODE(TYPE, VALUE) \
@@ -926,12 +895,9 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
-        const unsigned              arr_size  = (size_hint) ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
-                                                            : ENCODE_FMT_ARRSIZE;
-
-        if (size_hint)
-                eprintf("Using arr_size %u for encoding\n", arr_size);
-
+        const unsigned              arr_size  = (size_hint)
+                                                ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
+                                                : ENCODE_FMT_ARRSIZE;
         va_list      args;
         int          ch;
         int *        sub_lengths = nmalloc(sizeof(int), arr_size);
@@ -1009,22 +975,19 @@ BREAK1:;
         while ((ch = *ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
-                        //bool arg = NEXT(int, boolean);
-                        bool arg = 0;
+                        bool arg;
                         NEXT(arg, int, boolean);
                         ENCODE(boolean, arg);
                         break;
                 }
                 case 'd': case 'D': {
-                        //int arg = NEXT(int, num);
-                        int arg = 0;
+                        int arg;
                         NEXT(arg, int, num);
                         ENCODE(integer, arg);
                         break;
                 }
                 case 's': case 'S': {
-                        //bstring *arg = NEXT(bstring *, str);
-                        bstring *arg = NULL;
+                        bstring *arg;
                         NEXT(arg, bstring *, str);
                         ENCODE(string, arg);
                         break;
@@ -1057,13 +1020,11 @@ BREAK1:;
                         break;
 
                 case '!':
-                        //ref = NEXT_NO_ATOMIC(va_list *);
                         NEXT_NO_ATOMIC(ref, va_list *);
                         next_type = OTHER_VALIST;
                         break;
 
                 case '@':
-                        //a_args       = NEXT_NO_ATOMIC(union atomic_call_args **);
                         NEXT_NO_ATOMIC(a_args, union atomic_call_args **);
                         a_arg_ctr    = 0;
                         a_arg_subctr = 0;

@@ -13,7 +13,15 @@
 #  define SEPCHAR ':'
 #endif
 
-//#define LOG_NEOTAGS
+
+/* #define LOG_NEOTAGS */
+#define LOG(...)
+/* #if defined(DEBUG) && defined(LOG_NEOTAGS)
+#  define LOG(...) fprintf(thislog, __VA_ARGS__)
+#else
+#  define LOG(...)
+#endif */
+
 
 #define REQUIRED_INPUT 9
 #define free_list(LST)                               \
@@ -89,7 +97,6 @@ tag_cmp(const void *vA, const void *vB)
 
 
 /* ========================================================================== */
-
 
 #if 0
 
@@ -306,8 +313,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 }
 
 #define INIT_MAX ((data->num / 2) * 3)
-#define cur_str  (cpy->data)
-#define STRSEP(BSTR, SEP) ((uchar *)(strsep((char **)(&(BSTR)), (SEP))))
+/* #define cur_str  (cpy->data) */
+#define STRSEP(BSTR, SEP) ((uchar *)(_memsep((char **)(&(BSTR)->data), &(BSTR)->slen, (SEP))))
 #define STRCHR(BSTR, CH)  ((uchar *)(strchr((char *)(BSTR), (CH))))
 
 static void *
@@ -330,30 +337,48 @@ do_tok_search(void *vdata)
 
                 bstring *cpy      = b_strcpy(data->lst[i]);
                 uchar   *cpy_data = cpy->data;
+                LOG("cpy is '%s'\n", BS(cpy));
 
                 bstring name[]       = {{ 0, 0, NULL, 0u }};
                 bstring match_file[] = {{ 0, 0, NULL, 0u }};
                 bstring *namep = name;
 
                 /* The name is first, followed by two fields we don't need. */
-                name->data       = STRSEP(cur_str, "\t");
-                name->slen       = cur_str - name->data - 1;
-                match_file->data = STRSEP(cur_str, "\t");
-                match_file->slen = cur_str - match_file->data - 1;
-                cur_str          = STRCHR(cur_str, '\t');
+#if 0
+                name->data       = STRSEP(cpy, "\t");
+                name->slen       = cpy->data - name->data - 1;
+                match_file->data = STRSEP(cpy, "\t");
+                match_file->slen = cpy->data - match_file->data - 1;
+                cur_str          = STRCHR(cpy, '\t');
+#endif
+                b_memsep(name, cpy, '\t');
+                b_memsep(match_file, cpy, '\t');
+                const int64_t pos = b_strchr(cpy, '\t');
+                cpy->data += pos;
+                cpy->slen -= pos;
 
-                char *tok, kind = '\0';
-                bstring match_lang[] = {{0, 0, NULL, 0u}};
+                char /* *tok, */ kind = '\0';
+                bstring match_lang[]  = {{0, 0, NULL, 0u}};
+                bstring tok[]         = {{0, 0, NULL, 0u}};
+
+                LOG("found name: '%s', len: %u\t-\tmatch_file: '%s', len: %u\n", BS(name), name->slen, BS(match_file), match_file->slen);
 
                 /* Extract the 'kind' and 'language' fields. The former is the
                  * only one that is 1 character long, and the latter is prefaced. */
-                while ((tok = strsep((char**)(&cur_str), "\t"))) {
-                        if (tok[0] && !tok[1])
-                                kind = *tok;
-                        else if (strncmp(tok, "language:", 9) == 0) {
-                                *match_lang = (cur_str)
+                /* while ((tok = strsep((char**)(&cur_str), "\t"))) { */
+                while (b_memsep(tok, cpy, '\t')) {
+                        LOG("Tok is currently '%s'\n", BS(tok));
+                        /* if (tok[0] && !tok[1]) */
+                        if (tok->slen == 1) {
+                                kind = tok->data[0];
+                        } else if (strncmp(BS(tok), "language:", 9) == 0) {
+                        /* } else if (b_strncmp(tok, B("language:"), 9) == 0) { */
+                                /* *match_lang = (cur_str)
                                            ? bt_fromblk(tok+9, (cur_str - (uchar*)(tok+9)) - 1)
-                                           : bt_fromcstr(tok+9);
+                                           : bt_fromcstr(tok+9); */
+                                /* *match_lang = *tok; */
+                                match_lang[0].data = tok[0].data + 9;
+                                match_lang[0].slen = tok[0].slen - 9;
 #if 0
                                 if (cur_str)
                                         match_lang->slen = (cur_str - (uchar *)(tok + 9) - 1);
@@ -367,6 +392,12 @@ do_tok_search(void *vdata)
                 }
 
                 if (!kind || !match_lang[0].data) {
+                        if (!kind && !match_lang[0].data)
+                                LOG("No kind or match_lang found for tag '%s'\n", BS(name));
+                        else if (kind)
+                                LOG("No match_lang found for tag '%s', kind: %c\n", BS(name), kind);
+                        else if (match_lang[0].data)
+                                LOG("No kind found for tag '%s', match_lang: '%s'\n", BS(name), BTS(match_lang[0]));
                         free(cpy_data);
                         free(cpy);
                         continue;
@@ -391,6 +422,7 @@ do_tok_search(void *vdata)
                  * If invalid, just move on. 
                  */
 #if !defined(DEBUG) || !defined(LOG_NEOTAGS)
+/* #ifndef DEBUG */
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
@@ -407,7 +439,7 @@ do_tok_search(void *vdata)
 #else
 
 #  define REJECT_TAG(REASON) (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
-                                    kind, BS(match_lang), BS(name), name->slen, (REASON)))
+                                  kind, BS(match_lang), BS(name), name->slen, (REASON)))
 
                 if (!in_order(data->equiv, data->order, &kind))
                         REJECT_TAG("not in order");
@@ -417,14 +449,14 @@ do_tok_search(void *vdata)
                         REJECT_TAG("in skip list");
                 else if (!(b_iseq(data->filename, match_file))) {
                         REJECT_TAG("not in specified file");
-                        if (bsearch(&name, data->vim_buf->lst, data->vim_buf->qty,
+                        if (bsearch(&namep, data->vim_buf->lst, data->vim_buf->qty,
                                      sizeof(bstring *), &b_strcmp_fast_wrap))
                                 goto lazy;
                         REJECT_TAG("also not in buffer");
                 } else {
 lazy:
-                        fprintf(thislog, "Accepting tag %c - %-20s - %-40s\n",
-                                kind, BS(match_lang), BS(name));
+                        LOG("Accepting tag %c - %-20s - %-40s\n",
+                            kind, BS(match_lang), BS(name));
                         bstring    *tmp = b_fromblk(name->data, name->slen);
                         struct tag *tag = xmalloc(sizeof(*tag));
                         *tag            = (struct tag){.b = tmp, .kind = kind};
