@@ -6,7 +6,8 @@
 #define BT bt_init
 /* #define WRITE_BUF_UPDATES */
 
-extern pthread_mutex_t event_mutex, update_mutex;
+extern pthread_mutex_t update_mutex;
+static pthread_mutex_t event_mutex;
 
 static const struct event_id {
         const bstring name;
@@ -43,12 +44,14 @@ handle_unexpected_notification(mpack_obj *note)
 enum event_types
 handle_nvim_event(mpack_obj *event)
 {
-#define D (event->data.arr->items[2]->data.arr->items)
+#define D (event->DAI[2]->DAI)
         pthread_mutex_lock(&event_mutex);
         pthread_mutex_lock(&update_mutex);
         const struct event_id *type = id_event(event);
 
         if (type->id == EVENT_VIM_UPDATE) {
+                /* The update came from the vimscript plugin. Call the handler defined
+                 * in main.c in a separate thread since it might wait a while. */
                 pthread_t         tmp;
                 pthread_attr_t    attr;
                 struct int_pdata *data = xmalloc(sizeof(*data));
@@ -58,12 +61,11 @@ handle_nvim_event(mpack_obj *event)
                 MAKE_PTHREAD_ATTR_DETATCHED(&attr);
                 pthread_create(&tmp, &attr, interrupt_call, data);
         } else {
-                const unsigned bufnum = D[0]->data.ext->num;
-                const int      index  = find_buffer_ind(bufnum);
-
-                assert(index >= 0);
-                struct bufdata *bdata = buffers.lst[index];
-                assert(bdata != NULL);
+                const unsigned  bufnum = D[0]->data.ext->num;
+                const int       index  = find_buffer_ind(bufnum);
+                struct bufdata *bdata  = buffers.lst[index];
+                if (!bdata)
+                        errx(1, "Update called on uninitialized buffer.");
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
@@ -105,35 +107,53 @@ handle_line_event(const unsigned index, mpack_obj **items)
         const unsigned  iters     = MAX(diff, repl_list->qty);
 
         if (repl_list->qty) {
-                if (first == 0 && last == 0) {
-                        ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, (-1));
+                if (bdata->lines->qty <= 1 && first == 0 &&
+                    repl_list->qty == 1 && repl_list->lst[0]->slen == 0)
+                {
+                        /* Useless update, one empty string in an empty buffer.
+                         * Just ignore it. */
+                        echo("empty update, ignoring");
+                } else if (first == 0 && last == 0) {
+                        /* Inserting above the first line in the file. */
+                        ll_insert_blist_before_at(bdata->lines, first,
+                                                  repl_list, 0, (-1));
                 } else {
                         const unsigned olen = bdata->lines->qty;
 
-                        /* This loop is only meaningful when replacing lines. All other
-                         * paths break after the first iteration. */
+                        /* This loop is only meaningful when replacing lines.
+                         * All other paths break after the first iteration. */
                         for (unsigned i = 0; i < iters; ++i) {
                                 if (diff && i < olen) {
                                         --diff;
                                         if (i < repl_list->qty) {
-                                                replace_line(bdata, repl_list, first + i, i);
+                                                replace_line(bdata, repl_list,
+                                                             first + i, i);
                                         } else {
-                                                ll_delete_range_at(bdata->lines, first + i, diff+1);
+                                                ll_delete_range_at(
+                                                    bdata->lines, first + i, diff+1);
                                                 break;
                                         }
                                 } else {
+                                        /* If the first line not being replaced
+                                         * (first + i) is at the end of the file, then we
+                                         * append. Otherwise the update is prepended. */
                                         if ((first + i) >= (unsigned)bdata->lines->qty)
                                                 ll_insert_blist_after_at(
-                                                    bdata->lines, (first + i), repl_list, i, (-1));
+                                                    bdata->lines, (first + i),
+                                                    repl_list, i, (-1));
                                         else
                                                 ll_insert_blist_before_at(
-                                                    bdata->lines, (first + i), repl_list, i, (-1));
-
+                                                    bdata->lines, (first + i),
+                                                    repl_list, i, (-1));
                                         break;
                                 }
                         }
                 }
         } else if (first != last) {
+                /* If the replacement list is empty then all we're doing is deleting
+                 * lines. However, for some reason neovim sometimes sends updates with an
+                 * empty list in which both the first and last line are the same. God
+                 * knows what this is supposed to indicate. I'll just ignore them. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
 
@@ -153,8 +173,7 @@ handle_line_event(const unsigned index, mpack_obj **items)
         b_free(fn);
 
 #  endif
-
-        assert(ll_verify_size(bdata->lines));
+        /* assert(ll_verify_size(bdata->lines)); */
         const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
         const int      n     = nvim_buf_line_count(0, bdata->num);
 
@@ -162,18 +181,11 @@ handle_line_event(const unsigned index, mpack_obj **items)
                 if (bdata->lines->qty != n)
                         errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
                              bdata->lines->qty, n);
-        } else {
-#  if 0
-                if (bdata->lines->qty != n)
-                        echo("Internal line count (%d) is incorrect. Actual: %d",
-                             bdata->lines->qty, n);
-#  endif
         }
 #endif
 
         free(repl_list->lst);
         free(repl_list);
-        /* echo("\n\n\n"); */
 }
 
 
@@ -182,12 +194,7 @@ replace_line(struct bufdata *bdata, b_list *repl_list,
              const unsigned lineno, const unsigned replno)
 {
         ll_node *node = ll_at(bdata->lines, lineno);
-
-        /* echo("Replacing line %u with replno %u, list is %d long and newlist is %u long\n",
-             lineno, replno, bdata->lines->qty, repl_list->qty); */
-
         b_destroy(node->data);
-
         node->data             = repl_list->lst[replno];
         repl_list->lst[replno] = NULL;
 }

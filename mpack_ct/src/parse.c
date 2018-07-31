@@ -214,7 +214,7 @@ add_hl_call(struct atomic_call_array **calls,
                 (*calls)->args      = nrealloc((*calls)->args, sizeof(union atomic_call_args *), (*calls)->mlen);
         }
 
-        (*calls)->fmt[(*calls)->qty]         = strdup("s[dd:s:ddd]");
+        (*calls)->fmt[(*calls)->qty]         = strdup("s[dd,s,ddd]");
         (*calls)->args[(*calls)->qty]        = nmalloc(sizeof(union atomic_call_args), 7);
         (*calls)->args[(*calls)->qty][0].str = b_lit2bstr("nvim_buf_add_highlight");
         (*calls)->args[(*calls)->qty][1].num = bufnum;
@@ -242,11 +242,11 @@ breakdown_file(const struct bufdata *const bdata)
         bool    esc     = 0;
 
         LL_FOREACH_F (bdata->lines, node) {
-                const unsigned len = node->data->slen;
-                const uchar *const str = node->data->data;
-                bstring *repl = b_alloc_null(len + 1);
-                repl->slen    = len;
-                unsigned i    = 0;
+                const unsigned     len  = node->data->slen;
+                const uchar *const str  = node->data->data;
+                bstring           *repl = b_alloc_null(len + 1u);
+                repl->slen              = len;
+                unsigned i              = 0;
 
                 memset(repl->data, ' ', len);
                 repl->data[len] = '\0';
@@ -306,15 +306,15 @@ breakdown_file(const struct bufdata *const bdata)
                                 switch (str[i]) {
                                 case '\'':
                                         want = '\'';
-                                        goto skip_char;
+                                        goto next_char;
                                 case '"':
                                         want = '"';
-                                        goto skip_char;
+                                        goto next_char;
                                 case '/':
                                         if (str[i+1] == '*') {
                                                 want = '*';
                                                 ++i;
-                                                goto skip_char;
+                                                goto next_char;
                                         } else if (str[i+1] == '/') {
                                         line_comment:
                                                 if (str[len-1] == '\\')
@@ -329,7 +329,7 @@ breakdown_file(const struct bufdata *const bdata)
                                 repl->data[i] = str[i];
                         }
 
-                skip_char:
+                next_char:
                         esc = (str[i] == '\\') ? !esc : false;
                 }
 

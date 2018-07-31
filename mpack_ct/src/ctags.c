@@ -11,7 +11,8 @@
 #  define SEPSTR "/"
 #endif
 
-#define IS_DOTDOT(FNAME_) ((FNAME_)[0] == '.' && (!(FNAME_)[1] || ((FNAME_)[1] == '.' && !(FNAME_)[2])))
+#define IS_DOTDOT(FNAME_) \
+        ((FNAME_)[0] == '.' && (!(FNAME_)[1] || ((FNAME_)[1] == '.' && !(FNAME_)[2])))
 
 #include "archive/archive_util.h"
 #include "data.h"
@@ -107,7 +108,7 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                             &bdata->ft->ctags_name, topdir->tmpfname, topdir->pathname);
         } else {
                 echo("Not recursing!!!");
-                b_sprintf_a(cmd, B(" -f%s \"%s\""), topdir->tmpfname, bdata->filename);
+                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\""), topdir->tmpfname, bdata->filename);
         }
 
         echo("Running ctags command \"%s\"\n", BS(cmd));
@@ -221,9 +222,6 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                 return NULL;
         }
 
-        /* b_list_dump_nvim(includes);
-        b_list_dump_nvim(src_dirs); */
-
         b_list *headers = find_header_paths(src_dirs, includes);
         b_list_destroy(includes);
 
@@ -241,7 +239,7 @@ find_header_files(struct bufdata *bdata, struct top_dir *topdir)
                 b_list       **all  = nalloca(sizeof(b_list *), copy->qty);
                 struct pdata **data = nalloca(sizeof(struct pdata *), copy->qty);
 
-                B_LIST_FOREACH (copy, file, i) {
+                for (i = 0; i < copy->qty; ++i) {
                         data[i]  = xmalloc(sizeof(struct pdata));
                         *data[i] = (struct pdata){&searched, src_dirs, copy->lst[i]};
                         pthread_create(&tid[i], NULL, &recurse_headers_thread, data[i]); 
@@ -392,6 +390,7 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
         b_list  *src_dirs;
         bstring *json_file = find_file_in_dir_recurse(topdir->pathname, B(COMMANDFILE));
 
+#if 0
         if (!json_file) {
                 char    path[PATH_STR];
                 size_t  slen = realpath_fmt(path, "%s%c..", BS(topdir->pathname), PATHSEP);
@@ -406,6 +405,7 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
                         json_file = find_file_in_dir_recurse(&tmp, B(COMMANDFILE));
                 }
         }
+#endif
 
         if (json_file) {
                 src_dirs = parse_json(json_file, bdata->filename, includes);
@@ -427,9 +427,6 @@ find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
                 b_list_append(&src_dirs, file_dir);
         } else
                 b_free(file_dir);
-
-        /* b_list_append(&src_dirs, b_lit2bstr("/usr/include"));
-        b_list_append(&src_dirs, b_lit2bstr("/usr/local/include")); */
 
         b_free(json_file);
         fclose(yetanotherlog);
@@ -460,10 +457,8 @@ analyze_line(const bstring *line)
                         if (ch == '"' || ch == '<') {
                                 ++i;
                                 uchar *end = memchr(&str[i], ch, len - i);
-                                if (end) {
-                                        const size_t slen = PSUB(end, &str[i]);
-                                        ret = b_fromblk(&str[i], slen);
-                                }
+                                if (end)
+                                        ret = b_fromblk(&str[i], PSUB(end, &str[i]));
                         }
                 }
         }

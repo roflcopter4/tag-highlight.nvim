@@ -86,15 +86,15 @@ else()
     endif()
 
     # set (WARNS "-fdiagnostics-color=always -Weverything")
-    set (WARNS "-fdiagnostics-color=always -Wall")
-    # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
+    set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit")
+    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
     string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
     if (CLANG_STR_SEARCH EQUAL -1)
         message("Not clang!")
         set (ISCLANG 0)
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -Og -g -Wextra -Wpedantic -Wformat")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -Og -g -Wextra -Wpedantic -Wformat")
 #        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 #-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
 #-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
@@ -110,8 +110,8 @@ else()
     endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} -O2 -g")
-    set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} ${SANIT} -O3")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} ${SANIT} -O2 -g")
+    set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} -O3")
 
     set (CMAKE_EXE_LINKER_FLAGS "-L/usr/local/lib")
     set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")

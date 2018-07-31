@@ -11,34 +11,28 @@ static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
                                  const bstring *key, bool destroy, bool is_retval);
 
 static unsigned        sok_count, io_count;
-extern pthread_mutex_t mpack_main_mutex;
+static pthread_mutex_t mpack_main_mutex;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
 #define ENCODE_FMT_ARRSIZE 8192
-#define STD_API_FMT "d:d:s:"
-#define DAI data.arr->items
-#define DDE data.dict->entries
-
+#define STD_API_FMT        "d,d,s,"
 #define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
 #define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
-
-#define CHECK_DEF_FD(FD__)                                             \
-        do {                                                           \
-                if ((FD__) < 0)                                        \
-                        errx(1, "Invalid file descriptor %d", (FD__)); \
-                ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__));        \
-        } while (0)
+#define CHECK_DEF_FD(FD__) ((FD__) = ((FD__) == 0) ? DEFAULT_FD : (FD__))
 
 #define encode_fmt_api(FD__, FMT_, ...) \
         encode_fmt(0, STD_API_FMT "[" FMT_ "]", 0, INC_COUNT(FD__), __VA_ARGS__)
 
+#define INIT_STATIC_FUNC()                        \
+        static bstring func[] = {{.data = NULL}}; \
+        if (!func[0].data)                        \
+                func[0] = bt_fromarray(__func__);
+
 #define WRITE_API__(FMT_, ...)                                           \
         do {                                                             \
-                static bstring func[] = {{.data = NULL}};                \
-                if (!func[0].data)                                       \
-                        func[0] = bt_fromarray(__func__);                \
+                INIT_STATIC_FUNC()                                       \
                 CHECK_DEF_FD(fd);                                        \
                 mpack_obj *pack = encode_fmt_api(fd, FMT_, __VA_ARGS__); \
                 write_and_clean(fd, pack, func);                         \
@@ -52,7 +46,6 @@ extern pthread_mutex_t mpack_main_mutex;
                 if (!ret && fatal)                      \
                         errx(1, "ERROR: " __VA_ARGS__); \
         } while (0)
-
 
 #define VALIDATE_EXPECT(EXPECT, ...)                               \
         do {                                                       \
@@ -129,7 +122,7 @@ nvim_buf_attach(int fd, const int bufnum)
 {
         pthread_mutex_lock(&mpack_main_mutex);
         WRITE_API("d,B,[]", bufnum, true);
-        
+        /* Don't wait for the response, it will be handled in the main thread. */
         pthread_mutex_unlock(&mpack_main_mutex);
         return NULL;
 }
@@ -289,27 +282,27 @@ nvim_call_function(int                fd,
 }
 
 void *
-nvim_call_function_args(int                 fd,
-                        const bstring      *function,
-                        const mpack_type_t  expect,
-                        const bstring      *key,
-                        const bool          fatal,
-                        const char         *fmt,
+nvim_call_function_args(int                  fd,
+                        const bstring       *function,
+                        const mpack_type_t   expect,
+                        const bstring       *key,
+                        const bool           fatal,
+                        const char *restrict fmt,
                         ...)
 {
         pthread_mutex_lock(&mpack_main_mutex);
         CHECK_DEF_FD(fd);
-        static const bstring func = bt_init("nvim_call_function");
+        static bstring func[] = {bt_init("nvim_call_function_args")};
         char buf[2048];
-        snprintf(buf, 2048, "d:d:s:[s:[!%s]]", fmt);
+        snprintf(buf, 2048, STD_API_FMT "[s,[!%s]]", fmt);
 
-        va_list va;
-        va_start(va, fmt);
-        mpack_obj *pack = encode_fmt(0, buf, 0, INC_COUNT(fd), &func, function, &va);
-        va_end(va);
+        va_list ap;
+        va_start(ap, fmt);
+        mpack_obj *pack = encode_fmt(0, buf, 0, INC_COUNT(fd), &func, function, &ap);
+        va_end(ap);
 
         mpack_print_object(pack, mpack_log); fflush(mpack_log);
-        write_and_clean(fd, pack, &func);
+        write_and_clean(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         void      *ret    = get_expect(result, expect, key, true, true);
@@ -369,7 +362,7 @@ nvim_buf_get_var(int                fd,
                  const bool         fatal)
 {
         pthread_mutex_lock(&mpack_main_mutex);
-        WRITE_API("d:s", bufnum, varname);
+        WRITE_API("d,s", bufnum, varname);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -389,7 +382,7 @@ nvim_buf_get_option(int                fd,
 {
         pthread_mutex_lock(&mpack_main_mutex);
         VALIDATE_EXPECT(expect, MPACK_STRING, MPACK_NUM, MPACK_BOOL);
-        WRITE_API("d:s", bufnum, optname);
+        WRITE_API("d,s", bufnum, optname);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -416,6 +409,31 @@ nvim_buf_get_changedtick(int fd, const int bufnum)
 
 /*--------------------------------------------------------------------------------------*/
 
+bool
+nvim_set_var(int fd, const bstring *varname, const char *const restrict fmt, ...)
+{
+        CHECK_DEF_FD(fd);
+        INIT_STATIC_FUNC();
+        char       buf[2048];
+        mpack_obj *pack = NULL;
+        va_list    ap;
+        va_start(ap, fmt);
+        snprintf(buf, 2048, STD_API_FMT "[s,!%s]", fmt);
+
+        pack = encode_fmt(0, buf, 0, INC_COUNT(fd), func, varname, &ap);
+        pthread_mutex_lock(&mpack_main_mutex);
+        write_and_clean(fd, pack, func);
+        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
+        pthread_mutex_unlock(&mpack_main_mutex);
+
+        va_end(ap);
+        const bool ret = mpack_type(result->DAI[2]) == MPACK_NIL;
+        print_and_destroy(result);
+        return ret;
+}
+
+/*--------------------------------------------------------------------------------------*/
+
 int
 nvim_buf_add_highlight(int             fd,
                        const unsigned  bufnum,
@@ -426,7 +444,7 @@ nvim_buf_add_highlight(int             fd,
                        const int       end)
 {
         pthread_mutex_lock(&mpack_main_mutex);
-        WRITE_API("dd:s:ddd", bufnum, hl_id, group, line, start, end);
+        WRITE_API("dd,s,ddd", bufnum, hl_id, group, line, start, end);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -444,7 +462,7 @@ nvim_buf_clear_highlight(int            fd,
                          const int      end)
 {
         pthread_mutex_lock(&mpack_main_mutex);
-        WRITE_API("dd:dd", bufnum, hl_id, start, end);
+        WRITE_API("dd,dd", bufnum, hl_id, start, end);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -478,8 +496,8 @@ nvim_subscribe(int fd, const bstring *event)
 void
 nvim_call_atomic(int fd, const struct atomic_call_array *calls)
 {
-        static bstring func = bt_init("nvim_call_atomic");
         CHECK_DEF_FD(fd);
+        INIT_STATIC_FUNC();
         pthread_mutex_lock(&mpack_main_mutex);
         union atomic_call_args **args = calls->args;
 
@@ -501,12 +519,12 @@ nvim_call_atomic(int fd, const struct atomic_call_array *calls)
 
         mpack_obj *pack = encode_fmt(calls->qty, BS(fmt), 0, INC_COUNT(fd), &func, args);
 
-        write_and_clean(fd, pack, &func);
+        write_and_clean(fd, pack, func);
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
         print_and_destroy(result);
 
-        b_free(fmt);
+        b_destroy(fmt);
 }
 
 
@@ -591,7 +609,7 @@ get_expect(mpack_obj *        result,
                 break;
         case MPACK_NUM:
                 value = RETVAL->data.num;
-num_from_ext:
+        num_from_ext:
                 ret = xmalloc(sizeof(int64_t));
                 *((int64_t *)ret) = value;
                 break;
@@ -655,8 +673,9 @@ mpack_destroy(mpack_obj *root)
                                 break;
                         case MPACK_DICT:
                                 if (cur->data.dict) {
-                                        for (unsigned j = 0; j < cur->data.dict->qty; ++j)
-                                                free(cur->DDE[j]);
+                                        unsigned j = 0;
+                                        while (j < cur->data.dict->qty)
+                                                free(cur->DDE[j++]);
                                         free(cur->DDE);
                                         free(cur->data.dict);
                                 }
@@ -734,7 +753,7 @@ destroy_call_array(struct atomic_call_array *calls)
                                 ++x;
                                 break;
                         case 's': case 'S':
-                                b_free(calls->args[i][x++].str);
+                                b_destroy(calls->args[i][x++].str);
                                 break;
                         }
                 }
@@ -788,7 +807,7 @@ blist_from_var_fmt(
         va_end(va);
 
         void *ret = nvim_get_var(fd, varname, MPACK_ARRAY, key, fatal);
-        b_free(varname);
+        b_destroy(varname);
         return mpack_array_to_blist(ret, true);
 }
 
@@ -807,7 +826,7 @@ nvim_get_var_fmt(const int          fd,
         va_end(va);
 
         void *ret = nvim_get_var(fd, varname, expect, key, fatal);
-        b_free(varname);
+        b_destroy(varname);
         return ret;
 }
 
@@ -883,16 +902,59 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
                 }                                           \
         } while (0)
 
-#define ENCODE(TYPE, VALUE) \
-        mpack_encode_##TYPE(pack, cur_obj->data.arr, &(cur_obj->DAI[(*cur_ctr)++]), (VALUE))
-#define TWO_THIRDS(NUM_) ((2 * (NUM_)) / 3)
+#define INC_CTRS()                                         \
+        do {                                               \
+                ++len_ctr;                                 \
+                *(++obj_stackp) = *cur_obj;                \
+                *len_stackp++   = cur_ctr;                 \
+                cur_ctr         = &sub_ctrs[subctr_ctr++]; \
+                *cur_ctr        = 0;                       \
+        } while (0)
+
+
+#define TWO_THIRDS(NUM_) ((1 * (NUM_)) / 3)
 
 enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 
 
+/* 
+ * Relatively convenient way to encode an mpack object using a format string.
+ * Some of the elements of the string are similar to printf format strings, but
+ * otherwise it is entirely custom. All legal values either denote an argument
+ * that must be supplied variadically to be encoded in the object, or else to an
+ * ignored or special character. Values are not case sensitive.
+ *
+ * Standard values:
+ *     d: Integer value (int)
+ *     l: Long integer values (int64_t)
+ *     b: Boolean value (int)
+ *     s: String (bstring *) - must be a bstring, not a standard c string.
+ *
+ * Any values enclosed in '[' and ']' are placed in a sub-array.
+ * Any values enclosed in '{' and '}' are placed in a dictionary, which must
+ * have an even number of elements.
+ *
+ * Three additional special values are recognized:
+ *     !: Denotes a pointer to an initialized va_list, from which all arguments
+ *        thereafter will be taken, until either another '!' or '@' is encountered.
+ *     @: Denotes an argument of type "union atomic_call_args **", that is to
+ *        say an array of arrays of union atomic_call_args objects. When '@'
+ *        is encountered, this double pointer is taken from the current argument
+ *        source and used thereafter as such. The first sub array is used until
+ *        a '*' is encountered in the format string, at which point the next
+ *        array is used, and so on.
+ *     *: Increments the current sub array of the atomic_call_args ** object.
+ *
+ * All of the following characters are ignored in the format string, and may be
+ * used to make it clearer or more visually pleasing: ';'  ','  ' '
+ *
+ * All errors are fatal.
+ */
+
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
+        /* eprintf("Fmt is \"%s\"\n", fmt); */
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
         const unsigned              arr_size  = (size_hint)
@@ -901,9 +963,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         va_list      args;
         int          ch;
         int *        sub_lengths = nmalloc(sizeof(int), arr_size);
-        int *        sub_ctrs    = nmalloc(sizeof(int), arr_size);
         int **       len_stack   = nmalloc(sizeof(int *), TWO_THIRDS(arr_size));
-        mpack_obj ** obj_stack   = nmalloc(sizeof(mpack_obj *), TWO_THIRDS(arr_size));
         va_list *    ref         = NULL;
         const char * ptr         = fmt;
         unsigned     len_ctr     = 0;
@@ -911,118 +971,135 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         int *        cur_len     = &sub_lengths[len_ctr++];
         *cur_len                 = 0;
 
+        fprintf(mpack_log, "%s\n", fmt);
+
         va_start(args, fmt);
 
+        /* Go through the format string once to get the number of arguments and
+         * in particular the number and size of any arrays. */
         while ((ch = *ptr++)) {
                 assert(len_ctr < arr_size);
 
                 switch (ch) {
-                case 'b': case 'B': case 'm': case 'M':
+                /* Legal values. Increment size and continue. */
+                case 'b': case 'B': case 'l': case 'L':
                 case 'd': case 'D': case 's': case 'S':
+                case 'n': case 'N':
                         ++(*cur_len);
                         break;
-                case '[':
+
+                /* New array. Increment current array size, push it onto the
+                 * stack, and initialize the next counter. */
+                case '[': case '{':
                         ++(*cur_len);
-                        *(len_stackp++) = cur_len;
+                        *len_stackp++ = cur_len;
                         cur_len = &sub_lengths[len_ctr++];
                         *cur_len = 0;
                         break;
-                case ']':
+
+                /* End of array. Pop the previous counter off the stack and
+                 * continue on adding any further elements to it. */
+                case ']': case '}':
                         assert(len_stackp != len_stack);
                         cur_len = *(--len_stackp);
                         break;
-                case '0': case '1': case '2': case '3': case '4':
-                case '5': case '6': case '7': case '8': case '9':
-                        *cur_len += xatoi(ptr - 1);
-                        ptr = strchr(ptr, ']');
-                        if (!ptr)
-                                goto BREAK1;
-                        break;
+
+                /* Legal values that do not increment the current size. */
                 case ':': case '.': case ' ': case ',':
                 case '!': case '@': case '*':
                         break;
+
                 default:
                         errx(1, "Illegal character \"%c\" found in format.", ch);
                 }
         }
-BREAK1:;
 
         mpack_obj *pack = NULL;
-
         if (sub_lengths[0] == 0)
                 goto cleanup;
+
 #ifdef DEBUG
         pack = mpack_make_new(sub_lengths[0], true);
 #else
         pack = mpack_make_new(sub_lengths[0], false);
 #endif
 
-        /* Screw pointer arithmetic. It always breaks things.
-         * Let's just use lots of cryptic counters. */
-        len_ctr                  = 1;
+        int        *sub_ctrs     = nmalloc(sizeof(int), arr_size);
+        int        *dict_stack   = nmalloc(sizeof(int), TWO_THIRDS(arr_size));
+        mpack_obj **obj_stack    = nmalloc(sizeof(mpack_obj *), TWO_THIRDS(arr_size));
+        int        *cur_ctr      = sub_ctrs;
+        int        *dict_stackp  = dict_stack;
+        mpack_obj **obj_stackp   = obj_stack;
+        mpack_obj **cur_obj      = NULL;
         unsigned    subctr_ctr   = 1;
         unsigned    a_arg_ctr    = 0;
         unsigned    a_arg_subctr = 0;
-        mpack_obj  *cur_obj      = pack;
-        mpack_obj **obj_stackp   = obj_stack;
-        int        *cur_ctr      = &sub_ctrs[0];
+        *dict_stackp             = 0;
+        len_ctr                  = 1;
         len_stackp               = len_stack;
+        *obj_stackp              = pack;
         *(len_stackp++)          = cur_ctr;
-        *(obj_stackp++)          = cur_obj;
-        *cur_ctr                 = 0;
         ptr                      = fmt;
+        cur_obj                  = &pack->DAI[0];
+        *cur_ctr                 = 1;
 
         while ((ch = *ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
                         bool arg;
                         NEXT(arg, int, boolean);
-                        ENCODE(boolean, arg);
+                        mpack_encode_boolean(pack, cur_obj, arg);
                         break;
                 }
                 case 'd': case 'D': {
                         int arg;
                         NEXT(arg, int, num);
-                        ENCODE(integer, arg);
+                        mpack_encode_integer(pack, cur_obj, arg);
+                        break;
+                }
+                case 'l': case 'L': {
+                        int64_t arg;
+                        NEXT(arg, int64_t, num);
+                        mpack_encode_integer(pack, cur_obj, arg);
                         break;
                 }
                 case 's': case 'S': {
                         bstring *arg;
                         NEXT(arg, bstring *, str);
-                        ENCODE(string, arg);
+                        mpack_encode_string(pack, cur_obj, arg);
                         break;
                 }
+                case 'n': case 'N':
+                        mpack_encode_nil(pack, cur_obj);
+                        break;
+
                 case '[':
-                        ENCODE(array, sub_lengths[len_ctr]);
-                        ++len_ctr;
-                        *obj_stackp++ = cur_obj;
-                        *len_stackp++ = cur_ctr;
-                        cur_obj       = cur_obj->DAI[*cur_ctr - 1];
-                        cur_ctr       = &sub_ctrs[subctr_ctr++];
-                        *cur_ctr      = 0;
+                        *(++dict_stackp) = 0;
+                        mpack_encode_array(pack, cur_obj, sub_lengths[len_ctr]);
+                        INC_CTRS();
+                        break;
+
+                case '{':
+                        assert((sub_lengths[len_ctr] & 1) == 0);
+                        *(++dict_stackp) = 1;
+                        mpack_encode_dictionary(pack, cur_obj, (sub_lengths[len_ctr] / 2));
+                        INC_CTRS();
                         break;
 
                 case ']':
+                case '}':
                         assert(obj_stackp != obj_stack);
                         assert(len_stackp != len_stack);
-                        cur_obj = *(--obj_stackp);
+                        assert(dict_stackp != dict_stack);
+                        --obj_stackp;
                         cur_ctr = *(--len_stackp);
-                        break;
-
-                case '0': case '1': case '2': case '3': case '4':
-                case '5': case '6': case '7': case '8': case '9':
-                        for (; *cur_ctr < cur_obj->data.arr->qty; ++(*cur_ctr))
-                                cur_obj->DAI[*cur_ctr] = NULL;
-
-                        ptr = strchr(ptr, ']');
-                        if (!ptr)
-                                goto BREAK2;
+                        --dict_stackp;
                         break;
 
                 case '!':
                         NEXT_NO_ATOMIC(ref, va_list *);
                         next_type = OTHER_VALIST;
-                        break;
+                        continue;
 
                 case '@':
                         NEXT_NO_ATOMIC(a_args, union atomic_call_args **);
@@ -1030,29 +1107,41 @@ BREAK1:;
                         a_arg_subctr = 0;
                         assert(a_args[a_arg_ctr]);
                         next_type = ATOMIC_UNION;
-                        break;
+                        continue;
 
                 case '*':
                         assert(next_type == ATOMIC_UNION);
                         ++a_arg_ctr;
                         a_arg_subctr = 0;
-                        break;
+                        continue;
 
                 case ':': case '.': case ' ': case ',':
                         continue;
 
-                case 'm': case 'M':
                 default:
                         abort();
                 }
+
+                if (*dict_stackp) {
+                        if ((*obj_stackp)->data.dict->max > (*cur_ctr / 2)) {
+                                if ((*cur_ctr & 1) == 0)
+                                        cur_obj = &(*obj_stackp)->DDE[*cur_ctr / 2]->key;
+                                else
+                                        cur_obj = &(*obj_stackp)->DDE[*cur_ctr / 2]->value;
+                        }
+                } else {
+                        if ((*obj_stackp)->data.arr->max > *cur_ctr)
+                                cur_obj = &(*obj_stackp)->DAI[*cur_ctr];
+                }
+                ++(*cur_ctr);
         }
 
-BREAK2:
+        free(dict_stack);
+        free(obj_stack);
+        free(sub_ctrs);
 cleanup:
         free(sub_lengths);
-        free(sub_ctrs);
         free(len_stack);
-        free(obj_stack);
         va_end(args);
         return pack;
 }

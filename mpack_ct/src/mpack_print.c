@@ -11,6 +11,9 @@ static void print_nil   (const mpack_obj *result);
 static void print_number(const mpack_obj *result);
 static void print_string(const mpack_obj *result, bool ind);
 
+#define DAI data.arr->items
+#define DDE data.dict->entries
+
 #define CAST_INT(OBJ)                                                   \
                 ((OBJ)->type == M_INT_32)  ? (int32_t)(OBJ)->data.num : \
                 (((OBJ)->type == M_INT_16) ? (int16_t)(OBJ)->data.num : \
@@ -23,7 +26,7 @@ static void print_string(const mpack_obj *result, bool ind);
 
 #define LOG(STRING) b_puts(print_log, B(STRING))
 
-extern pthread_mutex_t mpack_print_mutex;
+static pthread_mutex_t mpack_print_mutex;
 static int             indent    = 0;
 static int             recursion = 0;
 static FILE *          print_log      = NULL;
@@ -50,6 +53,9 @@ mpack_print_object(const mpack_obj *result, FILE *fp)
         assert(result != NULL);
         assert(fp != NULL);
 
+        if (!(result->flags & MPACK_ENCODE))
+                return;
+
         pthread_mutex_lock(&mpack_print_mutex);
         recursion = 0;
         print_log = fp;
@@ -67,6 +73,8 @@ do_mpack_print_object(const mpack_obj *result)
         if (ferror(print_log))
                 abort();
         ++recursion;
+
+        /* fprintf(print_log, "Type is 0x%x\n", mpack_type(result)); */
 
         switch (mpack_type(result)) {
         case MPACK_ARRAY:  print_array (result);    break;

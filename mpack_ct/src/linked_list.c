@@ -150,13 +150,6 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         start = (start >= 0) ? start : (start + (int)blist->qty + 1);
         end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
 
-        /* assert((end > 0) && (start >= 0) && (start < end) &&
-               (blist->qty > 0) && ((unsigned)end <= blist->qty)); */
-        /* ASSERTX(end > 0, "End (%d) is not > 0!", end);
-        ASSERTX(start >= 0, "Start (%d) is not >= 0!", start);
-        ASSERTX(start < end, "Start (%d) is not < end (%d)!", start, end);
-        ASSERTX(blist->qty > 0, "blist->qty (%u) is not > 0!", blist->qty);
-        ASSERTX((unsigned)end <= blist->qty, "End (%d) is not <= blist->qty (%u)!", end, blist->qty); */
         ASSERTIONS();
 
         const int diff = end - start;
@@ -175,12 +168,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
 
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
-                if (!(blist->lst[x] && blist->lst[x]->data)) {
-                        FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
-                        b_list_dump(fp, blist);
-                        fclose(fp);
-                        abort();
-                }
+                assert(blist->lst[x]);
                 tmp[i]         = xmalloc(sizeof **tmp);
                 tmp[i]->data   = blist->lst[x];
                 tmp[i]->prev   = tmp[i-1];
@@ -188,9 +176,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 ++list->qty;
         }
 
-        /* const int last = i; */
         const int last = i - 1;
-        /* echo("Last %d, i %d", last, i); */
 
         if (at) {
                 tmp[last]->next = at->next;
@@ -205,7 +191,6 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         if (!list->tail || at == list->tail)
                 list->tail = tmp[last];
 
-        /* list->qty += diff; */
         free(tmp);
         /* MSG2(); */
 }
@@ -237,12 +222,6 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
                 assert(blist->lst[x]);
-                if (!(blist->lst[x] && blist->lst[x]->data)) {
-                        FILE *fp = safe_fopen_fmt("%s/emergencylog.log", "wb", HOME);
-                        b_list_dump(fp, blist);
-                        fclose(fp);
-                        abort();
-                }
                 tmp[i]         = xmalloc(sizeof **tmp);
                 tmp[i]->data   = blist->lst[x];
                 tmp[i]->prev   = tmp[i-1];
@@ -275,10 +254,6 @@ void
 ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
 {
         assert(list);
-        /* if (at == list->head->next)
-                assert(list->qty + 1 >= (int)range);
-        else
-                assert(list->qty >= (int)range); */
         assert(list->qty >= (int)range);
 
         if (range == 0)

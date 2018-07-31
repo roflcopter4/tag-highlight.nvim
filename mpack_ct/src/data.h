@@ -27,6 +27,7 @@ struct settings_s {
         bool use_compression;
         bool verbose;
 
+        bstring      *settings_file;
         b_list       *ctags_args;
         b_list       *ignored_ftypes;
         b_list       *norecurse_dirs;

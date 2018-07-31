@@ -4,9 +4,6 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
-/* #ifndef DEBUG
-#  define DEBUG
-#endif */
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -14,7 +11,6 @@
 #  pragma warning(disable : 5045) // spectre
 #  define _CRT_SECURE_NO_WARNINGS
 #  define _CRT_NONSTDC_NO_WARNINGS
-
 #endif
 #ifndef __GNUC__
 #  define __attribute__(...)
@@ -33,21 +29,17 @@
 #if (defined(_WIN64) || defined(_WIN32))
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
-//#  include <Winsock2.h>
 #  include <io.h>
 #  include <Windows.h>
-#  include <dirent.h>
 #  define strcasecmp  _stricmp
 #  define strncasecmp _strnicmp
 #  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
-//#  define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-//#  define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 #  undef BUFSIZ
 #  define BUFSIZ 8192
 #  define PATHSEP '\\'
 #  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
-    extern char * basename(char *path);
-    typedef signed long long int ssize_t;
+   extern char * basename(char *path);
+   typedef signed long long int ssize_t;
 #else
 #  include <unistd.h>
 #  define PATHSEP '/'
@@ -63,8 +55,6 @@
                 __auto_type ib = (IB_); \
                 (ia < ib) ? ia : ib;    \
         })
-
-
 #endif
 /*===========================================================================*/
 
@@ -74,6 +64,7 @@
 #define USE_XMALLOC
 
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -136,16 +127,17 @@ struct backups {
 #define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
 
 #ifdef DOSISH
-#  define NORETURN __declspec(noreturn)
+#  define NORETURN    __declspec(noreturn)
 #  define fsleep(VAL) Sleep((VAL) * 1000)
 #else
 #  define NORETURN __attribute__((__noreturn__))
-#  define fsleep(VAL)                                                                                 \
-        nanosleep(                                                                                  \
-            (struct timespec[]){                                                                    \
-                {(int64_t)(VAL),                                                                    \
-                 (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))) * 1000000000.0L)}}, \
-            NULL)
+#  define fsleep(VAL)                                                           \
+        nanosleep(                                                              \
+            (struct timespec[]){                                                \
+                {(int64_t)(VAL),                                                \
+                 (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))) \
+                           * 1000000000.0L)}                                    \
+            }, NULL)
 #endif
 
 void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
@@ -153,17 +145,17 @@ NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 
 #define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
 #define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
-
-#ifdef DEBUG
 #  define warn(...)       __warn(true, __VA_ARGS__)
 #  define warnx(...)      __warn(false, __VA_ARGS__)
+
+#ifdef DEBUG
 #  define SHOUT(...)      __warn(false, __VA_ARGS__)
 #  define nvprintf warnx
 #  define echo    warnx
 #else
 #  undef eprintf
-#  define warn(...)
-#  define warnx(...)
+/* #  define warn(...)
+#  define warnx(...) */
 #  define nvprintf(...)
 #  define eprintf(...)
 #  define echo(...)
@@ -177,7 +169,8 @@ NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #  else
      extern const char * __ret_func_name(const char *const function, size_t size);
 #    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
-#endif
+#  endif
+#  define auto_type __auto_type
 #else
 #  define FUNC_NAME (__func__)
 #endif
@@ -230,7 +223,7 @@ extern void * xreallocarray_ (void *ptr, size_t num, size_t size, const bstring 
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
 
-#define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #define b_dump_list_nvim(LST_) __b_dump_list_nvim((LST_), #LST_)
 
 extern void __b_dump_list_nvim(const b_list *list, const char *listname);

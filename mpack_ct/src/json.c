@@ -6,7 +6,11 @@
 
 #ifdef DOSISH
 #  include <direct.h>
+#  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
+#else
+#  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq((FILE1_), (FILE2_)))
 #endif
+
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
@@ -29,7 +33,8 @@
         } while (0)
 
 #ifdef DOSISH
-#  define ISROOT(STR_) (isalpha((STR_)[0]) && (STR_)[1] == ':' && (STR_)[2] == '\\' && (STR_)[3] == '\\')
+#define ISROOT(STR_) \
+        (isalpha((STR_)[0]) && (STR_)[1] == ':' && (STR_)[2] == '\\' && (STR_)[3] == '\\')
 #else
 #  define ISROOT(STR_) ((STR_)[0] == '/')
 #endif
@@ -88,7 +93,7 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
 
         const bstring js_tmp = bt_fromblk(buf, size);
         b_list        *ret   = extract_info(toks, ntoks, &js_tmp,
-                                             filename, base, includes);
+                                            filename, base, includes);
 
         b_destroy(base);
         free(toks);
@@ -151,11 +156,7 @@ extract_info(const jsmntok_t *toks,
                                         tmp->data[x] = '\\';
 #endif
 
-#ifdef DOSISH
-                        if (b_iseq_caseless(filename, tmp)) {
-#else
-                        if (b_iseq(filename, tmp)) {
-#endif
+                        if (B_FILE_EQ(filename, tmp)) {
                                 file_arr = arr_top;
                                 b_destroy(value);
                                 break;
@@ -197,7 +198,7 @@ extract_info(const jsmntok_t *toks,
                                 default:   want = ' ';  break;
                                 }
 
-                                char          *end  = strchrnul(tok, want);
+                                char *end = strchrnul(tok, want);
                                 //const bstring btok[1] = {bt_fromblk(tok, PSUB(end, tok))};
                                 //const bstring btok[] = {b_static_fromblk(tok, PSUB(end, tok))};
                                 bstring btok[1];
@@ -315,6 +316,7 @@ cannon_dotpath(char *const restrict          buf,
 
         //buf[maxsize] = '\0';
 
+        echo("Trying to fix path '%s' with base '%s'", BS(path), BS(file));
         errno = 0;
         if (chdir(BS(path)) == (-1))
                 err(1, "Failed to chdir to path \"%s\"", BS(path));

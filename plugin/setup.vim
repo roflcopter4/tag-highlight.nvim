@@ -5,8 +5,6 @@
 "              Released under the MIT license
 " ============================================================================
 
-" finish
-
 " Options {{{
 if exists('g:tag_highlight#loaded')
     finish
@@ -22,42 +20,29 @@ endfunction
 call s:InitVar('file', '')
 call s:InitVar('ctags_bin', 'ctags')
 
-call s:InitVar('ignored_tags', {})
+if !exists('g:tag_highlight#ignored_tags')
+    let g:tag_highlight#ignored_tags = { 'c': ['_Bool', 'static_assert', '__attribute__', 'TRUE', 'FALSE'] }
+    let g:tag_highlight#ignored_tags['cpp'] = g:tag_highlight#ignored_tags['c']
+endif
 call s:InitVar('ignored_dirs', [])
 
 call s:InitVar('directory',     expand('~/.vim_tags'))
 call s:InitVar('bin',           expand(g:tag_highlight#directory . '/bin/tag_highlight'))
 call s:InitVar('settings_file', expand(g:tag_highlight#directory . '/tag_highlight.txt'))
-
-if file_readable(g:tag_highlight#bin)
-    call s:InitVar('use_binary',  1)
-else
-    call s:InitVar('use_binary',  0)
-endif
-
 call s:InitVar('use_compression',   1)
 call s:InitVar('compression_level', 9)
 call s:InitVar('compression_type', 'gzip')
-
-" call s:InitVar('enabled',     1)
-call s:InitVar('appendpath',  1)
-call s:InitVar('find_tool',   0)
-call s:InitVar('highlight',   1)
+call s:InitVar('enabled',     1)
 call s:InitVar('no_autoconf', 1)
 call s:InitVar('recursive',   1)
-call s:InitVar('run_ctags',   1)
 call s:InitVar('verbose',     1)
-call s:InitVar('strip_comments', 1)
-call s:InitVar('silent_timeout', 0)
-call s:InitVar('ctags_timeout',  240)
-call s:InitVar('patternlength',  2048)
 
 " People often make annoying #defines for C and C++ keywords, types, etc. Avoid
 " highlighting these by default, leaving the built in vim highlighting intact.
 call s:InitVar('restored_groups', {
-                \     'c':   ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType'],
-                \     'cpp': ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType',
-                \             'cppStorageClass', 'cppType'],
+                \     'c':   ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType', 'cStatement'],
+                \     'cpp': ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType', 'cStatement',
+                \             'cppStorageClass', 'cppType',],
                 \ })
  
 call s:InitVar('norecurse_dirs', [
@@ -71,20 +56,6 @@ call s:InitVar('norecurse_dirs', [
                 \ '/usr/local/lib',
                 \ '/usr/local/share',
                 \ '/usr/local/include',
-                \ ])
-
-call s:InitVar('events_update', [
-                \   'BufWritePost'
-                \ ])
-
-call s:InitVar('events_highlight', [
-                \   'BufReadPre',
-                \   'BufEnter',
-                \ ])
-
-call s:InitVar('events_rehighlight', [
-                \   'FileType',
-                \   'Syntax',
                 \ ])
 
 if g:tag_highlight#run_ctags
@@ -134,17 +105,6 @@ if g:tag_highlight#run_ctags && g:tag_highlight#no_autoconf == 1
                 \])
 endif
 
-call s:InitVar('global_notin', [
-                \   '.*String.*',
-                \   '.*Comment.*',
-                \   'cIncluded',
-                \   'cCppOut2',
-                \   'cCppInElse2',
-                \   'cCppOutIf2',
-                \   'pythonDocTest',
-                \   'pythonDocTest2',
-                \ ])
-
 call s:InitVar('ignore', [
                 \   'cfg',
                 \   'conf',
@@ -158,6 +118,17 @@ call s:InitVar('ignore', [
                 \   'man',
                 \   'preview',
                 \   'fzf',
+                \ ])
+
+call s:InitVar('global_notin', [
+                \   '.*String.*',
+                \   '.*Comment.*',
+                \   'cIncluded',
+                \   'cCppOut2',
+                \   'cCppInElse2',
+                \   'cCppOutIf2',
+                \   'pythonDocTest',
+                \   'pythonDocTest2',
                 \ ])
 
 call s:InitVar('ft_conv', {
@@ -180,33 +151,49 @@ runtime! plugin/Tag_Highlight/*.vim
 
 let g:tag_highlight#loaded = 1
 
-" if v:vim_did_enter
-"     call Tag_Highlight_Init()
-" else
-"     augroup Tag_Highlight
-"         autocmd VimEnter * call Tag_Highlight_Init()
-"     augroup END
-" endif
-" 
-" function! s:Add_Remove_Project(operation, ctags, ...)
-"     if exists('a:1')
-"         let l:path = a:1
-"     else
-"         let l:path = getcwd()
-"     endif
-"     if a:operation ==# 0
-"         call Tag_Highlight_RemoveProject(a:ctags, l:path)
-"     elseif a:operation ==# 1
-"         call Tag_Highlight_AddProject(a:ctags, l:path)
-"     endif
-" endfunction
+function! s:Add_Remove_Project(operation, ...)
+    if exists('a:1')
+        let l:path = a:1
+    else
+        let l:path = getcwd()
+    endif
+    let l:path = resolve(fnamemodify(expand(l:path), ':p:h'))
 
-" command! -nargs=1 -complete=file Tag_Highlight_AddProject call Tag_Highlight_AddProject(<f-args>)
-" command! -nargs=1 -complete=file Tag_Highlight_RemoveProject call Tag_Highlight_RemoveProject(<f-args>)
-" command! -nargs=? -complete=file Tag_Highlight_ToggleProject call s:Add_remove_Project(2, <q-args>)
-" command! -nargs=? -complete=file Tag_Highlight_AddProject call s:Add_Remove_Project(1, <q-args>, 1)
-" command! -nargs=? -complete=file Tag_Highlight_AddProjectNoCtags call s:Add_Remove_Project(1, <q-args>, 0)
-" command! -nargs=? -complete=file Tag_Highlight_RemoveProject call s:Add_Remove_Project(0, <q-args>, 0)
+    if a:operation ==# 0
+        call s:Add_Project(l:path)
+    elseif a:operation ==# 1
+        call s:Remove_Project(l:path)
+    endif
+endfunction
+
+function! s:Add_Project(path)
+    if file_readable(g:tag_highlight#settings_file)
+        let l:lines = readfile(g:tag_highlight#settings_file)
+        if index(l:lines, a:path) ==# (-1)
+            echom 'Adding project dir "'.a:path.'"'
+            call writefile([a:path], g:tag_highlight#settings_file, 'a')
+        endif
+    else
+        echom 'Adding project dir "'.a:path.'"'
+        call writefile([a:path], g:tag_highlight#settings_file)
+    endif
+endfunction
+
+function! s:Remove_Project(path)
+    if file_readable(g:tag_highlight#settings_file)
+        let l:lines = readfile(g:tag_highlight#settings_file)
+        let l:index = index(l:lines, a:path)
+        if l:index !=# (-1)
+            echom 'Removing project dir "'.a:path.'"'
+            call remove(l:lines, (l:index - 1))
+            call writefile(l:lines, g:tag_highlight#settings_file)
+        endif
+    endif
+endfunction
+
+command! -nargs=? -complete=file TagHighlightAddProject call s:Add_Remove_Project(0, <q-args>)
+command! -nargs=? -complete=file TagHighlightRemoveProject call s:Add_Remove_Project(1, <q-args>)
+
 " command! tag_highlightToggle call Tag_HighlightToggle()
 " command! tag_highlightVerbosity call tag_highlight#Toggle_Verbosity()
 " command! tag_highlightBinaryToggle call tag_highlight#Toggle_C_Binary()
@@ -214,9 +201,7 @@ let g:tag_highlight#loaded = 1
 " nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
 " nmap <silent> <leader>tag <Plug>tag_highlightToggle
 
-
 "============================================================================= 
-
 
 highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
 highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag

@@ -17,17 +17,27 @@
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
-#define TDIFF(STV1, STV2)                                          \
+#define TDIFF(STV1, STV2)                                                \
         (((long double)((STV2).tv_usec - (STV1).tv_usec) / 1000000.0L) + \
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
-extern jmp_buf  exit_buf;
-extern int      decode_log_raw;
-extern FILE    *decode_log, *cmd_log, *echo_log;
-static FILE    *main_log;
-static bstring *vpipename, *servername, *mes_servername;
-static struct timeval gtv;
-static pthread_t top_thread;
+#define BUF_WAIT_LINES(ITERS)                           \
+        do {                                            \
+                for (int _m_ = 0; _m_ < (ITERS); ++_m_) \
+                        if (bdata->lines->qty <= 1)     \
+                                fsleep(0.1);            \
+                if (bdata->lines->qty <= 1)             \
+                        goto error;                     \
+        } while (0)
+
+
+extern jmp_buf         exit_buf;
+extern int             decode_log_raw;
+extern FILE           *decode_log, *cmd_log, *echo_log;
+static FILE           *main_log;
+static bstring        *vpipename, *servername, *mes_servername;
+static struct timeval  gtv;
+static pthread_t       top_thread;
 
 
 static void *      async_init_buffers(void *vdata);
@@ -54,6 +64,7 @@ main(int argc, char *argv[])
         HOME         = getenv("HOME");
 
 #ifdef DOSISH
+        /* Set the standard streams to binary mode in Windows. */
         if (_setmode(0, O_BINARY) == (-1))
                 err(1, "Failed to change stdin to binary mode.");
         if (_setmode(1, O_BINARY) == (-1))
@@ -83,17 +94,21 @@ main(int argc, char *argv[])
         if (vpipename == NULL)
                errx(1, "Didn't get a pipename...");
 
+        /* Grab user settings defined either in their .vimrc or otherwise by the
+         * vimscript plugin. */
         settings.comp_type       = get_compression_type(0);
         settings.comp_level      = nvim_get_var_num_pkg(0, "compression_level", 1);
         settings.ctags_args      = blist_from_var_pkg  (0, "ctags_args", NULL, 1);
         settings.enabled         = nvim_get_var_num_pkg(0, "enabled", 1);
+        settings.ignored_ftypes  = blist_from_var_pkg  (0, "ignore", NULL, 1);
         settings.ignored_tags    = nvim_get_var_pkg    (0, "ignored_tags", MPACK_DICT, NULL, 1);
         settings.norecurse_dirs  = blist_from_var_pkg  (0, "norecurse_dirs", NULL, 1);
-        settings.ignored_ftypes  = blist_from_var_pkg  (0, "ignore", NULL, 1);
+        settings.settings_file   = nvim_get_var_pkg    (0, "settings_file", MPACK_STRING, NULL, 1);
         settings.use_compression = nvim_get_var_num_pkg(0, "use_compression", 1);
         settings.verbose         = nvim_get_var_num_pkg(0, "verbose", 1);
 
         assert(settings.enabled);
+
         int initial_buf;
 
         /* Initialize all opened buffers. */
@@ -107,15 +122,11 @@ main(int argc, char *argv[])
 
                 initial_buf = nvim_get_current_buf(0);
                 new_buffer(0, initial_buf);
-#if 0
-                mpack_array_t *buflist = nvim_list_bufs(0);
-                for (unsigned i = 0; i < buflist->qty; ++i)
-                        new_buffer(0, buflist->items[i]->data.ext->num);
-
-                destroy_mpack_array(buflist);
-#endif
         }
 
+        /* Rewinding with longjmp is the easiest way to ensure we get back to
+         * the main thread from any sub threads at exit time, ensuring a smooth
+         * cleanup. */
         int retval = setjmp(exit_buf);
 
         if (retval == 0) {
@@ -132,7 +143,7 @@ main(int argc, char *argv[])
 
 /*======================================================================================*/
 
-#define WAIT_TIME (0.05L)
+#define WAIT_TIME (0.08L)
 
 
 /*
@@ -164,13 +175,13 @@ buffer_event_loop(UNUSED void *vdata)
 
 
 /*
- * Wait for the main thread to receive and process the file data from neovim,
- * then apply the initial highlights.
+ * Initialize the first recognized and non-empty buffer. Has to be done
+ * asynchranously to allow for the main thread to recieve required buffer
+ * information from neovim.
  */
 static void *
 async_init_buffers(void *vdata)
 {
-        /* const int       bufnum = nvim_get_current_buf(0); */
         const int       bufnum = *(const int *)vdata;
         struct bufdata *bdata  = find_buffer(bufnum);
         struct timeval  ltv;
@@ -179,11 +190,14 @@ async_init_buffers(void *vdata)
         while (bdata->lines->qty <= 1)
                 fsleep(WAIT_TIME);
 
-        /* extern int main_hl_id;
+#if 0
+        extern int main_hl_id;
+        get_initial_taglist(bdata, bdata->topdir);
         my_parser(bufnum, bdata);
         sleep(5000);
         nvim_buf_clear_highlight(0, bufnum, main_hl_id, 0, -1);
-        sleep(2); */
+        sleep(2);
+#endif
 
         get_initial_taglist(bdata, bdata->topdir);
         update_highlight(bufnum, bdata);
@@ -194,6 +208,11 @@ async_init_buffers(void *vdata)
 }
 
 
+/* 
+ * Handle an update from the small vimscript plugin. Updates are recieved upon
+ * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
+ * response to the user calling the provided clear command.
+ */
 void *
 interrupt_call(void *vdata)
 {
@@ -211,7 +230,7 @@ interrupt_call(void *vdata)
          */
         case 'A':
         case 'D': {
-                /* fsleep(WAIT_TIME); */
+                fsleep(WAIT_TIME);
                 const int prev = bufnum;
                 gettimeofday(&ltv1, NULL);
                 bufnum                = nvim_get_current_buf(0);
@@ -222,10 +241,8 @@ interrupt_call(void *vdata)
                                 nvim_buf_attach(1, bufnum);
                                 bdata = find_buffer(bufnum);
 
-                                while (bdata->lines->qty <= 1) {
-                                        echo("sleeping");
-                                        fsleep(WAIT_TIME);
-                                }
+                                BUF_WAIT_LINES(10);
+
                                 get_initial_taglist(bdata, bdata->topdir);
                                 update_highlight(bufnum, bdata);
 
@@ -236,6 +253,9 @@ interrupt_call(void *vdata)
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata, bdata->topdir);
+
+                        BUF_WAIT_LINES(10);
+
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
                         SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
@@ -257,7 +277,7 @@ interrupt_call(void *vdata)
                         break;
                 }
 
-                /* fsleep(WAIT_TIME); */
+                fsleep(WAIT_TIME);
 
                 if (update_taglist(bdata)) {
                         update_highlight(curbuf, bdata);
@@ -291,6 +311,7 @@ interrupt_call(void *vdata)
                 break;
         }
 
+error:
         free(vdata);
         pthread_mutex_unlock(&int_mutex);
         pthread_exit(NULL);

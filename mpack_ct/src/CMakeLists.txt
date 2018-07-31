@@ -37,11 +37,11 @@
 ##     regex.c
 #)
 set (tag_highlight_SOURCES
-     json.c
      buf_data.c
-     constants.c
      ctags.c
      events.c
+     globals.c
+     json.c
      linked_list.c
      main.c
      mpack.c

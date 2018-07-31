@@ -90,7 +90,6 @@ struct item_free_stack {
 
 struct atomic_call_array {
         char    **fmt;
-        /* uint8_t  *free_type; */
         union atomic_call_args {
                 bool     boolean;
                 int64_t  num;
@@ -121,7 +120,7 @@ extern void     * nvim_buf_get_var        (int fd, int bufnum, const bstring *va
 extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
 extern void       nvim_call_atomic        (int fd, const struct atomic_call_array *calls);
 extern void     * nvim_call_function      (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal);
-extern void     * nvim_call_function_args (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal, const char *fmt, ...);
+extern void     * nvim_call_function_args (int fd, const bstring *function, mpack_type_t expect, const bstring *key, bool fatal, const char *__restrict fmt, ...);
 extern bool       nvim_command            (int fd, const bstring *cmd, bool fatal);
 extern void     * nvim_command_output     (int fd, const bstring *cmd, mpack_type_t expect, const bstring *key, bool fatal);
 extern void       nvim_get_api_info       (int fd);
@@ -131,6 +130,7 @@ extern void     * nvim_get_option         (int fd, const bstring *optname, mpack
 extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_type_t expect, const bstring *key, bool fatal);
 extern void     * nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
+extern bool       nvim_set_var            (int fd, const bstring *varname, const char *__restrict fmt, ...);
 
 extern bstring * get_notification(int fd);
 
@@ -144,12 +144,14 @@ extern mpack_obj * decode_obj         (bstring *buf, enum message_types expected
 
 
 /* Encode */
-extern mpack_obj * mpack_make_new       (unsigned len, bool encode);
-extern void        mpack_encode_array   (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, unsigned len);
-extern void        mpack_encode_integer (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, int64_t value);
-extern void        mpack_encode_string  (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, const bstring *string);
-extern void        mpack_encode_boolean (mpack_obj *root, mpack_array_t *parent, mpack_obj **item, bool value);
-extern mpack_obj * encode_fmt           (unsigned size_hint, const char *fmt, ...);
+extern mpack_obj * mpack_make_new         (unsigned len, bool encode);
+extern void        mpack_encode_array     (mpack_obj *root, mpack_obj **item, unsigned len);
+extern void        mpack_encode_integer   (mpack_obj *root, mpack_obj **item, int64_t value);
+extern void        mpack_encode_string    (mpack_obj *root, mpack_obj **item, const bstring *string);
+extern void        mpack_encode_boolean   (mpack_obj *root, mpack_obj **item, bool value);
+extern void        mpack_encode_dictionary(mpack_obj *root, mpack_obj **item, unsigned len);
+extern void        mpack_encode_nil       (mpack_obj *root, mpack_obj **item);
+extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, ...);
 
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) __nvim_write((FD), NW_STANDARD, (MES))
@@ -210,6 +212,9 @@ numptr_to_num(int64_t *ptr)
 #define nvim_get_var_num_pkg(FD__, VARNAME_, FATAL_) \
         numptr_to_num(nvim_get_var((FD__), B(PKG "#" VARNAME_), MPACK_NUM, NULL, (FATAL_)))
 
+/* I am very lazy. */
+#define DAI data.arr->items
+#define DDE data.dict->entries
 
 extern FILE *mpack_log;
 #ifdef DEBUG

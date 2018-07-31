@@ -30,7 +30,7 @@
 #endif
 
 
-extern pthread_mutex_t ftdata_mutex;
+static pthread_mutex_t ftdata_mutex;
 
 static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
 static void            init_filetype(int fd, struct ftdata_s *ft);
@@ -299,12 +299,12 @@ check_norecurse_directories(const bstring *const dir)
 static bstring *
 check_project_directories(bstring *dir)
 {
-        char buf[PATH_MAX];
+        /* char buf[PATH_MAX]; */
         b_list *candidates = b_list_create();
 
-        snprintf(buf, PATH_MAX, "%s/.vim_tags/mytags.txt", HOME);
+        /* snprintf(buf, PATH_MAX, "%s/.vim_tags/mytags.txt", HOME); */
 
-        FILE *fp = fopen(buf, "rb");
+        FILE *fp = fopen(BS(settings.settings_file), "rb");
         if (!fp)
                 return dir;
                 /* return b_refblk(dir, len); */

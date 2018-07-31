@@ -79,8 +79,7 @@ extern int decode_log_raw;
 extern struct backups backup_pointers;
 extern FILE *decode_log, *cmd_log, *echo_log;
 extern const char *program_name;
-extern pthread_mutex_t event_mutex, ftdata_mutex, mpack_main_mutex, mpack_print_mutex,
-    mpack_socket_mutex, mpack_stdin_mutex, update_mutex;
+extern pthread_mutex_t update_mutex;
 
 struct backups backup_pointers = { NULL, 0, 0 };
 
@@ -93,11 +92,5 @@ FILE *          vpipe;
 FILE *          echo_log;
 const char *    program_name;
 const char *    HOME;
-pthread_mutex_t event_mutex        = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t ftdata_mutex       = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mpack_main_mutex   = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mpack_print_mutex  = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mpack_stdin_mutex  = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t update_mutex       = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
 jmp_buf         exit_buf;
