@@ -33,6 +33,7 @@
 #if defined(HAVE_UNISTD_H)
 #  include <unistd.h>
 #elif defined(_WIN32)
+#  define PATH_MAX _MAX_PATH
 #  include <io.h>
 #elif defined(__unix__) /* Last hope... */
 #  include <unistd.h>

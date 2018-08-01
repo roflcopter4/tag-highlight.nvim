@@ -4,3 +4,12 @@
 [submodule "mpack_ct/win32_libs"]
 	path = mpack_ct/win32_libs
 	url = https://github.com/roflcopter4/win32_libs
+[submodule "tag_highlight/tag_highlight/win32_libs"]
+	path = tag_highlight/tag_highlight/win32_libs
+	url = https://github.com/roflcopter4/win32_libs
+[submodule "tag_highlight/win32_libs"]
+	path = tag_highlight/win32_libs
+	url = https://github.com/roflcopter4/win32_libs
+[submodule "tag_highlight/src/contrib/jsmn"]
+	path = tag_highlight/src/contrib/jsmn
+	url = https://github.com/zserge/jsmn
