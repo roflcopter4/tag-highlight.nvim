@@ -66,9 +66,11 @@ struct top_dir {
 
 struct bufdata {
         uint32_t ctick;
-        uint32_t last_ctick;
+        uint32_t last_ctick; // 8 bytes
         uint16_t num;
-        int32_t  ref_ind;
+        uint8_t  flags; // unused
+        bool     initialized;
+        int32_t  ref_ind; // 8 bytes
 
         bstring         *filename;
         b_list          *cmd_cache;

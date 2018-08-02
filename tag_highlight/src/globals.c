@@ -70,7 +70,7 @@ struct ftdata_s ftdata[] = {
 const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
 
-struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, 0};
+struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
 struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
 struct top_dir_list top_dirs = {ZERO_512, 0, 512};
 

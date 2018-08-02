@@ -304,7 +304,7 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         int64_t    value   = 0;
-        uint8_t    word[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+        uint8_t    word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (mask->fixed) {
                 value = (int32_t)(byte ^ mask->val);

@@ -105,6 +105,7 @@ handle_line_event(const unsigned index, mpack_obj **items)
         const unsigned  last      = items[3]->data.num;
         unsigned        diff      = (last - first);
         const unsigned  iters     = MAX(diff, repl_list->qty);
+        bool            empty     = false;
 
         if (repl_list->qty) {
                 if (bdata->lines->qty <= 1 && first == 0 &&
@@ -113,6 +114,7 @@ handle_line_event(const unsigned index, mpack_obj **items)
                         /* Useless update, one empty string in an empty buffer.
                          * Just ignore it. */
                         echo("empty update, ignoring");
+                        empty = true;
                 } else if (first == 0 && last == 0) {
                         /* Inserting above the first line in the file. */
                         ll_insert_blist_before_at(bdata->lines, first,
@@ -161,6 +163,9 @@ handle_line_event(const unsigned index, mpack_obj **items)
          * An empty buffer therefore must have one empty line. */
         if (bdata->lines->qty == 0)
                 ll_append(bdata->lines, b_fromlit(""));
+
+        if (!bdata->initialized && !empty)
+                bdata->initialized = true;
 
 #ifdef DEBUG
 #  ifdef WRITE_BUF_UPDATES

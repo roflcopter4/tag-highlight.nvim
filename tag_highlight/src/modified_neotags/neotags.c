@@ -61,7 +61,7 @@ process_tags(struct bufdata *bdata, b_list *toks)
 static inline void
 add_tag_to_list(struct taglist **list, struct tag *tag)
 {
-        if (!list || !*list || !tag)
+        if (!list || !*list || !(*list)->lst || !tag)
                 return;
         if ((*list)->qty == ((*list)->mlen - 1))
                 (*list)->lst = nrealloc((*list)->lst, ((*list)->mlen <<= 1),

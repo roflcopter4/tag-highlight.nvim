@@ -131,7 +131,7 @@ mpack_encode_dictionary(mpack_obj       *root,
         (*item)->flags             |= (uint8_t)MPACK_DICT;
 
         for (unsigned i = 0; i < len; ++i) {
-                (*item)->DDE[i] = xmalloc(sizeof(struct dict_ent));
+                (*item)->DDE[i]        = xmalloc(sizeof(struct dict_ent));
                 (*item)->DDE[i]->key   = NULL;
                 (*item)->DDE[i]->value = NULL;
         }

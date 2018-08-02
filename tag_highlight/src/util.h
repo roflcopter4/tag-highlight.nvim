@@ -61,7 +61,7 @@
 #if defined(__GNUC__) && !defined(DOSISH) && !defined(_GNU_SOURCE)
 #  define _GNU_SOURCE
 #endif
-#define USE_XMALLOC
+/* #define USE_XMALLOC */
 
 #include <assert.h>
 #include <dirent.h>
@@ -197,27 +197,29 @@ extern int     safe_open     (const char *filename, int flags, int mode) aWUR;
 extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
 extern void    add_backup    (struct backups *list, void *item);
 extern void    free_backups  (struct backups *list);
-/* extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2); */
-extern void *  xrealloc_     (void *ptr, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2);
+extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
+/* extern void *  xrealloc_     (void *ptr, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2); */
 
 #ifdef USE_XMALLOC
-   /* extern void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1);
-   extern void *  xcalloc    (int num, size_t size) aWUR aMAL aALSZ(1, 2); */
-   extern void *  xmalloc_   (size_t size, const bstring *caller, int lineno)          aWUR aMAL aALSZ(1);
-   extern void *  xcalloc_   (int num, size_t size, const bstring *caller, int lineno) aWUR aMAL aALSZ(1, 2);
-#  define xmalloc(NBYTES_) xmalloc_((NBYTES_), btp_fromarray(__func__), __LINE__)
+   extern void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1);
+   extern void *  xcalloc    (int num, size_t size) aWUR aMAL aALSZ(1, 2);
+   /* extern void *  xmalloc_   (size_t size, const bstring *caller, int lineno)          aWUR aMAL aALSZ(1);
+   extern void *  xcalloc_   (int num, size_t size, const bstring *caller, int lineno) aWUR aMAL aALSZ(1, 2); */
+/* #  define xmalloc(NBYTES_) xmalloc_((NBYTES_), btp_fromarray(__func__), __LINE__)
 #  define xcalloc(ISIZE_, INUM_) xcalloc_((ISIZE_), (INUM_), btp_fromarray(__func__), __LINE__)
-#  define xrealloc(PTR_, NBYTES_) xrealloc_((PTR_), (NBYTES_), btp_fromarray(__func__), __LINE__)
+#  define xrealloc(PTR_, NBYTES_) xrealloc_((PTR_), (NBYTES_), btp_fromarray(__func__), __LINE__) */
 #else
 #  define xmalloc malloc
 #  define xcalloc calloc
 #endif
 
 #ifdef HAVE_REALLOCARRAY
-/* extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3); */
-extern void * xreallocarray_ (void *ptr, size_t num, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2, 3);
-#  define nmalloc(NUM_, SIZ_)        xreallocarray_(NULL, (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__)
-#  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray_((PTR_), (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__)
+extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
+#  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
+#  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
+/* extern void * xreallocarray_ (void *ptr, size_t num, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2, 3); */
+/* #  define nmalloc(NUM_, SIZ_)        xreallocarray_(NULL, (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__) */
+/* #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray_((PTR_), (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__) */
 #else
 #  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))

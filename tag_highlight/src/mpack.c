@@ -414,11 +414,11 @@ nvim_set_var(int fd, const bstring *varname, const char *const restrict fmt, ...
 {
         CHECK_DEF_FD(fd);
         INIT_STATIC_FUNC();
-        char       buf[2048];
+        char       buf[4096];
         mpack_obj *pack = NULL;
         va_list    ap;
         va_start(ap, fmt);
-        snprintf(buf, 2048, STD_API_FMT "[s,!%s]", fmt);
+        snprintf(buf, 4096, STD_API_FMT "[s,!%s]", fmt);
 
         pack = encode_fmt(0, buf, 0, INC_COUNT(fd), func, varname, &ap);
         pthread_mutex_lock(&mpack_main_mutex);
@@ -928,7 +928,8 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  *     d: Integer value (int)
  *     l: Long integer values (int64_t)
  *     b: Boolean value (int)
- *     s: String (bstring *) - must be a bstring, not a standard c string.
+ *     s: String (bstring *) - must be a bstring, not a standard c string
+ *     n: Nil - no argument expected
  *
  * Any values enclosed in '[' and ']' are placed in a sub-array.
  * Any values enclosed in '{' and '}' are placed in a dictionary, which must
@@ -946,7 +947,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  *     *: Increments the current sub array of the atomic_call_args ** object.
  *
  * All of the following characters are ignored in the format string, and may be
- * used to make it clearer or more visually pleasing: ';'  ','  ' '
+ * used to make it clearer or more visually pleasing: ':'  ';'  ','  ' '
  *
  * All errors are fatal.
  */
@@ -1133,6 +1134,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         if ((*obj_stackp)->data.arr->max > *cur_ctr)
                                 cur_obj = &(*obj_stackp)->DAI[*cur_ctr];
                 }
+
                 ++(*cur_ctr);
         }
 

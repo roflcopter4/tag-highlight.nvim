@@ -24,9 +24,9 @@
 #define BUF_WAIT_LINES(ITERS)                           \
         do {                                            \
                 for (int _m_ = 0; _m_ < (ITERS); ++_m_) \
-                        if (bdata->lines->qty <= 1)     \
+                        if (!bdata->initialized)        \
                                 fsleep(0.1);            \
-                if (bdata->lines->qty <= 1)             \
+                if (!bdata->initialized)                \
                         goto error;                     \
         } while (0)
 
@@ -110,6 +110,7 @@ main(int argc, char *argv[])
         assert(settings.enabled);
 
         int initial_buf;
+        echo("Hello, /* faggots // */ \" ass /*\\"); /* hi */
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
@@ -187,7 +188,7 @@ async_init_buffers(void *vdata)
         struct timeval  ltv;
         assert(bdata);
 
-        while (bdata->lines->qty <= 1)
+        while (!bdata->initialized)
                 fsleep(WAIT_TIME);
 
 #if 0
@@ -237,6 +238,7 @@ interrupt_call(void *vdata)
                 struct bufdata *bdata = find_buffer(bufnum);
 
                 if (!bdata) {
+                try_attach:
                         if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
                                 nvim_buf_attach(1, bufnum);
                                 bdata = find_buffer(bufnum);
@@ -274,7 +276,8 @@ interrupt_call(void *vdata)
                 if (!bdata) {
                         SHOUT("Failed to find buffer! %d -> p: %p\n",
                               curbuf, (void *)bdata);
-                        break;
+                        goto try_attach;
+                        /* break; */
                 }
 
                 fsleep(WAIT_TIME);

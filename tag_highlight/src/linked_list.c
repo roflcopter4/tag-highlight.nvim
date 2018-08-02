@@ -29,6 +29,9 @@
         ASSERTX((unsigned)end <= blist->qty,                                 \
                 "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
 
+#define RESOLVE_NEG(VAL_, BASE_) \
+        ((VAL_) = ((VAL_) >= 0) ? (VAL_) : ((VAL_) + (BASE_) + 1))
+
 static inline void free_data(ll_node *node) __attribute__((always_inline));
 
 
@@ -143,13 +146,31 @@ ll_insert_before(linked_list *list, ll_node *at, bstring *data)
 /*============================================================================*/
 
 
+static inline int
+create_nodes(const int start, const int end, int i,
+             linked_list *list, ll_node **tmp, const b_list *blist)
+{
+        for (int x = (start + 1); x < end; ++x, ++i) {
+                assert((unsigned)i < blist->qty);
+                assert(blist->lst[x]);
+                tmp[i]         = xmalloc(sizeof **tmp);
+                tmp[i]->data   = blist->lst[x];
+                tmp[i]->prev   = tmp[i-1];
+                tmp[i-1]->next = tmp[i];
+                ++list->qty;
+        }
+
+        return i;
+}
+
+
 void
 ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, int end)
 {
         assert(list && blist && blist->lst);
-        start = (start >= 0) ? start : (start + (int)blist->qty + 1);
-        end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
-
+        /* Resolve any negative indices. */
+        RESOLVE_NEG(start, (int)blist->qty);
+        RESOLVE_NEG(end,   (int)blist->qty);
         ASSERTIONS();
 
         const int diff = end - start;
@@ -163,20 +184,8 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         tmp[0]         = xmalloc(sizeof **tmp);
         tmp[0]->data   = blist->lst[start];
         tmp[0]->prev   = at;
-        int i          = 1;
         ++list->qty;
-
-        for (int x = (start + 1); x < end; ++x, ++i) {
-                assert((unsigned)i < blist->qty);
-                assert(blist->lst[x]);
-                tmp[i]         = xmalloc(sizeof **tmp);
-                tmp[i]->data   = blist->lst[x];
-                tmp[i]->prev   = tmp[i-1];
-                tmp[i-1]->next = tmp[i];
-                ++list->qty;
-        }
-
-        const int last = i - 1;
+        const int last = create_nodes(start, end, 1, list, tmp, blist) - 1;
 
         if (at) {
                 tmp[last]->next = at->next;
@@ -200,11 +209,9 @@ void
 ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start, int end)
 {
         assert(list && blist && blist->lst);
-        start = (start >= 0) ? start : (start + (int)blist->qty + 1);
-        end   = (end   >= 0) ? end   : (end   + (int)blist->qty + 1);
-
-        /* assert((end > 0) && (start >= 0) && (start < end) &&
-               (blist->qty > 0) && ((unsigned)end <= blist->qty)); */
+        /* Resolve any negative indices. */
+        RESOLVE_NEG(start, (int)blist->qty);
+        RESOLVE_NEG(end,   (int)blist->qty);
         ASSERTIONS();
 
         const int diff = end - start;
@@ -214,21 +221,11 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         }
         /* MSG1(); */
 
-        ll_node **tmp  = nmalloc(diff, sizeof *tmp);
-        tmp[0]         = xmalloc(sizeof **tmp);
-        tmp[0]->data   = blist->lst[start];
-        int i          = 1;
-
-        for (int x = (start + 1); x < end; ++x, ++i) {
-                assert((unsigned)i < blist->qty);
-                assert(blist->lst[x]);
-                tmp[i]         = xmalloc(sizeof **tmp);
-                tmp[i]->data   = blist->lst[x];
-                tmp[i]->prev   = tmp[i-1];
-                tmp[i-1]->next = tmp[i];
-        }
-
-        const int last  = i - 1;
+        ll_node **tmp   = nmalloc(diff, sizeof *tmp);
+        tmp[0]          = xmalloc(sizeof **tmp);
+        tmp[0]->data    = blist->lst[start];
+        ++list->qty;
+        const int last  = create_nodes(start, end, 1, list, tmp, blist) - 1;
         tmp[last]->next = at;
 
         if (at) {
@@ -244,7 +241,6 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         if (!list->tail)
                 list->tail = tmp[last];
 
-        list->qty += diff;
         free(tmp);
         /* MSG2(); */
 }

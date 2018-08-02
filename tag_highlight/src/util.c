@@ -110,7 +110,6 @@ file_is_reg(const char *filename)
 }
 
 
-#if 0
 #ifdef USE_XMALLOC
 void *
 xmalloc(const size_t size)
@@ -153,8 +152,8 @@ xreallocarray(void *ptr, size_t num, size_t size)
         return tmp;
 }
 #endif
-#endif
 
+#if 0
 #ifdef USE_XMALLOC
 void *
 xmalloc_(const size_t size, const bstring *caller, const int lineno)
@@ -200,6 +199,7 @@ xreallocarray_(void *ptr, size_t num, size_t size, const bstring *caller, const 
                          "Called from %s on line %d.", size, BS(caller), lineno);
         return tmp;
 }
+#endif
 #endif
 
 

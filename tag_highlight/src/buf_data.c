@@ -88,19 +88,23 @@ struct bufdata *
 get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
 {
         struct bufdata *bdata = xmalloc(sizeof *bdata);
-        bdata->num       = bufnum;
-        bdata->filename  = nvim_buf_get_name(fd, bufnum);
-        bdata->ft        = ft;
-        bdata->lastref   = NULL;
-        bdata->ref_ind   = (-1);
-        bdata->cmd_cache = NULL;
-        bdata->ctick     = bdata->last_ctick = 0;
-        bdata->lines     = ll_make_new();
-        bdata->topdir    = init_topdir(fd, bdata);
-        bdata->calls     = NULL;
+        bdata->calls       = NULL;
+        bdata->cmd_cache   = NULL;
+        bdata->ctick       = bdata->last_ctick = 0;
+        bdata->filename    = nvim_buf_get_name(fd, bufnum);
+        bdata->ft          = ft;
+        bdata->lastref     = NULL;
+        bdata->lines       = ll_make_new();
+        bdata->num         = bufnum;
+        bdata->ref_ind     = (-1);
 
-        /* ll_insert_after(bdata->lines, NULL, b_fromlit("")); */
         ll_append(bdata->lines, b_fromlit(""));
+
+        /* Buf is only initialized after nvim sends the first 'lines' update. */
+        bdata->initialized = false;
+
+        /* Topdir init must be the last step. */
+        bdata->topdir = init_topdir(fd, bdata);
 
         return bdata;
 }
