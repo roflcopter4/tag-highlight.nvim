@@ -719,4 +719,8 @@ BSTR_PUBLIC int b_splitstrcb(const bstring *str, const bstring *splitStr,
         } while (0);
 
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* unused.h */
