@@ -111,7 +111,6 @@ extern struct ftdata_s     ftdata[];
 extern struct top_dir_list top_dirs;
 
 extern int   sockfd;
-extern FILE *vpipe;
 extern const size_t ftdata_len;
 extern const char *const m_type_names[];
 

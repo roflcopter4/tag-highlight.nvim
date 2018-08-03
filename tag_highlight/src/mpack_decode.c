@@ -72,8 +72,10 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (!ret)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
-                mpack_print_object(ret, mpack_log);
-                fflush(mpack_log);
+                if (mpack_log) {
+                        mpack_print_object(ret, mpack_log);
+                        fflush(mpack_log);
+                }
                 eprintf("For some incomprehensible reason the pack's type is %d.\n",
                         mpack_type(ret));
                 abort();
@@ -118,8 +120,10 @@ decode_obj(bstring *buf, const enum message_types expected_type)
         if (mpack_type(ret) != MPACK_ARRAY) {
                 eprintf("For some incomprehensible reason the pack's type is %d.\n",
                         mpack_type(ret));
-                mpack_print_object(ret, mpack_log);
-                fflush(mpack_log);
+                if (mpack_log) {
+                        mpack_print_object(ret, mpack_log);
+                        fflush(mpack_log);
+                }
                 abort();
         }
 
@@ -491,7 +495,7 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 
         do {
                 const ssize_t n = read(fd, dest, (nbytes - nread));
-                if (n != (-1))
+                if (n != (-1ll))
                         nread += (size_t)n;
         } while (nread > nbytes);
 

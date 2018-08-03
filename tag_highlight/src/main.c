@@ -2,9 +2,7 @@
 #include <setjmp.h>
 #include <signal.h>
 
-#ifdef DOSISH
-/* #  pragma comment(lib, "Ws2_32.lib") */
-#else
+#ifndef DOSISH
 #  include <sys/socket.h>
 #  include <sys/time.h>
 #  include <sys/un.h>
@@ -13,6 +11,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
+#include <sys/stat.h>
 
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
@@ -26,8 +25,6 @@
                 for (int _m_ = 0; _m_ < (ITERS); ++_m_) \
                         if (!bdata->initialized)        \
                                 fsleep(0.1);            \
-                if (!bdata->initialized)                \
-                        goto error;                     \
         } while (0)
 
 
@@ -35,26 +32,26 @@ extern jmp_buf         exit_buf;
 extern int             decode_log_raw;
 extern FILE           *decode_log, *cmd_log, *echo_log;
 static FILE           *main_log;
-static bstring        *vpipename, *servername, *mes_servername;
-static struct timeval  gtv;
 static pthread_t       top_thread;
+static struct timeval  gtv;
 
 
 static void *      async_init_buffers(void *vdata);
 static void *      buffer_event_loop(void *vdata);
 static void        exit_cleanup(void);
-static int         create_socket(bstring **name);
+static int         create_socket(void);
 static comp_type_t get_compression_type(int fd);
 
 NORETURN static void sigusr_wrap(UNUSED int _);
 
-//extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
+//extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject,
+//                                 const int flags);
 
 /*======================================================================================*/
 
 
 int
-main(int argc, char *argv[])
+main(UNUSED int argc, char *argv[])
 {
         atexit(exit_cleanup);
         gettimeofday(&gtv, NULL);
@@ -90,11 +87,7 @@ main(int argc, char *argv[])
         decode_log_raw = safe_open_fmt(
             "%s/decode_raw.log", O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0644, HOME);
 #endif
-
-        vpipename = (argc > 1) ? b_fromcstr(argv[1]) : NULL;
-        sockfd    = create_socket(&servername);
-        if (vpipename == NULL)
-               errx(1, "Didn't get a pipename...");
+        sockfd = create_socket();
 
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
@@ -157,16 +150,23 @@ buffer_event_loop(UNUSED void *vdata)
         for (unsigned i = 0; i < buffers.mkr; ++i)
                 nvim_buf_attach(1, buffers.lst[i]->num);
 
-        main_log = safe_fopen_fmt("%s/.tag_highlight_log/buf.log", "wb+", HOME);
+#ifdef DEBUG
+        {
+                char buf[PATH_MAX + 1];
+                snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
+                mkdir(buf, 0777);
+                main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
+        }
+#endif
 
         for (;;) {
                 mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
                 if (event) {
+#ifdef DEBUG
                         mpack_print_object(event, main_log);
                         fflush(main_log);
-
+#endif
                         handle_nvim_event(event);
-
                         if (event)
                                 mpack_destroy(event);
                 }
@@ -218,9 +218,9 @@ async_init_buffers(void *vdata)
 void *
 interrupt_call(void *vdata)
 {
-        struct int_pdata      *data      = vdata;
-        static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
         static int             bufnum    = 1;
+        static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
+        struct int_pdata      *data      = vdata;
         struct timeval         ltv1, ltv2;
 
         pthread_mutex_lock(&int_mutex);
@@ -246,6 +246,8 @@ interrupt_call(void *vdata)
                                 bdata = find_buffer(bufnum);
 
                                 BUF_WAIT_LINES(10);
+                                if (!bdata->initialized)
+                                        goto error;
 
                                 get_initial_taglist(bdata, bdata->topdir);
                                 update_highlight(bufnum, bdata);
@@ -259,6 +261,8 @@ interrupt_call(void *vdata)
                                 get_initial_taglist(bdata, bdata->topdir);
 
                         BUF_WAIT_LINES(10);
+                        if (!bdata->initialized)
+                                goto error;
 
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
@@ -279,7 +283,6 @@ interrupt_call(void *vdata)
                         SHOUT("Failed to find buffer! %d -> p: %p\n",
                               curbuf, (void *)bdata);
                         goto try_attach;
-                        /* break; */
                 }
 
                 fsleep(WAIT_TIME);
@@ -334,9 +337,6 @@ exit_cleanup(void)
 {
         extern struct backups backup_pointers;
 
-        b_free(servername);
-        b_free(mes_servername);
-        b_free(vpipename);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
@@ -369,10 +369,6 @@ exit_cleanup(void)
                 fclose(main_log);
         if (echo_log)
                 fclose(echo_log);
-        if (vpipe) {
-                fclose(vpipe);
-                unlink(BS(vpipename));
-        }
         if (decode_log_raw > 0)
                 close(decode_log_raw);
         close(sockfd);
@@ -386,17 +382,17 @@ exit_cleanup(void)
  * pipe, which is opened like any other file.
  */
 static int
-create_socket(bstring **name)
+create_socket(void)
 {
-        *name = nvim_call_function(1, B("serverstart"), MPACK_STRING, NULL, 1);
+        bstring *name = nvim_call_function(1, B("serverstart"), MPACK_STRING, NULL, 1);
 
 #if defined(DOSISH)
-        const int fd = safe_open(BS(*name), O_RDWR|O_BINARY, 0);
+        const int fd = safe_open(BS(name), O_RDWR|O_BINARY, 0);
 #else
         struct sockaddr_un addr;
         memset(&addr, 0, sizeof(addr));
         addr.sun_family = AF_UNIX;
-        memcpy(addr.sun_path, (*name)->data, (*name)->slen + 1);
+        memcpy(addr.sun_path, name->data, name->slen + 1);
 
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 

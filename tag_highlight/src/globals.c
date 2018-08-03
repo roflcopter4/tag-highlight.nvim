@@ -88,7 +88,6 @@ int             decode_log_raw = (-1);
 FILE *          decode_log;
 FILE *          mpack_log;
 FILE *          cmd_log;
-FILE *          vpipe;
 FILE *          echo_log;
 const char *    program_name;
 char *          HOME;

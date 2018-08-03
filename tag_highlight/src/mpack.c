@@ -136,9 +136,9 @@ nvim_list_bufs(int fd)
         WRITE_API_NIL();
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, MPACK_ARRAY, NULL, true, true);
-
         pthread_mutex_unlock(&mpack_main_mutex);
+        void *ret = get_expect(result, MPACK_ARRAY, NULL, true, true);
+
         return ret;
 }
 
@@ -177,9 +177,9 @@ nvim_buf_line_count(int fd, const int bufnum)
 
         mpack_obj      *result    = decode_stream(fd, MES_RESPONSE);
         const unsigned  linecount = (unsigned)(RETVAL->data.num);
+        pthread_mutex_unlock(&mpack_main_mutex);
         print_and_destroy(result);
         
-        pthread_mutex_unlock(&mpack_main_mutex);
         return linecount;
 }
 
@@ -207,11 +207,12 @@ nvim_buf_get_name(int fd, const int bufnum)
 
         char       fullname[PATH_MAX];
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        bstring   *ret    = get_expect(result, MPACK_STRING, NULL, true, true);
-        char      *tmp    = realpath(BS(ret), fullname);
+        pthread_mutex_unlock(&mpack_main_mutex);
+
+        bstring *ret = get_expect(result, MPACK_STRING, NULL, true, true);
+        char    *tmp = realpath(BS(ret), fullname);
         b_assign_cstr(ret, tmp);
 
-        pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
@@ -225,6 +226,7 @@ nvim_command(int fd, const bstring *cmd, const bool fatal)
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         const bool ret    = mpack_type(result->DAI[2]) == MPACK_NIL;
+        pthread_mutex_unlock(&mpack_main_mutex);
 
         if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
                 bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
@@ -233,7 +235,6 @@ nvim_command(int fd, const bstring *cmd, const bool fatal)
 
         print_and_destroy(result);
         assert(!(fatal && !ret));
-        pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
@@ -249,6 +250,7 @@ nvim_command_output(int                fd,
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         void      *ret    = NULL;
+        pthread_mutex_unlock(&mpack_main_mutex);
 
         if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
                 bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
@@ -257,7 +259,6 @@ nvim_command_output(int                fd,
                 ret = get_expect(result, expect, key, true, true);
 
         assert(!(fatal && !ret));
-        pthread_mutex_unlock(&mpack_main_mutex);
 
         return ret;
 }
@@ -273,11 +274,11 @@ nvim_call_function(int                fd,
         WRITE_API("s,[]", function);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, expect, key, true, true);
+        pthread_mutex_unlock(&mpack_main_mutex);
+        void *ret = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to analyze out put of function \"%s\".", BS(function));
 
-        pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
@@ -301,15 +302,18 @@ nvim_call_function_args(int                  fd,
         mpack_obj *pack = encode_fmt(0, buf, 0, INC_COUNT(fd), &func, function, &ap);
         va_end(ap);
 
-        mpack_print_object(pack, mpack_log); fflush(mpack_log);
+        if (mpack_log) {
+                mpack_print_object(pack, mpack_log);
+                fflush(mpack_log);
+        }
         write_and_clean(fd, pack, func);
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        void      *ret    = get_expect(result, expect, key, true, true);
+        pthread_mutex_unlock(&mpack_main_mutex);
+        void *ret = get_expect(result, expect, key, true, true);
 
         FATAL("Failed to analyze output of function \"%s\".", BS(function));
 
-        pthread_mutex_unlock(&mpack_main_mutex);
         return ret;
 }
 
@@ -402,8 +406,8 @@ nvim_buf_get_changedtick(int fd, const int bufnum)
         mpack_obj      *result = decode_stream(fd, MES_RESPONSE);
         const unsigned  ret    = RETVAL->data.num;
 
-        mpack_destroy(result);
         pthread_mutex_unlock(&mpack_main_mutex);
+        mpack_destroy(result);
         return ret;
 }
 
@@ -522,8 +526,8 @@ nvim_call_atomic(int fd, const struct atomic_call_array *calls)
         write_and_clean(fd, pack, func);
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
-        print_and_destroy(result);
 
+        print_and_destroy(result);
         b_destroy(fmt);
 }
 
@@ -563,8 +567,10 @@ get_expect(mpack_obj *        result,
 
         void      *ret = NULL;
         int64_t    value;
-        mpack_print_object(result, mpack_log);
-        fflush(mpack_log);
+        if (mpack_log) {
+                mpack_print_object(result, mpack_log);
+                fflush(mpack_log);
+        }
 
         if (mpack_type(cur) == MPACK_NIL) {
                 eprintf("Neovim returned nil!\n");
@@ -638,7 +644,7 @@ write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
         b_write(rawlog, B("\n"), *pack->packed, B("\n"));
         close(rawlog);
 #  endif
-        if (func)
+        if (func && mpack_log)
                 fprintf(mpack_log, "=================================\n"
                         "Writing request no %d to fd %d: \"%s\"\n",
                         COUNT(fd) - 1, fd, BS(func));
@@ -955,7 +961,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
-        /* eprintf("Fmt is \"%s\"\n", fmt); */
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
         const unsigned              arr_size  = (size_hint)
@@ -971,8 +976,6 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         int **       len_stackp  = len_stack;
         int *        cur_len     = &sub_lengths[len_ctr++];
         *cur_len                 = 0;
-
-        fprintf(mpack_log, "%s\n", fmt);
 
         va_start(args, fmt);
 

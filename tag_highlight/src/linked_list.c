@@ -18,15 +18,12 @@
                      V(list->head), V(list->tail), list->qty);             \
         } while (0)
 
-#define ASSERTIONS()                                                         \
-        /* ASSERTX(end > 0, "Start: %d, End (%d) is not > 0!", start, end); */     \
-        /* ASSERTX(start >= 0, "End: %d, Start (%d) is not >= 0!", end, start); */ \
-        ASSERTX((start >= 0 && (end > 0 || start == end)),                   \
-                "Start (%d), end (%d)", start, end);                         \
+#define ASSERTIONS()                                                          \
+        ASSERTX((start >= 0 && (end > 0 || start == end)),                    \
+                "Start (%d), end (%d)", start, end);                          \
         ASSERTX(start <= end, "Start (%d) is not < end (%d)!", start, end);   \
-        ASSERTX((blist->qty > 0), "blist->qty (%u) is not > 0!", blist->qty);  \
-        /* assert(blist->qty > 0); */ \
-        ASSERTX((unsigned)end <= blist->qty,                                 \
+        ASSERTX((blist->qty > 0), "blist->qty (%u) is not > 0!", blist->qty); \
+        ASSERTX((unsigned)end <= blist->qty,                                  \
                 "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
 
 #define RESOLVE_NEG(VAL_, BASE_) \
@@ -39,17 +36,18 @@ linked_list *
 ll_make_new(void)
 {
         linked_list *list = xmalloc(sizeof *list);
-        list->head = NULL;
-        list->tail = NULL;
-        list->qty  = 0;
+        list->head        = NULL;
+        list->tail        = NULL;
+        list->qty         = 0;
         return list;
 }
 
 
-#if 0
 void
-ll_add(linked_list *list, bstring *data)
+ll_prepend(linked_list *list, bstring *data)
 {
+        assert(list);
+        assert(data && data->data);
         ll_node *node = xmalloc(sizeof *node);
 
         if (list->head)
@@ -63,7 +61,6 @@ ll_add(linked_list *list, bstring *data)
         list->head = node;
         ++list->qty;
 }
-#endif
 
 
 void

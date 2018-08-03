@@ -88,7 +88,6 @@ let s:rpc  = {  'rpc':       v:true,
 
 function! s:InitTagHighlight()
     let s:job1 = 0
-    let s:pipe = 0
     let s:chid = 0
     let s:sock = 0
     let s:init = 0
@@ -106,7 +105,7 @@ function! s:InitTagHighlight()
     endif
     echom 'Opening ' . l:binary . ' with pipe ' . s:pipe
     
-    let s:job1 = jobstart([l:binary, s:pipe], s:rpc)
+    let s:job1 = jobstart([l:binary], s:rpc)
 
     sleep 500m " Don't do anything until we're sure everything's finished initializing
     let s:init = 1

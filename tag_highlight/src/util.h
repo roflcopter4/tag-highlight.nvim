@@ -130,7 +130,11 @@ struct backups {
 #ifdef DOSISH
 #  define NORETURN    __declspec(noreturn)
 #  define fsleep(VAL)  Sleep((VAL) * 1000)
-#  define eprintf(...) do { fprintf(stderr, __VA_ARGS__); fflush(stderr); } while (0)
+#define eprintf(...)                          \
+        do {                                  \
+                fprintf(stderr, __VA_ARGS__); \
+                fflush(stderr);               \
+        } while (0)
 #else
 #  define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #  define NORETURN __attribute__((__noreturn__))
@@ -183,7 +187,14 @@ NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #define static_assert _Static_assert
 #define thread_local  _Thread_local
 
-#define abort() do { eprintf("Abort called at %d, func %s, file %s\n", (int32_t)__LINE__, __func__, __FILE__); exit(1); } while (0)
+#if 0
+#define abort()                                                   \
+        do {                                                      \
+                eprintf("Abort called at %d, func %s, file %s\n", \
+                        (int32_t)__LINE__, __func__, __FILE__);   \
+                exit(1);                                          \
+        } while (0)
+#endif
 
 
 /*===========================================================================*/
