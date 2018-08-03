@@ -2,6 +2,7 @@ set (archive_util_SOURCES
     readfile.c
     writefile.c
     archive_util_gzip.c
+    archive_util.h
 )
 
 if (LZMA_SUPPORT)

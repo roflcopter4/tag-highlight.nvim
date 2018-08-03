@@ -52,6 +52,9 @@ set (tag_highlight_SOURCES
      update_commands.c
      util.c
 )
+file (GLOB tag_highlight_GLOB
+      *.h)
+
 
 #if (LZMA_SUPPORT)
 #    set (tag_highlight_SOURCES ${tag_highlight_SOURCES} archive/archive_util_xz.c)
@@ -65,7 +68,9 @@ add_subdirectory(archive)
 add_subdirectory(modified_neotags)
 add_subdirectory(contrib)
 
-add_executable(tag_highlight ${tag_highlight_SOURCES})
+add_executable(tag_highlight 
+    ${tag_highlight_GLOB}
+    ${tag_highlight_SOURCES})
 
 # target_link_libraries(tag_highlight ${tag_highlight_MSGPACK_LIBRARIES})
 
@@ -74,7 +79,7 @@ if (ISWIN)
     target_link_libraries(tag_highlight
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/libz.lib"
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib"
-        "${CMAKE_SOURCE_DIR}/win32_libs/lib/libpthread.lib")
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/pthreadVC2.lib")
     target_link_libraries(tag_highlight archive_util bstring neotags contrib)
 else()
     if (LZMA_SUPPORT)

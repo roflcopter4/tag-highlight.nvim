@@ -11,7 +11,7 @@ static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
                                  const bstring *key, bool destroy, bool is_retval);
 
 static unsigned        sok_count, io_count;
-static pthread_mutex_t mpack_main_mutex;
+static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
@@ -175,8 +175,8 @@ nvim_buf_line_count(int fd, const int bufnum)
         pthread_mutex_lock(&mpack_main_mutex);
         WRITE_API("d", bufnum);
 
-        mpack_obj *result    = decode_stream(fd, MES_RESPONSE);
-        unsigned   linecount = (unsigned)(RETVAL->data.num);
+        mpack_obj      *result    = decode_stream(fd, MES_RESPONSE);
+        const unsigned  linecount = (unsigned)(RETVAL->data.num);
         print_and_destroy(result);
         
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -775,8 +775,8 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
 {
         if (!array)
                 return NULL;
-        unsigned size = array->qty;
-        b_list * ret  = b_list_create_alloc(size);
+        const unsigned size = array->qty;
+        b_list        *ret  = b_list_create_alloc(size);
 
         if (destroy) {
                 for (unsigned i = 0; i < size; ++i) {

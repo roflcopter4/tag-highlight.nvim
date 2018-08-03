@@ -25,9 +25,9 @@ write_plain(struct top_dir *topdir)
         fsync(topdir->tmpfd);
         assert(fstat(topdir->tmpfd, &st) == 0);
 
-        uint8_t *buf = xcalloc(st.st_size + 1, 1);
-        FILE *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        ssize_t nread = fread(buf, 1, st.st_size + 1, readfp);
+        uint8_t      *buf    = xcalloc(st.st_size + 1, 1);
+        FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
+        const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
         assert(nread == (ssize_t)st.st_size);
@@ -58,8 +58,8 @@ write_gzip(struct top_dir *topdir)
         uint8_t *buf = xmalloc(st.st_size);
         /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
 
-        FILE *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        ssize_t nread = fread(buf, 1, st.st_size + 1, readfp);
+        FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
+        const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
         assert(nread == (ssize_t)st.st_size);
@@ -131,11 +131,10 @@ write_lzma(struct top_dir *topdir)
         fsync(topdir->tmpfd);
         assert(fstat(topdir->tmpfd, &st) == 0);
 
-        ssize_t size = (ssize_t)st.st_size;
-
-        uint8_t *in_buf = xcalloc(size + 1, 1);
-        FILE *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        ssize_t nread = fread(in_buf, 1, size + 1, readfp);
+        const ssize_t  size   = (ssize_t)st.st_size;
+        uint8_t       *in_buf = xcalloc(size + 1, 1);
+        FILE          *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
+        const ssize_t  nread  = fread(in_buf, 1, size + 1, readfp);
         fclose(readfp);
         if (nread != size)
                 errx(1, "Read %zd, expected %zu", nread, size + 1);

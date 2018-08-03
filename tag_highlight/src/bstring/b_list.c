@@ -260,7 +260,7 @@ b_join(const b_list *bl, const bstring *sep)
         int64_t total = 1;
 
         for (uint i = 0; i < bl->qty; ++i) {
-                uint v = bl->lst[i]->slen;
+                const uint v = bl->lst[i]->slen;
                 total += v;
                 if (total > UINT32_MAX)
                         RETURN_NULL();
@@ -282,7 +282,7 @@ b_join(const b_list *bl, const bstring *sep)
                         memcpy(bstr->data + total, sep->data, sep->slen);
                         total += sep->slen;
                 }
-                uint v = bl->lst[i]->slen;
+                const uint v = bl->lst[i]->slen;
                 memcpy(bstr->data + total, bl->lst[i]->data, v);
                 total += v;
         }

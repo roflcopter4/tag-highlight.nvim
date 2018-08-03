@@ -91,6 +91,6 @@ FILE *          cmd_log;
 FILE *          vpipe;
 FILE *          echo_log;
 const char *    program_name;
-const char *    HOME;
+char *          HOME;
 pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
 jmp_buf         exit_buf;

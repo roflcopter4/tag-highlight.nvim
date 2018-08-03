@@ -277,7 +277,7 @@ extract_info(const jsmntok_t *toks,
                 b_destroy(key);
         }
 
-        /* b_dump_list_nvim(ret); */
+        /* b_list_dump_nvim(ret); */
         return ret;
 }
 

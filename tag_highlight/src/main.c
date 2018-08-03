@@ -3,7 +3,7 @@
 #include <signal.h>
 
 #ifdef DOSISH
-#  pragma comment(lib, "Ws2_32.lib")
+/* #  pragma comment(lib, "Ws2_32.lib") */
 #else
 #  include <sys/socket.h>
 #  include <sys/time.h>
@@ -61,9 +61,10 @@ main(int argc, char *argv[])
         extern const char *program_name;
         top_thread   = pthread_self();
         program_name = basename(argv[0]);
-        HOME         = getenv("HOME");
 
 #ifdef DOSISH
+        HOME = alloca(PATH_MAX+1);
+        snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
         /* Set the standard streams to binary mode in Windows. */
         if (_setmode(0, O_BINARY) == (-1))
                 err(1, "Failed to change stdin to binary mode.");
@@ -72,6 +73,7 @@ main(int argc, char *argv[])
         if (_setmode(2, O_BINARY) == (-1))
                 err(1, "Failed to change stderr to binary mode.");
 #else
+        HOME = getenv("HOME");
         {
                 struct sigaction temp;
                 memset(&temp, 0, sizeof(temp));
@@ -110,7 +112,6 @@ main(int argc, char *argv[])
         assert(settings.enabled);
 
         int initial_buf;
-        echo("Hello, /* faggots // */ \" ass /*\\"); /* hi */
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
@@ -221,6 +222,7 @@ interrupt_call(void *vdata)
         static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
         static int             bufnum    = 1;
         struct timeval         ltv1, ltv2;
+
         pthread_mutex_lock(&int_mutex);
 
         echo("Recieved \"%c\"; waking up!\n", data->val);

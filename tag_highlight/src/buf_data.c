@@ -30,7 +30,7 @@
 #endif
 
 
-static pthread_mutex_t ftdata_mutex;
+static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
 static void            init_filetype(int fd, struct ftdata_s *ft);

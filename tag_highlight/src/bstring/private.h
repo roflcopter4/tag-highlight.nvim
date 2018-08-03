@@ -18,7 +18,7 @@
 
 #include "bstrlib.h"
 
-#include "unused.h"
+//#include "unused.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -48,6 +48,7 @@
 #  endif
 #else
 #  define FUNC_NAME (__func__)
+#  define __attribute__(...)
 #endif
 
 #if (__GNUC__ >= 4)
@@ -85,6 +86,9 @@ typedef unsigned int uint;
             else
                     snprintf(buf, 8192, "%s\n", fmt);
             vfprintf(stderr, buf, ap);
+#ifdef _WIN32
+            fflush(stderr);
+#endif
             va_end(ap);
     }
 #  define warn(...)       _warn(true, __VA_ARGS__)

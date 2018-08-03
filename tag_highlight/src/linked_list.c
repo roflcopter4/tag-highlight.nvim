@@ -262,10 +262,10 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
         /* echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
              V(at), V(list->head), V(list->tail), range, list->qty); */
 
-        ll_node *current      = at;
-        ll_node *next         = NULL;
-        ll_node *prev         = (at) ? at->prev : NULL;
-        bool     replace_head = (at == list->head || !list->head);
+        ll_node *current        = at;
+        ll_node *next           = NULL;
+        ll_node *prev           = (at) ? at->prev : NULL;
+        const bool replace_head = (at == list->head || !list->head);
 
         for (unsigned i = 0; i < range && current; ++i) {
                 next = current->next;

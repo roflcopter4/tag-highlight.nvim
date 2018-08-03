@@ -39,8 +39,8 @@ static int
 open_and_stat(const char *name)
 {
         struct stat st;
-        int flags = OPEN_FLAGS;
-        int fd = open(name, flags);
+        const int flags = OPEN_FLAGS;
+        const int fd = open(name, flags);
 
         if (fd < 0) {
                 warn("Failed to open file %s", name);
@@ -94,7 +94,7 @@ get_size(struct archive_size *size, int ifd, const char *name)
 int
 gzip_size(struct archive_size *size, const char *name)
 {
-        int fd = open_and_stat(name);
+        const int fd = open_and_stat(name);
         if (fd < 0)
                 exit(127);
         get_size(size, fd, name);

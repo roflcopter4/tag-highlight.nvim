@@ -286,10 +286,10 @@ get_restore_cmds(b_list *restored_groups)
                         }
                         b_list_destroy(toks);
 
-                        size_t n = strlcpy(link_name, (ptr += 9), 1024);
+                        const size_t n = strlcpy(link_name, (ptr += 9), 1024);
                         assert(n > 0);
                         b_sprintf_a(cmd, B(" | hi! link %s %s"),
-                                         restored_groups->lst[i], btp_fromcstr(link_name));
+                                    restored_groups->lst[i], btp_fromcstr(link_name));
 
                         b_list_append(&allcmds, cmd);
                 }

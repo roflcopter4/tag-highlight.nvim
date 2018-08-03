@@ -108,7 +108,7 @@ b_memsep(bstring *dest, bstring *stringp, const char delim)
         if (!stringp->data || stringp->slen == 0)
                 return 0;
 
-        int64_t pos = b_strchr(stringp, delim);
+        const int64_t pos = b_strchr(stringp, delim);
         if (pos >= 0) {
                 dest->data[pos]  = '\0';
                 dest->slen       = pos;
@@ -207,8 +207,8 @@ __b_free_all(bstring **bstr, ...)
 bstring *
 __b_concat_all(const bstring *join, const int join_end, ...)
 {
-        uint size = 0;
-        uint j_size = (join && join->data) ? join->slen : 0;
+        unsigned       size   = 0;
+        const unsigned j_size = (join && join->data) ? join->slen : 0;
 
         va_list va, va2;
         va_start(va, join_end);
@@ -264,8 +264,8 @@ __b_concat_all(const bstring *join, const int join_end, ...)
 int
 __b_append_all(bstring *dest, const bstring *join, const int join_end, ...)
 {
-        uint size   = dest->slen;
-        uint j_size = (join && join->data) ? join->slen : 0;
+        unsigned       size   = dest->slen;
+        const unsigned j_size = (join && join->data) ? join->slen : 0;
 
         va_list va, va2;
         va_start(va, join_end);
@@ -339,7 +339,7 @@ b_strcmp_wrap(const void *const vA, const void *const vB)
 
 
 bstring *
-b_refblk(void *blk, const uint len)
+b_refblk(void *blk, const unsigned len)
 {
         if (!blk || len == 0)
                 RETURN_NULL();
@@ -534,7 +534,7 @@ b_list_remove_dups(b_list **listp)
 
 
 int64_t
-b_strstr(const bstring *const haystack, const bstring *needle, const uint pos)
+b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos)
 {
         if (INVALID(haystack) || INVALID(needle))
                 RUNTIME_ERROR();
@@ -590,13 +590,13 @@ b_strsep(bstring *ostr, const char *const delim, const int refonly)
 
 #if 0
 b_list *
-b_strsep2(const bstring *str, const bstring *delim, const uint pos, const int refonly)
+b_strsep2(const bstring *str, const bstring *delim, const unsigned pos, const int refonly)
 {
         //int64_t ret;
-        //uint i, p;
+        //unsigned i, p;
 
         b_list *ret   = b_list_create();
-        uint    i     = pos;
+        unsigned    i     = pos;
         bool    found;
 
         if (INVALID(str) || INVALID(delim) || str->slen == 0 ||
@@ -619,7 +619,7 @@ b_strsep2(const bstring *str, const bstring *delim, const uint pos, const int re
         while (i < str->slen) {
                 found = false;
 
-                for (uint x = 0; x < delim->slen; ++x) {
+                for (unsigned x = 0; x < delim->slen; ++x) {
                         uchar *next = memchr((str->data + i), delim->data[x], str->slen - i);
                         if (!next)
                                 continue;
@@ -645,37 +645,36 @@ b_strsep2(const bstring *str, const bstring *delim, const uint pos, const int re
 
 
 int64_t
-b_strpbrk_pos(const bstring *bstr, const uint pos, const bstring *delim)
+b_strpbrk_pos(const bstring *bstr, const unsigned pos, const bstring *delim)
 {
         if (INVALID(bstr) || INVALID(delim) || bstr->slen == 0 ||
                     delim->slen == 0 || pos > bstr->slen)
                 RUNTIME_ERROR();
 
-        for (uint i = pos; i < bstr->slen; ++i)
-                for (uint x = 0; x < delim->slen; ++x)
+        for (unsigned i = pos; i < bstr->slen; ++i)
+                for (unsigned x = 0; x < delim->slen; ++x)
                         if (bstr->data[i] == delim->data[x])
                                 return (int64_t)i;
 
-        return (-1);
+        return (-1ll);
 }
 
 
 int64_t
-b_strrpbrk_pos(const bstring *bstr, const uint pos, const bstring *delim)
+b_strrpbrk_pos(const bstring *bstr, const unsigned pos, const bstring *delim)
 {
         if (INVALID(bstr) || INVALID(delim) || bstr->slen == 0 ||
                     delim->slen == 0 || pos > bstr->slen)
                 RUNTIME_ERROR();
 
-        /* for (uint i = pos; i >= 0; --i) */
-        uint i = 0;
+        unsigned i = pos;
         do {
-                for (uint x = 0; x < delim->slen; ++x)
+                for (unsigned x = 0; x < delim->slen; ++x)
                         if (bstr->data[i] == delim->data[x])
                                 return (int64_t)i;
         } while (i-- > 0);
 
-        return (-1);
+        return (-1ll);
 }
 
 
@@ -743,8 +742,8 @@ b_quickread(const char *const __restrict fmt, ...)
                 RETURN_NULL();
         fstat(fileno(fp), &st);
 
-        bstring *ret  = b_alloc_null(st.st_size + 1);
-        ssize_t nread = fread(ret->data, 1, st.st_size, fp);
+        bstring      *ret   = b_alloc_null(st.st_size + 1);
+        const ssize_t nread = fread(ret->data, 1, st.st_size, fp);
         fclose(fp);
         if (nread < 0) {
                 b_free(ret);
@@ -988,25 +987,25 @@ b_vsprintf(const bstring *fmt, va_list args)
 
                         switch (islong) {
                         case 0: {
-                                int next = va_arg(args, int);
+                                const int next = va_arg(args, int);
                                 n = _tmp_ll2bstr(&tmp, (long long)next);
                                 x = pos[pcnt] + 1;
                                 break;
                         }
                         case 1: {
-                                long next = va_arg(args, long);
+                                const long next = va_arg(args, long);
                                 n = _tmp_ll2bstr(&tmp, (long long)next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
                         case 2: {
-                                long long next = va_arg(args, long long);
+                                const long long next = va_arg(args, long long);
                                 n = _tmp_ll2bstr(&tmp, next);
                                 x = pos[pcnt] + 3;
                                 break;
                         }
                         case 3: {
-                                ssize_t next = va_arg(args, ssize_t);
+                                const ssize_t next = va_arg(args, ssize_t);
                                 n = _tmp_ll2bstr(&tmp, next);
                                 x = pos[pcnt] + 2;
                                 break;
@@ -1026,25 +1025,25 @@ b_vsprintf(const bstring *fmt, va_list args)
 
                         switch (islong) {
                         case 0: {
-                                unsigned next = va_arg(args, unsigned);
+                                const unsigned next = va_arg(args, unsigned);
                                 n = _tmp_ull2bstr(tmp, (long long unsigned)next);
                                 x = pos[pcnt] + 1;
                                 break;
                         }
                         case 1: {
-                                long unsigned next = va_arg(args, long unsigned);
+                                const long unsigned next = va_arg(args, long unsigned);
                                 n = _tmp_ull2bstr(tmp, (long long unsigned)next);
                                 x = pos[pcnt] + 2;
                                 break;
                         }
                         case 2: {
-                                long long unsigned next = va_arg(args, long long unsigned);
+                                const long long unsigned next = va_arg(args, long long unsigned);
                                 n = _tmp_ull2bstr(tmp, next);
                                 x = pos[pcnt] + 3;
                                 break;
                         }
                         case 3: {
-                                size_t next = va_arg(args, size_t);
+                                const size_t next = va_arg(args, size_t);
                                 n = _tmp_ull2bstr(tmp, next);
                                 x = pos[pcnt] + 2;
                                 break;
@@ -1058,7 +1057,7 @@ b_vsprintf(const bstring *fmt, va_list args)
                         break;
                 }
                 case 'c': {
-                        int next       = va_arg(args, int);
+                        const int next = va_arg(args, int);
                         ret->data[i++] = (uchar)next;
                         x += 2;
                         break;
@@ -1090,7 +1089,7 @@ b_fprintf(FILE *out_fp, const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        int ret = b_vfprintf(out_fp, fmt, ap);
+        const int ret = b_vfprintf(out_fp, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1107,7 +1106,7 @@ b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args)
         if (!toprint)
                 RUNTIME_ERROR();
 
-        int ret = fwrite(toprint->data, 1, toprint->slen, out_fp);
+        const int ret = fwrite(toprint->data, 1, toprint->slen, out_fp);
         b_free(toprint);
         return ret;
 }
@@ -1118,7 +1117,7 @@ b_dprintf(const int out_fd, const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        int ret = b_vdprintf(out_fd, fmt, ap);
+        const int ret = b_vdprintf(out_fd, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1135,7 +1134,7 @@ b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
         if (!toprint)
                 RUNTIME_ERROR();
 
-        int ret = write(out_fd, toprint->data, toprint->slen);
+        const int ret = write(out_fd, toprint->data, toprint->slen);
         b_free(toprint);
         return ret;
 }
@@ -1148,7 +1147,7 @@ b_sprintf_a(bstring *dest, const bstring *fmt, ...)
                 RUNTIME_ERROR();
         va_list ap;
         va_start(ap, fmt);
-        int ret = b_vsprintf_a(dest, fmt, ap);
+        const int ret = b_vsprintf_a(dest, fmt, ap);
         va_end(ap);
 
         return ret;

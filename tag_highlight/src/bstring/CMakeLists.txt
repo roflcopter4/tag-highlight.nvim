@@ -3,5 +3,7 @@ add_library(bstring STATIC
     additions.c
     b_list.c
     char_fields.c
-    never_use.c
+    
+    bstrlib.h
+    private.h
 )

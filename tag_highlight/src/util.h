@@ -62,6 +62,8 @@
 #  define _GNU_SOURCE
 #endif
 /* #define USE_XMALLOC */
+//#define __CLEANUP_SEH
+# define __CLEANUP_C
 
 #include <assert.h>
 #include <dirent.h>
@@ -81,7 +83,7 @@
 #include "contrib/contrib.h"
 #include "data.h"
 
-extern const char *HOME;
+extern char *HOME;
 
 struct backups {
         char **lst;
@@ -108,7 +110,6 @@ struct backups {
 #define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
 #define stringify(VAR_)  #VAR_
 #define nputs(STR_)      fputs((STR_), stdout)
-#define eprintf(...)     fprintf(stderr, __VA_ARGS__)
 #define xfree(PTR_)      (free(PTR_), (PTR_) = NULL)
 #define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
 #define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
@@ -128,8 +129,10 @@ struct backups {
 
 #ifdef DOSISH
 #  define NORETURN    __declspec(noreturn)
-#  define fsleep(VAL) Sleep((VAL) * 1000)
+#  define fsleep(VAL)  Sleep((VAL) * 1000)
+#  define eprintf(...) do { fprintf(stderr, __VA_ARGS__); fflush(stderr); } while (0)
 #else
+#  define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #  define NORETURN __attribute__((__noreturn__))
 #  define fsleep(VAL)                                                           \
         nanosleep(                                                              \
@@ -180,6 +183,8 @@ NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #define static_assert _Static_assert
 #define thread_local  _Thread_local
 
+#define abort() do { eprintf("Abort called at %d, func %s, file %s\n", (int32_t)__LINE__, __func__, __FILE__); exit(1); } while (0)
+
 
 /*===========================================================================*/
 /* Generic Utility Functions */
@@ -226,9 +231,9 @@ extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 
 #endif
 
 #define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#define b_dump_list_nvim(LST_) __b_dump_list_nvim((LST_), #LST_)
+#define b_list_dump_nvim(LST_) __b_dump_list_nvim((LST_), #LST_)
 
-extern void __b_dump_list_nvim(const b_list *list, const char *listname);
+extern void __b_list_dump_nvim(const b_list *list, const char *listname);
 
 
 #ifdef __cplusplus

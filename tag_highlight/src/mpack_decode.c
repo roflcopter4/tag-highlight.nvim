@@ -7,8 +7,8 @@
 
 extern int decode_log_raw;
 extern FILE *decodelog;
-static pthread_mutex_t mpack_stdin_mutex;
-static pthread_mutex_t mpack_socket_mutex;
+static pthread_mutex_t mpack_stdin_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
@@ -490,7 +490,7 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         size_t        nread = 0;
 
         do {
-                ssize_t n = read(fd, dest, (nbytes - nread));
+                const ssize_t n = read(fd, dest, (nbytes - nread));
                 if (n != (-1))
                         nread += (size_t)n;
         } while (nread > nbytes);

@@ -45,13 +45,13 @@
  * Compute the snapped size for a given requested size.
  * By snapping to powers of 2 like this, repeated reallocations are avoided.
  */
-/*PRIVATE*/ uint
-snapUpSize(uint i)
+/*PRIVATE*/ unsigned
+snapUpSize(unsigned i)
 {
         if (i < 8) {
                 i = 8;
         } else {
-                uint j = i;
+                unsigned j = i;
                 j |= (j >> 1);
                 j |= (j >> 2);
                 j |= (j >> 4);
@@ -73,7 +73,7 @@ snapUpSize(uint i)
 
 
 int
-b_alloc(bstring *bstr, const uint olen)
+b_alloc(bstring *bstr, const unsigned olen)
 {
         if (INVALID(bstr) || olen == 0)
                 RUNTIME_ERROR();
@@ -84,7 +84,7 @@ b_alloc(bstring *bstr, const uint olen)
 
         if (olen >= bstr->mlen) {
                 uchar *tmp;
-                uint len = snapUpSize(olen);
+                unsigned len = snapUpSize(olen);
                 if (len <= bstr->mlen)
                         return BSTR_OK;
 
@@ -127,7 +127,7 @@ b_alloc(bstring *bstr, const uint olen)
 
 
 int
-b_allocmin(bstring *bstr, uint len)
+b_allocmin(bstring *bstr, unsigned len)
 {
         if (IS_NULL(bstr))
                 RUNTIME_ERROR();
@@ -182,8 +182,8 @@ b_fromcstr(const char *const str)
         if (!str)
                 RETURN_NULL();
 
-        const size_t size = strlen(str);
-        const uint   max  = snapUpSize((size + (2 - (size != 0))));
+        const size_t   size = strlen(str);
+        const unsigned max  = snapUpSize((size + (2 - (size != 0))));
 
         if (max <= size)
                 RETURN_NULL();
@@ -200,13 +200,13 @@ b_fromcstr(const char *const str)
 
 
 bstring *
-b_fromcstr_alloc(const uint mlen, const char *const str)
+b_fromcstr_alloc(const unsigned mlen, const char *const str)
 {
         if (!str)
                 RETURN_NULL();
 
         const size_t size = strlen(str);
-        uint         max  = snapUpSize((size + (2 - (size != 0))));
+        unsigned     max  = snapUpSize((size + (2 - (size != 0))));
 
         if (max <= size)
                 RETURN_NULL();
@@ -226,7 +226,7 @@ b_fromcstr_alloc(const uint mlen, const char *const str)
 
 
 bstring *
-b_fromblk(const void *blk, const uint len)
+b_fromblk(const void *blk, const unsigned len)
 {
         if (!blk)
                 RETURN_NULL();
@@ -246,7 +246,7 @@ b_fromblk(const void *blk, const uint len)
 
 
 bstring *
-b_alloc_null(uint len)
+b_alloc_null(unsigned len)
 {
         if (len == 0)
                 len = 1;
@@ -274,7 +274,7 @@ b_bstr2cstr(const bstring *bstr, const char nul)
                  * just copy as efficiently as possible. */
                 memcpy(buf, bstr->data, bstr->slen + 1);
         } else {
-                for (uint i = 0; i < bstr->slen; ++i)
+                for (unsigned i = 0; i < bstr->slen; ++i)
                         buf[i] = (bstr->data[i] == '\0') ? nul : bstr->data[i];
 
                 buf[bstr->slen] = '\0';
@@ -299,8 +299,8 @@ b_concat(bstring *b0, const bstring *b1)
                 RUNTIME_ERROR();
 
         bstring *aux = (bstring *)b1;
-        uint     d   = b0->slen;
-        uint     len = b1->slen;
+        const unsigned d   = b0->slen;
+        const unsigned len = b1->slen;
 
         if (b0->mlen <= d + len + 1) {
                 const ptrdiff_t pd = b1->data - b0->data;
@@ -352,9 +352,9 @@ b_catcstr(bstring *bstr, const char *buf)
                 RUNTIME_ERROR();
 
         /* Optimistically concatenate directly */
-        uint i;
-        const uint blen = bstr->mlen - bstr->slen;
-        char *d         = (char *)(&bstr->data[bstr->slen]);
+        unsigned i;
+        const unsigned blen = bstr->mlen - bstr->slen;
+        char          *d    = (char *)(&bstr->data[bstr->slen]);
 
         for (i = 0; i < blen; ++i) {
                 if ((*d++ = *buf++) == '\0') {
@@ -371,7 +371,7 @@ b_catcstr(bstring *bstr, const char *buf)
 
 
 int
-b_catblk(bstring *bstr, const void *buf, const uint len)
+b_catblk(bstring *bstr, const void *buf, const unsigned len)
 {
         uint64_t nl;
 
@@ -396,21 +396,20 @@ b_strcpy(const bstring *bstr)
         if (INVALID(bstr))
                 RETURN_NULL();
 
-        bstring *b0 = xmalloc(sizeof(bstring));
-        uint i      = bstr->slen;
-        uint j      = snapUpSize(i + 1);
-        b0->data    = xmalloc(j);
+        bstring  *b0   = xmalloc(sizeof(bstring));
+        unsigned  size = snapUpSize(bstr->slen + 1);
+        b0->data       = xmalloc(size);
 
         if (!b0->data) {
-                j        = i + 1;
-                b0->data = xmalloc(j);
+                size     = bstr->slen + 1;
+                b0->data = xmalloc(size);
         }
-        b0->mlen  = j;
-        b0->slen  = i;
+        b0->mlen  = size;
+        b0->slen  = bstr->slen;
         b0->flags = BSTR_STANDARD;
 
-        if (i)
-                memcpy(b0->data, bstr->data, i);
+        if (size)
+                memcpy(b0->data, bstr->data, bstr->slen);
         b0->data[b0->slen] = (uchar)'\0';
 
         return b0;
@@ -440,7 +439,7 @@ b_assign(bstring *a, const bstring *bstr)
 int
 b_assign_cstr(bstring *a, const char *str)
 {
-        uint i;
+        unsigned i;
         if (INVALID(a) || NO_WRITE(a) || !str)
                 RUNTIME_ERROR();
 
@@ -464,7 +463,7 @@ b_assign_cstr(bstring *a, const char *str)
 
 
 int
-b_assign_blk(bstring *a, const void *buf, const uint len)
+b_assign_blk(bstring *a, const void *buf, const unsigned len)
 {
         if (INVALID(a) || NO_WRITE(a) || !buf || len + 1 < 1)
                 RUNTIME_ERROR();
@@ -481,7 +480,7 @@ b_assign_blk(bstring *a, const void *buf, const uint len)
 
 
 int
-b_trunc(bstring *bstr, const uint n)
+b_trunc(bstring *bstr, const unsigned n)
 {
         if (INVALID(bstr) || NO_WRITE(bstr))
                 RUNTIME_ERROR();
@@ -503,7 +502,7 @@ b_toupper(bstring *bstr)
 {
         if (INVALID(bstr) || NO_WRITE(bstr))
                 RUNTIME_ERROR();
-        for (uint i = 0, len = bstr->slen; i < len; ++i)
+        for (unsigned i = 0, len = bstr->slen; i < len; ++i)
                 bstr->data[i] = (uchar)upcase(bstr->data[i]);
 
         return BSTR_OK;
@@ -515,7 +514,7 @@ b_tolower(bstring *bstr)
 {
         if (INVALID(bstr) || NO_WRITE(bstr))
                 RUNTIME_ERROR();
-        for (uint i = 0, len = bstr->slen; i < len; ++i)
+        for (unsigned i = 0, len = bstr->slen; i < len; ++i)
                 bstr->data[i] = (uchar)downcase(bstr->data[i]);
 
         return BSTR_OK;
@@ -539,13 +538,13 @@ b_strcmp(const bstring *b0, const bstring *b1)
         if (b0->slen == b1->slen && (b0->data == b1->data || b0->slen == 0))
                 return 0;
 
-        const uint n = MIN(b0->slen, b1->slen);
+        const unsigned n = MIN(b0->slen, b1->slen);
 
         return memcmp(b0->data, b1->data, n);
 
 #if 0
 
-        for (uint i = 0; i < n; ++i) {
+        for (unsigned i = 0; i < n; ++i) {
                 int v = ((char)b0->data[i]) - ((char)b1->data[i]);
                 if (v != 0)
                         return v;
@@ -564,16 +563,16 @@ b_strcmp(const bstring *b0, const bstring *b1)
 
 
 int
-b_strncmp(const bstring *b0, const bstring *b1, const uint n)
+b_strncmp(const bstring *b0, const bstring *b1, const unsigned n)
 {
         if (INVALID(b0) || INVALID(b1))
                 return SHRT_MIN;
 
-        const uint m = MIN(n, MIN(b0->slen, b1->slen));
+        const unsigned m = MIN(n, MIN(b0->slen, b1->slen));
 
 #if 0
         if (b0->data != b1->data) {
-                for (uint i = 0; i < m; ++i) {
+                for (unsigned i = 0; i < m; ++i) {
                         int v = ((char)b0->data[i]) - ((char)b1->data[i]);
                         if (v != 0)
                                 return v;
@@ -597,7 +596,7 @@ int
 b_stricmp(const bstring *b0, const bstring *b1)
 {
 
-        uint n;
+        unsigned n;
         if (INVALID(b0) || INVALID(b1))
                 return SHRT_MIN;
         if ((n = b0->slen) > b1->slen)
@@ -610,7 +609,7 @@ b_stricmp(const bstring *b0, const bstring *b1)
 #elif defined(HAVE_STRICMP)
         return stricmp(BS(b0), BS(b1));
 #else
-        for (uint i = 0; i < n; ++i) {
+        for (unsigned i = 0; i < n; ++i) {
                 const int v = (char)downcase(b0->data[i]) - (char)downcase(b1->data[i]);
                 if (v != 0)
                         return v;
@@ -634,18 +633,19 @@ b_stricmp(const bstring *b0, const bstring *b1)
 
 
 int
-b_strnicmp(const bstring *b0, const bstring *b1, const uint n)
+b_strnicmp(const bstring *b0, const bstring *b1, const unsigned n)
 {
         if (INVALID(b0) || INVALID(b1))
                 return SHRT_MIN;
-        uint v, m = n;
+        unsigned v;
+        unsigned m = n;
 
         if (m > b0->slen)
                 m = b0->slen;
         if (m > b1->slen)
                 m = b1->slen;
         if (b0->data != b1->data) {
-                for (uint i = 0; i < m; ++i) {
+                for (unsigned i = 0; i < m; ++i) {
                         v = (char)downcase(b0->data[i]);
                         v -= (char)downcase(b1->data[i]);
                         if (v != 0)
@@ -700,7 +700,7 @@ b_iseq_caseless(const bstring *b0, const bstring *b1)
         if (b0->data == b1->data || b0->slen == 0)
                 return 1;
 
-        for (uint i = 0, n = b0->slen; i < n; ++i) {
+        for (unsigned i = 0, n = b0->slen; i < n; ++i) {
                 if (b0->data[i] != b1->data[i]) {
                         const uchar c = (uchar)downcase(b0->data[i]);
                         if (c != (uchar)downcase(b1->data[i]))
@@ -718,7 +718,7 @@ b_iseq_cstr(const bstring *bstr, const char *buf)
         if (!buf || INVALID(bstr))
                 RUNTIME_ERROR();
 #if 0
-        uint i;
+        unsigned i;
 
         for (i = 0; i < bstr->slen; ++i)
                 if (buf[i] == '\0' || bstr->data[i] != (uchar)buf[i])
@@ -726,7 +726,7 @@ b_iseq_cstr(const bstring *bstr, const char *buf)
 
         return buf[i] == '\0';
 #endif
-        size_t len = strlen(buf);
+        const size_t len = strlen(buf);
 
         if (bstr->slen != len)
                 return 0;
@@ -740,7 +740,7 @@ b_iseq_cstr(const bstring *bstr, const char *buf)
 int
 b_iseq_cstr_caseless(const bstring *bstr, const char *buf)
 {
-        uint i;
+        unsigned i;
         if (!buf || INVALID(bstr))
                 RUNTIME_ERROR();
         for (i = 0; i < bstr->slen; ++i)
@@ -753,7 +753,7 @@ b_iseq_cstr_caseless(const bstring *bstr, const char *buf)
 
 
 int64_t
-b_strchrp(const bstring *bstr, const int ch, const uint pos)
+b_strchrp(const bstring *bstr, const int ch, const unsigned pos)
 {
         if (IS_NULL(bstr) || bstr->slen < pos)
                 RUNTIME_ERROR();
@@ -770,7 +770,7 @@ b_strchrp(const bstring *bstr, const int ch, const uint pos)
 
 
 int64_t
-b_strrchrp(const bstring *bstr, const int ch, const uint pos)
+b_strrchrp(const bstring *bstr, const int ch, const unsigned pos)
 {
         if (IS_NULL(bstr) || bstr->slen <= pos)
                 RUNTIME_ERROR();
@@ -799,8 +799,8 @@ b_reada(bstring *bstr, const bNread read_ptr, void *parm)
         if (INVALID(bstr) || NO_WRITE(bstr) || !read_ptr)
                 RUNTIME_ERROR();
 
-        uint i = bstr->slen;
-        for (uint n = (i + 16);; n += ((n < BS_BUFF_SZ) ? n : BS_BUFF_SZ)) {
+        unsigned i = bstr->slen;
+        for (unsigned n = (i + 16);; n += ((n < BS_BUFF_SZ) ? n : BS_BUFF_SZ)) {
                 if (BSTR_OK != b_alloc(bstr, n + 1))
                         RUNTIME_ERROR();
                 const int bytes_read = read_ptr((void *)(bstr->data + i), 1, n - i, parm);
@@ -834,10 +834,10 @@ b_read(const bNread read_ptr, void *parm)
 
 inline static int
 do_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator,
-        const bool keepend, const uint init)
+        const bool keepend, const unsigned init)
 {
-        int  ch;
-        uint i = init;
+        int      ch;
+        unsigned i = init;
 
         while ((ch = getc_ptr(parm)) >= 0) {
                 if (i > (bstr->mlen - 2)) {
@@ -858,7 +858,8 @@ do_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator,
 
 
 int
-b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
+b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm,
+              const int terminator, const bool keepend)
 {
         if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
                 RUNTIME_ERROR();
@@ -868,7 +869,8 @@ b_assign_gets(bstring *bstr, const bNgetc getc_ptr, void *parm, const int termin
 
 
 int
-b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
+b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm,
+        const int terminator, const bool keepend)
 {
         if (INVALID(bstr) || NO_WRITE(bstr) || !getc_ptr)
                 RUNTIME_ERROR();
@@ -878,7 +880,8 @@ b_getsa(bstring *bstr, const bNgetc getc_ptr, void *parm, const int terminator, 
 
 
 bstring *
-b_gets(const bNgetc getc_ptr, void *parm, const int terminator, const bool keepend)
+b_gets(const bNgetc getc_ptr, void *parm,
+       const int terminator, const bool keepend)
 {
         bstring *buf = b_alloc_null(128);
 
@@ -926,7 +929,7 @@ b_format_assign(bstring *bstr, const char *const fmt, ...)
         bstring *buff = b_vformat(fmt, va);
         va_end(va);
 
-        int ret = b_assign(bstr, buff);
+        const int ret = b_assign(bstr, buff);
         b_free(buff);
         return ret;
 }
@@ -941,7 +944,7 @@ b_formata(bstring *bstr, const char *const fmt, ...)
         bstring *buff = b_vformat(fmt, va);
         va_end(va);
 
-        int ret = b_concat(bstr, buff);
+        const int ret = b_concat(bstr, buff);
         b_free(buff);
         return ret;
 }
@@ -951,7 +954,7 @@ b_vformat(const char *const fmt, va_list arglist)
 {
         if (!fmt || !arglist)
                 RETURN_NULL();
-        uint     total;
+        unsigned total;
         bstring *buff;
 
 #ifdef HAVE_VASPRINTF
@@ -982,7 +985,8 @@ b_vformat(const char *const fmt, va_list arglist)
         }
 
         for (;;) {
-                uint ret = vsnprintf((char *)buff->data, total + 1, fmt, arglist);
+                const unsigned ret = vsnprintf(BS(buff), total + 1,
+                                               fmt, arglist);
 
                 buff->data[total] = (uchar)'\0';
                 buff->slen        = strlen((char *)buff->data);
@@ -1010,8 +1014,8 @@ b_vformat_assign(bstring *bstr, const char *const fmt, va_list arglist)
         if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();
 
-        bstring *buff = b_vformat(fmt, arglist);
-        int      ret  = b_assign(bstr, buff);
+        bstring  *buff = b_vformat(fmt, arglist);
+        const int ret  = b_assign(bstr, buff);
         b_free(buff);
         return ret;
 }
@@ -1022,8 +1026,8 @@ b_vformata(bstring *bstr, const char *const fmt, va_list arglist)
         if (!fmt || NO_WRITE(bstr)) 
                 RUNTIME_ERROR();
 
-        bstring *buff = b_vformat(fmt, arglist);
-        int      ret  = b_concat(bstr, buff);
+        bstring  *buff = b_vformat(fmt, arglist);
+        const int ret  = b_concat(bstr, buff);
         b_free(buff);
         return ret;
 }

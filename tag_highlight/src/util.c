@@ -433,7 +433,7 @@ free_backups(struct backups *list)
 }
 
 void
-__b_dump_list_nvim(const b_list *list, const char *const listname)
+__b_list_dump_nvim(const b_list *list, const char *const listname)
 {
         nvprintf("Dumping list \"%s\"\n", listname);
         for (unsigned i = 0; i < list->qty; ++i)

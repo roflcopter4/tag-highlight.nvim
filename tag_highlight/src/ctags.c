@@ -452,7 +452,7 @@ analyze_line(const bstring *line)
                 if (strncmp(CHAR_AT(str, i), SLS("include")) == 0) {
                         i += LIT_STRLEN("include");
                         SKIP_SPACE(str, i);
-                        int ch = str[i];
+                        const int ch = str[i];
 
                         if (ch == '"' || ch == '<') {
                                 ++i;

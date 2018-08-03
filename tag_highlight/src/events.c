@@ -7,7 +7,7 @@
 /* #define WRITE_BUF_UPDATES */
 
 extern pthread_mutex_t update_mutex;
-static pthread_mutex_t event_mutex;
+static pthread_mutex_t event_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static const struct event_id {
         const bstring name;

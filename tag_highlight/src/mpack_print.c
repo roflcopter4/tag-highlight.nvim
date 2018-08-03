@@ -26,7 +26,7 @@ static void print_string(const mpack_obj *result, bool ind);
 
 #define LOG(STRING) b_puts(print_log, B(STRING))
 
-static pthread_mutex_t mpack_print_mutex;
+static pthread_mutex_t mpack_print_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int             indent    = 0;
 static int             recursion = 0;
 static FILE *          print_log      = NULL;
