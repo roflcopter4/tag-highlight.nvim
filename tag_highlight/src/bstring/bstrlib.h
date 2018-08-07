@@ -40,8 +40,8 @@
  * bstring functions.
  */
 
-#ifndef BSTRLIB_H
-#define BSTRLIB_H
+#ifndef TOP_BSTRLIB_H
+#define TOP_BSTRLIB_H
 
 #if (__GNUC__ >= 4)
 #  define BSTR_PUBLIC  __attribute__((__visibility__("default")))
@@ -129,11 +129,9 @@ typedef struct bstring_list b_list;
  * If an error occurs #NULL is returned.
  *
  * \code
- * bstring *b = b_fromcstr("Hello");
- * if(!b)
- *         fprintf(stderr, "Out of memory");
- * else
- *         puts((char *)b->data);
+ * bstring *b = b_fromcstr("Hello\n");
+ * b_puts(b);
+ * b_free(b);
  * \endcode
  */
 BSTR_PUBLIC bstring *b_fromcstr(const char *str);
@@ -258,7 +256,7 @@ BSTR_PUBLIC int b_free(bstring *bstr);
 INLINE int
 __b_destroy(bstring **bstr)
 {
-        int ret = b_free(*bstr);
+        const int ret = b_free(*bstr);
         if (ret == BSTR_OK)
                 *bstr = NULL;
         return ret;
@@ -1243,4 +1241,4 @@ b_conchar(bstring *bstr, const char ch)
 }
 #endif
 
-#endif /* BSTRLIB_H */
+#endif /* bstrlib.h */

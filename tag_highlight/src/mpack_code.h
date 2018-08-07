@@ -1,5 +1,5 @@
-#ifndef SRC_CODE_H
-#define SRC_CODE_H
+#ifndef SRC_MPACK_CODE_H
+#define SRC_MPACK_CODE_H
 
 
 #include "mpack.h"

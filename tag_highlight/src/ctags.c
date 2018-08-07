@@ -80,10 +80,12 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 return false;
         }
 
+        /* Look for header files if we're processing C or C++ code. */
         b_list *headers = NULL;
-
         if (topdir->is_c)
                 headers = find_header_files(bdata, topdir);
+
+        /* Wipe any cached commands if they exist. */
         if (bdata->cmd_cache) {
                 b_list_destroy(bdata->cmd_cache);
                 bdata->cmd_cache = NULL;
@@ -95,6 +97,9 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 b_conchar(cmd, ' ');
         }
 
+        /* If we found headers, create the ctags command with them all included.
+         * Otherwise we simply add the current file to the command and specify
+         * whether we want ctags to recurse.*/
         if (headers) {
                 B_LIST_SORT(headers);
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
@@ -137,6 +142,9 @@ get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir)
         errno = 0;
         topdir->tags = b_list_create();
 
+        /* Read the compressed tags file if it exists, otherwise we run ctags
+         * and read the file it creates. If there is a read error in the saved
+         * file, run ctags as a backup. */
         if (stat(BS(topdir->gzfile), &st) == 0) {
                 ret += getlines(topdir->tags, settings.comp_type, topdir->gzfile);
                 if (ret) {

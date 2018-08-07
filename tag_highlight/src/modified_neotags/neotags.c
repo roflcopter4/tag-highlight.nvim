@@ -16,13 +16,6 @@
 /* #define LOG_NEOTAGS */
 #define LOG(...)
 #define REQUIRED_INPUT 9
-
-#define free_list(LST)                               \
-        do {                                         \
-                for (int i = 0; i < (LST)->num; ++i) \
-                        free((LST)->lst[i]);         \
-        } while (0)
-
 #define b_iseql(BSTR, LIT)          (b_iseq((BSTR), b_tmp(LIT)))
 #define b_iseql_caseless(BSTR, LIT) (b_iseq_caseless((BSTR), b_tmp(LIT)))
 
@@ -218,7 +211,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         unsigned total = 0, offset = 0;
 
         for (int T = 0; T < num_threads; ++T)
-                total += out[T]->qty;
+                if (out[T])
+                        total += out[T]->qty;
         if (total == 0) {
                 warnx("No tags found in buffer.");
                 free_all(tid, out);
@@ -232,12 +226,14 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         *ret = (struct taglist){ alldata, total, total };
 
         for (int T = 0; T < num_threads; ++T) {
-                if (out[T]->qty > 0) {
-                        memcpy(alldata + offset, out[T]->lst,
-                               out[T]->qty * sizeof(*out));
-                        offset += out[T]->qty;
+                if (out[T]) {
+                        if (out[T]->qty > 0) {
+                                memcpy(alldata + offset, out[T]->lst,
+                                       out[T]->qty * sizeof(*out));
+                                offset += out[T]->qty;
+                        }
+                        free_all(out[T]->lst, out[T]);
                 }
-                free_all(out[T]->lst, out[T]);
         }
 
         qsort(alldata, total, sizeof(*alldata), &tag_cmp);
@@ -246,14 +242,15 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         return ret;
 }
 
-#define INIT_MAX ((data->num * 2) / 3)
-#define STRSEP(BSTR, SEP) ((uchar *)(_memsep((char **)(&(BSTR)->data), &(BSTR)->slen, (SEP))))
-#define STRCHR(BSTR, CH)  ((uchar *)(strchr((char *)(BSTR), (CH))))
+#define INIT_MAX ((data->num) ? (data->num * 2) / 3 : 32)
 
 static void *
 do_tok_search(void *vdata)
 {
         struct pdata   *data = vdata;
+        if (data->num == 0) {
+                pthread_exit(NULL);
+        }
         struct taglist *ret  = xmalloc(sizeof(*ret));
         *ret = (struct taglist){
                 .lst = nmalloc(INIT_MAX, sizeof(*ret->lst)),

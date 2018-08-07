@@ -77,8 +77,8 @@ if g:tag_highlight#run_ctags
                 \   '--c-kinds=+px',
                 \   '--c++-kinds=+px',
                 \   '--sort=yes',
-                \   "--exclude='.mypy_cache'",
-                \   '--regex-go=''/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/''',
+                \   '--exclude=".mypy_cache"',
+                \   '--regex-go="/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/"',
                 \   '--languages=-Pod',
                 \ ])
     else
@@ -91,17 +91,17 @@ endif
 
 if g:tag_highlight#run_ctags && g:tag_highlight#no_autoconf == 1
     call extend(g:tag_highlight#ctags_args, [
-                \   "--exclude='*Makefile'",
-                \   "--exclude='*Makefile.in'",
-                \   "--exclude='*aclocal.m4'",
-                \   "--exclude='*config.guess'",
-                \   "--exclude='*config.h.in'",
-                \   "--exclude='*config.log'",
-                \   "--exclude='*config.status'",
-                \   "--exclude='*configure'",
-                \   "--exclude='*depcomp'",
-                \   "--exclude='*install-sh'",
-                \   "--exclude='*missing'",
+                \   '--exclude="*Makefile"',
+                \   '--exclude="*Makefile.in"',
+                \   '--exclude="*aclocal.m4"',
+                \   '--exclude="*config.guess"',
+                \   '--exclude="*config.h.in"',
+                \   '--exclude="*config.log"',
+                \   '--exclude="*config.status"',
+                \   '--exclude="*configure"',
+                \   '--exclude="*depcomp"',
+                \   '--exclude="*install-sh"',
+                \   '--exclude="*missing"',
                 \])
 endif
 

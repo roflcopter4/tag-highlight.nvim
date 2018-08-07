@@ -195,22 +195,22 @@ numptr_to_num(int64_t *ptr)
 }
 
 
-#define blist_from_var(FD__, VARNAME_, KEY_, FATAL_) \
+#define blist_from_var(FDES, VARNAME, KEY, FATAL_) \
         mpack_array_to_blist(                        \
-            nvim_get_var((FD__), B(VARNAME_), MPACK_ARRAY, (KEY_), (FATAL_)), true)
+            nvim_get_var((FDES), B(VARNAME), MPACK_ARRAY, (KEY), (FATAL_)), true)
 
-#define nvim_get_var_num(FD__, VARNAME_, FATAL_) \
-        numptr_to_num(nvim_get_var((FD__), B(VARNAME_), MPACK_NUM, NULL, (FATAL_)))
+#define nvim_get_var_num(FDES, VARNAME, FATAL_) \
+        numptr_to_num(nvim_get_var((FDES), B(VARNAME), MPACK_NUM, NULL, (FATAL_)))
 
 
 #define PKG "tag_highlight"
 
-#define blist_from_var_pkg(FD__, VARNAME_, KEY_, FATAL_) \
+#define blist_from_var_pkg(FDES, VARNAME, KEY, FATAL_) \
         mpack_array_to_blist(                            \
-            nvim_get_var((FD__), B(PKG "#" VARNAME_), MPACK_ARRAY, (KEY_), (FATAL_)), true)
+            nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_ARRAY, (KEY), (FATAL_)), true)
 
-#define nvim_get_var_num_pkg(FD__, VARNAME_, FATAL_) \
-        numptr_to_num(nvim_get_var((FD__), B(PKG "#" VARNAME_), MPACK_NUM, NULL, (FATAL_)))
+#define nvim_get_var_num_pkg(FDES, VARNAME, FATAL_) \
+        numptr_to_num(nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_NUM, NULL, (FATAL_)))
 
 /* I am very lazy. */
 #define DAI data.arr->items
@@ -218,13 +218,13 @@ numptr_to_num(int64_t *ptr)
 
 extern FILE *mpack_log;
 #ifdef DEBUG
-#  define print_and_destroy(RESULT_)                    \
+#  define PRINT_AND_DESTROY(RESULT_)                    \
         do {                                            \
                 mpack_print_object(RESULT_, mpack_log); \
                 mpack_destroy(RESULT_);                 \
         } while (0)
 #else
-#  define print_and_destroy(RESULT_) mpack_destroy(RESULT_)
+#  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
 
 

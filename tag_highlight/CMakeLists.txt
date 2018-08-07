@@ -97,7 +97,7 @@ else()
     if (CLANG_STR_SEARCH EQUAL -1)
         message("Not clang!")
         set (ISCLANG 0)
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -Og -g -Wextra -Wpedantic -Wformat")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat")
 #        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 #-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
 #-Wsuggest-attribute=cold -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
@@ -107,7 +107,7 @@ else()
     else()
         set (ISCLANG 1)
         message("Is clang!")
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -Og -g -Wextra -Wpedantic -Wformat -Weverything \
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
 -Wno-sign-conversion -Wno-documentation-unknown-command -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros \
 -Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-conversion -Wno-padded")
     endif()

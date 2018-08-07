@@ -2,8 +2,13 @@
 #include <setjmp.h>
 #include <signal.h>
 
-#ifndef DOSISH
+#ifdef DOSISH
+#  include <direct.h>
+#  undef mkdir
+#  define mkdir(PATH_, MODE_) _mkdir(PATH_)
+#else
 #  include <sys/socket.h>
+#  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <sys/un.h>
 #endif
@@ -11,7 +16,6 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
-#include <sys/stat.h>
 
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
@@ -402,6 +406,7 @@ create_socket(void)
                 err(2, "Failed to connect to socket.");
 #endif
 
+        b_free(name);
         return fd;
 }
 

@@ -284,11 +284,11 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
 int
 find_num_cpus(void)
 {
-#ifdef DOSISH
+#if defined(DOSISH)
         SYSTEM_INFO sysinfo;
         GetSystemInfo(&sysinfo);
         return sysinfo.dwNumberOfProcessors;
-#elif MACOS
+#elif defined(MACOS)
         int nm[2];
         size_t len = 4;
         uint32_t count;
@@ -302,75 +302,12 @@ find_num_cpus(void)
                 if (count < 1) { count = 1; }
         }
         return count;
-#else
+#elif defined(__unix__) || defined(__linux__) || defined(BSD)
         return sysconf(_SC_NPROCESSORS_ONLN);
+#else
+#  error "Cannot determine operating system."
 #endif
 }
-
-
-#if 0
-#define MAX_INIT 8192
-#define READ_BYTES 1
-
-bstring *
-read_stdin(void)
-{
-        bstring *buf = b_alloc_null(MAX_INIT);
-        int nread    = read(0, &buf->data[buf->slen], READ_BYTES);
-
-        if (nread == (-1))
-                err(1, "read error");
-        buf->slen += nread;
-        fcntl(0, F_SETFL, oflags | O_NONBLOCK);
-
-        do {
-                if (buf->slen >= (buf->mlen - READ_BYTES - 50))
-                        b_alloc(buf, buf->mlen * 2);
-                nread = read(0, (buf->data + buf->slen), READ_BYTES);
-                if (nread > 0)
-                        buf->slen += nread;
-        } while (nread == READ_BYTES);
-
-        nvim_printf("Read %d bytes from stdin.\n", buf->slen);
-
-        fcntl(0, F_SETFL, oflags);
-
-        return buf;
-}
-#endif
-
-
-#if 0
-char *
-num_to_str(const long long value)
-{
-        /* Generate the (reversed) string representation. */
-        uint64_t inv = (value < 0) ? (-value) : (value);
-         /* *ret = b_alloc_null(INT64_MAX_CHARS); */
-        char ret[21], *rev, *fwd;
-        rev = fwd = ret;
-
-        do {
-                *rev++ = (uchar)('0' + (inv % 10));
-                inv    = (inv / 10);
-        } while (inv);
-
-        if (value < 0)
-                *rev++ = (uchar)'-';
-
-        /* Compute length and add null term. */
-        *rev-- = '\0';
-
-        /* Reverse the string. */
-        while (fwd < rev) {
-                char swap = *fwd;
-                *fwd++    = *rev;
-                *rev++    = swap;
-        }
-
-        return (char*[21]){ret};
-}
-#endif
 
 
 #if defined(__GNUC__) && !(defined(__clang__) || defined(__cplusplus))
@@ -379,7 +316,7 @@ __ret_func_name(const char *const function, const size_t size)
 {
         if (size + 2 > 256)
                 return function;
-        static _Thread_local char buf[256];
+        static thread_local char buf[256];
         memcpy(buf, function, size - 1);
         buf[size]   = '(';
         buf[size+1] = ')';

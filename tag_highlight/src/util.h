@@ -26,44 +26,24 @@
 #  define PACKAGE_STRING "idunno" VERSION
 #  define _GNU_SOURCE
 #endif
-#if (defined(_WIN64) || defined(_WIN32))
+#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
 #  include <io.h>
 #  include <Windows.h>
-#  define strcasecmp  _stricmp
-#  define strncasecmp _strnicmp
-#  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
 #  undef BUFSIZ
 #  define BUFSIZ 8192
 #  define PATHSEP '\\'
-#  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
+#  define __CLEANUP_C
    extern char * basename(char *path);
    typedef signed long long int ssize_t;
 #else
 #  include <unistd.h>
 #  define PATHSEP '/'
-#  define MAX(IA_, IB_)                 \
-        __extension__({                 \
-                __auto_type ia = (IA_); \
-                __auto_type ib = (IB_); \
-                (ia > ib) ? ia : ib;    \
-        })
-#  define MIN(IA_, IB_)                 \
-        __extension__({                 \
-                __auto_type ia = (IA_); \
-                __auto_type ib = (IB_); \
-                (ia < ib) ? ia : ib;    \
-        })
 #endif
 /*===========================================================================*/
 
-#if defined(__GNUC__) && !defined(DOSISH) && !defined(_GNU_SOURCE)
-#  define _GNU_SOURCE
-#endif
-/* #define USE_XMALLOC */
-//#define __CLEANUP_SEH
-# define __CLEANUP_C
+#define USE_XMALLOC
 
 #include <assert.h>
 #include <dirent.h>
@@ -106,6 +86,16 @@ struct backups {
 #  define O_DIRECTORY 00
 #endif
 
+#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
+        do {                                                                   \
+                pthread_attr_init((ATTR_));                                    \
+                pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
+        } while (0)
+
+
+#define ASSERT(CONDITION_, ...)  do { if (!(CONDITION_)) err(50, __VA_ARGS__); } while (0)
+#define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)
+
 #define ARRSIZ(ARR_)     (sizeof(ARR_) / sizeof(*(ARR_)))
 #define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
 #define stringify(VAR_)  #VAR_
@@ -113,12 +103,6 @@ struct backups {
 #define xfree(PTR_)      (free(PTR_), (PTR_) = NULL)
 #define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
 #define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
-
-#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
-        do {                                                                   \
-                pthread_attr_init((ATTR_));                                    \
-                pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
-        } while (0)
 
 #define ALWAYS_INLINE   __attribute__((__always_inline__)) static inline
 #define UNUSED          __attribute__((__unused__))
@@ -128,16 +112,17 @@ struct backups {
 #define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
 
 #ifdef DOSISH
-#  define NORETURN    __declspec(noreturn)
+#  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
+#  define strcasecmp   _stricmp
+#  define strncasecmp  _strnicmp
 #  define fsleep(VAL)  Sleep((VAL) * 1000)
-#define eprintf(...)                          \
+#  define eprintf(...)                        \
         do {                                  \
                 fprintf(stderr, __VA_ARGS__); \
                 fflush(stderr);               \
         } while (0)
 #else
 #  define eprintf(...) fprintf(stderr, __VA_ARGS__)
-#  define NORETURN __attribute__((__noreturn__))
 #  define fsleep(VAL)                                                           \
         nanosleep(                                                              \
             (struct timespec[]){                                                \
@@ -147,13 +132,65 @@ struct backups {
             }, NULL)
 #endif
 
-void __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
-NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
+#ifdef __GNUC__
+#  if defined(__clang__) || defined(__cplusplus)
+#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#  else
+     extern const char * __ret_func_name(const char *const function, size_t size);
+#    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+#  endif
+#  define MAX(IA_, IB_)                 \
+        __extension__({                 \
+                __auto_type ia = (IA_); \
+                __auto_type ib = (IB_); \
+                (ia > ib) ? ia : ib;    \
+        })
+#  define MIN(IA_, IB_)                 \
+        __extension__({                 \
+                __auto_type ia = (IA_); \
+                __auto_type ib = (IB_); \
+                (ia < ib) ? ia : ib;    \
+        })
+#else
+#  define FUNC_NAME   (__func__)
+#  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
+#  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
+#endif
+
+#if defined(_MSC_VER)
+#  define NORETURN      __declspec(noreturn)
+#elif defined(__GNUC__)
+#  define NORETURN __attribute__((__noreturn__))
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define NORETURN _Noreturn
+#else
+#  define NORETURN
+#endif
+
+#if defined(_MSC_VER)
+#  define thread_local  __declspec(thread)
+#  define static_assert(...)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define thread_local  _Thread_local
+#  define static_assert _Static_assert
+#else
+#  define static_assert(...)
+#  ifdef __GNUC__
+#    define thread_local __thread
+#  else
+#    define thread_local
+#  endif
+#endif
+
+/*===========================================================================*/
+
+void          __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
+NORETURN void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
 
 #define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
 #define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
-#  define warn(...)       __warn(true, __VA_ARGS__)
-#  define warnx(...)      __warn(false, __VA_ARGS__)
+#define warn(...)       __warn(true, __VA_ARGS__)
+#define warnx(...)      __warn(false, __VA_ARGS__)
 
 #ifdef DEBUG
 #  define SHOUT(...)      __warn(false, __VA_ARGS__)
@@ -169,33 +206,6 @@ NORETURN void __err(int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #  define SHOUT(...) __warn(false, __VA_ARGS__)
 /* #  define SHOUT(...) */
 #endif
-
-#if defined(__GNUC__)
-#  if defined(__clang__) || defined(__cplusplus)
-#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
-#  else
-     extern const char * __ret_func_name(const char *const function, size_t size);
-#    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
-#  endif
-#  define auto_type __auto_type
-#else
-#  define FUNC_NAME (__func__)
-#endif
-
-#define ASSERT(CONDITION_, ...)  do { if (!(CONDITION_)) err(50, __VA_ARGS__); } while (0)
-#define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)
-#define static_assert _Static_assert
-#define thread_local  _Thread_local
-
-#if 0
-#define abort()                                                   \
-        do {                                                      \
-                eprintf("Abort called at %d, func %s, file %s\n", \
-                        (int32_t)__LINE__, __func__, __FILE__);   \
-                exit(1);                                          \
-        } while (0)
-#endif
-
 
 /*===========================================================================*/
 /* Generic Utility Functions */
@@ -214,28 +224,19 @@ extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aF
 extern void    add_backup    (struct backups *list, void *item);
 extern void    free_backups  (struct backups *list);
 extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
-/* extern void *  xrealloc_     (void *ptr, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2); */
 
 #ifdef USE_XMALLOC
    extern void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1);
    extern void *  xcalloc    (int num, size_t size) aWUR aMAL aALSZ(1, 2);
-   /* extern void *  xmalloc_   (size_t size, const bstring *caller, int lineno)          aWUR aMAL aALSZ(1);
-   extern void *  xcalloc_   (int num, size_t size, const bstring *caller, int lineno) aWUR aMAL aALSZ(1, 2); */
-/* #  define xmalloc(NBYTES_) xmalloc_((NBYTES_), btp_fromarray(__func__), __LINE__)
-#  define xcalloc(ISIZE_, INUM_) xcalloc_((ISIZE_), (INUM_), btp_fromarray(__func__), __LINE__)
-#  define xrealloc(PTR_, NBYTES_) xrealloc_((PTR_), (NBYTES_), btp_fromarray(__func__), __LINE__) */
 #else
 #  define xmalloc malloc
 #  define xcalloc calloc
 #endif
 
 #ifdef HAVE_REALLOCARRAY
-extern void * xreallocarray  (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
+   extern void * xreallocarray (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
 #  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
 #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
-/* extern void * xreallocarray_ (void *ptr, size_t num, size_t size, const bstring *caller, int lineno) aWUR aALSZ(2, 3); */
-/* #  define nmalloc(NUM_, SIZ_)        xreallocarray_(NULL, (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__) */
-/* #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray_((PTR_), (NUM_), (SIZ_), btp_fromarray(__func__), __LINE__) */
 #else
 #  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))

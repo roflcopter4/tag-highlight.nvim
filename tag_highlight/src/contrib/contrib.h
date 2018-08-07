@@ -1,5 +1,5 @@
-#ifndef BSD_FUNCS_H
-#define BSD_FUNCS_H
+#ifndef SRC_CONTRIB_CONTRIB_H
+#define SRC_CONTRIB_CONTRIB_H
 
 #ifdef __cplusplus
    extern "C" {
@@ -52,4 +52,4 @@
    }
 #endif
 
-#endif /* bsd_funcs.h */
+#endif /* contrib.h */

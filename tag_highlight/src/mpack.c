@@ -7,7 +7,7 @@
 static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func);
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
-static void      *get_expect    (mpack_obj *result, const mpack_type_t expect,
+static void      *get_expect    (mpack_obj *result, mpack_type_t expect,
                                  const bstring *key, bool destroy, bool is_retval);
 
 static unsigned        sok_count, io_count;
@@ -152,7 +152,7 @@ nvim_get_current_buf(int fd)
         pthread_mutex_unlock(&mpack_main_mutex);
 
         const int ret = RETVAL->data.ext->num;
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         return ret;
 }
 
@@ -178,7 +178,7 @@ nvim_buf_line_count(int fd, const int bufnum)
         mpack_obj      *result    = decode_stream(fd, MES_RESPONSE);
         const unsigned  linecount = (unsigned)(RETVAL->data.num);
         pthread_mutex_unlock(&mpack_main_mutex);
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         
         return linecount;
 }
@@ -233,7 +233,7 @@ nvim_command(int fd, const bstring *cmd, const bool fatal)
                 b_fputs(stderr, errmsg, B("\n"));
         }
 
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         assert(!(fatal && !ret));
         return ret;
 }
@@ -302,12 +302,7 @@ nvim_call_function_args(int                  fd,
         mpack_obj *pack = encode_fmt(0, buf, 0, INC_COUNT(fd), &func, function, &ap);
         va_end(ap);
 
-        if (mpack_log) {
-                mpack_print_object(pack, mpack_log);
-                fflush(mpack_log);
-        }
         write_and_clean(fd, pack, func);
-
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
         void *ret = get_expect(result, expect, key, true, true);
@@ -432,7 +427,7 @@ nvim_set_var(int fd, const bstring *varname, const char *const restrict fmt, ...
 
         va_end(ap);
         const bool ret = mpack_type(result->DAI[2]) == MPACK_NIL;
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         return ret;
 }
 
@@ -453,7 +448,7 @@ nvim_buf_add_highlight(int             fd,
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
         const int ret = RETVAL->data.num;
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
 
         return ret;
 }
@@ -482,7 +477,7 @@ nvim_get_api_info(int fd)
         WRITE_API_NIL();
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         pthread_mutex_unlock(&mpack_main_mutex);
 }
 
@@ -494,7 +489,7 @@ nvim_subscribe(int fd, const bstring *event)
 
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
 }
 
 void
@@ -527,7 +522,7 @@ nvim_call_atomic(int fd, const struct atomic_call_array *calls)
         mpack_obj *result = decode_stream(fd, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
 
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         b_destroy(fmt);
 }
 
@@ -542,7 +537,7 @@ get_notification(int fd)
         CHECK_DEF_FD(fd);
         mpack_obj *result = decode_stream(fd, MES_NOTIFICATION);
         bstring   *ret    = b_strcpy(result->DAI[1]->data.str);
-        print_and_destroy(result);
+        PRINT_AND_DESTROY(result);
         return ret;
 }
 
@@ -871,6 +866,8 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 /*======================================================================================*/
 
 
+enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
+
 #define NEXT(VAR_, TYPE_NAME_, MEMBER_)                                       \
         do {                                                                  \
                 switch (next_type) {                                          \
@@ -913,14 +910,11 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
                 ++len_ctr;                                 \
                 *(++obj_stackp) = *cur_obj;                \
                 *len_stackp++   = cur_ctr;                 \
-                cur_ctr         = &sub_ctrs[subctr_ctr++]; \
+                cur_ctr         = &sub_ctrlist[subctr_ctr++]; \
                 *cur_ctr        = 0;                       \
         } while (0)
 
-
 #define TWO_THIRDS(NUM_) ((1 * (NUM_)) / 3)
-
-enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 
 
 /* 
@@ -961,6 +955,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
+        assert(fmt != NULL && *fmt != '\0');
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
         const unsigned              arr_size  = (size_hint)
@@ -968,13 +963,13 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                                                 : ENCODE_FMT_ARRSIZE;
         va_list      args;
         int          ch;
-        int *        sub_lengths = nmalloc(sizeof(int), arr_size);
-        int **       len_stack   = nmalloc(sizeof(int *), TWO_THIRDS(arr_size));
-        va_list *    ref         = NULL;
-        const char * ptr         = fmt;
-        unsigned     len_ctr     = 0;
-        int **       len_stackp  = len_stack;
-        int *        cur_len     = &sub_lengths[len_ctr++];
+        unsigned    *sub_lengths = nmalloc(sizeof(unsigned), arr_size);
+        unsigned   **len_stack   = nmalloc(sizeof(unsigned *), TWO_THIRDS(arr_size));
+        unsigned   **len_stackp  = len_stack;
+        unsigned    *cur_len     = &sub_lengths[0];
+        unsigned     len_ctr     = 1;
+        const char  *ptr         = fmt;
+        va_list     *ref         = NULL;
         *cur_len                 = 0;
 
         va_start(args, fmt);
@@ -1018,6 +1013,8 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 }
         }
 
+        if (len_stack != len_stackp)
+                errx(1, "Invalid encode format string: undetermined array/dictionary.");
         mpack_obj *pack = NULL;
         if (sub_lengths[0] == 0)
                 goto cleanup;
@@ -1028,11 +1025,11 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         pack = mpack_make_new(sub_lengths[0], false);
 #endif
 
-        int        *sub_ctrs     = nmalloc(sizeof(int), arr_size);
-        int        *dict_stack   = nmalloc(sizeof(int), TWO_THIRDS(arr_size));
         mpack_obj **obj_stack    = nmalloc(sizeof(mpack_obj *), TWO_THIRDS(arr_size));
-        int        *cur_ctr      = sub_ctrs;
-        int        *dict_stackp  = dict_stack;
+        unsigned   *dict_stack   = nmalloc(sizeof(unsigned), TWO_THIRDS(arr_size));
+        unsigned   *sub_ctrlist  = nmalloc(sizeof(unsigned), arr_size);
+        unsigned   *cur_ctr      = sub_ctrlist;
+        unsigned   *dict_stackp  = dict_stack;
         mpack_obj **obj_stackp   = obj_stack;
         mpack_obj **cur_obj      = NULL;
         unsigned    subctr_ctr   = 1;
@@ -1096,8 +1093,8 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         assert(len_stackp != len_stack);
                         assert(dict_stackp != dict_stack);
                         --obj_stackp;
-                        cur_ctr = *(--len_stackp);
                         --dict_stackp;
+                        cur_ctr = *(--len_stackp);
                         break;
 
                 case '!':
@@ -1143,7 +1140,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
         free(dict_stack);
         free(obj_stack);
-        free(sub_ctrs);
+        free(sub_ctrlist);
 cleanup:
         free(sub_lengths);
         free(len_stack);

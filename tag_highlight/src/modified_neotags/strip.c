@@ -24,7 +24,7 @@ static const struct comment_s {
 } comments[] = {{0, '\0'}, {1, '#'}, {2, ';'}, {3, '"'}};
 
 
-static void handle_cstyle(bstring *vim_buf);
+static void handle_cstyle(bstring **vim_buf);
 static void handle_python(bstring *vim_buf);
 
 /* These functions perform a rather crude stripping of comments and string
@@ -63,8 +63,9 @@ strip_comments(struct bufdata *bdata)
         }
         if (com) {
                 switch (com->type) {
-                case C_LIKE: handle_cstyle(joined); break;
+                case C_LIKE: handle_cstyle(&joined); break;
                 case PYTHON: handle_python(joined); break;
+                default:     abort();
                 }
         } else
                 warnx("Failed to identify language \"%s\".",
@@ -74,6 +75,127 @@ strip_comments(struct bufdata *bdata)
 }
 
 
+/*============================================================================*/
+/* C style languages */
+
+#define WANT_IF_ZERO (UCHAR_MAX + 1)
+
+static void
+handle_cstyle(bstring **vim_buf)
+{
+        b_list  *list    = b_list_create();
+        uint8_t *bak     = (*vim_buf)->data;
+        int      ifcount = 0;
+        short    want    = 0;
+        bool     esc     = 0;
+        bstring  line[]  = {{0, 0, NULL, 0}};
+
+        while (b_memsep(line, *vim_buf, '\n')) {
+                const unsigned     len  = line->slen;
+                const uchar *const str  = line->data;
+                bstring           *repl = b_alloc_null(len + 1u);
+                repl->slen              = len;
+                unsigned i              = 0;
+                unsigned x              = 0;
+
+                while (isspace(str[i]))
+                        repl->data[x++] = str[i++];
+
+                if (want == WANT_IF_ZERO) {
+                        if (str[i] == '#') {
+                                int tmp = i + 1;
+                                while (isspace(str[tmp]))
+                                        ++tmp;
+                                if (strncmp((char *)(&str[tmp]), SLS("if")) == 0)
+                                        ++ifcount;
+                                else if (strncmp((char *)(&str[tmp]), SLS("endif")) == 0)
+                                        --ifcount;
+
+                                if (ifcount == 0)
+                                        want = 0;
+                        }
+                        goto next_line;
+
+                } else if (!want && str[i] == '#') {
+                        int tmp = i + 1;
+                        while (isspace(str[tmp]))
+                                ++tmp;
+                        if (strncmp((char *)(&str[tmp]), SLS("if 0")) == 0) {
+                                ++ifcount;
+                                want = WANT_IF_ZERO;
+                                goto next_line;
+                        }
+                }
+
+                for (; i < len; ++i) {
+                        if (isspace(str[i])) {
+                                ; /* No need to do anything. */
+                        } else if (want) {
+                                if (want == '\n')
+                                        goto line_comment;
+                                if (str[i] == want) {
+                                        switch (want) {
+                                        case '*':
+                                                if (str[i+1] == '/') {
+                                                        want = 0;
+                                                        i   += 2;
+                                                }
+                                                break;
+                                        case '\'':
+                                        case '"':
+                                                if (!esc) {
+                                                        want = 0;
+                                                        ++i;
+                                                }
+                                                break;
+                                        }
+                                }
+                        } else {
+                                switch (str[i]) {
+                                case '\'':
+                                        want = '\'';
+                                        break;
+                                case '"':
+                                        want = '"';
+                                        break;
+                                case '/':
+                                        if (str[i+1] == '*') {
+                                                want = '*';
+                                                repl->data[x++] = ' ';
+                                                ++i;
+                                        } else if (str[i+1] == '/') {
+                                        line_comment:
+                                                if (str[len-1] == '\\')
+                                                        want = '\n';
+                                                else
+                                                        want = 0;
+
+                                                goto next_line;
+                                        }
+                                        break;
+                                }
+                        }
+
+                        if (!want && str[i])
+                                repl->data[x++] = str[i];
+
+                        esc = (str[i] == '\\') ? !esc : false;
+                }
+
+        next_line:
+                repl->data[(repl->slen = x)] = '\0';
+                b_list_append(&list, repl);
+                esc = false;
+        }
+
+        free(bak);
+        free(*vim_buf);
+        *vim_buf = b_join(list, B("\n"));
+        b_list_destroy(list);
+}
+
+
+#if 0
 /*============================================================================*/
 /* C style languages */
 
@@ -109,7 +231,7 @@ handle_cstyle(bstring *vim_buf)
         uchar *buf, *buf_orig;
 
         double_q = single_q = slash = escape = skip = header = false;
-        buf_orig = buf = malloc(vim_buf->slen + 1 + 5);
+        buf_orig = buf = xmalloc(vim_buf->slen + 1 + 5);
 
         if (!*pos) {
                 warnx("whole buf \"%s\"", pos);
@@ -215,6 +337,7 @@ handle_cstyle(bstring *vim_buf)
 
 #undef QUOTE
 #undef check_quote
+#endif
 
 
 /*============================================================================*/
@@ -287,7 +410,7 @@ handle_python(bstring *vim_buf)
         uchar *buf, *buf_orig;
         bool escape, comment, skip;
 
-        buf    = buf_orig = malloc(vim_buf->slen + 2LLU);
+        buf    = buf_orig = xmalloc(vim_buf->slen + 2LLU);
         escape = comment  = skip = false;
 
         if (*pos == '\0')

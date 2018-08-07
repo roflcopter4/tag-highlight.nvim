@@ -29,7 +29,7 @@
 #define RESOLVE_NEG(VAL_, BASE_) \
         ((VAL_) = ((VAL_) >= 0) ? (VAL_) : ((VAL_) + (BASE_) + 1))
 
-static inline void free_data(ll_node *node) __attribute__((always_inline));
+static __inline void free_data(ll_node *node) __attribute__((always_inline));
 
 
 linked_list *
@@ -484,7 +484,7 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
 }
 
 
-static inline void
+static __inline void
 free_data(ll_node *node)
 {
         b_destroy(node->data);

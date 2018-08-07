@@ -1,5 +1,5 @@
-#ifndef PRIVATE_H
-#define PRIVATE_H
+#ifndef BSTRLIB_PRIVATE_H
+#define BSTRLIB_PRIVATE_H
 
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE

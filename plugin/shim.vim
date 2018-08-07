@@ -116,6 +116,7 @@ endfunction
 command! InitTagHighlight call s:InitTagHighlight()
 command! StopTagHighlight call s:StopTagHighlight()
 command! TagHighlightClear call s:ClearBuffer()
+command! TagHighlightUpdate call s:UpdateTags()
 
 if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
     augroup Tag_Highlight_Init

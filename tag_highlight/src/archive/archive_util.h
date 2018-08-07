@@ -1,5 +1,5 @@
-#ifndef ARCHIVE_UTIL_H
-#define ARCHIVE_UTIL_H
+#ifndef SRC_ARCHIVE_ARCHIVE_UTIL_H
+#define SRC_ARCHIVE_ARCHIVE_UTIL_H
 
 
 #include <stddef.h>

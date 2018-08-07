@@ -34,7 +34,6 @@ static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
 static void            init_filetype(int fd, struct ftdata_s *ft);
-
 static bool     check_norecurse_directories(const bstring *dir);
 static bstring *check_project_directories  (bstring *dir);
 

@@ -7,6 +7,15 @@
 
 #define BI bt_init
 
+
+/* Initializers */
+#define ZERO_8    0, 0, 0, 0, 0, 0, 0, 0
+#define ZERO_64   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8
+#define ZERO_512  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64
+#define ZERO_4096 ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512
+
+#define ZERO_DATA ZERO_4096
+
 const char *const m_type_names[] = {
     "MPACK_UNINITIALIZED", "MPACK_BOOL",   "MPACK_NIL",   "MPACK_NUM",
     "MPACK_EXT",           "MPACK_STRING", "MPACK_ARRAY", "MPACK_DICT",
@@ -67,29 +76,28 @@ struct ftdata_s ftdata[] = {
 };
 
 
-const size_t m_masks_len = ARRSIZ(m_masks);
-const size_t ftdata_len  = ARRSIZ(ftdata);
-
-struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
-struct buffer_list  buffers  = {ZERO_512, {ZERO_512, 0, 512}, 0, 512};
-struct top_dir_list top_dirs = {ZERO_512, 0, 512};
-
-extern jmp_buf  exit_buf;
+extern jmp_buf exit_buf;
 extern int decode_log_raw;
 extern struct backups backup_pointers;
 extern FILE *decode_log, *cmd_log, *echo_log;
 extern const char *program_name;
 extern pthread_mutex_t update_mutex;
 
+struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
+struct buffer_list  buffers  = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
+struct top_dir_list top_dirs = {{ZERO_DATA}, 0, DATA_ARRSIZE};
 struct backups backup_pointers = { NULL, 0, 0 };
+
+const size_t m_masks_len = ARRSIZ(m_masks);
+const size_t ftdata_len  = ARRSIZ(ftdata);
 
 int             sockfd = (-1);
 int             decode_log_raw = (-1);
+const char *    program_name;
+char *          HOME;
 FILE *          decode_log;
 FILE *          mpack_log;
 FILE *          cmd_log;
 FILE *          echo_log;
-const char *    program_name;
-char *          HOME;
-pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
 jmp_buf         exit_buf;
+pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
