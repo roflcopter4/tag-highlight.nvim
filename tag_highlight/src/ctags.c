@@ -1,6 +1,7 @@
 #include "util.h"
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #ifdef DOSISH
 #  include <direct.h>
@@ -13,6 +14,7 @@
 
 #define IS_DOTDOT(FNAME_) \
         ((FNAME_)[0] == '.' && (!(FNAME_)[1] || ((FNAME_)[1] == '.' && !(FNAME_)[2])))
+#define MAX_HEADER_SEARCH_LEVEL 8
 
 #include "archive/archive_util.h"
 #include "data.h"
@@ -29,6 +31,8 @@ static void        recurse_headers(b_list **headers, b_list **searched, b_list *
                                    const bstring *cur_header, int level);
 static void *      recurse_headers_thread(void *vdata);
 static bstring *   find_file_in_dir_recurse(const bstring *dirpath, const bstring *find);
+
+static int exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers);
 
 __attribute__((format(printf, 2, 3))) static size_t
 realpath_fmt(char *__restrict buf, const char *__restrict fmt, ...);
@@ -90,16 +94,19 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 b_list_destroy(bdata->cmd_cache);
                 bdata->cmd_cache = NULL;
         }
+#if 0
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
         for (unsigned i = 0; i < settings.ctags_args->qty; ++i) {
                 b_concat(cmd, settings.ctags_args->lst[i]);
                 b_conchar(cmd, ' ');
         }
+#endif
 
         /* If we found headers, create the ctags command with them all included.
          * Otherwise we simply add the current file to the command and specify
          * whether we want ctags to recurse.*/
+#if 0
         if (headers) {
                 B_LIST_SORT(headers);
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
@@ -123,13 +130,24 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
          * already compromised, and if the user wants to attack their own
          * system for some reason then they can be my guest. */
         const int status = system(BS(cmd));
+#endif
+
+        /* echo("Running ctags command \"%s\"\n", BS(cmd)); */
+
+        /* Yes, this directly uses unchecked user input in a call to system().
+         * Frankly, if somehow someone takes over a user's vimrc then they're
+         * already compromised, and if the user wants to attack their own
+         * system for some reason then they can be my guest. */
+        /* const int status = system(BS(cmd)); */
+
+        int status = exec_ctags(bdata, topdir, headers);
 
         if (status != 0)
                 echo("ctags failed with status \"%d\"\n", status);
         else
                 echo("Ctags finished successfully.");
 
-        b_free(cmd);
+        /* b_free(cmd); */
         return (status == 0);
 }
 
@@ -139,8 +157,14 @@ get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir)
 {
         struct stat st;
         int         ret = 0;
+        topdir->tags    = b_list_create();
+
+        if (have_seen_file(bdata->filename)) {
+                echo("Seen file before, running ctags in case there was just a "
+                     "momentary disconnect on write...");
+                goto force_ctags;
+        }
         errno = 0;
-        topdir->tags = b_list_create();
 
         /* Read the compressed tags file if it exists, otherwise we run ctags
          * and read the file it creates. If there is a read error in the saved
@@ -181,14 +205,18 @@ force_ctags:
 int
 update_taglist(struct bufdata *bdata)
 {
-        if (bdata->ctick == bdata->last_ctick)
+        if (bdata->ctick == bdata->last_ctick) {
+                echo("ctick unchanged");
                 return false;
+        }
 
         bdata->last_ctick = bdata->ctick;
         assert(run_ctags(bdata, bdata->topdir));
 
-        if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname))
+        if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
+                echo("Failed to read file");
                 return false;
+        }
 
         write_gzfile(bdata->topdir);
         return true;
@@ -295,8 +323,10 @@ recurse_headers_thread(void *vdata)
 
         while (b_memsep(line, slurp, '\n')) {
                 bstring *file = analyze_line(line);
-                if (file)
+                if (file) {
                         b_list_append(&includes, file);
+                        b_list_append(&includes, b_dirname(data->cur_header));
+                }
                 b_free(line);
         }
         free(slurp);
@@ -324,7 +354,7 @@ static void
 recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                 const bstring *cur_header, const int level)
 {
-        if (level > 5)
+        if (level > MAX_HEADER_SEARCH_LEVEL)
                 return;
         unsigned i;
 
@@ -345,8 +375,10 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
 
         while (b_memsep(line, slurp, '\n')) {
                 bstring *file = analyze_line(line);
-                if (file)
+                if (file) {
                         b_list_append(&includes, file);
+                        b_list_append(&includes, b_dirname(cur_header));
+                }
                 b_free(line);
         }
         free(slurp);
@@ -377,8 +409,10 @@ find_includes(struct bufdata *bdata, UNUSED struct top_dir *topdir)
 
         LL_FOREACH_F (bdata->lines, node) {
                 bstring *file = analyze_line(node->data);
-                if (file)
+                if (file) {
                         b_list_append(&includes, file);
+                        b_list_append(&includes, b_dirname(bdata->filename));
+                }
         }
         if (includes->qty == 0) {
                 b_list_destroy(includes);
@@ -494,6 +528,22 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
                                 if (file->data[x] == '/')
                                         file->data[x] = '\\';
         }
+        for (i = 0; i < includes_clone->qty; i += 2) {
+                bstring *file = includes_clone->lst[i];
+                bstring *path = includes_clone->lst[i+1];
+                b_sprintf_a(path, B("\\%s"), file)
+
+                struct stat st;
+                if (stat(BS(tmp), &st) == 0) {
+                        b_list_append(&headers, tmp);
+                        b_destroy(file);
+                        includes_clone->lst[i] = NULL;
+                        ++num;
+                }
+
+                b_destroy(path);
+                includes_clone->lst[i+1] = NULL;
+        }
         B_LIST_FOREACH (src_dirs, dir, i) {
                 unsigned x;
                 B_LIST_FOREACH (includes_clone, file, x) {
@@ -513,7 +563,28 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         }
 #else
         b_list *includes_clone = b_list_clone(includes);
+
+        for (i = 0; i < includes_clone->qty; i += 2) {
+                bstring *file = includes_clone->lst[i];
+                bstring *path = includes_clone->lst[i+1];
+                bstring *tmp  = b_concat_all(path, B("/"), file);
+
+                struct stat st;
+                if (stat(BS(tmp), &st) == 0) {
+                        b_list_append(&headers, tmp);
+                        b_destroy(file);
+                        includes_clone->lst[i] = NULL;
+                        ++num;
+                } else
+                        b_destroy(tmp);
+
+                b_destroy(path);
+                includes_clone->lst[i+1] = NULL;
+        }
+
         B_LIST_FOREACH (src_dirs, dir, i) {
+                if (!dir)
+                        continue;
                 unsigned x;
                 int dirfd = open(BS(dir), O_RDONLY|O_DIRECTORY);
                 if (dirfd == (-1)) {
@@ -610,4 +681,99 @@ realpath_fmt(char *const __restrict buf, const char *const __restrict fmt, ...)
 
         new = realpath(tmp, buf);
         return strlen(new);
+}
+
+
+static int
+exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers)
+{
+#if 0
+        unsigned i;
+        unsigned arg      = 0;
+        unsigned num_args = settings.ctags_args->qty + 6u;
+        if (headers)
+                num_args += headers->qty;
+
+        char **argv = nmalloc(sizeof(char *), num_args);
+        argv[arg++] = strdup("ctags");
+
+        if (!headers && topdir->recurse && !topdir->is_c) {
+                char buf[8192];
+                snprintf(buf, 8192, "--languages=%s", BTS(bdata->ft->ctags_name));
+                argv[arg++] = strdup(buf);
+                argv[arg++] = strdup("-R");
+        }
+
+        argv[arg]    = xmalloc(3u + topdir->tmpfname->slen);
+        argv[arg][0] = '-';
+        argv[arg][1] = 'f';
+        memcpy(argv[arg++] + 2, topdir->tmpfname->data, topdir->tmpfname->slen + 1);
+
+        argv[arg] = xmalloc(bdata->filename->slen + 1u);
+        memcpy(argv[arg++], bdata->filename->data, bdata->filename->slen + 1);
+
+        if (headers) {
+                B_LIST_SORT(headers);
+                B_LIST_FOREACH(headers, bstr, i)
+                        argv[arg++] = BS(bstr);
+        }
+
+        int status = 0;
+        int pid = fork();
+
+        if (pid == 0)
+                execvpe("ctags", argv, environ);
+        else
+                waitpid(pid, &status, 0);
+
+        for (i = 0; i < num_args; ++i) {
+                free(argv[i]);
+                argv[i] = NULL;
+        }
+        free(argv);
+        b_list_destroy(headers);
+#endif
+        unsigned i;
+        b_list *list = b_list_create_alloc(32);
+        b_list_append(&list, B("ctags"));
+
+        B_LIST_FOREACH(settings.ctags_args, arg, i)
+                b_list_append(&list, b_clone(arg));
+
+        if (!headers && topdir->recurse && !topdir->is_c) {
+                b_list_append(&list, b_sprintf(B("--languages=%s"), &bdata->ft->ctags_name));
+                b_list_append(&list, B("-R"));
+        }
+
+        b_list_append(&list, b_sprintf(B("-f%s"), topdir->tmpfname));
+        b_list_append(&list, b_clone(bdata->filename));
+
+        if (headers) {
+                B_LIST_SORT(headers);
+                B_LIST_FOREACH(headers, bstr, i)
+                        b_list_append(&list, b_clone(bstr));
+        }
+
+        char **argv = nmalloc(sizeof(char *), list->qty + 1);
+        for (i = 0; i < list->qty; ++i)
+                argv[i] = BS(list->lst[i]);
+        argv[i] = (char *)0;
+
+        for (char **tmp = argv; *tmp; ++tmp)
+                eprintf("%s\n", *tmp);
+
+        int status = 0;
+        int pid    = fork();
+
+        if (pid == 0) {
+                execvpe("ctags", argv, environ);
+        } else
+                waitpid(pid, &status, 0);
+
+        b_list_destroy(list);
+        b_list_destroy(headers);
+        free(argv);
+
+        echo("Status is %d", status);
+        return status;
 }

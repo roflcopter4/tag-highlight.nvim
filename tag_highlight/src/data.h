@@ -2,6 +2,8 @@
 #define SRC_DATA_H
 
 #include "linked_list.h"
+
+#include "generic_list.h"
 #include "mpack.h"
 #include <pthread.h>
 
@@ -72,7 +74,7 @@ struct bufdata {
         uint16_t num;
         uint8_t  flags; // unused
         bool     initialized;
-        int32_t  ref_ind; // 8 bytes
+        int32_t  thread_pid; // 8 bytes
 
         bstring         *filename;
         b_list          *cmd_cache;
@@ -110,7 +112,7 @@ struct int_pdata {
 extern struct settings_s   settings;
 extern struct buffer_list  buffers;
 extern struct ftdata_s     ftdata[];
-extern struct top_dir_list top_dirs;
+extern genlist *top_dirs;
 
 extern int   sockfd;
 extern const size_t ftdata_len;
@@ -123,6 +125,7 @@ extern const char *const m_type_names[];
 /*===========================================================================*/
 /* Functions */
 
+extern bool have_seen_file(const bstring *filename);
 
 /*---------------------------------------------------------------------------*/
 /* Buffers */

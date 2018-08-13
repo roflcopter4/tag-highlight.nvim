@@ -44,7 +44,7 @@ pindent(void)
 
 
 void
-mpack_print_object(const mpack_obj *result, FILE *fp)
+mpack_print_object(FILE *fp, const mpack_obj *result)
 {
 #ifndef DEBUG
         return;
@@ -109,8 +109,8 @@ print_array(const mpack_obj *result)
 
                 ++indent;
                 for (unsigned i = 0; i < result->data.arr->qty; ++i)
-                        if (result->data.arr->items[i])
-                                do_mpack_print_object(result->data.arr->items[i]);
+                        if (result->DAI[i])
+                                do_mpack_print_object(result->DAI[i]);
                 --indent;
 
                 pindent();
@@ -130,19 +130,21 @@ print_dict(const mpack_obj *result)
 
         for (unsigned i = 0; i < result->data.dict->qty; ++i) {
                 pindent();
-                /* b_fputs(print_log, B("KEY:  ")); */
-                print_string(result->data.dict->entries[i]->key, 0);
+                if (mpack_type(result->DDE[i]->key) == MPACK_STRING)
+                        print_string(result->DDE[i]->key, 0);
+                else
+                        do_mpack_print_object(result->DDE[i]->key);
 
                 fseek(print_log, -1, SEEK_CUR);
                 const int tmp = indent;
 
-                switch (mpack_type(result->data.dict->entries[i]->value)) {
+                switch (mpack_type(result->DDE[i]->value)) {
                 case MPACK_ARRAY:
                 case MPACK_DICT:
                         b_fputs(print_log, B("  => (\n"));
 
                         ++indent;
-                        do_mpack_print_object(result->data.dict->entries[i]->value);
+                        do_mpack_print_object(result->DDE[i]->value);
                         --indent;
 
                         pindent();
@@ -152,7 +154,7 @@ print_dict(const mpack_obj *result)
                         b_fputs(print_log, B("  =>  "));
 
                         indent = 0;
-                        do_mpack_print_object(result->data.dict->entries[i]->value);
+                        do_mpack_print_object(result->DDE[i]->value);
                         indent = tmp;
                         break;
                 }
@@ -173,6 +175,7 @@ print_string(const mpack_obj *result, const bool ind)
         if (ind)
                 pindent();
 
+        b_chomp(result->data.str);
         fprintf(print_log, "\"%s\"\n", BS(result->data.str));
 }
 

@@ -17,8 +17,8 @@
 #include "highlight.h"
 #include "mpack.h"
 
-#define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_, KEY_, FATAL_) \
-        nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
+#define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
+        nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
 
 #define TDIFF(STV1, STV2)                                                \
         (((long double)((STV2).tv_usec - (STV1).tv_usec) / 1000000.0L) + \
@@ -34,19 +34,17 @@
 
 extern jmp_buf         exit_buf;
 extern int             decode_log_raw;
-extern FILE           *decode_log, *cmd_log, *echo_log;
-static FILE           *main_log;
+extern FILE           *decode_log, *cmd_log, *echo_log, *main_log;
 static pthread_t       top_thread;
 static struct timeval  gtv;
 
 
-static void *      async_init_buffers(void *vdata);
-static void *      buffer_event_loop(void *vdata);
-static void        exit_cleanup(void);
-static int         create_socket(void);
-static comp_type_t get_compression_type(int fd);
-
-NORETURN static void sigusr_wrap(UNUSED int _);
+static void          exit_cleanup(void);
+static int           create_socket(int mes_fd);
+static comp_type_t   get_compression_type(int fd);
+static void          get_init_lines(struct bufdata *bdata);
+static void          open_main_log(void);
+NORETURN static void sigusr_wrap(UNUSED int notused);
 
 //extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject,
 //                                 const int flags);
@@ -91,23 +89,25 @@ main(UNUSED int argc, char *argv[])
         decode_log_raw = safe_open_fmt(
             "%s/decode_raw.log", O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0644, HOME);
 #endif
-        sockfd = create_socket();
+        sockfd = create_socket(1);
+        eprintf("sockfd is %d\n", sockfd);
 
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
         settings.comp_type       = get_compression_type(0);
-        settings.comp_level      = nvim_get_var_num_pkg(0, "compression_level", 1);
-        settings.ctags_args      = blist_from_var_pkg  (0, "ctags_args", NULL, 1);
-        settings.enabled         = nvim_get_var_num_pkg(0, "enabled", 1);
-        settings.ignored_ftypes  = blist_from_var_pkg  (0, "ignore", NULL, 1);
-        settings.ignored_tags    = nvim_get_var_pkg    (0, "ignored_tags", MPACK_DICT, NULL, 1);
-        settings.norecurse_dirs  = blist_from_var_pkg  (0, "norecurse_dirs", NULL, 1);
-        settings.settings_file   = nvim_get_var_pkg    (0, "settings_file", MPACK_STRING, NULL, 1);
-        settings.use_compression = nvim_get_var_num_pkg(0, "use_compression", 1);
-        settings.verbose         = nvim_get_var_num_pkg(0, "verbose", 1);
+        settings.comp_level      = P2I(nvim_get_var_pkg(0, "compression_level", E_NUM));
+        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args", E_STRLIST);
+        settings.enabled         = P2I(nvim_get_var_pkg(0, "enabled", E_BOOL));
+        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore", E_STRLIST);
+        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags", E_MPACK_DICT);
+        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs", E_STRLIST);
+        settings.settings_file   = nvim_get_var_pkg(0, "settings_file", E_STRING);
+        settings.use_compression = P2I(nvim_get_var_pkg(0, "use_compression", E_BOOL));
+        settings.verbose         = P2I(nvim_get_var_pkg(0, "verbose", E_BOOL));
 
         assert(settings.enabled);
 
+        open_main_log();
         int initial_buf;
 
         /* Initialize all opened buffers. */
@@ -120,7 +120,15 @@ main(UNUSED int argc, char *argv[])
                 }
 
                 initial_buf = nvim_get_current_buf(0);
-                new_buffer(0, initial_buf);
+                if (new_buffer(0, initial_buf)) {
+                        struct bufdata *bdata = find_buffer(initial_buf);
+
+                        nvim_buf_attach(1, initial_buf);
+                        get_init_lines(bdata);
+
+                        get_initial_taglist(bdata, bdata->topdir);
+                        update_highlight(initial_buf, bdata);
+                }
         }
 
         /* Rewinding with longjmp is the easiest way to ensure we get back to
@@ -129,11 +137,13 @@ main(UNUSED int argc, char *argv[])
         int retval = setjmp(exit_buf);
 
         if (retval == 0) {
-                pthread_t      event_loop;
-                pthread_attr_t attr;
-                MAKE_PTHREAD_ATTR_DETATCHED(&attr);
-                pthread_create(&event_loop, &attr, &async_init_buffers, &initial_buf);
-                (void)buffer_event_loop(NULL);
+                for (;;) {
+                        mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
+                        if (event) {
+                                handle_nvim_event(event);
+                                mpack_destroy(event);
+                        }
+                }
         }
 
         return 0;
@@ -145,75 +155,6 @@ main(UNUSED int argc, char *argv[])
 #define WAIT_TIME (0.08L)
 
 
-/*
- * Main nvim event loop. Waits for nvim buffer updates.
- */
-static void *
-buffer_event_loop(UNUSED void *vdata)
-{
-        for (unsigned i = 0; i < buffers.mkr; ++i)
-                nvim_buf_attach(1, buffers.lst[i]->num);
-
-#ifdef DEBUG
-        {
-                char buf[PATH_MAX + 1];
-                snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
-                mkdir(buf, 0777);
-                main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
-        }
-#endif
-
-        for (;;) {
-                mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
-                if (event) {
-#ifdef DEBUG
-                        mpack_print_object(event, main_log);
-                        fflush(main_log);
-#endif
-                        handle_nvim_event(event);
-                        if (event)
-                                mpack_destroy(event);
-                }
-        }
-
-        return NULL;
-}
-
-
-/*
- * Initialize the first recognized and non-empty buffer. Has to be done
- * asynchranously to allow for the main thread to recieve required buffer
- * information from neovim.
- */
-static void *
-async_init_buffers(void *vdata)
-{
-        const int       bufnum = *(const int *)vdata;
-        struct bufdata *bdata  = find_buffer(bufnum);
-        struct timeval  ltv;
-        assert(bdata);
-
-        while (!bdata->initialized)
-                fsleep(WAIT_TIME);
-
-#if 0
-        extern int main_hl_id;
-        get_initial_taglist(bdata, bdata->topdir);
-        my_parser(bufnum, bdata);
-        sleep(5000);
-        nvim_buf_clear_highlight(0, bufnum, main_hl_id, 0, -1);
-        sleep(2);
-#endif
-
-        get_initial_taglist(bdata, bdata->topdir);
-        update_highlight(bufnum, bdata);
-        gettimeofday(&ltv, NULL);
-        SHOUT("Time for startup: %Lfs", TDIFF(gtv, ltv));
-
-        pthread_exit(NULL);
-}
-
-
 /* 
  * Handle an update from the small vimscript plugin. Updates are recieved upon
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
@@ -222,12 +163,12 @@ async_init_buffers(void *vdata)
 void *
 interrupt_call(void *vdata)
 {
-        static int             bufnum    = 1;
+        static int             bufnum    = (-1);
         static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
         struct int_pdata      *data      = vdata;
         struct timeval         ltv1, ltv2;
 
-        pthread_mutex_lock(&int_mutex);
+        /* pthread_mutex_lock(&int_mutex); */
 
         echo("Recieved \"%c\"; waking up!\n", data->val);
 
@@ -245,13 +186,11 @@ interrupt_call(void *vdata)
 
                 if (!bdata) {
                 try_attach:
-                        if (!is_bad_buffer(bufnum) && new_buffer(0, bufnum)) {
+                        if (new_buffer(0, bufnum)) {
                                 nvim_buf_attach(1, bufnum);
                                 bdata = find_buffer(bufnum);
 
-                                BUF_WAIT_LINES(10);
-                                if (!bdata->initialized)
-                                        goto error;
+                                get_init_lines(bdata);
 
                                 get_initial_taglist(bdata, bdata->topdir);
                                 update_highlight(bufnum, bdata);
@@ -263,10 +202,7 @@ interrupt_call(void *vdata)
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata, bdata->topdir);
-
-                        BUF_WAIT_LINES(10);
-                        if (!bdata->initialized)
-                                goto error;
+                        fsleep(0.05);
 
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
@@ -279,17 +215,16 @@ interrupt_call(void *vdata)
          * Buffer was written, or filetype/syntax was changed.
          */
         case 'B': {
+                fsleep(WAIT_TIME);
                 gettimeofday(&ltv1, NULL);
                 const int       curbuf = nvim_get_current_buf(0);
                 struct bufdata *bdata  = find_buffer(curbuf);
 
                 if (!bdata) {
-                        SHOUT("Failed to find buffer! %d -> p: %p\n",
-                              curbuf, (void *)bdata);
+                        echo("Failed to find buffer! %d -> p: %p\n",
+                             curbuf, (void *)bdata);
                         goto try_attach;
                 }
-
-                fsleep(WAIT_TIME);
 
                 if (update_taglist(bdata)) {
                         update_highlight(curbuf, bdata);
@@ -323,9 +258,8 @@ interrupt_call(void *vdata)
                 break;
         }
 
-error:
         free(vdata);
-        pthread_mutex_unlock(&int_mutex);
+        /* pthread_mutex_unlock(&int_mutex); */
         pthread_exit(NULL);
 }
 
@@ -339,8 +273,13 @@ error:
 static void
 exit_cleanup(void)
 {
+        extern bool           process_exiting;
         extern struct backups backup_pointers;
+        extern b_list *       seen_files;
 
+        process_exiting = true;
+
+        b_list_destroy(seen_files);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
@@ -348,6 +287,8 @@ exit_cleanup(void)
 
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
+
+        genlist_destroy(top_dirs);
 
         for (unsigned i = 0; i < ftdata_len; ++i)
                 if (ftdata[i].initialized) {
@@ -386,11 +327,11 @@ exit_cleanup(void)
  * pipe, which is opened like any other file.
  */
 static int
-create_socket(void)
+create_socket(const int mes_fd)
 {
-        bstring *name = nvim_call_function(1, B("serverstart"), MPACK_STRING, NULL, 1);
+        bstring *name = nvim_call_function(mes_fd, B("serverstart"), E_STRING);
 
-#if defined(DOSISH)
+#ifdef DOSISH
         const int fd = safe_open(BS(name), O_RDWR|O_BINARY, 0);
 #else
         struct sockaddr_un addr;
@@ -412,8 +353,9 @@ create_socket(void)
 
 
 static comp_type_t
-get_compression_type(const int fd) {
-        bstring *tmp = nvim_get_var_pkg(fd, "compression_type", MPACK_STRING, NULL, 0);
+get_compression_type(const int fd)
+{
+        bstring *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING);
         enum comp_type_e  ret = COMP_NONE;
 
         if (b_iseq(tmp, B("gzip"))) {
@@ -444,10 +386,39 @@ get_compression_type(const int fd) {
 
 
 NORETURN static void
-sigusr_wrap(UNUSED int _)
+sigusr_wrap(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
                 longjmp(exit_buf, 1);
         else
                 pthread_exit(NULL);
+}
+
+
+static void
+open_main_log(void)
+{
+#ifdef DEBUG
+        {
+                char buf[PATH_MAX + 1];
+                snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
+                mkdir(buf, 0777);
+                main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
+        }
+#endif
+}
+
+
+static void
+get_init_lines(struct bufdata *bdata)
+{
+        b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
+        if (bdata->lines->qty == 1)
+                ll_delete_node(bdata->lines, bdata->lines->head);
+        ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
+        /* free(tmp); */
+
+        free(tmp->lst);
+        free(tmp);
+        bdata->initialized = true;
 }

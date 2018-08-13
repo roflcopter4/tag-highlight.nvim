@@ -43,6 +43,7 @@ getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
                 warnx("Unknown compression type!");
                 ret = 0;
         }
+        echo("done");
         return ret; /* 1 indicates success here... */
 }
 

@@ -43,10 +43,14 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 {
         pthread_mutex_lock(&update_mutex);
         bdata = null_find_bufdata(bufnum, bdata);
+        echo("Updating commands for bufnum %d", bufnum);
 
         if (!bdata->ft->restore_cmds_initialized) {
-                b_list *restored_groups = blist_from_var_pkg(
-                                0, "restored_groups", &bdata->ft->vim_name, 0);
+                /* b_list *restored_groups = blist_from_var_pkg(
+                                0, "restored_groups", &bdata->ft->vim_name, 0); */
+                /* mpack_obj *tmp = blist_from_var_pkg(0, "restored_groups", 0); */
+                mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT);
+                b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name);
                 if (restored_groups) {
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
                         b_list_destroy(restored_groups);
@@ -83,8 +87,10 @@ update_highlight(const int bufnum, struct bufdata *bdata)
 
                 if (bdata->ft->restore_cmds) {
                         LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
-                        nvim_command(0, bdata->ft->restore_cmds, 1);
+                        nvim_command(0, bdata->ft->restore_cmds);
                 }
+        } else {
+                echo("Nothing whatsoever found...");
         }
 
         b_list_destroy(toks);
@@ -105,14 +111,14 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1,
+                mpack_dict_t *dict = nvim_get_var_fmt(0, E_MPACK_DICT,
                                                       PKG "#%s#%c",
                                                       BTS(bdata->ft->vim_name), ch);
 
                 info[i].kind   = ch;
-                info[i].group  = dict_get_key(dict, MPACK_STRING, B("group"), 1);
-                info[i].prefix = dict_get_key(dict, MPACK_STRING, B("prefix"), 0);
-                info[i].suffix = dict_get_key(dict, MPACK_STRING, B("suffix"), 0);
+                info[i].group  = dict_get_key(dict, E_STRING, B("group"));
+                info[i].prefix = dict_get_key(dict, E_STRING, B("prefix"));
+                info[i].suffix = dict_get_key(dict, E_STRING, B("suffix"));
 
                 b_writeprotect(info[i].group);
                 b_writeprotect(info[i].prefix);
@@ -214,10 +220,10 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
 
         for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(0, MPACK_DICT, NULL, 1,
+                mpack_dict_t *dict = nvim_get_var_fmt(0, E_MPACK_DICT,
                                                       PKG "#%s#%c",
                                                       BTS(bdata->ft->vim_name), ch);
-                bstring *group = dict_get_key(dict, MPACK_STRING, B("group"), 1);
+                bstring *group = dict_get_key(dict, E_STRING, B("group"));
 
                 b_sprintf_a(cmd, B("silent! syntax clear _tag_highlight_%s_%c_%s"),
                             &bdata->ft->vim_name, ch, group);
@@ -228,7 +234,7 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
                 destroy_mpack_dict(dict);
         }
 
-        nvim_command(0, cmd, 1);
+        nvim_command(0, cmd);
         b_free(cmd);
 }
 
@@ -245,7 +251,7 @@ get_restore_cmds(b_list *restored_groups)
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
                 bstring *cmd = b_format("syntax list %s", BS(restored_groups->lst[i]));
                 //echo("Our next command is '%s'", BS(cmd));
-                bstring *output = nvim_command_output(0, cmd, MPACK_STRING, NULL, 0);
+                bstring *output = nvim_command_output(0, cmd, E_STRING);
                 b_destroy(cmd);
                 if (!output)
                         continue;
@@ -310,7 +316,7 @@ update_from_cache(struct bufdata *bdata)
         echo("Updating from cache.");
         nvim_call_atomic(0, bdata->calls);
         if (bdata->ft->restore_cmds)
-                nvim_command(0, bdata->ft->restore_cmds, 1);
+                nvim_command(0, bdata->ft->restore_cmds);
 }
 
 

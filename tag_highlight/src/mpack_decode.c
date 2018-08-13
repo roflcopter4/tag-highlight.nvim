@@ -73,7 +73,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
                 errx(1, "Failed to decode stream.");
         if (mpack_type(ret) != MPACK_ARRAY) {
                 if (mpack_log) {
-                        mpack_print_object(ret, mpack_log);
+                        mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
                 }
                 eprintf("For some incomprehensible reason the pack's type is %d.\n",
@@ -84,12 +84,12 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         pthread_mutex_unlock(mut);
 
         if (expected_type != MES_ANY &&
-            expected_type != (ret->DAI[0]->data.num + 1))
+            expected_type != (ret->DAI[0]->data.num))
         {
                 /* eprintf("Expected %d but got %"PRId64"\n",
                         expected_type, ret->DAI[0]->data.num); */
 
-                switch (ret->DAI[0]->data.num + 1) {
+                switch (ret->DAI[0]->data.num) {
                 case MES_REQUEST: 
                         errx(1, "This will NEVER happen.");
                 case MES_RESPONSE:
@@ -121,7 +121,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
                 eprintf("For some incomprehensible reason the pack's type is %d.\n",
                         mpack_type(ret));
                 if (mpack_log) {
-                        mpack_print_object(ret, mpack_log);
+                        mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
                 }
                 abort();
@@ -163,8 +163,9 @@ do_decode(const read_fn READ, void *src)
         case G_ARRAY:  return decode_array(READ, src, byte, mask);
         case G_MAP:    return decode_dictionary(READ, src, byte, mask);
         case G_STRING: return decode_string(READ, src, byte, mask);
+        case G_NLINT:
         case G_INT:    return decode_integer(READ, src, byte, mask);
-        case G_LINT:
+        case G_PLINT:
         case G_UINT:   return decode_unsigned(READ, src, byte, mask);
         case G_EXT:    return decode_ext(READ, src, mask);
         case G_BOOL:   return decode_bool(mask);
@@ -311,7 +312,8 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
         uint8_t    word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (mask->fixed) {
-                value = (int32_t)(byte ^ mask->val);
+                value  = (int64_t)(byte ^ mask->val);
+                value |= 0xFFFFFFFFFFFFFFE0llu;
         } else {
                 switch (mask->type) {
                 case M_INT_8:

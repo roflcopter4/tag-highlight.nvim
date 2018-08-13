@@ -3,7 +3,7 @@
 #include "data.h"
 #include "highlight.h"
 
-#ifdef DOSISH
+#if defined(DOSISH) || defined(__MINGW32__) || defined(__MINGW64__)
 #  include <malloc.h>
 #  define CONST__
 #  define SEPCHAR ';'
@@ -56,9 +56,9 @@ add_tag_to_list(struct taglist **list, struct tag *tag)
 {
         if (!list || !*list || !(*list)->lst || !tag)
                 return;
-        if ((*list)->qty == ((*list)->mlen - 1))
+        if ((*list)->qty >= ((*list)->mlen - 1))
                 (*list)->lst = nrealloc((*list)->lst, ((*list)->mlen <<= 1),
-                                        sizeof(*(*list)->lst));
+                                        sizeof(struct tag *));
         (*list)->lst[(*list)->qty++] = tag;
 }
 
@@ -146,10 +146,19 @@ struct pdata {
 static struct taglist *
 tok_search(const struct bufdata *bdata, b_list *vimbuf)
 {
-        if (!bdata || !bdata->topdir || !vimbuf || vimbuf->qty == 0) {
+        /* if (!bdata || !bdata->topdir || !vimbuf || vimbuf->qty == 0) {
                 warnx("error");
                 return NULL;
-        }
+        } */
+        if (!bdata)
+                errx(1, "NEOTAGS: bdata is null\n");
+        if (!bdata->topdir)
+                errx(1, "NEOTAGS: bdata->topdir is NULL\n");
+        if (!vimbuf)
+                errx(1, "NEOTAGS: vimbuf is NULL\n");
+        if (vimbuf->qty == 0)
+                errx(1, "NEOTAGS: vimbuf->qty is 0\n");
+
         if (!bdata->topdir->tags || bdata->topdir->tags->qty == 0) {
                 warnx("No tags found.");
                 return NULL;
@@ -242,7 +251,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         return ret;
 }
 
-#define INIT_MAX ((data->num) ? (data->num * 2) / 3 : 32)
+#define INIT_VAL ((data->num * 2) / 3)
+#define INIT_MAX ((INIT_VAL >= 32) ? INIT_VAL : 32)
 
 static void *
 do_tok_search(void *vdata)

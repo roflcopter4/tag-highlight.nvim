@@ -31,22 +31,39 @@
 #ifndef HAVE_STRCHRNUL
    extern char *strchrnul(const char *ptr, int ch);
 #endif
-#if !defined(HAVE_GETTIMEOFDAY) && defined(_WIN32)
-#  define WIN32_LEAN_AND_MEAN
+#ifndef HAVE_GETTIMEOFDAY
+#  if defined(_WIN32) || defined(__MINGW32__)
+#    define WIN32_LEAN_AND_MEAN
 //#  include <WinSock2.h>
-#  include <Windows.h>
+#    include <Windows.h>
+   
+     struct timeval {
+             int64_t tv_sec;
+             int64_t tv_usec;
+     };
+   
+     struct timezone {
+             int tz_minuteswest;
+             int tz_dsttime;
+     };
+     extern int gettimeofday(struct timeval * tp, struct timezone * tzp);
+#  endif
+#endif 
 
-   struct timeval {
-           int64_t tv_sec;
-           int64_t tv_usec;
-   };
-
-   struct timezone {
-           int tz_minuteswest;
-           int tz_dsttime;
-   };
-   extern int gettimeofday(struct timeval * tp, struct timezone * tzp);
-#endif
+//#if defined(HAVE_GETTIMEOFDAY) && defined(_WIN32) && defined(__GNUC__)
+////#  define gettimeofday(...) mingw_gettimeofday(__VA_ARGS__)
+//#   include <unistd.h>
+//     struct timeval {
+//             int64_t tv_sec;
+//             int64_t tv_usec;
+//     };
+//   
+//     struct timezone {
+//             int tz_minuteswest;
+//             int tz_dsttime;
+//     };
+//     extern int gettimeofday(struct timeval * tp, struct timezone * tzp);
+//#endif
 
 #ifdef __cplusplus
    }

@@ -24,7 +24,7 @@ static const struct comment_s {
 } comments[] = {{0, '\0'}, {1, '#'}, {2, ';'}, {3, '"'}};
 
 
-static void handle_cstyle(bstring **vim_buf);
+static void handle_cstyle(bstring *vim_buf);
 static void handle_python(bstring *vim_buf);
 
 /* These functions perform a rather crude stripping of comments and string
@@ -63,7 +63,7 @@ strip_comments(struct bufdata *bdata)
         }
         if (com) {
                 switch (com->type) {
-                case C_LIKE: handle_cstyle(&joined); break;
+                case C_LIKE: handle_cstyle(joined); break;
                 case PYTHON: handle_python(joined); break;
                 default:     abort();
                 }
@@ -80,6 +80,7 @@ strip_comments(struct bufdata *bdata)
 
 #define WANT_IF_ZERO (UCHAR_MAX + 1)
 
+#if 0
 static void
 handle_cstyle(bstring **vim_buf)
 {
@@ -194,8 +195,8 @@ handle_cstyle(bstring **vim_buf)
         b_list_destroy(list);
 }
 
+#endif
 
-#if 0
 /*============================================================================*/
 /* C style languages */
 
@@ -231,7 +232,7 @@ handle_cstyle(bstring *vim_buf)
         uchar *buf, *buf_orig;
 
         double_q = single_q = slash = escape = skip = header = false;
-        buf_orig = buf = xmalloc(vim_buf->slen + 1 + 5);
+        buf_orig = buf = xmalloc(vim_buf->slen + 32);
 
         if (!*pos) {
                 warnx("whole buf \"%s\"", pos);
@@ -337,7 +338,6 @@ handle_cstyle(bstring *vim_buf)
 
 #undef QUOTE
 #undef check_quote
-#endif
 
 
 /*============================================================================*/

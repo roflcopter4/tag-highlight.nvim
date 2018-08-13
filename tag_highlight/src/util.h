@@ -13,7 +13,7 @@
 #  define _CRT_NONSTDC_NO_WARNINGS
 #endif
 #ifndef __GNUC__
-#  define __attribute__(...)
+//#  define __attribute__(...)
 #endif
 #ifdef HAVE_CONFIG_H
 #  include "topconfig.h"
@@ -24,9 +24,9 @@
 #  endif
 #  define VERSION "0.0.1"
 #  define PACKAGE_STRING "idunno" VERSION
-#  define _GNU_SOURCE
+//#  define _GNU_SOURCE
 #endif
-#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
+#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) && !defined(__MINGW64__) && !defined(__MINGW32__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
 #  include <io.h>
@@ -36,10 +36,25 @@
 #  define PATHSEP '\\'
 #  define __CLEANUP_C
    extern char * basename(char *path);
-   typedef signed long long int ssize_t;
+#  ifdef __MINGW32__
+#    include <unistd.h>
+#    include <sys/time.h>
+#    include <dirent.h>
+#    define __NO_INLINE__
+#  else
+     typedef signed long long int ssize_t;
+#  endif
 #else
 #  include <unistd.h>
 #  define PATHSEP '/'
+#endif
+#if defined(__MINGW32__) || defined(__MINGW64__)
+#  define DOSISH
+#  define MINGW
+#  include <unistd.h>
+#  include <sys/time.h>
+#  include <dirent.h>
+   extern char * basename(char *path);
 #endif
 /*===========================================================================*/
 
@@ -116,13 +131,13 @@ struct backups {
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
 #  define fsleep(VAL)  Sleep((VAL) * 1000)
-#  define eprintf(...)                        \
-        do {                                  \
-                fprintf(stderr, __VA_ARGS__); \
-                fflush(stderr);               \
+#  define eprintf(...)                                          \
+        do {                                                    \
+                fprintf(stderr, "tag_highlight: " __VA_ARGS__); \
+                fflush(stderr);                                 \
         } while (0)
 #else
-#  define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
 #  define fsleep(VAL)                                                           \
         nanosleep(                                                              \
             (struct timespec[]){                                                \
@@ -194,25 +209,20 @@ NORETURN void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4
 
 #ifdef DEBUG
 #  define SHOUT(...)      __warn(false, __VA_ARGS__)
-#  define nvprintf warnx
 #  define echo    warnx
 #else
 #  undef eprintf
-/* #  define warn(...)
-#  define warnx(...) */
-#  define nvprintf(...)
 #  define eprintf(...)
 #  define echo(...)
 #  define SHOUT(...) __warn(false, __VA_ARGS__)
-/* #  define SHOUT(...) */
 #endif
 
 /*===========================================================================*/
 /* Generic Utility Functions */
 
-#define xatoi(STR_)            __xatoi((STR_), false)
-#define s_xatoi(STR_)          __xatoi((STR_), true)
-#define free_all(...)          __free_all(__VA_ARGS__, NULL)
+#define xatoi(STR_)          __xatoi((STR_), false)
+#define s_xatoi(STR_)        __xatoi((STR_), true)
+#define free_all(...)        __free_all(__VA_ARGS__, NULL)
 
 extern void    __free_all    (void *ptr, ...);
 extern int64_t __xatoi       (const char *str, bool strict);

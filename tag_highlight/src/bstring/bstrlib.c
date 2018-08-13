@@ -78,7 +78,7 @@ b_alloc(bstring *bstr, const unsigned olen)
         if (INVALID(bstr) || olen == 0)
                 RUNTIME_ERROR();
         if (NO_ALLOC(bstr))
-                errx(1, "Error, attempt to reallocate a static bstring");
+                FATAL_ERROR("Error, attempt to reallocate a static bstring.\n");
         if (NO_WRITE(bstr))
                 RUNTIME_ERROR();
 

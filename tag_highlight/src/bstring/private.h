@@ -113,6 +113,11 @@ typedef unsigned int uint;
  */
 #if defined(DEBUG)
 #  ifdef _WIN32
+    #define FATAL_ERROR(...)        \
+        do {                        \
+                warnx(__VA_ARGS__); \
+                abort();            \
+        } while (0)
 #    define RUNTIME_ERROR()                                               \
         do {                                                              \
                 warnx("Runtime error in func %s in bstrlib.c, line %d\n", \
@@ -126,6 +131,24 @@ typedef unsigned int uint;
                 return NULL;                                            \
         } while (0)
 #  else
+#    define FATAL_ERROR(...)                                           \
+        do {                                                           \
+                void * arr[128];                                       \
+                size_t num     = backtrace(arr, 128);                  \
+                char **strings = backtrace_symbols(arr, num);          \
+                char   buf[8192];                                      \
+                snprintf(buf, 8192, __VA_ARGS__);                      \
+                                                                       \
+                warnx("Fatal error in func %s in bstrlib.c, line %d\n" \
+                      "%s"                                             \
+                      "STACKTRACE: ",                                  \
+                      FUNC_NAME, __LINE__, buf);                       \
+                for (unsigned i_ = 0; i_ < num; ++i_)                  \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);     \
+                                                                       \
+                free(strings);                                         \
+                abort();                                               \
+        } while (0)
 #    define RUNTIME_ERROR()                                              \
         do {                                                             \
                 void * arr[128];                                         \
@@ -165,13 +188,16 @@ typedef unsigned int uint;
                 return (RETVAL);                                           \
         } while (0)
 #elif defined(X_ERROR)
+#  define FATAL_ERROR(...) \
+        errx(1, __VA_ARGS__)
 #  define RUNTIME_ERROR() \
         errx(1, "Runtime error at file %s, line %d", __FILE__, __LINE__)
 #  define RETURN_NULL() \
         errx(1, "Null return at file %s, line %d", __FILE__, __LINE__)
 #  define ALLOCATION_ERROR(RETVAL) \
-        err(1, "Allocation error at file %s, line %d", __FILE__, __LINE__);
+        err(1, "Allocation error at file %s, line %d", __FILE__, __LINE__)
 #else
+#  define FATAL_ERROR(...)         errx(1, __VA_ARGS__)
 #  define RUNTIME_ERROR()          return BSTR_ERR
 #  define RETURN_NULL()            return NULL
 #  define ALLOCATION_ERROR(RETVAL) abort();
@@ -181,9 +207,9 @@ typedef unsigned int uint;
 /*============================================================================*/
 
 
-#if defined(__GNUC__) && !defined(HAVE_VASPRINTF)
-#  define HAVE_VASPRINTF
-#endif
+//#if defined(__GNUC__) && !defined(HAVE_VASPRINTF)
+//#  define HAVE_VASPRINTF
+//#endif
 #define USE_XMALLOC
 
 /* 

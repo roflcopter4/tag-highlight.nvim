@@ -419,6 +419,19 @@ b_list_append(b_list **listp, bstring *bstr)
         return BSTR_OK;
 }
 
+int
+b_list_remove(b_list *list, const unsigned index)
+{
+        if (!list || !list->lst || index >= list->qty)
+                RUNTIME_ERROR();
+
+        b_destroy(list->lst[index]);
+        list->lst[index] = NULL;
+
+        memmove(list->lst + index, list->lst + index + 1, --list->qty - index);
+        return BSTR_OK;
+}
+
 
 b_list *
 b_list_copy(const b_list *list)
@@ -846,6 +859,46 @@ _tmp_ull2bstr(bstring *bstr, const unsigned long long value)
         return bstr->slen;
 }
 
+/*============================================================================*/
+/* Simple string manipulation.. */
+/*============================================================================*/
+
+
+int
+b_chomp(bstring *bstr)
+{
+        if (INVALID(bstr) || NO_WRITE(bstr))
+                RUNTIME_ERROR();
+
+        if (bstr->slen > 0) {
+                if (bstr->data[bstr->slen - 1] == '\n')
+                        bstr->data[--bstr->slen] = '\0';
+                if (bstr->data[bstr->slen - 1] == '\r')
+                        bstr->data[--bstr->slen] = '\0';
+        }
+
+        return BSTR_OK;
+}
+
+int
+b_replace_ch(bstring *bstr, const int find, const int replacement)
+{
+        if (INVALID(bstr) || NO_WRITE(bstr))
+                RUNTIME_ERROR();
+
+        unsigned  len = bstr->slen;
+        uint8_t  *dat = bstr->data;
+        uint8_t  *ptr = NULL;
+
+        while ((ptr = memchr(dat, find, len))) {
+                *ptr = replacement;
+                len -= (unsigned)psub(dat, ptr);
+                dat  = ptr + 1;
+        }
+
+        return BSTR_OK;
+}
+
 
 /*============================================================================*/
 /* Simple printf analogues. */
@@ -868,6 +921,9 @@ b_vsprintf(const bstring *fmt, va_list args)
 {
         if (INVALID(fmt))
                 RETURN_NULL();
+
+        b_list  *c_strings = NULL;
+        unsigned c_str_ctr = 0;
 
         va_list  cpy;
         int64_t  pos[2048];
@@ -897,6 +953,17 @@ b_vsprintf(const bstring *fmt, va_list args)
                         len = (len - 2u) + next->slen;
                         i   = pos[pcnt] + 2;
 
+                        break;
+                }
+                case 'n': {
+                        if (!c_strings)
+                                c_strings = b_list_create();
+                        const char *next = va_arg(cpy, const char *);
+                        bstring    *tmp  = b_fromcstr(next);
+                        b_list_append(&c_strings, tmp);
+
+                        len = (len - 2u) + tmp->slen;
+                        i   = pos[pcnt] + 2;
                         break;
                 }
                 case 'd':
@@ -973,11 +1040,22 @@ b_vsprintf(const bstring *fmt, va_list args)
 
         str_restart:
                 switch (ch) {
-                case 's': {
-                        bstring *next = va_arg(args, bstring *);
+                case 's':
+                case 'n': {
+                        bstring *next;
+
+                        if (ch == 's') {
+                                next = va_arg(args, bstring *);
+                        } else {
+                                if (!c_strings)
+                                        abort();
+                                (void)va_arg(args, const char *);
+                                next = c_strings->lst[c_str_ctr++];
+                        }
+
                         memcpy(ret->data + i, next->data, next->slen);
                         i += next->slen;
-                        x  = pos[pcnt] + 1;
+                        x = pos[pcnt] + 1;
                         break;
                 }
                 case 'd': {
@@ -1078,6 +1156,9 @@ b_vsprintf(const bstring *fmt, va_list args)
                         errx(1, "Value '%c' is not legal.", ch);
                 }
         }
+
+        if (c_strings)
+                b_list_destroy(c_strings);
 
         ret->data[(ret->slen = i)] = '\0';
         return ret;

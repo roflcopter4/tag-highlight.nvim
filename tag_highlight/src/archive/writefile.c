@@ -7,7 +7,7 @@
 #endif
 #include <sys/stat.h>
 
-#ifdef DOSISH
+#ifndef HAVE_FSYNC
 #  define fsync(FILDES)
 #endif
 

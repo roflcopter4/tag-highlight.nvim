@@ -89,7 +89,8 @@ else()
     endif()
 
     # set (WARNS "-fdiagnostics-color=always -Weverything")
-    set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit")
+    set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
+-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
     set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
     string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
@@ -97,6 +98,7 @@ else()
     if (CLANG_STR_SEARCH EQUAL -1)
         message("Not clang!")
         set (ISCLANG 0)
+        # set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -O0 -g -Wextra -Wpedantic -Wformat")
         set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat")
 #        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Wformat \
 #-Wimplicit -Werror-implicit-function-declaration -Wdangling-else -Wduplicated-branches -Wrestrict \
@@ -104,16 +106,22 @@ else()
 #-Wsuggest-attribute=noreturn -Wsuggest-attribute=pure -Wuninitialized -Wmissing-attributes \
 #-Wmisleading-indentation -Wnull-dereference -Wno-sign-compare -Wno-attributes -Wno-duplicated-branches \
 #-Wvarargs -Wchkp -Winit-self")
-    else()
+
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} ${SANIT} -O2 -g")
+
+    else() # CLANG
         set (ISCLANG 1)
         message("Is clang!")
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
 -Wno-sign-conversion -Wno-documentation-unknown-command -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros \
--Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-conversion -Wno-padded")
+-Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} ${SANIT} -O2 -g \
+-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
+
     endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${MARCH_SETTING} ${WARNS} -Os")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${MARCH_SETTING} ${WARNS} ${SANIT} -O2 -g")
     set (CMAKE_C_FLAGS_RELEASE        "${MARCH_SETTING} ${WARNS} -O3")
 
     set (CMAKE_EXE_LINKER_FLAGS "-L/usr/local/lib")

@@ -52,8 +52,8 @@ const struct mpack_masks m_masks[] = {
     { G_STRING, M_FIXSTR_F,  true,  0xA0u,  5, "M_FIXSTR_F"  },
     { G_ARRAY,  M_ARRAY_F,   true,  0x90u,  4, "M_ARRAY_F"   },
     { G_MAP,    M_FIXMAP_F,  true,  0x80u,  4, "M_FIXMAP_F"  },
-    { G_LINT,   M_POS_INT_F, true,  0x00u,  7, "M_POS_INT_F" },
-    { G_LINT,   M_NEG_INT_F, true,  0xE0u,  5, "M_NEG_INT_F" },
+    { G_PLINT,  M_POS_INT_F, true,  0x00u,  7, "M_POS_INT_F" },
+    { G_NLINT,  M_NEG_INT_F, true,  0xE0u,  5, "M_NEG_INT_F" },
 };
 
 struct ftdata_s ftdata[] = {
@@ -76,17 +76,22 @@ struct ftdata_s ftdata[] = {
 };
 
 
-extern jmp_buf exit_buf;
-extern int decode_log_raw;
-extern struct backups backup_pointers;
-extern FILE *decode_log, *cmd_log, *echo_log;
-extern const char *program_name;
-extern pthread_mutex_t update_mutex;
+extern bool             process_exiting;
+extern b_list          *seen_files;
+extern jmp_buf          exit_buf;
+extern int              decode_log_raw;
+extern struct backups   backup_pointers;
+extern FILE            *decode_log, *cmd_log, *echo_log, *main_log;
+extern const char      *program_name;
+extern pthread_mutex_t  update_mutex;
 
-struct settings_s   settings = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
-struct buffer_list  buffers  = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
-struct top_dir_list top_dirs = {{ZERO_DATA}, 0, DATA_ARRSIZE};
-struct backups backup_pointers = { NULL, 0, 0 };
+genlist *top_dirs = NULL;
+
+struct settings_s   settings        = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
+struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
+/* struct top_dir_list top_dirs        = {{ZERO_DATA}, 0, DATA_ARRSIZE}; */
+struct backups      backup_pointers = { NULL, 0, 0 };
+
 
 const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
@@ -99,5 +104,8 @@ FILE *          decode_log;
 FILE *          mpack_log;
 FILE *          cmd_log;
 FILE *          echo_log;
+FILE *          main_log;
 jmp_buf         exit_buf;
-pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t update_mutex    = PTHREAD_MUTEX_INITIALIZER;
+b_list *        seen_files      = NULL;
+bool            process_exiting = false;
