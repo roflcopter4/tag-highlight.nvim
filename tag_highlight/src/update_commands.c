@@ -49,9 +49,16 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 /* b_list *restored_groups = blist_from_var_pkg(
                                 0, "restored_groups", &bdata->ft->vim_name, 0); */
                 /* mpack_obj *tmp = blist_from_var_pkg(0, "restored_groups", 0); */
-                mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT);
+
+                mpack_dict_t *tmp       = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT);
                 b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name);
+
+                if (restored_groups)
+                        b_list_writeprotect(restored_groups);
+                destroy_mpack_dict(tmp);
+
                 if (restored_groups) {
+                        b_list_writeallow(restored_groups);
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
                         b_list_destroy(restored_groups);
                 }

@@ -31,11 +31,8 @@ static void        recurse_headers(b_list **headers, b_list **searched, b_list *
                                    const bstring *cur_header, int level);
 static void *      recurse_headers_thread(void *vdata);
 static bstring *   find_file_in_dir_recurse(const bstring *dirpath, const bstring *find);
-
-static int exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers);
-
-__attribute__((format(printf, 2, 3))) static size_t
-realpath_fmt(char *__restrict buf, const char *__restrict fmt, ...);
+static int         exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers);
+static int         myfilter(const struct dirent *dp);
 
 /*======================================================================================*/
 
@@ -94,60 +91,14 @@ run_ctags(struct bufdata *bdata, struct top_dir *topdir)
                 b_list_destroy(bdata->cmd_cache);
                 bdata->cmd_cache = NULL;
         }
-#if 0
-        bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
-
-        for (unsigned i = 0; i < settings.ctags_args->qty; ++i) {
-                b_concat(cmd, settings.ctags_args->lst[i]);
-                b_conchar(cmd, ' ');
-        }
-#endif
-
-        /* If we found headers, create the ctags command with them all included.
-         * Otherwise we simply add the current file to the command and specify
-         * whether we want ctags to recurse.*/
-#if 0
-        if (headers) {
-                B_LIST_SORT(headers);
-                bstring *tmp = b_join_quote(headers, B(" "), '"');
-                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\" %s"), topdir->tmpfname,
-                            bdata->filename, tmp);
-
-                b_destroy(tmp);
-                b_list_destroy(headers);
-        } else if (topdir->recurse && !topdir->is_c) {
-                b_sprintf_a(cmd, B(" \"--languages=%s\" -R \"-f%s\" \"%s\""),
-                            &bdata->ft->ctags_name, topdir->tmpfname, topdir->pathname);
-        } else {
-                echo("Not recursing!!!");
-                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\""), topdir->tmpfname, bdata->filename);
-        }
-
-        echo("Running ctags command \"%s\"\n", BS(cmd));
-
-        /* Yes, this directly uses unchecked user input in a call to system().
-         * Frankly, if somehow someone takes over a user's vimrc then they're
-         * already compromised, and if the user wants to attack their own
-         * system for some reason then they can be my guest. */
-        const int status = system(BS(cmd));
-#endif
-
-        /* echo("Running ctags command \"%s\"\n", BS(cmd)); */
-
-        /* Yes, this directly uses unchecked user input in a call to system().
-         * Frankly, if somehow someone takes over a user's vimrc then they're
-         * already compromised, and if the user wants to attack their own
-         * system for some reason then they can be my guest. */
-        /* const int status = system(BS(cmd)); */
 
         int status = exec_ctags(bdata, topdir, headers);
 
         if (status != 0)
-                echo("ctags failed with status \"%d\"\n", status);
+                warnx("ctags failed with status \"%d\"\n", status);
         else
                 echo("Ctags finished successfully.");
 
-        /* b_free(cmd); */
         return (status == 0);
 }
 
@@ -211,7 +162,8 @@ update_taglist(struct bufdata *bdata)
         }
 
         bdata->last_ctick = bdata->ctick;
-        assert(run_ctags(bdata, bdata->topdir));
+        if (!run_ctags(bdata, bdata->topdir))
+                errx(1, "Ctags failed, cannot continue.");
 
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
                 echo("Failed to read file");
@@ -307,6 +259,68 @@ fail:
 }
 
 
+static b_list *
+find_includes(struct bufdata *bdata, UNUSED struct top_dir *topdir)
+{
+        if (!bdata->lines || bdata->lines->qty == 0)
+                return NULL;
+        b_list *includes = b_list_create();
+
+        LL_FOREACH_F (bdata->lines, node) {
+                bstring *file = analyze_line(node->data);
+                if (file) {
+                        b_list_append(&includes, file);
+                        b_list_append(&includes, b_dirname(bdata->filename));
+                }
+        }
+        if (includes->qty == 0) {
+                b_list_destroy(includes);
+                includes = NULL;
+        }
+
+        return includes;
+}
+
+
+static FILE *yetanotherlog;
+
+static b_list *
+find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
+{
+        yetanotherlog = safe_fopen_fmt("%s/alphasort.log", "wb", HOME);
+        b_list  *src_dirs;
+        bstring *json_file = find_file_in_dir_recurse(topdir->pathname, B(COMMANDFILE));
+
+        if (json_file) {
+                src_dirs = parse_json(json_file, bdata->filename, includes);
+                if (!src_dirs) {
+                        echo("Found nothing at all!!!");
+                        src_dirs = b_list_create();
+                }
+        } else {
+                echo("Couldn't find compile_commands.json");
+                src_dirs = b_list_create();
+        }
+
+        b_list_append(&src_dirs, b_strcpy(topdir->pathname));
+        bstring *file_dir = b_dirname(bdata->filename);
+        echo("File dir is: %s", BS(file_dir));
+
+        if (!b_iseq(topdir->pathname, file_dir)) {
+                echo("Adding file dir to list");
+                b_list_append(&src_dirs, file_dir);
+        } else
+                b_free(file_dir);
+
+        b_free(json_file);
+        fclose(yetanotherlog);
+        return src_dirs;
+}
+
+
+/*======================================================================================*/
+
+
 static void *
 recurse_headers_thread(void *vdata)
 {
@@ -354,7 +368,7 @@ static void
 recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                 const bstring *cur_header, const int level)
 {
-        if (level > MAX_HEADER_SEARCH_LEVEL)
+        if (level > MAX_HEADER_SEARCH_LEVEL || !cur_header)
                 return;
         unsigned i;
 
@@ -394,85 +408,6 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
         }
 
         b_list_destroy(includes);
-}
-
-
-/*======================================================================================*/
-
-
-static b_list *
-find_includes(struct bufdata *bdata, UNUSED struct top_dir *topdir)
-{
-        if (!bdata->lines || bdata->lines->qty == 0)
-                return NULL;
-        b_list *includes = b_list_create();
-
-        LL_FOREACH_F (bdata->lines, node) {
-                bstring *file = analyze_line(node->data);
-                if (file) {
-                        b_list_append(&includes, file);
-                        b_list_append(&includes, b_dirname(bdata->filename));
-                }
-        }
-        if (includes->qty == 0) {
-                b_list_destroy(includes);
-                includes = NULL;
-        }
-
-        return includes;
-}
-
-
-static FILE *yetanotherlog;
-
-static b_list *
-find_src_dirs(struct bufdata *bdata, struct top_dir *topdir, b_list *includes)
-{
-        yetanotherlog = safe_fopen_fmt("%s/alphasort.log", "wb", HOME);
-        b_list  *src_dirs;
-        bstring *json_file = find_file_in_dir_recurse(topdir->pathname, B(COMMANDFILE));
-
-#if 0
-        if (!json_file) {
-                char    path[PATH_STR];
-                size_t  slen = realpath_fmt(path, "%s%c..", BS(topdir->pathname), PATHSEP);
-                bstring tmp  = bt_fromblk(path, slen);
-
-                json_file = find_file_in_dir_recurse(&tmp, B(COMMANDFILE));
-
-                if (!json_file) {
-                        slen = realpath_fmt(path, "%s%c..%c..", BS(topdir->pathname),
-                                            PATHSEP, PATHSEP);
-                        tmp  = bt_fromblk(path, slen);
-                        json_file = find_file_in_dir_recurse(&tmp, B(COMMANDFILE));
-                }
-        }
-#endif
-
-        if (json_file) {
-                src_dirs = parse_json(json_file, bdata->filename, includes);
-                if (!src_dirs) {
-                        echo("Found nothing at all!!!");
-                        src_dirs = b_list_create();
-                }
-        } else {
-                echo("Couldn't find compile_commands.json");
-                src_dirs = b_list_create();
-        }
-
-        b_list_append(&src_dirs, b_strcpy(topdir->pathname));
-        bstring *file_dir = b_dirname(bdata->filename);
-        echo("File dir is: %s", BS(file_dir));
-
-        if (!b_iseq(topdir->pathname, file_dir)) {
-                echo("Adding file dir to list");
-                b_list_append(&src_dirs, file_dir);
-        } else
-                b_free(file_dir);
-
-        b_free(json_file);
-        fclose(yetanotherlog);
-        return src_dirs;
 }
 /*======================================================================================*/
 
@@ -619,15 +554,6 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
 }
 
 
-/*======================================================================================*/
-
-
-static int myfilter(const struct dirent *dp)
-{
-        return !IS_DOTDOT(dp->d_name);
-}
-
-
 static bstring *
 find_file_in_dir_recurse(const bstring *dirpath, const bstring *find)
 {
@@ -638,10 +564,10 @@ find_file_in_dir_recurse(const bstring *dirpath, const bstring *find)
         if (n <= 0)
                 return NULL;
 
-        struct dirent find_ent[1] = {
-            {.d_ino = 0, .d_off = 0, .d_reclen = 0, .d_type = DT_REG}
-        };
-        memcpy(find_ent[0].d_name, find->data, find->slen + 1);
+        struct dirent find_ent[1];
+        memset(find_ent, 0, sizeof(struct dirent));
+        memcpy(find_ent->d_name, find->data, find->slen + 1);
+        find_ent->d_type = DT_REG;
 
         struct dirent **dirp  = (struct dirent **)(&find_ent);
         struct dirent **match = bsearch(&dirp, lst, n, sizeof(struct dirent **),
@@ -669,70 +595,53 @@ find_file_in_dir_recurse(const bstring *dirpath, const bstring *find)
 }
 
 
-static size_t
-realpath_fmt(char *const __restrict buf, const char *const __restrict fmt, ...)
+/*======================================================================================*/
+
+
+static int myfilter(const struct dirent *dp)
 {
-        char *new, tmp[PATH_MAX +1];
-        va_list ap;
-
-        va_start(ap, fmt);
-        UNUSED const int64_t n = vsnprintf(tmp, PATH_MAX + 1, fmt, ap);
-        va_end(ap);
-
-        new = realpath(tmp, buf);
-        return strlen(new);
+        return !IS_DOTDOT(dp->d_name);
 }
 
 
 static int
 exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers)
 {
-#if 0
-        unsigned i;
-        unsigned arg      = 0;
-        unsigned num_args = settings.ctags_args->qty + 6u;
-        if (headers)
-                num_args += headers->qty;
+#ifdef DOSISH
+        bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
-        char **argv = nmalloc(sizeof(char *), num_args);
-        argv[arg++] = strdup("ctags");
-
-        if (!headers && topdir->recurse && !topdir->is_c) {
-                char buf[8192];
-                snprintf(buf, 8192, "--languages=%s", BTS(bdata->ft->ctags_name));
-                argv[arg++] = strdup(buf);
-                argv[arg++] = strdup("-R");
-        }
-
-        argv[arg]    = xmalloc(3u + topdir->tmpfname->slen);
-        argv[arg][0] = '-';
-        argv[arg][1] = 'f';
-        memcpy(argv[arg++] + 2, topdir->tmpfname->data, topdir->tmpfname->slen + 1);
-
-        argv[arg] = xmalloc(bdata->filename->slen + 1u);
-        memcpy(argv[arg++], bdata->filename->data, bdata->filename->slen + 1);
+        for (unsigned i = 0; i < settings.ctags_args->qty; ++i)
+                b_sprintf_a(cmd, B("\"%s\" "), settings.ctags_args->lst[i]);
 
         if (headers) {
                 B_LIST_SORT(headers);
-                B_LIST_FOREACH(headers, bstr, i)
-                        argv[arg++] = BS(bstr);
+                bstring *tmp = b_join_quote(headers, B(" "), '"');
+                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\" %s"),
+                            topdir->tmpfname, bdata->filename, tmp);
+
+                b_destroy(tmp);
+                b_list_destroy(headers);
+
+        } else if (topdir->recurse && !topdir->is_c) {
+                b_sprintf_a(cmd, B(" \"--languages=%s\" -R \"-f%s\" \"%s\""),
+                            &bdata->ft->ctags_name, topdir->tmpfname, topdir->pathname);
+        } else {
+                echo("Not recursing!!!");
+                b_sprintf_a(cmd, B(" \"-f%s\" \"%s\""),
+                            topdir->tmpfname, bdata->filename);
         }
 
-        int status = 0;
-        int pid = fork();
+        echo("Running ctags command `%s`", BS(cmd));
 
-        if (pid == 0)
-                execvpe("ctags", argv, environ);
-        else
-                waitpid(pid, &status, 0);
-
-        for (i = 0; i < num_args; ++i) {
-                free(argv[i]);
-                argv[i] = NULL;
-        }
-        free(argv);
-        b_list_destroy(headers);
-#endif
+        /* Yes, this directly uses unchecked user input in a call to system().
+         * Frankly, if somehow someone takes over a user's vimrc then they're
+         * already compromised, and if the user wants to attack their own
+         * system for some reason then they can be my guest. */
+        const int status = system(BS(cmd));
+#else
+        /* In a unix environment, let's avoid the headache of quoting arguments
+         * by calling fork/exec, even at the cost of a bunch of extra
+         * allocations and copying. */
         unsigned i;
         b_list *list = b_list_create_alloc(32);
         b_list_append(&list, B("ctags"));
@@ -740,13 +649,16 @@ exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers)
         B_LIST_FOREACH(settings.ctags_args, arg, i)
                 b_list_append(&list, b_clone(arg));
 
+        b_list_append(&list, b_sprintf(B("-f%s"), topdir->tmpfname));
+
         if (!headers && topdir->recurse && !topdir->is_c) {
                 b_list_append(&list, b_sprintf(B("--languages=%s"), &bdata->ft->ctags_name));
                 b_list_append(&list, B("-R"));
+                b_list_append(&list, b_clone(topdir->pathname));
+        } else {
+                b_list_append(&list, b_clone(bdata->filename));
         }
 
-        b_list_append(&list, b_sprintf(B("-f%s"), topdir->tmpfname));
-        b_list_append(&list, b_clone(bdata->filename));
 
         if (headers) {
                 B_LIST_SORT(headers);
@@ -766,14 +678,18 @@ exec_ctags(struct bufdata *bdata, struct top_dir *topdir, b_list *headers)
         int pid    = fork();
 
         if (pid == 0) {
-                execvpe("ctags", argv, environ);
-        } else
+                if (execvpe("ctags", argv, environ) != 0)
+                        err(1, "Exec failed");
+        } else {
                 waitpid(pid, &status, 0);
+        }
 
         b_list_destroy(list);
         b_list_destroy(headers);
         free(argv);
 
         echo("Status is %d", status);
+#endif
+
         return status;
 }

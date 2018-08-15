@@ -71,7 +71,7 @@ endif()
 ###############################################################################
 # Flags
 
-if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+if ((CMAKE_BUILD_TYPE STREQUAL "DEBUG") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 

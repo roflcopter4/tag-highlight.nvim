@@ -7,6 +7,7 @@
 static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func);
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
+static inline void * m_expect_intern(mpack_obj *root, mpack_expect_t type);
 
 static unsigned        sok_count, io_count;
 static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -18,13 +19,13 @@ static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
 #define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
 #define CHECK_DEF_FD(FD__) ((FD__) = (((FD__) == 0) ? DEFAULT_FD : (FD__)))
-/* #define FN()               btp_fromcstr(__func__) */
-#define FN()                                                           \
+#define FN()               btp_fromcstr(__func__)
+/* #define FN()                                                           \
         ({                                                             \
                 static bstring b__ = {(sizeof(__func__) - 1), 0,       \
                                       (unsigned char *)(__func__), 0}; \
                 &b__;                                                  \
-        })
+        }) */
 
 
 /*======================================================================================*/
@@ -140,35 +141,35 @@ void *
 nvim_list_bufs(int fd)
 {
         mpack_obj *result = generic_call(&fd, FN(), NULL);
-        return m_expect(VALUE, E_MPACK_ARRAY, true);
+        return m_expect_intern(result, E_MPACK_ARRAY);
 }
 
 int
 nvim_get_current_buf(int fd)
 {
         mpack_obj *result = generic_call(&fd, FN(), NULL);
-        return (int)P2I(m_expect(VALUE, E_NUM, true));
+        return (int)P2I(m_expect_intern(result, E_NUM));
 }
 
 bstring *
 nvim_get_current_line(int fd)
 {
         mpack_obj *result = generic_call(&fd, FN(), NULL);
-        return m_expect(VALUE, E_STRING, true);
+        return m_expect_intern(result, E_STRING);
 }
 
 unsigned
 nvim_buf_line_count(int fd, const int bufnum)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("d"), bufnum);
-        return (unsigned)P2I(m_expect(VALUE, E_NUM, true));
+        return (unsigned)P2I(m_expect_intern(result, E_NUM));
 }
 
 b_list *
 nvim_buf_get_lines(int fd, const unsigned bufnum, const int start, const int end)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("d,d,d,d"), bufnum, start, end, 0);
-        return m_expect(VALUE, E_STRLIST, true);
+        return m_expect_intern(result, E_STRLIST);
 }
 
 
@@ -177,7 +178,7 @@ nvim_buf_get_name(int fd, const int bufnum)
 {
         char       fullname[PATH_MAX + 1];
         mpack_obj *result = generic_call(&fd, FN(), B("d"), bufnum);
-        bstring   *ret    = m_expect(VALUE, E_STRING, true);
+        bstring   *ret    = m_expect_intern(result, E_STRING);
         b_assign_cstr(ret, realpath(BS(ret), fullname));
         return ret;
 }
@@ -194,6 +195,7 @@ nvim_command(int fd, const bstring *cmd)
                 bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
                 b_fputs(stderr, errmsg, B("\n"));
         }
+        mpack_destroy(result);
 
         return ret;
 }
@@ -203,14 +205,16 @@ nvim_command_output(int fd, const bstring *cmd, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("s"), cmd);
         void      *ret    = NULL;
-
+#if 0
         if (mpack_type(m_index(result, 2)) == MPACK_ARRAY) {
                 /* bstring *errmsg = result->DAI[2]->DAI[1]->data.str; */
                 bstring *errmsg = m_expect(m_index(m_index(result, 2), 1), E_STRING, true);
                 b_fputs(stderr, errmsg, B("\n"));
         } else {
-                ret = m_expect(VALUE, expect, true);
+                ret = m_expect_intern(result, expect;
         }
+#endif
+        ret = m_expect_intern(result, expect);
 
         return ret;
 }
@@ -219,7 +223,7 @@ void *
 nvim_call_function(int fd, const bstring *function, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("s,[]"), function);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 void *
@@ -235,7 +239,7 @@ nvim_call_function_args(int fd, const bstring *function, const mpack_expect_t ex
         va_end(ap);
 
         b_free(buf);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -244,35 +248,35 @@ void *
 nvim_get_var(int fd, const bstring *varname, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("s"), varname);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 void *
 nvim_get_option(int fd, const bstring *optname, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("s"), optname);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 void *
 nvim_buf_get_var(int fd, const int bufnum, const bstring *varname, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("d,s"), bufnum, varname);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 void *
 nvim_buf_get_option(int fd, const int bufnum, const bstring *optname, const mpack_expect_t expect)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("d,s"), bufnum, optname);
-        return m_expect(VALUE, expect, true);
+        return m_expect_intern(result, expect);
 }
 
 unsigned
 nvim_buf_get_changedtick(int fd, const int bufnum)
 {
         mpack_obj *result = generic_call(&fd, FN(), B("d"), bufnum);
-        return (unsigned)P2I(m_expect(VALUE, E_NUM, true));
+        return (unsigned)P2I(m_expect_intern(result, E_NUM));
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -299,7 +303,7 @@ nvim_buf_add_highlight(int fd, const unsigned bufnum, const int hl_id, const bst
 {
         mpack_obj *result = generic_call(&fd, FN(), B("dd,s,ddd"), bufnum,
                                          hl_id, group, line, start, end);
-        return (int)P2I(m_expect(VALUE, E_NUM, true));
+        return (int)P2I(m_expect_intern(result, E_NUM));
 }
 
 void
@@ -376,6 +380,7 @@ get_notification(int fd)
 /*======================================================================================*/
 
 
+#if 0
 void *
 m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
 {
@@ -456,7 +461,10 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
                 if (mpack_type(obj) != (err_expect = MPACK_ARRAY))
                         goto error;
                 ret = mpack_array_to_blist(obj->data.arr, destroy);
-                destroy = false;
+                if (destroy) {
+                        free(obj);
+                        destroy = false;
+                }
                 break;
 
         case E_DICT2ARR:
@@ -479,6 +487,162 @@ error:
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         mpack_destroy(obj);
         return NULL;
+}
+
+
+static inline void *
+m_expect_intern(mpack_obj *root, mpack_expect_t type)
+{
+        mpack_obj *errmsg = m_index(root, 2);
+        mpack_obj *data   = m_index(root, 3);
+        void      *ret    = NULL;
+
+        if (mpack_type(errmsg) != MPACK_NIL) {
+                bstring *err_str = m_expect(m_index(errmsg, 1), E_STRING, true);
+                warnx("Neovim returned with an err_str: '%s'", BS(err_str));
+                b_destroy(err_str);
+                root->DAI[2] = NULL;
+        } else {
+                ret = m_expect(data, type, true);
+                root->DAI[3] = NULL;
+        }
+
+        mpack_destroy(root);
+        return ret;
+}
+#endif
+
+
+retval_t
+m_expect_2(mpack_obj *obj, const mpack_expect_t type, bool destroy)
+{
+        /* void         *ret = NULL; */
+        retval_t ret;
+        ret.ptr = NULL;
+        int64_t       value;
+        mpack_type_t  err_expect;
+
+        if (!obj)
+                return ret;
+        if (mpack_log) {
+                mpack_print_object(mpack_log, obj);
+                fflush(mpack_log);
+        }
+
+        switch (type) {
+        case E_MPACK_ARRAY:
+                if (destroy)
+                        mpack_spare_data(obj);
+                ret.ptr = obj->data.arr;
+                break;
+
+        case E_MPACK_DICT:
+                if (mpack_type(obj) != (err_expect = MPACK_DICT))
+                        goto error;
+                if (destroy)
+                        mpack_spare_data(obj);
+                ret.ptr = obj->data.dict;
+                break;
+
+        case E_MPACK_EXT:
+                if (mpack_type(obj) != (err_expect = MPACK_EXT))
+                        goto error;
+                if (destroy)
+                        mpack_spare_data(obj);
+                ret.ptr = obj->data.ext;
+                break;
+
+        case E_MPACK_NIL:
+                if (mpack_type(obj) != (err_expect = MPACK_NIL))
+                        goto error;
+                break;
+
+        case E_BOOL:
+                if (mpack_type(obj) != (err_expect = MPACK_BOOL)) {
+                        if (mpack_type(obj) == MPACK_NUM)
+                                value = obj->data.num;
+                        else
+                                goto error;
+                } else {
+                        value = obj->data.boolean;
+                }
+                ret.num = value;
+                break;
+
+        case E_NUM:
+                if (mpack_type(obj) != (err_expect = MPACK_NUM)) {
+                        if (mpack_type(obj) == MPACK_EXT)
+                                value = obj->data.ext->num;
+                        else
+                                goto error;
+                } else {
+                        value = obj->data.num;
+                }
+                /* ret.num = xmalloc(sizeof(int64_t)); */
+                ret.num = value;
+                break;
+
+        case E_STRING:
+                if (mpack_type(obj) != (err_expect = MPACK_STRING))
+                        goto error;
+                ret.ptr = obj->data.str;
+                if (destroy)
+                        b_writeprotect((bstring *)ret.ptr);
+                break;
+
+        case E_STRLIST:
+                if (mpack_type(obj) != (err_expect = MPACK_ARRAY))
+                        goto error;
+                ret.ptr = mpack_array_to_blist(obj->data.arr, destroy);
+                if (destroy) {
+                        free(obj);
+                        destroy = false;
+                }
+                break;
+
+        case E_DICT2ARR:
+                abort();
+                        
+        default:
+                errx(1, "Invalid type given to %s()\n", __func__);
+        }
+
+        if (destroy) {
+                mpack_destroy(obj);
+                if (type == E_STRING)
+                        b_writeallow((bstring *)ret.ptr);
+        }
+
+        return ret;
+
+error:
+        warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
+              m_type_names[mpack_type(obj)], m_type_names[err_expect]);
+        mpack_destroy(obj);
+        ret.ptr = NULL;
+        return ret;
+}
+
+
+static inline retval_t
+m_expect_intern(mpack_obj *root, mpack_expect_t type)
+{
+        mpack_obj *errmsg = m_index(root, 2);
+        mpack_obj *data   = m_index(root, 3);
+        retval_t   ret    = { .ptr = NULL };
+
+        if (mpack_type(errmsg) != MPACK_NIL) {
+                bstring *err_str = m_expect(m_index(errmsg, 1), E_STRING, true);
+                warnx("Neovim returned with an err_str: '%s'", BS(err_str));
+                b_destroy(err_str);
+                root->DAI[2] = NULL;
+        } else {
+                ret = m_expect(data, type, true);
+                root->DAI[3] = NULL;
+        }
+
+        mpack_destroy(root);
+        return ret;
 }
 
 
@@ -642,8 +806,9 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
 
                 destroy_mpack_array(array);
 
-                for (unsigned i = 0; i < size; ++i)
-                        b_writeallow(ret->lst[i]);
+                /* for (unsigned i = 0; i < size; ++i)
+                        b_writeallow(ret->lst[i]); */
+                b_list_writeallow(ret);
         } else {
                 for (unsigned i = 0; i < size; ++i)
                         b_list_append(&ret, array->items[i]->data.str);

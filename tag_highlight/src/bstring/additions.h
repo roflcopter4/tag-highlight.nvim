@@ -271,6 +271,10 @@ BSTR_PUBLIC int     b_list_merge(b_list **dest, b_list *src, int flags);
 BSTR_PUBLIC int     b_list_remove_dups(b_list **listp);
 BSTR_PUBLIC b_list *b_list_copy(const b_list *list);
 BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
+BSTR_PUBLIC b_list *b_list_clone_swap(b_list *list);
+
+BSTR_PUBLIC int b_list_writeprotect(b_list *list);
+BSTR_PUBLIC int b_list_writeallow(b_list *list);
 
 BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
 

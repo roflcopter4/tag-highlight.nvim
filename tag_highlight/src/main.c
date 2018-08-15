@@ -51,6 +51,7 @@ NORETURN static void sigusr_wrap(UNUSED int notused);
 
 /*======================================================================================*/
 
+extern union universal_retval nvim_get_var_2(int fd, const bstring *varname, mpack_expect_t expect);
 
 int
 main(UNUSED int argc, char *argv[])
@@ -106,6 +107,9 @@ main(UNUSED int argc, char *argv[])
         settings.verbose         = P2I(nvim_get_var_pkg(0, "verbose", E_BOOL));
 
         assert(settings.enabled);
+
+        int64_t test1 = nvim_get_var_2(0, B("huge_number"), E_NUM).num;
+        echo("Test: %"PRId64, test1);
 
         open_main_log();
         int initial_buf;
@@ -217,17 +221,17 @@ interrupt_call(void *vdata)
         case 'B': {
                 fsleep(WAIT_TIME);
                 gettimeofday(&ltv1, NULL);
-                const int       curbuf = nvim_get_current_buf(0);
-                struct bufdata *bdata  = find_buffer(curbuf);
+                bufnum                 = nvim_get_current_buf(0);
+                struct bufdata *bdata  = find_buffer(bufnum);
 
                 if (!bdata) {
                         echo("Failed to find buffer! %d -> p: %p\n",
-                             curbuf, (void *)bdata);
+                             bufnum, (void *)bdata);
                         goto try_attach;
                 }
 
                 if (update_taglist(bdata)) {
-                        update_highlight(curbuf, bdata);
+                        update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
                         SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
                 }
@@ -416,7 +420,6 @@ get_init_lines(struct bufdata *bdata)
         if (bdata->lines->qty == 1)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
-        /* free(tmp); */
 
         free(tmp->lst);
         free(tmp);

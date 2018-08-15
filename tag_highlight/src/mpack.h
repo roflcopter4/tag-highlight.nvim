@@ -113,6 +113,12 @@ struct atomic_call_array {
         uint32_t mlen;
 };
 
+union universal_retval {
+        void    *ptr;
+        int64_t  num;
+};
+typedef union universal_retval retval_t;
+
 
 /*============================================================================*/
 
@@ -183,6 +189,7 @@ extern void     destroy_call_array  (struct atomic_call_array *calls);
 /* extern void   * get_expect          (mpack_obj *result, mpack_type_t expect, bool destroy, bool is_retval); */
 
 void      * m_expect    (mpack_obj *obj, mpack_expect_t type, bool destroy);
+retval_t m_expect_2  (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
 static inline void
 destroy_mpack_dict(mpack_dict_t *dict)

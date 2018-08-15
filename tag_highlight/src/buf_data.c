@@ -103,7 +103,7 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
         bdata->num         = bufnum;
         bdata->thread_pid  = (-1);
 
-        ll_append(bdata->lines, b_fromlit(""));
+        /* ll_append(bdata->lines, b_fromlit("")); */
 
         /* Buf is only initialized after nvim sends the first 'lines' update. */
         bdata->initialized = false;
@@ -357,13 +357,13 @@ check_norecurse_directories(const bstring *const dir)
 static bstring *
 check_project_directories(bstring *dir)
 {
-        b_list *candidates = b_list_create();
-
         FILE *fp = fopen(BS(settings.settings_file), "rb");
         if (!fp)
                 return dir;
 
+        b_list  *candidates = b_list_create();
         bstring *tmp;
+
         while ((tmp = B_GETS(fp, '\n', false))) {
                 if (strstr(BS(dir), BS(tmp)))
                         b_list_append(&candidates, tmp);

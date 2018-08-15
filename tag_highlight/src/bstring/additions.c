@@ -466,6 +466,51 @@ b_list_clone(const b_list *const list)
         return ret;
 }
 
+
+b_list *
+b_list_clone_swap(b_list *list)
+{
+        if (!list || !list->lst)
+                RETURN_NULL();
+
+        b_list *ret = b_list_create_alloc(list->qty);
+
+        for (unsigned i = 0; i < list->qty; ++i) {
+                ret->lst[ret->qty] = b_clone_swap(list->lst[i]);
+                ++ret->qty;
+        }
+
+        return ret;
+}
+
+int
+b_list_writeprotect(b_list *list)
+{
+        if (!list || !list->lst)
+                RUNTIME_ERROR();
+
+        unsigned i;
+        B_LIST_FOREACH(list, bstr, i)
+                if (!INVALID(bstr))
+                        b_writeprotect(bstr);
+
+        return BSTR_OK;
+}
+
+int
+b_list_writeallow(b_list *list)
+{
+        if (!list || !list->lst)
+                RUNTIME_ERROR();
+
+        unsigned i;
+        B_LIST_FOREACH(list, bstr, i)
+                if (!INVALID(bstr))
+                        b_writeallow(bstr);
+
+        return BSTR_OK;
+}
+
 int
 b_list_merge(b_list **dest, b_list *src, const int flags)
 {
