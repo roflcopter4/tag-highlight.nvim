@@ -105,13 +105,13 @@
 
 
 #define btp_fromblk(BLK, LEN) \
-        ((bstring[]){{.slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u}})
+        (bstring[]){ {.slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u} }
 
 #define btp_fromcstr(STR_) \
-        ((bstring[]){{.slen = strlen(STR_), .mlen = 0, .data = ((uchar *)(STR_)), .flags = 0x00u}})
+        (bstring[]){ {.slen = strlen(STR_), .mlen = 0, .data = ((uchar *)(STR_)), .flags = 0x00u} }
 
 #define btp_fromarray(CARRAY_) \
-        ((bstring[]){{.slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .data  = ((unsigned char *)(CARRAY_)), .flags = 0}})
+        (bstring[]){ {.slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .data  = ((unsigned char *)(CARRAY_)), .flags = 0} }
 
 
 #define b_litsiz                   b_staticBlkParms
@@ -301,8 +301,8 @@ BSTR_PUBLIC int        b_fprintf(FILE *out_fp, const bstring *fmt, ...);
 BSTR_PUBLIC int        b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args);
 BSTR_PUBLIC int        b_dprintf(const int out_fd, const bstring *fmt, ...);
 BSTR_PUBLIC int        b_vdprintf(const int out_fd, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_sprintf_a(bstring *dest, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vsprintf_a(bstring *dest, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_sprintfa(bstring *dest, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vsprintfa(bstring *dest, const bstring *fmt, va_list args);
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)

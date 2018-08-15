@@ -7,9 +7,9 @@
 #include "data.h"
 
 
-extern bool run_ctags(struct bufdata *bdata, struct top_dir *topdir);
+extern bool run_ctags(struct bufdata *bdata);
 /* extern bool check_gzfile(struct bufdata *bdata); */
-extern int get_initial_taglist(struct bufdata *bdata, struct top_dir *topdir);
+extern int get_initial_taglist(struct bufdata *bdata);
 extern int update_taglist(struct bufdata *bdata);
 
 extern void update_highlight(int bufnum, struct bufdata *bdata);

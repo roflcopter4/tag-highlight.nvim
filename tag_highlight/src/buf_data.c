@@ -32,7 +32,6 @@
 
 
 extern b_list         *seen_files;
-static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void            log_prev_file(const bstring *filename);
 static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
@@ -53,7 +52,7 @@ new_buffer(const int fd, const int bufnum)
                         return false;
 
         struct ftdata_s *tmp = NULL;
-        bstring         *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING);
+        bstring         *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING).ptr;
         assert(ft != NULL);
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
@@ -103,11 +102,8 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
         bdata->num         = bufnum;
         bdata->thread_pid  = (-1);
 
-        /* ll_append(bdata->lines, b_fromlit("")); */
-
         /* Buf is only initialized after nvim sends the first 'lines' update. */
         bdata->initialized = false;
-
         /* Topdir init must be the last step. */
         bdata->topdir = init_topdir(fd, bdata);
 
@@ -124,7 +120,6 @@ destroy_bufdata(struct bufdata **bdata)
         if (!process_exiting)
                 log_prev_file((*bdata)->filename);
 
-        /* pthread_kill((*bdata)->thread_pid, SIGUSR1); */
         b_destroy((*bdata)->filename);
         ll_destroy((*bdata)->lines);
         b_list_destroy((*bdata)->cmd_cache);
@@ -142,13 +137,9 @@ destroy_bufdata(struct bufdata **bdata)
                 b_destroy(topdir->tmpfname);
                 b_list_destroy(topdir->tags);
 
-                /* const int index = topdir->index; */
-
                 for (unsigned i = 0; i < top_dirs->qty; ++i)
                         if (top_dirs->lst[i] == topdir)
                                 genlist_remove(top_dirs, i);
-                /* xfree(topdir); */
-                /* top_dirs->lst[index] = NULL; */
         }
 
         xfree(*bdata);
@@ -243,42 +234,6 @@ init_topdir(const int fd, struct bufdata *bdata)
         const bool is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
         bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
 
-#if 0
-        if (is_c) {
-                for (unsigned i = 0; i < top_dirs.mlen; ++i) {
-                        if (top_dirs.lst[i] &&
-                            top_dirs.lst[i]->ftid == bdata->ft->id &&
-                            b_iseq(top_dirs.lst[i]->pathname, base))
-                        {
-                                ++top_dirs.lst[i]->refs;
-                                b_destroy(base);
-                                return top_dirs.lst[i];
-                        }
-                }
-        } else {
-                for (unsigned i = 0; i < top_dirs.mlen; ++i) {
-                        if (top_dirs.lst[i] &&
-                            b_iseq(top_dirs.lst[i]->pathname, base))
-                        {
-                                ++top_dirs.lst[i]->refs;
-                                b_destroy(base);
-                                return top_dirs.lst[i];
-                        }
-                }
-        }
-#endif
-#if 0
-        for (unsigned i = 0; i < top_dirs.mlen; ++i) {
-                if (top_dirs.lst[i] &&
-                    top_dirs.lst[i]->ftid == bdata->ft->id &&
-                    b_iseq(top_dirs.lst[i]->pathname, base))
-                {
-                        ++top_dirs.lst[i]->refs;
-                        b_destroy(base);
-                        return top_dirs.lst[i];
-                }
-        }
-#endif
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
                 echo("Comparing '%s' to '%s'", BS(((struct top_dir *)(top_dirs->lst[i]))->pathname), BS(base));
                 if (b_iseq(((struct top_dir *)(top_dirs->lst[i]))->pathname, base)) {
@@ -291,7 +246,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         echo("Initializing new topdir \"%s\"\n", BS(dir));
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
-        tmp->tmpfname = nvim_call_function(fd, B("tempname"), E_STRING);
+        tmp->tmpfname = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
         tmp->tmpfd    = safe_open(BS(tmp->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tmp->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
         tmp->ftid     = bdata->ft->id;
@@ -332,9 +287,6 @@ init_topdir(const int fd, struct bufdata *bdata)
 
         assert(ret == BSTR_OK);
 
-        /* get_initial_taglist(bdata, tmp); */
-        /* top_dirs.lst[top_dirs.mkr] = tmp;
-        NEXT_MKR(top_dirs); */
         genlist_append(&top_dirs, tmp);
         if (!recurse || is_c)
                 b_free(base);
@@ -399,20 +351,24 @@ check_project_directories(bstring *dir)
 static void
 init_filetype(const int fd, struct ftdata_s *ft)
 {
+        static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
         if (ft->initialized)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
+        ft->initialized = true;
+
         echo("Init filetype called for ft %s\n", BTS(ft->vim_name));
 
-        ft->initialized = true;
-        ft->order = nvim_get_var_fmt(fd, E_STRING, "tag_highlight#%s#order", BTS(ft->vim_name));
-
+        ft->order          = nvim_get_var_fmt(fd, E_STRING, "tag_highlight#%s#order",
+                                              BTS(ft->vim_name)).ptr;
         mpack_array_t *tmp = dict_get_key(settings.ignored_tags,
-                                          E_MPACK_ARRAY, &ft->vim_name);
-        ft->ignored_tags = (tmp) ? mpack_array_to_blist(tmp, false) : NULL;
+                                          E_MPACK_ARRAY, &ft->vim_name).ptr;
 
-        mpack_dict_t *equiv = nvim_get_var_fmt(
-            fd, E_MPACK_DICT, "tag_highlight#%s#equivalent", BTS(ft->vim_name));
+        ft->ignored_tags    = (tmp) ? mpack_array_to_blist(tmp, false) : NULL;
+        mpack_dict_t *equiv = nvim_get_var_fmt(fd, E_MPACK_DICT,
+                                               "tag_highlight#%s#equivalent",
+                                               BTS(ft->vim_name)).ptr;
+
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
 

@@ -46,17 +46,15 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         echo("Updating commands for bufnum %d", bufnum);
 
         if (!bdata->ft->restore_cmds_initialized) {
-                /* b_list *restored_groups = blist_from_var_pkg(
-                                0, "restored_groups", &bdata->ft->vim_name, 0); */
-                /* mpack_obj *tmp = blist_from_var_pkg(0, "restored_groups", 0); */
+                mpack_dict_t *tmp = nvim_get_var(
+                        0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
 
-                mpack_dict_t *tmp       = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT);
-                b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name);
+                b_list *restored_groups = dict_get_key(
+                        tmp, E_STRLIST, &bdata->ft->vim_name).ptr;
 
                 if (restored_groups)
                         b_list_writeprotect(restored_groups);
                 destroy_mpack_dict(tmp);
-
                 if (restored_groups) {
                         b_list_writeallow(restored_groups);
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
@@ -120,12 +118,12 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 const int     ch   = bdata->ft->order->data[i];
                 mpack_dict_t *dict = nvim_get_var_fmt(0, E_MPACK_DICT,
                                                       PKG "#%s#%c",
-                                                      BTS(bdata->ft->vim_name), ch);
+                                                      BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind   = ch;
-                info[i].group  = dict_get_key(dict, E_STRING, B("group"));
-                info[i].prefix = dict_get_key(dict, E_STRING, B("prefix"));
-                info[i].suffix = dict_get_key(dict, E_STRING, B("suffix"));
+                info[i].group  = dict_get_key(dict, E_STRING, B("group")).ptr;
+                info[i].prefix = dict_get_key(dict, E_STRING, B("prefix")).ptr;
+                info[i].suffix = dict_get_key(dict, E_STRING, B("suffix")).ptr;
 
                 b_writeprotect(info[i].group);
                 b_writeprotect(info[i].prefix);
@@ -176,38 +174,38 @@ handle_kind(bstring *cmd, unsigned i,
 {
         bstring *group_id = b_sprintf(B("_tag_highlight_%s_%c_%s"),
                                       &ft->vim_name, info->kind, info->group);
-        b_sprintf_a(cmd, B("silent! syntax clear %s | "), group_id);
+        b_sprintfa(cmd, B("silent! syntax clear %s | "), group_id);
 
         if (info->prefix || info->suffix) {
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
-                b_sprintf_a(cmd, B("syntax match %s /%s\\%%(%s"),
+                b_sprintfa(cmd, B("syntax match %s /%s\\%%(%s"),
                                  group_id, prefix, tags->lst[i++]->b);
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
-                                b_sprintf_a(cmd, B("\\|%s"), tags->lst[i]->b);
+                                b_sprintfa(cmd, B("\\|%s"), tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_sprintf_a(cmd, B("\\)%s/ display | hi def link %s %s"),
+                b_sprintfa(cmd, B("\\)%s/ display | hi def link %s %s"),
                             suffix, group_id, info->group);
         } else {
-                b_sprintf_a(cmd, B(" syntax keyword %s %s "),
+                b_sprintfa(cmd, B(" syntax keyword %s %s "),
                             group_id, tags->lst[i++]->b);
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
                         if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
-                                b_sprintf_a(cmd, B("%s "), tags->lst[i]->b);
+                                b_sprintfa(cmd, B("%s "), tags->lst[i]->b);
                                 ++usable;
                         }
                 }
 
-                b_sprintf_a(cmd, B("display | hi def link %s %s"),
+                b_sprintfa(cmd, B("display | hi def link %s %s"),
                             group_id, info->group);
         }
 
@@ -229,10 +227,10 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
                 const int     ch   = bdata->ft->order->data[i];
                 mpack_dict_t *dict = nvim_get_var_fmt(0, E_MPACK_DICT,
                                                       PKG "#%s#%c",
-                                                      BTS(bdata->ft->vim_name), ch);
-                bstring *group = dict_get_key(dict, E_STRING, B("group"));
+                                                      BTS(bdata->ft->vim_name), ch).ptr;
+                bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
 
-                b_sprintf_a(cmd, B("silent! syntax clear _tag_highlight_%s_%c_%s"),
+                b_sprintfa(cmd, B("silent! syntax clear _tag_highlight_%s_%c_%s"),
                             &bdata->ft->vim_name, ch, group);
 
                 if (i < (bdata->ft->order->slen - 1))
@@ -256,9 +254,8 @@ get_restore_cmds(b_list *restored_groups)
         b_list *allcmds = b_list_create_alloc(restored_groups->qty);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                bstring *cmd = b_format("syntax list %s", BS(restored_groups->lst[i]));
-                //echo("Our next command is '%s'", BS(cmd));
-                bstring *output = nvim_command_output(0, cmd, E_STRING);
+                bstring *cmd    = b_sprintf(B("syntax list %s"), restored_groups->lst[i]);
+                bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
                 b_destroy(cmd);
                 if (!output)
                         continue;
@@ -272,7 +269,7 @@ get_restore_cmds(b_list *restored_groups)
 
                 ptr += 4;
                 assert(!isblank(*ptr));
-                b_sprintf_a(cmd, B("syntax clear %s | "), restored_groups->lst[i]);
+                b_sprintfa(cmd, B("syntax clear %s | "), restored_groups->lst[i]);
 
                 b_list *toks = b_list_create();
 
@@ -281,7 +278,7 @@ get_restore_cmds(b_list *restored_groups)
                 if (strncmp(ptr, SLS("match /")) != 0) {
                         char *tmp;
                         char link_name[1024];
-                        b_sprintf_a(cmd, B("syntax keyword %s "), restored_groups->lst[i]);
+                        b_sprintfa(cmd, B("syntax keyword %s "), restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
                                 b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
@@ -301,7 +298,7 @@ get_restore_cmds(b_list *restored_groups)
 
                         const size_t n = strlcpy(link_name, (ptr += 9), 1024);
                         assert(n > 0);
-                        b_sprintf_a(cmd, B(" | hi! link %s %s"),
+                        b_sprintfa(cmd, B(" | hi! link %s %s"),
                                     restored_groups->lst[i], btp_fromcstr(link_name));
 
                         b_list_append(&allcmds, cmd);
@@ -335,7 +332,6 @@ add_cmd_call(struct atomic_call_array **calls, bstring *cmd)
 {
         assert(calls);
         if (!*calls) {
-                /* echo("allocating calls..."); */
                 (*calls)        = xmalloc(sizeof **calls);
                 (*calls)->mlen  = 16;
                 (*calls)->fmt   = xcalloc(sizeof(char *), (*calls)->mlen);

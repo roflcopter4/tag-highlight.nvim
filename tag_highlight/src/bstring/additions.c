@@ -1267,13 +1267,13 @@ b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
 
 
 int
-b_sprintf_a(bstring *dest, const bstring *fmt, ...)
+b_sprintfa(bstring *dest, const bstring *fmt, ...)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();
         va_list ap;
         va_start(ap, fmt);
-        const int ret = b_vsprintf_a(dest, fmt, ap);
+        const int ret = b_vsprintfa(dest, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1281,7 +1281,7 @@ b_sprintf_a(bstring *dest, const bstring *fmt, ...)
 
 
 int
-b_vsprintf_a(bstring *dest, const bstring *fmt, va_list args)
+b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();

@@ -51,7 +51,6 @@ NORETURN static void sigusr_wrap(UNUSED int notused);
 
 /*======================================================================================*/
 
-extern union universal_retval nvim_get_var_2(int fd, const bstring *varname, mpack_expect_t expect);
 
 int
 main(UNUSED int argc, char *argv[])
@@ -96,20 +95,17 @@ main(UNUSED int argc, char *argv[])
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
         settings.comp_type       = get_compression_type(0);
-        settings.comp_level      = P2I(nvim_get_var_pkg(0, "compression_level", E_NUM));
-        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args", E_STRLIST);
-        settings.enabled         = P2I(nvim_get_var_pkg(0, "enabled", E_BOOL));
-        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore", E_STRLIST);
-        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags", E_MPACK_DICT);
-        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs", E_STRLIST);
-        settings.settings_file   = nvim_get_var_pkg(0, "settings_file", E_STRING);
-        settings.use_compression = P2I(nvim_get_var_pkg(0, "use_compression", E_BOOL));
-        settings.verbose         = P2I(nvim_get_var_pkg(0, "verbose", E_BOOL));
+        settings.comp_level      = nvim_get_var_pkg(0, "compression_level", E_NUM        ).num;
+        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args",        E_STRLIST    ).ptr;
+        settings.enabled         = nvim_get_var_pkg(0, "enabled",           E_BOOL       ).num;
+        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore",            E_STRLIST    ).ptr;
+        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags",      E_MPACK_DICT ).ptr;
+        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs",    E_STRLIST    ).ptr;
+        settings.settings_file   = nvim_get_var_pkg(0, "settings_file",     E_STRING     ).ptr;
+        settings.use_compression = nvim_get_var_pkg(0, "use_compression",   E_BOOL       ).num;
+        settings.verbose         = nvim_get_var_pkg(0, "verbose",           E_BOOL       ).num;
 
         assert(settings.enabled);
-
-        int64_t test1 = nvim_get_var_2(0, B("huge_number"), E_NUM).num;
-        echo("Test: %"PRId64, test1);
 
         open_main_log();
         int initial_buf;
@@ -125,13 +121,16 @@ main(UNUSED int argc, char *argv[])
 
                 initial_buf = nvim_get_current_buf(0);
                 if (new_buffer(0, initial_buf)) {
+                        struct timeval  tv2;
                         struct bufdata *bdata = find_buffer(initial_buf);
 
                         nvim_buf_attach(1, initial_buf);
                         get_init_lines(bdata);
-
-                        get_initial_taglist(bdata, bdata->topdir);
+                        get_initial_taglist(bdata);
                         update_highlight(initial_buf, bdata);
+
+                        gettimeofday(&tv2, NULL);
+                        SHOUT("Time for file initialization: %Lfs", TDIFF(gtv, tv2));
                 }
         }
 
@@ -172,7 +171,7 @@ interrupt_call(void *vdata)
         struct int_pdata      *data      = vdata;
         struct timeval         ltv1, ltv2;
 
-        /* pthread_mutex_lock(&int_mutex); */
+        pthread_mutex_lock(&int_mutex);
 
         echo("Recieved \"%c\"; waking up!\n", data->val);
 
@@ -195,8 +194,7 @@ interrupt_call(void *vdata)
                                 bdata = find_buffer(bufnum);
 
                                 get_init_lines(bdata);
-
-                                get_initial_taglist(bdata, bdata->topdir);
+                                get_initial_taglist(bdata);
                                 update_highlight(bufnum, bdata);
 
                                 gettimeofday(&ltv2, NULL);
@@ -205,7 +203,7 @@ interrupt_call(void *vdata)
                         }
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
-                                get_initial_taglist(bdata, bdata->topdir);
+                                get_initial_taglist(bdata);
                         fsleep(0.05);
 
                         update_highlight(bufnum, bdata);
@@ -263,7 +261,7 @@ interrupt_call(void *vdata)
         }
 
         free(vdata);
-        /* pthread_mutex_unlock(&int_mutex); */
+        pthread_mutex_unlock(&int_mutex);
         pthread_exit(NULL);
 }
 
@@ -283,6 +281,7 @@ exit_cleanup(void)
 
         process_exiting = true;
 
+        b_free(settings.settings_file);
         b_list_destroy(seen_files);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
@@ -292,7 +291,9 @@ exit_cleanup(void)
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
 
-        genlist_destroy(top_dirs);
+        /* genlist_destroy(top_dirs); */
+        free(top_dirs->lst);
+        free(top_dirs);
 
         for (unsigned i = 0; i < ftdata_len; ++i)
                 if (ftdata[i].initialized) {
@@ -333,7 +334,7 @@ exit_cleanup(void)
 static int
 create_socket(const int mes_fd)
 {
-        bstring *name = nvim_call_function(mes_fd, B("serverstart"), E_STRING);
+        bstring *name = nvim_call_function(mes_fd, B("serverstart"), E_STRING).ptr;
 
 #ifdef DOSISH
         const int fd = safe_open(BS(name), O_RDWR|O_BINARY, 0);
@@ -359,7 +360,7 @@ create_socket(const int mes_fd)
 static comp_type_t
 get_compression_type(const int fd)
 {
-        bstring *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING);
+        bstring *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING).ptr;
         enum comp_type_e  ret = COMP_NONE;
 
         if (b_iseq(tmp, B("gzip"))) {

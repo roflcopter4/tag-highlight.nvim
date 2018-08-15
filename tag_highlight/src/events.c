@@ -17,14 +17,14 @@ static const struct event_id {
     { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
     { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
     { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
-    { BT("vim_event_update"),           EVENT_VIM_UPDATE }
+    { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
 
 
 #if defined(DEBUG) && defined(WRITE_BUF_UPDATES)
 static inline void b_write_ll(int fd, linked_list *ll);
 #endif
-static void handle_line_event(unsigned index, mpack_obj **items);
+static void handle_line_event(struct bufdata *bdata, mpack_obj **items);
 static void replace_line(struct bufdata *bdata, b_list *repl_list,
                          unsigned lineno, unsigned replno);
 static const struct event_id *id_event(mpack_obj *event);
@@ -55,10 +55,7 @@ handle_nvim_event(mpack_obj *event)
         if (!event)
                 return (-1);
 
-        mpack_array_t *arr = m_expect(m_index(event, 2), E_MPACK_ARRAY, false);
-
-        /* pthread_mutex_lock(&event_mutex); */
-        /* pthread_mutex_lock(&update_mutex); */
+        mpack_array_t *arr = m_expect(m_index(event, 2), E_MPACK_ARRAY, false).ptr;
 
 #ifdef DEBUG
         mpack_print_object(main_log, event);
@@ -77,21 +74,22 @@ handle_nvim_event(mpack_obj *event)
                 MAKE_PTHREAD_ATTR_DETATCHED(&attr);
                 pthread_create(&tmp, &attr, interrupt_call, data);
         } else {
-                const unsigned  bufnum = P2I(m_expect(arr->items[0], E_NUM, false));
-                const int       index  = find_buffer_ind(bufnum);
-                struct bufdata *bdata  = buffers.lst[index];
+                const unsigned  bufnum = m_expect(arr->items[0], E_NUM, false).num;
+                struct bufdata *bdata  = find_buffer(bufnum);
                 if (!bdata)
                         errx(1, "Update called on uninitialized buffer.");
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
-                        handle_line_event(index, arr->items);
+                        if (arr->qty < 5)
+                                errx(1, "Array is too small (%d, expect >= 5)", arr->qty);
+                        handle_line_event(bdata, arr->items);
                         break;
                 case EVENT_BUF_CHANGED_TICK:
-                        bdata->ctick = P2I(m_expect(arr->items[1], E_NUM, false));
+                        bdata->ctick = m_expect(arr->items[1], E_NUM, false).num;
                         break;
                 case EVENT_BUF_DETACH:
-                        destroy_bufdata(buffers.lst + index);
+                        destroy_bufdata(&bdata);
                         echo("Detaching from buffer %d\n", bufnum);
                         break;
                 default:
@@ -99,8 +97,6 @@ handle_nvim_event(mpack_obj *event)
                 }
         }
 
-        /* pthread_mutex_unlock(&event_mutex); */
-        /* pthread_mutex_unlock(&update_mutex); */
         return type->id;
 }
 
@@ -109,30 +105,26 @@ handle_nvim_event(mpack_obj *event)
 
 
 static void
-handle_line_event(const unsigned index, mpack_obj **items)
+handle_line_event(struct bufdata *bdata, mpack_obj **items)
 {
-        pthread_mutex_lock(&event_mutex);
         assert(!items[5]->data.boolean);
-        struct bufdata *bdata     = buffers.lst[index];
-        b_list         *repl_list = mpack_array_to_blist(items[4]->data.arr, true);
-        items[4]->data.arr    = NULL;
-        bdata->ctick          = items[1]->data.num;
-        const int64_t first   = items[2]->data.num;
-        const int64_t last    = items[3]->data.num;
-        int64_t       diff    = (last - first);
-        const int64_t iters   = MAX(diff, repl_list->qty);
-        bool          empty   = false;
+        pthread_mutex_lock(&event_mutex);
+
+        bdata->ctick            = m_expect(items[1], E_NUM, false).num;
+        const int64_t first     = m_expect(items[2], E_NUM, false).num;
+        const int64_t last      = m_expect(items[3], E_NUM, false).num;
+        b_list       *repl_list = m_expect(items[4], E_STRLIST, false).ptr;
+        int64_t       diff      = (last - first);
+        const int64_t iters     = MAX(diff, repl_list->qty);
+        bool          empty     = false;
+        items[4]->data.arr      = NULL;
 
         if (repl_list->qty) {
                 if (last == (-1)) {
-                        echo("Got initial update!");
+                        echo("Got initial update somehow...");
                         abort();
-                        if (bdata->lines->qty == 1)
-                                ll_delete_node(bdata->lines, bdata->lines->head);
-                        ll_insert_blist_after(bdata->lines, bdata->lines->head, repl_list, 0, (-1));
                 } else if (bdata->lines->qty <= 1 && first == 0 &&
-                    repl_list->qty == 1 && repl_list->lst[0]->slen == 0)
-                {
+                           repl_list->qty == 1 && repl_list->lst[0]->slen == 0) {
                         /* Useless update, one empty string in an empty buffer.
                          * Just ignore it. */
                         echo("empty update, ignoring");

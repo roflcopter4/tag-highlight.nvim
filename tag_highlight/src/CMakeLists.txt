@@ -107,6 +107,9 @@ else()
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
     
+    # # target_link_libraries(tag_highlight "/usr/lib/clang/8.0.0/lib/linux/libclang_rt.asan-x86_64.so")
+    target_link_libraries(tag_highlight -lunwind)
+
     # target_link_libraries(tag_highlight archive_util bstring neotags contrib)
 
 #    target_link_libraries(tag_highlight -lpcre2-8)

@@ -113,11 +113,10 @@ struct atomic_call_array {
         uint32_t mlen;
 };
 
-union universal_retval {
+typedef union {
         void    *ptr;
         int64_t  num;
-};
-typedef union universal_retval retval_t;
+} retval_t;
 
 
 /*============================================================================*/
@@ -134,20 +133,20 @@ extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, u
 extern unsigned   nvim_buf_get_changedtick(int fd, int bufnum);
 extern b_list   * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end);
 extern bstring  * nvim_buf_get_name       (int fd, int bufnum);
-extern void     * nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect);
-extern void     * nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect);
+extern retval_t   nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect);
+extern retval_t   nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect);
 extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
 extern void       nvim_call_atomic        (int fd, const struct atomic_call_array *calls);
-extern void     * nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect);
-extern void     * nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
+extern retval_t   nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect);
+extern retval_t   nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
 extern bool       nvim_command            (int fd, const bstring *cmd);
-extern void     * nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect);
+extern retval_t   nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect);
 extern void       nvim_get_api_info       (int fd);
 extern int        nvim_get_current_buf    (int fd);
 extern bstring  * nvim_get_current_line   (int fd);
-extern void     * nvim_get_option         (int fd, const bstring *optname, mpack_expect_t expect);
-extern void     * nvim_get_var            (int fd, const bstring *varname, mpack_expect_t expect);
-extern void     * nvim_list_bufs          (int fd);
+extern retval_t   nvim_get_option         (int fd, const bstring *optname, mpack_expect_t expect);
+extern retval_t   nvim_get_var            (int fd, const bstring *varname, mpack_expect_t expect);
+extern retval_t   nvim_list_bufs          (int fd);
 extern void       nvim_subscribe          (int fd, const bstring *event);
 extern bool       nvim_set_var            (int fd, const bstring *varname, const bstring *fmt, ...);
 
@@ -181,15 +180,14 @@ extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, 
 /* Type conversions and Misc */
 
 extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
-/* extern b_list * blist_from_var_fmt  (int fd, const char *fmt, ...) __attribute__((format(printf, 2, 3))); */
-extern void   * nvim_get_var_fmt    (int fd, mpack_expect_t expect, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
-extern void   * dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
+extern retval_t nvim_get_var_fmt    (int fd, mpack_expect_t expect, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+extern retval_t dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
 extern void     destroy_call_array  (struct atomic_call_array *calls);
+extern retval_t m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
+/* extern b_list * blist_from_var_fmt  (int fd, const char *fmt, ...) __attribute__((format(printf, 2, 3))); */
 /* extern void   * get_expect          (mpack_obj *result, mpack_type_t expect, bool destroy, bool is_retval); */
-
-void      * m_expect    (mpack_obj *obj, mpack_expect_t type, bool destroy);
-retval_t m_expect_2  (mpack_obj *obj, mpack_expect_t type, bool destroy);
+/* void      * m_expect    (mpack_obj *obj, mpack_expect_t type, bool destroy); */
 
 static inline void
 destroy_mpack_dict(mpack_dict_t *dict)
@@ -260,53 +258,6 @@ extern FILE *mpack_log;
 #else
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
-
-/*============================================================================*/
-
-/* #define mpack_expect(OBJ_, MTYPE_, CAST_, DESTROY_)                                                 \ */
-#define mpack_expect(OBJ_, MTYPE_, DESTROY_)                                                 \
-        ({                                                                                   \
-                mpack_obj *    mobj_ = (OBJ_);                                               \
-                mpack_expect_t etyp_ = (MTYPE_);                                             \
-                bool           dest_ = (bool)(DESTROY_);                                     \
-                union {                                                                      \
-                        int64_t   num;                                                       \
-                        void *    ptr;                                                       \
-                        uintptr_t HAX;                                                       \
-                } hack_;                                                                     \
-                                                                                             \
-                switch (etyp_) {                                                             \
-                case E_MPACK_EXT:                                                            \
-                        hack_.ptr = get_expect(mobj_, MPACK_EXT, dest_, 0);                  \
-                        break;                                                               \
-                case E_MPACK_ARRAY:                                                          \
-                        hack_.ptr = get_expect(mobj_, MPACK_ARRAY, dest_, 0);                \
-                        break;                                                               \
-                case E_MPACK_DICT:                                                           \
-                        hack_.ptr = get_expect(mobj_, MPACK_DICT, dest_, 0);                 \
-                        break;                                                               \
-                case E_MPACK_NIL:                                                            \
-                        hack_.ptr = get_expect(mobj_, MPACK_NIL, dest_, 0);                  \
-                        break;                                                               \
-                case E_NUM: {                                                                \
-                        int64_t *tmp_ = get_expect(mobj_, MPACK_NUM, dest_, 0);              \
-                        hack_.num     = P2I(tmp_);                                 \
-                        break;                                                               \
-                }                                                                            \
-                case E_STRING:                                                               \
-                        hack_.ptr = get_expect(mobj_, MPACK_STRING, dest_, 0);               \
-                        break;                                                               \
-                case E_STRLIST:                                                              \
-                        hack_.ptr = get_expect(mobj_, MPACK_ARRAY, dest_, 0);                \
-                        hack_.ptr = mpack_array_to_blist((mpack_array_t *)hack_.ptr, dest_); \
-                        break;                                                               \
-                case E_DICT2ARR:                                                             \
-                default: abort();                                                            \
-                }                                                                            \
-                                                                                             \
-                /* (CAST_)hack_.HAX;\ */                                                     \
-                hack_.HAX;                                                                   \
-        })
 
 
 /*============================================================================*/

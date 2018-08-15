@@ -89,7 +89,6 @@ genlist *top_dirs = NULL;
 
 struct settings_s   settings        = {0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 0};
 struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
-/* struct top_dir_list top_dirs        = {{ZERO_DATA}, 0, DATA_ARRSIZE}; */
 struct backups      backup_pointers = { NULL, 0, 0 };
 
 

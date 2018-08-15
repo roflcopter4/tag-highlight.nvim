@@ -144,3 +144,59 @@ genlist_copy(const genlist *list, const genlist_copy_func cpy)
 
         return ret;
 }
+
+
+/*======================================================================================*/
+
+
+struct argument_vector *
+argv_create(const unsigned len)
+{
+        struct argument_vector *ret = xmalloc(sizeof(struct argument_vector));
+        ret->lst             = nmalloc(sizeof(char *), len);
+        ret->qty             = 0;
+        ret->mlen            = len;
+        return ret;
+}
+
+
+void
+argv_append(struct argument_vector *lst, const char *str, const bool cpy)
+{
+        if (lst->qty == (lst->mlen - 1))
+                lst->lst = nrealloc(lst->lst, sizeof(char *), (lst->mlen *= 2));
+
+        if (cpy)
+                lst->lst[lst->qty++] = strdup(str);
+        else
+                lst->lst[lst->qty++] = (char *)str;
+}
+
+
+char *
+argv_fmt(const char *const restrict fmt, ...)
+{
+        char *_buf = NULL;
+        va_list _ap;
+        va_start(_ap, fmt);
+#ifdef HAVE_VASPRINTF
+        vasprintf(&_buf, fmt, _ap);
+#else
+        bstring *tmp = b_vformat(fmt, ap);
+        _buf         = BS(tmp);
+        free(tmp);
+#endif
+        va_end(_ap);
+        return _buf;
+}
+
+
+void
+argv_destroy(struct argument_vector *lst)
+{
+        for (unsigned i = 0; i < lst->qty; ++i)
+                if (lst->lst[i])
+                        free(lst->lst[i]);
+        free(lst->lst);
+        free(lst);
+}
