@@ -92,7 +92,7 @@ else()
     set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
 -Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
     set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
-    set (BASE "${WARNS} ${MARCH_SETTING}")
+    set (BASE "${WARNS} ${MARCH_SETTING} -funsigned-char")
 
     string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 

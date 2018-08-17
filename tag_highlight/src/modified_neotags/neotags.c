@@ -127,6 +127,49 @@ skip_tag(const b_list *skip, const bstring *find)
 }
 
 
+static void
+remove_duplicate_tags(struct taglist **taglist_p)
+{
+#define TAG1 (list->lst[i])
+#define TAG2 (list->lst[i - 1])
+        struct taglist *list    = *taglist_p;
+        struct taglist *repl    = xmalloc(sizeof(struct taglist));
+        struct taglist *to_free = alloca(sizeof(struct taglist));
+
+        *repl = (struct taglist){
+                .lst = nmalloc(sizeof(struct tag *), list->qty),
+                .qty  = 0, .mlen = list->qty
+        };
+        *to_free = (struct taglist){
+                .lst = alloca(sizeof(struct tag *) * (size_t)(list->qty)),
+                .qty  = 0, .mlen = list->qty
+        };
+
+        repl->lst[repl->qty++] = list->lst[0];
+
+        for (unsigned i = 1; i < list->qty; ++i) {
+                if (TAG1->kind != TAG2->kind || !b_iseq(TAG1->b, TAG2->b))
+                        repl->lst[repl->qty++] = list->lst[i];
+                else
+                        to_free->lst[to_free->qty++] = list->lst[i];
+        }
+
+        for (unsigned i = 0; i < to_free->qty; ++i) {
+                b_destroy(to_free->lst[i]->b);
+                free(to_free->lst[i]);
+                to_free->lst[i] = NULL;
+        }
+
+        /* free(to_free->lst);
+        free(to_free); */
+        free(list->lst);
+        free(list);
+        *taglist_p = repl;
+#undef TAG1
+#undef TAG2
+}
+
+
 /*============================================================================*/
 
 
@@ -216,7 +259,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         for (int i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
-        free_all(uniq->lst, uniq);
+        free(uniq->lst);
+        free(uniq);
         unsigned total = 0, offset = 0;
 
         for (int T = 0; T < num_threads; ++T)
@@ -224,7 +268,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                         total += out[T]->qty;
         if (total == 0) {
                 warnx("No tags found in buffer.");
-                free_all(tid, out);
+                free(tid);
+                free(out);
                 return NULL;
         }
 
@@ -241,13 +286,18 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                                        out[T]->qty * sizeof(*out));
                                 offset += out[T]->qty;
                         }
-                        free_all(out[T]->lst, out[T]);
+                        free(out[T]->lst);
+                        free(out[T]);
                 }
         }
 
         qsort(alldata, total, sizeof(*alldata), &tag_cmp);
+        warnx("There are %u tags...", ret->qty);
+        remove_duplicate_tags(&ret);
+        warnx("Now there are %u tags...", ret->qty);
 
-        free_all(tid, out);
+        free(tid);
+        free(out);
         return ret;
 }
 

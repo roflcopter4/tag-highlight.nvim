@@ -13,6 +13,9 @@
 #  include <sys/un.h>
 #endif
 
+/* #undef fsleep */
+/* #define fsleep(...) */
+
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
@@ -204,7 +207,7 @@ interrupt_call(void *vdata)
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
-                        fsleep(0.05);
+                        fsleep(0.05L);
 
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);

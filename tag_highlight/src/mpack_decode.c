@@ -47,9 +47,6 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
-//#define LOG(...) fprintf(stderr, __VA_ARGS__)
-#define LOG(...)
-
 
 /*============================================================================*/
 
@@ -86,20 +83,11 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         if (expected_type != MES_ANY &&
             expected_type != (ret->DAI[0]->data.num))
         {
-                /* eprintf("Expected %d but got %"PRId64"\n",
-                        expected_type, ret->DAI[0]->data.num); */
-
                 switch (ret->DAI[0]->data.num) {
-                case MES_REQUEST: 
-                        errx(1, "This will NEVER happen.");
-                case MES_RESPONSE:
-                        mpack_destroy(ret);
-                        return NULL;
-                case MES_NOTIFICATION:
-                        handle_unexpected_notification(ret);
-                        break;
-                default:
-                        abort();
+                default:               abort();
+                case MES_REQUEST:      errx(1, "This will NEVER happen. Probably.");
+                case MES_RESPONSE:     mpack_destroy(ret); return NULL;
+                case MES_NOTIFICATION: handle_unexpected_notification(ret);
                 }
 
                 return decode_stream(fd, expected_type);
@@ -136,10 +124,10 @@ decode_obj(bstring *buf, const enum message_types expected_type)
                 }
 
                 switch (ret->DAI[0]->data.num + 1) {
+                default:               abort();
                 case MES_REQUEST:      errx(1, "This will NEVER happen.");
                 case MES_RESPONSE:     mpack_destroy(ret); return NULL;
-                case MES_NOTIFICATION: handle_unexpected_notification(ret); break;
-                default:               abort();
+                case MES_NOTIFICATION: handle_unexpected_notification(ret);
                 }
 
                 return decode_obj(buf, expected_type);
@@ -208,8 +196,6 @@ decode_array(const read_fn READ, void *src, const uint8_t byte, const struct mpa
         item->data.arr->max   = size;
         item->data.arr->qty   = 0;
 
-        LOG("It is an array! -> 0x%0X => size %u\n", byte, size);
-
         for (unsigned i = 0; i < item->data.arr->max; ++i) {
                 mpack_obj *tmp = do_decode(READ, src);
                 item->DAI[item->data.arr->qty++] = tmp;
@@ -249,8 +235,6 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struc
         item->data.dict->entries = nmalloc(sizeof(struct dict_ent *), size);
         item->data.dict->qty     = item->data.dict->max = size;
 
-        LOG("It is a mpack_dict_t! -> 0x%0X => size %u\n", byte, size);
-
         for (uint32_t i = 0; i < item->data.arr->max; ++i) {
                 item->DDE[i]        = xmalloc(sizeof(struct dict_ent));
                 item->DDE[i]->key   = do_decode(READ, src);
@@ -288,8 +272,6 @@ decode_string(const read_fn READ, void *src, const uint8_t byte, const struct mp
                         ERRMSG();
                 }
         }
-
-        LOG("It is a string! -> 0x%0X : size: %u", byte, size);
 
         item->flags          = MPACK_STRING | MPACK_ENCODE;
         item->data.str       = b_alloc_null(size + 1);
@@ -343,8 +325,6 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
         item->flags    = MPACK_NUM;
         item->data.num = value;
 
-        LOG("It is a signed int32_t! -> 0x%0X : value => %d\n", byte, value);
-
         return item;
 }
 
@@ -384,8 +364,6 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct 
         item->flags    = MPACK_NUM | MPACK_ENCODE;
         item->data.num = (int64_t)value;
 
-        LOG("It is an uint32_t int32_t! -> 0x%0X : value => %u\n", byte, value);
-
         return item;
 }
 
@@ -422,9 +400,6 @@ decode_ext(const read_fn READ, void *src, const struct mpack_masks *mask)
         item->data.ext       = xmalloc(sizeof(mpack_ext_t));
         item->data.ext->type = type;
         item->data.ext->num  = value;
-
-        LOG("It is an extention thingy! -> : data => %d, %d\n",
-            type, value);
 
         return item;
 }
@@ -466,24 +441,21 @@ id_pack_type(const uint8_t byte)
         const struct mpack_masks *mask = NULL;
 
         for (unsigned i = 0; i < m_masks_len; ++i) {
-                if (m_masks[i].fixed) {
-                        if ((byte >> m_masks[i].shift) ==
-                            (m_masks[i].val >> m_masks[i].shift))
-                        {
-                                mask = (m_masks + i);
+                const struct mpack_masks *m = &m_masks[i];
+
+                if (m->fixed) {
+                        if ((byte >> m->shift) == (m->val >> m->shift)) {
+                                mask = m;
                                 break;
                         }
-                } else {
-                        if (byte == m_masks[i].val) {
-                                mask = (m_masks + i);
-                                break;
-                        }
+                } else if (byte == m->val) {
+                        mask = m;
+                        break;
                 }
         }
 
         if (!mask)
                 errx(1, "Failed to identify type for byte 0x%0X.", byte);
-        LOG("Identified 0x%0X as a \"%s\"\n", byte, mask->repr);
 
         return mask;
 }

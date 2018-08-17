@@ -77,7 +77,7 @@ struct bufdata {
         int32_t  thread_pid; // 8 bytes
 
         bstring         *filename;
-        b_list          *cmd_cache;
+        /* b_list          *cmd_cache; */
         linked_list     *lines;
         ll_node         *lastref;
         struct ftdata_s *ft;

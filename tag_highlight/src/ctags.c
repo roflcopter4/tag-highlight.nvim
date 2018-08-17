@@ -80,9 +80,9 @@ run_ctags(struct bufdata *bdata)
                 headers = find_header_files(bdata);
 
         /* Wipe any cached commands if they exist. */
-        if (bdata->cmd_cache) {
-                b_list_destroy(bdata->cmd_cache);
-                bdata->cmd_cache = NULL;
+        if (bdata->calls) {
+                destroy_call_array(bdata->calls);
+                bdata->calls = NULL;
         }
 
         int status = exec_ctags(bdata, headers);
@@ -634,7 +634,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers)
                             bdata->topdir->tmpfname, bdata->filename);
         }
 
-        echo("Running ctags command `%s`", BS(cmd));
+        echo("Running ctags command `CMD.EXE /c %s`", BS(cmd));
 
         /* Yes, this directly uses unchecked user input in a call to system().
          * Frankly, if somehow someone takes over a user's vimrc then they're

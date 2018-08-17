@@ -93,7 +93,7 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
 {
         struct bufdata *bdata = xmalloc(sizeof *bdata);
         bdata->calls       = NULL;
-        bdata->cmd_cache   = NULL;
+        /* bdata->cmd_cache   = NULL; */
         bdata->ctick       = bdata->last_ctick = 0;
         bdata->filename    = nvim_buf_get_name(fd, bufnum);
         bdata->ft          = ft;
@@ -119,10 +119,11 @@ destroy_bufdata(struct bufdata **bdata)
                 return;
         if (!process_exiting)
                 log_prev_file((*bdata)->filename);
+        const int index = find_buffer_ind((*bdata)->num);
 
         b_destroy((*bdata)->filename);
         ll_destroy((*bdata)->lines);
-        b_list_destroy((*bdata)->cmd_cache);
+        /* b_list_destroy((*bdata)->cmd_cache); */
         destroy_call_array((*bdata)->calls);
 
         if (--((*bdata)->topdir->refs) == 0) {
@@ -144,6 +145,7 @@ destroy_bufdata(struct bufdata **bdata)
 
         xfree(*bdata);
         *bdata = NULL;
+        buffers.lst[index] = NULL;
 }
 
 

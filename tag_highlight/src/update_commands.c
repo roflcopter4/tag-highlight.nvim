@@ -63,7 +63,8 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 bdata->ft->restore_cmds_initialized = true;
         }
 
-        if (bdata->cmd_cache) {
+        /* if (bdata->cmd_cache) { */
+        if (bdata->calls) {
                 update_from_cache(bdata);
                 pthread_mutex_unlock(&update_mutex);
                 return;
@@ -110,9 +111,9 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
         const unsigned   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nalloca(ngroups, sizeof(*info));
 
-        if (bdata->cmd_cache)
+        /* if (bdata->cmd_cache)
                 b_list_destroy(bdata->cmd_cache);
-        bdata->cmd_cache = b_list_create();
+        bdata->cmd_cache = b_list_create(); */
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
@@ -185,10 +186,10 @@ handle_kind(bstring *cmd, unsigned i,
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
-                        if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
+                        /* if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) { */
                                 b_sprintfa(cmd, B("\\|%s"), tags->lst[i]->b);
-                                ++usable;
-                        }
+                                /* ++usable;
+                        } */
                 }
 
                 b_sprintfa(cmd, B("\\)%s/ display | hi def link %s %s"),
@@ -199,10 +200,10 @@ handle_kind(bstring *cmd, unsigned i,
 
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                 {
-                        if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) {
+                        /* if (!b_iseq(tags->lst[i]->b, tags->lst[i-1]->b)) { */
                                 b_sprintfa(cmd, B("%s "), tags->lst[i]->b);
-                                ++usable;
-                        }
+                                /* ++usable;
+                        } */
                 }
 
                 b_sprintfa(cmd, B("display | hi def link %s %s"),
