@@ -191,8 +191,8 @@ function! s:Remove_Project(path)
     endif
 endfunction
 
-command! -nargs=? -complete=file TagHighlightAddProject call s:Add_Remove_Project(0, <q-args>)
-command! -nargs=? -complete=file TagHighlightRemoveProject call s:Add_Remove_Project(1, <q-args>)
+command! -nargs=? -complete=file TaghighlightAddProject call s:Add_Remove_Project(0, <q-args>)
+command! -nargs=? -complete=file TaghighlightRemoveProject call s:Add_Remove_Project(1, <q-args>)
 
 " command! tag_highlightToggle call Tag_HighlightToggle()
 " command! tag_highlightVerbosity call tag_highlight#Toggle_Verbosity()

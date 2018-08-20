@@ -63,7 +63,7 @@ new_buffer(const int fd, const int bufnum)
         }
 
         if (!tmp) {
-                echo("Can't identify buffer %d, (ft '%s') bailing!\n", bufnum, BS(ft));
+                ECHO("Can't identify buffer %d, (ft '%s') bailing!\n", bufnum, ft);
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
                 b_destroy(ft);
                 return false;
@@ -245,7 +245,7 @@ init_topdir(const int fd, struct bufdata *bdata)
                 }
         }
 
-        echo("Initializing new topdir \"%s\"\n", BS(dir));
+        ECHO("Initializing new topdir \"%s\"\n", dir);
 
         struct top_dir *tmp = xmalloc(sizeof(struct top_dir));
         tmp->tmpfname = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
@@ -359,7 +359,7 @@ init_filetype(const int fd, struct ftdata_s *ft)
         pthread_mutex_lock(&ftdata_mutex);
         ft->initialized = true;
 
-        echo("Init filetype called for ft %s\n", BTS(ft->vim_name));
+        ECHO("Init filetype called for ft %s\n", &ft->vim_name);
 
         ft->order          = nvim_get_var_fmt(fd, E_STRING, "tag_highlight#%s#order",
                                               BTS(ft->vim_name)).ptr;
@@ -390,7 +390,7 @@ init_filetype(const int fd, struct ftdata_s *ft)
                 xfree(equiv->entries);
                 xfree(equiv);
         } else {
-                echo("No equiv...");
+                ECHO("No equiv...");
                 ft->equiv = NULL;
         }
 

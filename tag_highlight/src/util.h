@@ -13,7 +13,7 @@
 #  define _CRT_NONSTDC_NO_WARNINGS
 #endif
 #ifndef __GNUC__
-//#  define __attribute__(...)
+#  define __attribute__(...)
 #endif
 #ifdef HAVE_CONFIG_H
 #  include "topconfig.h"
@@ -26,7 +26,8 @@
 #  define PACKAGE_STRING "idunno" VERSION
 //#  define _GNU_SOURCE
 #endif
-#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) && !defined(__MINGW64__) && !defined(__MINGW32__)
+#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) && \
+          !defined(__MINGW64__) && !defined(__MINGW32__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
 #  include <io.h>

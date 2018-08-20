@@ -57,24 +57,22 @@ typedef unsigned char uchar;
 
 #define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 
-
 #pragma pack(push, 1)
-struct tagbstring {
-        unsigned slen;
-        unsigned mlen;
-        uchar *data;
-        uint8_t flags;
+typedef struct bstring_s    bstring;
+typedef struct bstring_list b_list;
+
+struct bstring_s {
+        unsigned int   slen;
+        unsigned int   mlen;
+        unsigned char *data;
+        unsigned char  flags;
 };
 #pragma pack(pop)
 
-
 struct bstring_list {
-        unsigned qty;
-        unsigned mlen;
-        struct tagbstring **lst;
+        unsigned  qty;
+        unsigned  mlen;
+        bstring **lst;
 };
-
-typedef struct tagbstring   bstring;
-typedef struct bstring_list b_list;
 
 #endif /* defines.h */

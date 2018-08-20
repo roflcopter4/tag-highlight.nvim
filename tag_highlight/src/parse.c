@@ -126,7 +126,8 @@ next:
 
         b_list_destroy(stripped);
 
-        echo("Finished creating calls, sending %u calls to nvim.", calls->qty);
+        if (calls)
+                echo("Finished creating calls, sending %u calls to nvim.", calls->qty);
 
         nvim_call_atomic(0, calls);
         destroy_call_array(calls);

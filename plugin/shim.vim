@@ -45,6 +45,12 @@ function! s:UpdateTags()
     endif
 endfunction
 
+function! s:ForceUpdateTags()
+    if s:job1 !=# 0
+        call rpcnotify(s:job1, 'vim_event_update', 'F')
+    endif
+endfunction
+
 function! s:StopTagHighlight()
     if s:job1 != 0
         call rpcnotify(s:job1, 'vim_event_update', 'C')
@@ -113,10 +119,10 @@ endfunction
 
 "===============================================================================
 
-command! InitTagHighlight call s:InitTagHighlight()
-command! StopTagHighlight call s:StopTagHighlight()
-command! TagHighlightClear call s:ClearBuffer()
-command! TagHighlightUpdate call s:UpdateTags()
+command! TaghighlightInit call s:InitTagHighlight()
+command! TaghighlightStop call s:StopTagHighlight()
+command! TaghighlightClear call s:ClearBuffer()
+command! TaghighlightUpdate call s:ForceUpdateTags()
 
 if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
     augroup Tag_Highlight_Init

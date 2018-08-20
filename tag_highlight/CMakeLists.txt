@@ -5,10 +5,6 @@ include (CheckFunctionExists)
 include (CheckSymbolExists)
 include (CheckIncludeFile)
 
-if (MSVC OR MINGW)
-    set(ISWIN 1)
-endif()
-
 set (REQUIRED_LZMA_VERSION 5.3.1)
 option(BUILD_DIST "\
 Include the required alpha (and therefore uncommon) liblzma version as a static\
@@ -20,10 +16,14 @@ option(STATIC_LIBS_ONLY "Build with only static libraries.")
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
-if (MSVC OR MINGW OR CYGWIN)
-    if (MSVC OR MINGW)
+if (MSVC OR MINGW)
+    if (MSVC)
         set (USE_PTHREADS 1)
         include_directories("${CMAKE_SOURCE_DIR}/win32_libs/include/pthread")
+        include_directories("${CMAKE_SOURCE_DIR}/win32_libs/include/msvc")
+    elseif (MINGW)
+        find_package (Threads REQUIRED)
+        include_directories("${CMAKE_SOURCE_DIR}/win32_libs/include/msvc")
     endif()
     set (LZMA_SUPPORT 1)
     include_directories("${CMAKE_SOURCE_DIR}/win32_libs/include")
@@ -33,9 +33,6 @@ else()
     find_package (Threads REQUIRED)
     find_package (LibLZMA)
 endif()
-
-# find_package(LibArchive REQUIRED)
-# pkg_check_modules(mytags_LIBARCHIVE libarchive)
 
 set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE -DHAVE_CONFIG_H)
 
@@ -64,8 +61,6 @@ endif()
 
 if (THREADS_HAVE_PTHREAD_ARG)
     set (USE_PTHREADS 1)
-#else()
-#    message(FATAL_ERROR "POSIX pthreads are required!")
 endif()
 
 ###############################################################################
@@ -82,31 +77,41 @@ if (MSVC)
     set (CMAKE_C_FLAGS_DEBUG "/GS /TC /Wall /ZI /Gm- /Od /RTC1 /Gd /Oi /MDd /FC /MP /arch:AVX2 /DDEBUG")
     set (CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_RELEASE})
     set (CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE})
+
 else()
+    
+    if (MINGW)
+        add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
+        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
+-Werror=pointer-to-int-cast -Werror=int-conversion")
+    else()
+        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
+-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
+    endif()
+
     CHECK_INCLUDE_FILE ("unistd.h" HAVE_UNISTD_H)
     if (NOT BUILD_DIST) 
         set (MARCH_SETTING "-march=native")
     endif()
 
     # set (WARNS "-fdiagnostics-color=always -Weverything")
-    set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
--Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
-    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
-    set (BASE "${WARNS} ${MARCH_SETTING} -funsigned-char")
+
+    # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
+    set (BASE "${WARNS} ${MARCH_SETTING}")
 
     string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
     if (CLANG_STR_SEARCH EQUAL -1)
-        set (ISCLANG 0)
 
-        # set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -O0 -g -Wextra -Wpedantic -Wformat")
-        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g -Wextra -Wpedantic -Wformat")
+        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -O0 -g -Wextra -Wpedantic -Wformat")
+        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g -Wextra -Wpedantic -Wformat")
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
 
     else() # CLANG
-        set (ISCLANG 1)
 
-        set (BASE "${BASE} ")
+        # set (BASE "${BASE} -fprofile-instr-generate")
+        # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
+        set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
         set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
@@ -120,7 +125,7 @@ else()
     endif()
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${BASE} -Os")
-    set (CMAKE_C_FLAGS_RELEASE        "${BASE} -O3")
+    set (CMAKE_C_FLAGS_RELEASE        "${BASE} -Ofast -ftree-vectorize")
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
     set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
@@ -131,8 +136,5 @@ add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/jsmn")
-
 configure_file(cmake-config.h.in topconfig.h)
-
 add_subdirectory(src)
-

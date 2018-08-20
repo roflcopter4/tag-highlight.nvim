@@ -39,7 +39,7 @@ handle_unexpected_notification(mpack_obj *note)
         mpack_print_object(mpack_log, note);
         fflush(mpack_log);
         if (!note)
-                echo("Object is null!!!!");
+                ECHO("Object is null!!!!");
         else if (note->DAI[0]->data.num == MES_NOTIFICATION)
                 handle_nvim_event(note);
         else
@@ -90,7 +90,7 @@ handle_nvim_event(mpack_obj *event)
                         break;
                 case EVENT_BUF_DETACH:
                         destroy_bufdata(&bdata);
-                        echo("Detaching from buffer %d\n", bufnum);
+                        ECHO("Detaching from buffer %d\n", bufnum);
                         break;
                 default:
                         abort();
@@ -121,13 +121,13 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         if (repl_list->qty) {
                 if (last == (-1)) {
-                        echo("Got initial update somehow...");
+                        ECHO("Got initial update somehow...");
                         abort();
                 } else if (bdata->lines->qty <= 1 && first == 0 &&
                            repl_list->qty == 1 && repl_list->lst[0]->slen == 0) {
                         /* Useless update, one empty string in an empty buffer.
                          * Just ignore it. */
-                        echo("empty update, ignoring");
+                        ECHO("empty update, ignoring");
                         empty = true;
                 } else if (first == 0 && last == 0) {
                         /* Inserting above the first line in the file. */
@@ -188,7 +188,7 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         b_write_ll(tempfd, bdata->lines);
         close(tempfd);
-        echo("Done writing file - %s", BS(fn));
+        ECHO("Done writing file - %s", fn);
         b_free(fn);
 
 #  endif

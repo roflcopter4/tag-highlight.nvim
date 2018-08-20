@@ -72,7 +72,7 @@ struct ftdata_s ftdata[] = {
     { NULL, NULL, NULL, NULL, BI("rust"),       BI("rust"),       FT_RUST,       0, 0 },
     { NULL, NULL, NULL, NULL, BI("sh"),         BI("sh"),         FT_SHELL,      0, 0 },
     { NULL, NULL, NULL, NULL, BI("vim"),        BI("vim"),        FT_VIM,        0, 0 },
-    { NULL, NULL, NULL, NULL, BI("zsh"),        BI("zsh"),        FT_ZSH,        0, 0 },
+    { NULL, NULL, NULL, NULL, BI("zsh"),        BI("sh"),         FT_ZSH,        0, 0 },
 };
 
 

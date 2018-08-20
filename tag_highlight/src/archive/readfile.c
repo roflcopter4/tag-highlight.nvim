@@ -29,7 +29,7 @@ int
 getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
 {
         int ret;
-        warnx("Attempting to read tag file %s", BS(filename));
+        ECHO("Attempting to read tag file %s", filename);
 
         if (comptype == COMP_NONE)
                 ret = plain_getlines(tags, filename);
@@ -43,7 +43,7 @@ getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
                 warnx("Unknown compression type!");
                 ret = 0;
         }
-        echo("done");
+        ECHO("Done");
         return ret; /* 1 indicates success here... */
 }
 
@@ -180,8 +180,6 @@ xz_getlines(b_list *tags, const bstring *filename)
         if (ferror(fp))
                 err(1, "%s: Error reading input size", BS(filename));
         if (!feof(fp))
-                /* action = LZMA_FINISH; */
-        /* else */
                 errx(1, "Error reading file: buffer too small.");
 
         ret = lzma_code(strm, LZMA_RUN);

@@ -79,14 +79,14 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
                 b_assign_cstr(base, path);
         }
 
-        echo("Base is %s", BS(base));
-        echo("Determining number of json tokens.");
+        ECHO("Base is %s", base);
+        ECHO("Determining number of json tokens.");
         jsmn_parser p;
         jsmn_init(&p);
         const int  ntoks = jsmn_parse(&p, (char *)buf, size, NULL, 0);
         jsmntok_t *toks  = nmalloc(sizeof(*toks), ntoks);
 
-        echo("Parsing json file (%d toks).", ntoks);
+        ECHO("Parsing json file (%d toks).", ntoks);
         jsmn_init(&p);
         const int nparsed = jsmn_parse(&p, (char *)buf, size, toks, ntoks);
         assert(nparsed == ntoks);
@@ -135,21 +135,21 @@ extract_info(const jsmntok_t *toks,
                                                    toks[i].end - toks[i].start);
                         bstring *tmp;
                         char     buf[PATH_MAX + 1];
-                        /* echo("Value is %s", BS(value)); */
+                        /* ECHO("Value is %s", BS(value)); */
 
                         if (value->data[0] == '.') {
-                                /* echo("is dotpath"); */
+                                /* ECHO("is dotpath"); */
                                 const unsigned size = cannon_dotpath(buf, base, value, 0);
                                 tmp                 = btp_fromblk(buf, size);
                         } else if (ISROOT(value->data)) {
-                                /* echo("is root"); */
+                                /* ECHO("is root"); */
                                 tmp = value;
                         } else {
                                 const unsigned size = cannon_path(buf, base, value, 0);
                                 tmp                 = btp_fromblk(buf, size);
                         }
 
-                        /* echo("tmp is %s", BS(tmp)); */
+                        /* ECHO("tmp is %s", BS(tmp)); */
 #ifdef DOSISH
                         for (unsigned x = 0; x < tmp->slen; ++x)
                                 if (tmp->data[x] == '/')
@@ -166,7 +166,7 @@ extract_info(const jsmntok_t *toks,
                 }
         }
 
-        /* echo("file_arr is %d", file_arr); */
+        /* ECHO("file_arr is %d", file_arr); */
         if (file_arr == (-1))
                 return NULL;
         b_list *ret = b_list_create();
@@ -187,7 +187,7 @@ extract_info(const jsmntok_t *toks,
                         char    *tok = BS(cmd);
 
                         while ((tok = strstr(tok, "-I"))) {
-                                /* echo("Found '%s'", tok); */
+                                /* ECHO("Found '%s'", tok); */
                                 tok += 2;
                                 SKIP_SPACE_PTR(tok);
                                 int want;
@@ -209,21 +209,21 @@ extract_info(const jsmntok_t *toks,
                                 unsigned       newsize;
 
                                 if (*tok == '.') {
-                                        //echo("A dotfile...");
+                                        //ECHO("A dotfile...");
                                         newsize = cannon_dotpath(buf, base, btok, 0);
                                         newtok  = buf;
                                 } else if (ISROOT(tok)) {
-                                        //echo("An absolute path...");
+                                        //ECHO("An absolute path...");
                                         newsize = btok->slen;
                                         newtok  = tok;
                                 } else {
-                                        //echo("A bare file...");
+                                        //ECHO("A bare file...");
                                         newsize = cannon_path(buf, base, btok, 0);
                                         newtok  = buf;
                                 }
 
                                 b_list_append(&ret, b_fromblk(newtok, newsize));
-                                /* echo("Which is now '%s'", BS(ret->lst[ret->qty - 1])); */
+                                /* ECHO("Which is now '%s'", BS(ret->lst[ret->qty - 1])); */
                                 tok = end;
                                 //b_free(btok);
                         }
@@ -238,32 +238,32 @@ extract_info(const jsmntok_t *toks,
                                                          toks[i].end - toks[i].start);
 
                                 if (arg->data[0] == '-' && arg->data[1] == 'I') {
-                                        /* echo("Found '%s'", BS(arg)); */
+                                        /* ECHO("Found '%s'", BS(arg)); */
                                         char     buf[PATH_MAX + 1], *newtok;
                                         unsigned size;
 
                                         if (arg->data[2] == '.') {
-                                                /* echo("A dotfile..."); */
+                                                /* ECHO("A dotfile..."); */
                                                 size   = cannon_dotpath(buf, base, arg, 2);
                                                 newtok = buf;
                                         } else if (ISROOT(arg->data)) {
-                                                /* echo("An absolute path..."); */
+                                                /* ECHO("An absolute path..."); */
                                                 size   = arg->slen - 2u;
                                                 newtok = (char *)(arg->data + 2);
                                         } else {
-                                                /* echo("A bare file..."); */
+                                                /* ECHO("A bare file..."); */
                                                 size   = cannon_path(buf, base, arg, 2);
                                                 newtok = buf;
                                         }
 
                                         b_list_append(&ret, b_fromblk(newtok, size));
-                                        /* echo("Which is now '%s'", BS(ret->lst[ret->qty - 1])); */
+                                        /* ECHO("Which is now '%s'", BS(ret->lst[ret->qty - 1])); */
                                 } else if (arg->slen > 9u &&
                                            strncmp(BS(arg), SLS("-include")) == 0)
                                 {
                                         bstring *tmp = b_fromblk(arg->data + 9,
                                                                  arg->slen - 9u);
-                                        //echo("Adding header '%s'", BS(tmp));
+                                        //ECHO("Adding header '%s'", BS(tmp));
                                         b_list_append(&includes, tmp);
                                 }
 
@@ -316,7 +316,7 @@ cannon_dotpath(char *const restrict          buf,
 
         //buf[maxsize] = '\0';
 
-        echo("Trying to fix path '%s' with base '%s'", BS(path), BS(file));
+        ECHO("Trying to fix path '%s' with base '%s'", path, file);
         errno = 0;
         if (chdir(BS(path)) == (-1))
                 err(1, "Failed to chdir to path \"%s\"", BS(path));
@@ -334,7 +334,7 @@ cannon_dotpath(char *const restrict          buf,
         }
         newbuf[i] = '\0';
 
-        //echo("path: %s, file: %s, offset: %u, so -> %s", BS(path), newbuf, file_offset, BS(file) + file_offset);
+        //ECHO("path: %s, file: %s, offset: %u, so -> %s", BS(path), newbuf, file_offset, BS(file) + file_offset);
         if (errno)
                 err(1, "Failed to chdir to %s", BS(path));
         char *ret = realpath(newbuf, buf);

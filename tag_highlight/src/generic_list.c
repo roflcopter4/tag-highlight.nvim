@@ -19,9 +19,9 @@ snapUpSize(unsigned i)
                 j |= (j >> 8); /* Ok, since int >= 16 bits */
 #if (UINT_MAX != 0xFFFF)
                 j |= (j >> 16); /* For 32 bit int systems */
-#if (UINT_MAX > 0xFFFFFFFFllu)
+#  if (UINT_MAX > 0xFFFFFFFFllu)
                 j |= (j >> 32); /* For 64 bit int systems */
-#endif
+#  endif
 #endif
                 /* Least power of two greater than i */
                 j++;
@@ -152,29 +152,29 @@ genlist_copy(const genlist *list, const genlist_copy_func cpy)
 struct argument_vector *
 argv_create(const unsigned len)
 {
-        struct argument_vector *ret = xmalloc(sizeof(struct argument_vector));
-        ret->lst             = nmalloc(sizeof(char *), len);
-        ret->qty             = 0;
-        ret->mlen            = len;
-        return ret;
+        struct argument_vector *argv = xmalloc(sizeof(struct argument_vector));
+        argv->lst                    = nmalloc(sizeof(char *), len);
+        argv->qty                    = 0;
+        argv->mlen                   = len;
+        return argv;
 }
 
 
 void
-argv_append(struct argument_vector *lst, const char *str, const bool cpy)
+argv_append(struct argument_vector *argv, const char *str, const bool cpy)
 {
-        if (lst->qty == (lst->mlen - 1))
-                lst->lst = nrealloc(lst->lst, sizeof(char *), (lst->mlen *= 2));
+        if (argv->qty == (argv->mlen - 1))
+                argv->lst = nrealloc(argv->lst, sizeof(char *), (argv->mlen *= 2));
 
         if (cpy)
-                lst->lst[lst->qty++] = strdup(str);
+                argv->lst[argv->qty++] = strdup(str);
         else
-                lst->lst[lst->qty++] = (char *)str;
+                argv->lst[argv->qty++] = (char *)str;
 }
 
 
-char *
-argv_fmt(const char *const restrict fmt, ...)
+void
+argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
 {
         char *_buf = NULL;
         va_list _ap;
@@ -182,21 +182,22 @@ argv_fmt(const char *const restrict fmt, ...)
 #ifdef HAVE_VASPRINTF
         vasprintf(&_buf, fmt, _ap);
 #else
-        bstring *tmp = b_vformat(fmt, ap);
+        bstring *tmp = b_vformat(fmt, _ap);
         _buf         = BS(tmp);
         free(tmp);
 #endif
         va_end(_ap);
-        return _buf;
+
+        argv_append(argv, _buf, false);
 }
 
 
 void
-argv_destroy(struct argument_vector *lst)
+argv_destroy(struct argument_vector *argv)
 {
-        for (unsigned i = 0; i < lst->qty; ++i)
-                if (lst->lst[i])
-                        free(lst->lst[i]);
-        free(lst->lst);
-        free(lst);
+        for (unsigned i = 0; i < argv->qty; ++i)
+                if (argv->lst[i])
+                        free(argv->lst[i]);
+        free(argv->lst);
+        free(argv);
 }

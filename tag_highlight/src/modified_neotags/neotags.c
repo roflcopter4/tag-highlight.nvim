@@ -194,13 +194,15 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                 return NULL;
         } */
         if (!bdata)
-                errx(1, "NEOTAGS: bdata is null\n");
+                errx(1, "NEOTAGS ERROR: bdata is null\n");
         if (!bdata->topdir)
-                errx(1, "NEOTAGS: bdata->topdir is NULL\n");
+                errx(1, "NEOTAGS ERROR: bdata->topdir is NULL\n");
         if (!vimbuf)
-                errx(1, "NEOTAGS: vimbuf is NULL\n");
-        if (vimbuf->qty == 0)
-                errx(1, "NEOTAGS: vimbuf->qty is 0\n");
+                errx(1, "NEOTAGS ERROR: vimbuf is NULL\n");
+        if (vimbuf->qty == 0) {
+                warnx("NEOTAGS WARNING: vimbuf->qty is 0\n");
+                return NULL;
+        }
 
         if (!bdata->topdir->tags || bdata->topdir->tags->qty == 0) {
                 warnx("No tags found.");
@@ -217,7 +219,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         pthread_t       *tid = nmalloc(num_threads, sizeof(*tid));
         struct taglist **out = nmalloc(num_threads, sizeof(*out));
 
-        warnx("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
+        ECHO("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
 
         /* Because we may have examined multiple tags files, it's very possible
          * for there to be duplicate tags. Sort the list and remove any. */
@@ -292,9 +294,9 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         }
 
         qsort(alldata, total, sizeof(*alldata), &tag_cmp);
-        warnx("There are %u tags...", ret->qty);
+        ECHO("There are %u tags...", ret->qty);
         remove_duplicate_tags(&ret);
-        warnx("Now there are %u tags...", ret->qty);
+        ECHO("Now there are %u tags...", ret->qty);
 
         free(tid);
         free(out);

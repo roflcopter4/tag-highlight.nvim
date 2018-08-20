@@ -964,6 +964,7 @@ b_sprintf(const bstring *fmt, ...)
 bstring *
 b_vsprintf(const bstring *fmt, va_list args)
 {
+        static bstring nullstring = bt_init("(null)");
         if (INVALID(fmt))
                 RETURN_NULL();
 
@@ -990,12 +991,10 @@ b_vsprintf(const bstring *fmt, va_list args)
                 switch (ch) {
                 case 's': {
                         bstring *next = va_arg(cpy, bstring *);
-                        if (INVALID(next)) {
-                                warnx("Invalid bstring supplied to %s", __func__);
-                                va_end(cpy);
-                                RETURN_NULL();
-                        }
-                        len = (len - 2u) + next->slen;
+                        if (!next || !next->data)
+                                len = (len - 2u) + (sizeof("(null)") - 1u);
+                        else
+                                len = (len - 2u) + next->slen;
                         i   = pos[pcnt] + 2;
 
                         break;
@@ -1004,7 +1003,11 @@ b_vsprintf(const bstring *fmt, va_list args)
                         if (!c_strings)
                                 c_strings = b_list_create();
                         const char *next = va_arg(cpy, const char *);
-                        bstring    *tmp  = b_fromcstr(next);
+                        bstring    *tmp;
+                        if (next)
+                                tmp = b_fromcstr(next);
+                        else
+                                tmp = b_fromlit("(null)");
                         b_list_append(&c_strings, tmp);
 
                         len = (len - 2u) + tmp->slen;
@@ -1091,6 +1094,8 @@ b_vsprintf(const bstring *fmt, va_list args)
 
                         if (ch == 's') {
                                 next = va_arg(args, bstring *);
+                                if (!next || !next->data)
+                                        next = &nullstring;
                         } else {
                                 if (!c_strings)
                                         abort();

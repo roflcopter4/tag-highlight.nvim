@@ -14,7 +14,7 @@
 /* Structures, Etc */
 
 enum mpack_types {
-        MPACK_UNINITIALIZED = 0,
+        MPACK_UNINITIALIZED,
         MPACK_BOOL,
         MPACK_NIL,
         MPACK_NUM,
@@ -47,8 +47,8 @@ enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 
-typedef enum   mpack_types        mpack_type_t;
-typedef enum   mpack_expect_types mpack_expect_t;
+typedef   enum mpack_types        mpack_type_t;
+typedef   enum mpack_expect_types mpack_expect_t;
 typedef struct mpack_item         mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
@@ -61,7 +61,6 @@ struct mpack_item {
                 bool           boolean;
                 int16_t        nil;
                 int64_t        num;
-                /* char          *c_str; */
                 bstring       *str;
                 mpack_array_t *arr;
                 mpack_dict_t  *dict;
@@ -126,6 +125,7 @@ typedef union {
 extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
 extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((format(printf, 2, 3)));
 extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
+extern void       nvim_b_printf(int fd, const bstring *fmt, ...);
 
 extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
@@ -258,6 +258,8 @@ extern FILE *mpack_log;
 #else
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
+
+#define ECHO(FMT_, ...) nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__)
 
 
 /*============================================================================*/

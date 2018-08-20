@@ -13,12 +13,12 @@
 #  include <sys/un.h>
 #endif
 
-/* #undef fsleep */
-/* #define fsleep(...) */
-
 #include "data.h"
 #include "highlight.h"
 #include "mpack.h"
+
+#define WIN_BIN_FAIL(STREAM_) \
+        err(1, "Failed to change " STREAM_ "to binary mode.")
 
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
@@ -27,13 +27,7 @@
         (((long double)((STV2).tv_usec - (STV1).tv_usec) / 1000000.0L) + \
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
-#define BUF_WAIT_LINES(ITERS)                           \
-        do {                                            \
-                for (int _m_ = 0; _m_ < (ITERS); ++_m_) \
-                        if (!bdata->initialized)        \
-                                fsleep(0.1);            \
-        } while (0)
-
+#define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 
 extern jmp_buf         exit_buf;
 extern int             decode_log_raw;
@@ -69,11 +63,11 @@ main(UNUSED int argc, char *argv[])
         snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
         /* Set the standard streams to binary mode in Windows. */
         if (_setmode(0, O_BINARY) == (-1))
-                err(1, "Failed to change stdin to binary mode.");
+                WIN_BIN_FAIL("stdin");
         if (_setmode(1, O_BINARY) == (-1))
-                err(1, "Failed to change stdout to binary mode.");
+                WIN_BIN_FAIL("stdout");
         if (_setmode(2, O_BINARY) == (-1))
-                err(1, "Failed to change stderr to binary mode.");
+                WIN_BIN_FAIL("stderr");
 #else
         HOME = getenv("HOME");
         {
@@ -89,8 +83,7 @@ main(UNUSED int argc, char *argv[])
         decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", HOME);
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", HOME);
-        decode_log_raw = safe_open_fmt(
-            "%s/decode_raw.log", O_CREAT|O_TRUNC|O_WRONLY|O_BINARY, 0644, HOME);
+        decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, HOME);
 #endif
         sockfd = create_socket(1);
         eprintf("sockfd is %d\n", sockfd);
@@ -137,11 +130,9 @@ main(UNUSED int argc, char *argv[])
                 }
         }
 
-        /* Rewinding with longjmp is the easiest way to ensure we get back to
-         * the main thread from any sub threads at exit time, ensuring a smooth
-         * cleanup. */
-        int retval = setjmp(exit_buf);
-
+        /* Rewinding with longjmp is the easiest way to get back to the main
+         * thread from any sub threads at exit time, ensuring a smooth cleanup. */
+        const int retval = setjmp(exit_buf);
         if (retval == 0) {
                 for (;;) {
                         mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
@@ -158,7 +149,9 @@ main(UNUSED int argc, char *argv[])
 
 /*======================================================================================*/
 
-#define WAIT_TIME (0.08L)
+#define WAIT_TIME (0.05L)
+#undef fsleep
+#define fsleep(TIME_)
 
 
 /* 
@@ -176,7 +169,7 @@ interrupt_call(void *vdata)
 
         pthread_mutex_lock(&int_mutex);
 
-        echo("Recieved \"%c\"; waking up!\n", data->val);
+        echo("Recieved \"%c\"; waking up!", data->val);
 
         switch (data->val) {
         /*
@@ -207,7 +200,7 @@ interrupt_call(void *vdata)
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
-                        fsleep(0.05L);
+                        fsleep(WAIT_TIME);
 
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
@@ -219,7 +212,8 @@ interrupt_call(void *vdata)
         /*
          * Buffer was written, or filetype/syntax was changed.
          */
-        case 'B': {
+        case 'B':
+        case 'F': {
                 fsleep(WAIT_TIME);
                 gettimeofday(&ltv1, NULL);
                 bufnum                 = nvim_get_current_buf(0);
@@ -231,7 +225,7 @@ interrupt_call(void *vdata)
                         goto try_attach;
                 }
 
-                if (update_taglist(bdata)) {
+                if (update_taglist(bdata, (data->val == 'F'))) {
                         update_highlight(bufnum, bdata);
                         gettimeofday(&ltv2, NULL);
                         SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
@@ -259,7 +253,7 @@ interrupt_call(void *vdata)
                 break;
 
         default:
-                echo("Hmm, nothing to do...");
+                ECHO("Hmm, nothing to do...");
                 break;
         }
 
@@ -379,11 +373,11 @@ get_compression_type(const int fd)
         } else if (b_iseq(tmp, B("none"))) {
                 ret = COMP_NONE;
         } else {
-                echo("Warning: unrecognized compression type \"%s\", "
-                     "defaulting to no compression.", BS(tmp));
+                ECHO("Warning: unrecognized compression type \"%s\", "
+                     "defaulting to no compression.", tmp);
         }
 
-        echo("Comp type is %s", BS(tmp));
+        ECHO("Comp type is %s", tmp);
 
         b_destroy(tmp);
         return ret;
@@ -406,14 +400,13 @@ sigusr_wrap(UNUSED int notused)
 static void
 open_main_log(void)
 {
-#ifdef DEBUG
-        {
-                char buf[PATH_MAX + 1];
-                snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
-                mkdir(buf, 0777);
-                main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
-        }
+#ifndef DEBUG
+        return;
 #endif
+        char buf[PATH_MAX + 1];
+        snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
+        mkdir(buf, 0777);
+        main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
 }
 
 

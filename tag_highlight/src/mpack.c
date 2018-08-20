@@ -21,15 +21,6 @@ static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
 #define CHECK_DEF_FD(FD__) ((FD__) = (((FD__) == 0) ? DEFAULT_FD : (FD__)))
 #define BS_FROMARR(ARRAY_) {(sizeof(ARRAY_) - 1), 0, (unsigned char *)(ARRAY_), 0}
-/* #define FN()               (bstring[]){ {.slen = (sizeof(__func__) - 1), .mlen = 0, .data = (uchar *)__func__, .flags = 0} } */
-/* #define FN() btp_fromarray(__func__) */
-/* #define FN()                                                           \
-        ({                                                             \
-                static bstring b__ = {(sizeof(__func__) - 1), 0,       \
-                                      (unsigned char *)(__func__), 0}; \
-                &b__;                                                  \
-        }) */
-
 
 /*======================================================================================*/
 
@@ -90,10 +81,10 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 void
 nvim_printf(const int fd, const char *const restrict fmt, ...)
 {
-        va_list va;
-        va_start(va, fmt);
-        bstring *tmp = b_vformat(fmt, va);
-        va_end(va);
+        va_list ap;
+        va_start(ap, fmt);
+        bstring *tmp = b_vformat(fmt, ap);
+        va_end(ap);
 
         nvim_out_write(fd, tmp);
         b_destroy(tmp);
@@ -105,6 +96,17 @@ nvim_vprintf(const int fd, const char *const restrict fmt, va_list args)
         bstring *tmp = b_vformat(fmt, args);
         nvim_out_write(fd, tmp);
         b_destroy(tmp);
+}
+
+void
+nvim_b_printf(const int fd, const bstring *fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+        bstring *tmp = b_vsprintf(fmt, ap);
+        va_end(ap);
+        nvim_out_write(fd, tmp);
+        b_free(tmp);
 }
 
 
@@ -683,10 +685,10 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
 retval_t
 nvim_get_var_fmt(const int fd, const mpack_expect_t expect, const char *fmt, ...)
 {
-        va_list va;
-        va_start(va, fmt);
-        bstring *varname = b_vformat(fmt, va);
-        va_end(va);
+        va_list ap;
+        va_start(ap, fmt);
+        bstring *varname = b_vformat(fmt, ap);
+        va_end(ap);
 
         retval_t ret = nvim_get_var(fd, varname, expect);
         b_destroy(varname);
@@ -860,13 +862,13 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case 'b': case 'B': case 'l': case 'L':
                 case 'd': case 'D': case 's': case 'S':
                 case 'n': case 'N': case 'c': case 'C':
-                        ++(*cur_len);
+                        ++*cur_len;
                         break;
 
                 /* New array. Increment current array size, push it onto the
                  * stack, and initialize the next counter. */
                 case '[': case '{':
-                        ++(*cur_len);
+                        ++*cur_len;
                         PUSH(len_stack, cur_len);
                         cur_len = &sub_lengths[len_ctr++];
                         *cur_len = 0;
@@ -918,6 +920,9 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         PUSH(obj_stack, pack);
         PUSH(dict_stack, 0);
 
+        /* This loop is where all of the actual interpretation and encoding
+         * happens. A few stacks are used when recursively encoding arrays and
+         * dictionaries to store the state of the enclosing object(s). */
         while ((ch = *ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
@@ -1023,7 +1028,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                                 cur_obj = &PEEK(obj_stack)->DAI[*cur_ctr];
                 }
 
-                ++(*cur_ctr);
+                ++*cur_ctr;
         }
 
         free(dict_stack);

@@ -1,17 +1,14 @@
 # /src
 set (tag_highlight_SOURCES
-    archive/archive_util_gzip.c
 
+    archive/archive_util_gzip.c
     archive/readfile.c
     archive/writefile.c
 
     bstring/bstrlib.c
     bstring/additions.c
     bstring/b_list.c
-    # bstring/b_stream.c
-    # bstring/char_fields.c
-    # bstring/never_use.c
-
+    
     contrib/contrib.c
     contrib/jsmn/jsmn.c
     json.c
@@ -34,57 +31,29 @@ set (tag_highlight_SOURCES
     parse.c
     update_commands.c
     util.c
-
-#     regex.c
 )
-# set (tag_highlight_SOURCES
-     # buf_data.c
-     # ctags.c
-     # events.c
-     # globals.c
-     # json.c
-     # linked_list.c
-     # main.c
-     # mpack.c
-     # mpack_decode.c
-     # mpack_encode.c
-     # mpack_print.c
-     # parse.c
-     # update_commands.c
-     # util.c
-# )
-file (GLOB tag_highlight_GLOB
-      *.h)
-
+file (GLOB tag_highlight_GLOB *.h)
 
 if (LZMA_SUPPORT)
    set (tag_highlight_SOURCES ${tag_highlight_SOURCES} archive/archive_util_xz.c)
 endif()
-# if (NOT HAVE_STRLCPY) 
-#     set (tag_highlight_SOURCES ${tag_highlight_SOURCES} bsd_funcs.c)
-# endif()
-
-# add_subdirectory(bstring)
-# add_subdirectory(archive)
-# add_subdirectory(modified_neotags)
-# add_subdirectory(contrib)
 
 add_executable(tag_highlight 
     ${tag_highlight_GLOB}
-    ${tag_highlight_SOURCES})
+    ${tag_highlight_SOURCES}
+)
 
-# target_link_libraries(tag_highlight ${tag_highlight_MSGPACK_LIBRARIES})
-
-if (ISWIN)
+if (MSVC)
     include_directories(tag_highlight "${CMAKE_SOURCE_DIR}/win32_libs/include")
     target_link_libraries(tag_highlight
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/libz.lib"
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib"
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/pthreadVC2.lib")
-    target_link_libraries(tag_highlight archive_util bstring neotags contrib)
+    
 elseif(MINGW)
-    target_link_libraries(tag_highlight archive_util bstring neotags contrib
-                          -lz -llzma -pthread)
+    target_link_libraries(tag_highlight -lz -pthread
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib")
+
 else()
     if (LZMA_SUPPORT)
         include_directories(${LIBLZMA_INCLUDE_DIRS})
@@ -96,31 +65,12 @@ else()
             target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
         endif()
     endif()
-
-    #if(THREADS_HAVE_PTHREAD_ARG)
-    #endif()
-    target_link_libraries(tag_highlight -pthread)
-
-    # include_directories(${LibArchive_INCLUDE_DIRS})
-    # target_link_libraries(tag_highlight ${LibArchive_LIBRARY})
-
-    include_directories(${ZLIB_INCLUDE_DIRS})
-    target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
     
-    # # target_link_libraries(tag_highlight "/usr/lib/clang/8.0.0/lib/linux/libclang_rt.asan-x86_64.so")
+    include_directories(${ZLIB_INCLUDE_DIRS})
+    target_link_libraries(tag_highlight -pthread)
+    target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
     target_link_libraries(tag_highlight -lunwind)
-
-    # target_link_libraries(tag_highlight archive_util bstring neotags contrib)
-
-#    target_link_libraries(tag_highlight -lpcre2-8)
-
-    # add_library(JSMN STATIC IMPORTED)
-    # set_property(TARGET JSMN PROPERTY IMPORTED_LOCATION ./contrib/jsmn/jsmn.a)
-    # target_link_libraries(tag_highlight JSMN)
-
-    #if (ISCLANG)
-    #    target_link_libraries (tag_highlight -fuse-ld=lld)
-    #endif()
+#   target_link_libraries(tag_highlight -lpcre2-8)
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
 endif()

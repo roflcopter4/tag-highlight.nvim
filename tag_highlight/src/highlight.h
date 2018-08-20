@@ -7,10 +7,10 @@
 #include "data.h"
 
 
-extern bool run_ctags(struct bufdata *bdata);
+extern bool run_ctags(struct bufdata *bdata, int force);
 /* extern bool check_gzfile(struct bufdata *bdata); */
 extern int get_initial_taglist(struct bufdata *bdata);
-extern int update_taglist(struct bufdata *bdata);
+extern int update_taglist(struct bufdata *bdata, int force);
 
 extern void update_highlight(int bufnum, struct bufdata *bdata);
 extern void clear_highlight(int bufnum, struct bufdata *bdata);

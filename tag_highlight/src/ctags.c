@@ -1,15 +1,15 @@
 #include "util.h"
 #include <dirent.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
-#ifdef DOSISH
+#if defined(DOSISH) || defined(MINGW)
 #  include <direct.h>
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
 #  define SEPSTR "\\"
 #else
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq((FILE1_), (FILE2_)))
 #  define SEPSTR "/"
+#  include <sys/wait.h>
 #endif
 
 #define IS_DOTDOT(FNAME_) \
@@ -32,7 +32,7 @@ static void        recurse_headers(b_list **headers, b_list **searched, b_list *
                                    const bstring *cur_header, int level);
 static void *      recurse_headers_thread(void *vdata);
 static bstring *   find_file_in_dir_recurse(const bstring *dirpath, const bstring *find);
-static int         exec_ctags(struct bufdata *bdata, b_list *headers);
+static int         exec_ctags(struct bufdata *bdata, b_list *headers, int force);
 static int         myfilter(const struct dirent *dp);
 
 static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -66,11 +66,11 @@ static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 bool
-run_ctags(struct bufdata *bdata)
+run_ctags(struct bufdata *bdata, const int force)
 {
         assert(bdata != NULL && bdata->topdir != NULL);
         if (!bdata->lines || !bdata->initialized) {
-                echo("File is empty, cannot run ctags");
+                ECHO("File is empty, cannot run ctags");
                 return false;
         }
 
@@ -85,12 +85,12 @@ run_ctags(struct bufdata *bdata)
                 bdata->calls = NULL;
         }
 
-        int status = exec_ctags(bdata, headers);
+        int status = exec_ctags(bdata, headers, force);
 
         if (status != 0)
                 warnx("ctags failed with status \"%d\"\n", status);
         else
-                echo("Ctags finished successfully.");
+                ECHO("Ctags finished successfully.");
 
         return (status == 0);
 }
@@ -104,7 +104,7 @@ get_initial_taglist(struct bufdata *bdata)
         bdata->topdir->tags = b_list_create();
 
         if (have_seen_file(bdata->filename)) {
-                echo("Seen file before, running ctags in case there was just a "
+                ECHO("Seen file before, running ctags in case there was just a "
                      "momentary disconnect on write...");
                 goto force_ctags;
         }
@@ -124,17 +124,17 @@ get_initial_taglist(struct bufdata *bdata)
                         warnx("Could not read file. Running ctags.");
                         if (!bdata->initialized)
                                 return 0;
-                        echo("linecount -> %d", bdata->lines->qty);
+                        ECHO("linecount -> %d", bdata->lines->qty);
                         goto force_ctags;
                 }
         } else {
                 if (errno == ENOENT)
-                        echo("File \"%s\" not found, running ctags.\n",
-                             BS(bdata->topdir->gzfile));
+                        ECHO("File \"%s\" not found, running ctags.\n",
+                             bdata->topdir->gzfile);
                 else
                         warn("Unexpected io error");
         force_ctags:
-                run_ctags(bdata);
+                run_ctags(bdata, false);
                 write_gzfile(bdata->topdir);
                 errno = 0;
 
@@ -149,19 +149,19 @@ get_initial_taglist(struct bufdata *bdata)
 
 
 int
-update_taglist(struct bufdata *bdata)
+update_taglist(struct bufdata *bdata, const int force)
 {
-        if (bdata->ctick == bdata->last_ctick) {
-                echo("ctick unchanged");
+        if (!force && bdata->ctick == bdata->last_ctick) {
+                ECHO("ctick unchanged");
                 return false;
         }
 
         bdata->last_ctick = bdata->ctick;
-        if (!run_ctags(bdata))
-                errx(1, "Ctags failed, cannot continue.");
+        if (!run_ctags(bdata, force))
+                warnx("Ctags exited with errors; trying to continue anyway.");
 
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
-                echo("Failed to read file");
+                ECHO("Failed to read file");
                 return false;
         }
 
@@ -173,7 +173,7 @@ update_taglist(struct bufdata *bdata)
 static inline void
 write_gzfile(struct top_dir *topdir)
 {
-        echo("Compressing tagfile.");
+        ECHO("Compressing tagfile.");
         switch (settings.comp_type) {
         case COMP_NONE: write_plain(topdir); break;
         case COMP_GZIP: write_gzip(topdir);  break;
@@ -182,7 +182,7 @@ write_gzfile(struct top_dir *topdir)
 #endif
         default:        abort();
         }
-        echo("Finished compressing tagfile!");
+        ECHO("Finished compressing tagfile!");
 }
 
 
@@ -283,38 +283,34 @@ find_includes(struct bufdata *bdata)
 }
 
 
-static FILE *yetanotherlog;
-
 static b_list *
 find_src_dirs(struct bufdata *bdata, b_list *includes)
 {
-        yetanotherlog = safe_fopen_fmt("%s/alphasort.log", "wb", HOME);
         b_list  *src_dirs;
         bstring *json_file = find_file_in_dir_recurse(bdata->topdir->pathname, B(COMMANDFILE));
 
         if (json_file) {
                 src_dirs = parse_json(json_file, bdata->filename, includes);
                 if (!src_dirs) {
-                        echo("Found nothing at all!!!");
+                        ECHO("Found nothing at all!!!");
                         src_dirs = b_list_create();
                 }
         } else {
-                echo("Couldn't find compile_commands.json");
+                ECHO("Couldn't find compile_commands.json");
                 src_dirs = b_list_create();
         }
 
         b_list_append(&src_dirs, b_strcpy(bdata->topdir->pathname));
         bstring *file_dir = b_dirname(bdata->filename);
-        echo("File dir is: %s", BS(file_dir));
+        ECHO("File dir is: %s", file_dir);
 
         if (!b_iseq(bdata->topdir->pathname, file_dir)) {
-                echo("Adding file dir to list");
+                ECHO("Adding file dir to list");
                 b_list_append(&src_dirs, file_dir);
         } else
                 b_free(file_dir);
 
         b_free(json_file);
-        fclose(yetanotherlog);
         return src_dirs;
 }
 
@@ -467,7 +463,7 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         for (i = 0; i < includes_clone->qty; i += 2) {
                 bstring *file = includes_clone->lst[i];
                 bstring *path = includes_clone->lst[i+1];
-                b_sprintfa(path, B("\\%s"), file)
+                bstring *tmp  = b_concat_all(path, B("\\"), file);
 
                 struct stat st;
                 if (stat(BS(tmp), &st) == 0) {
@@ -607,34 +603,34 @@ myfilter(const struct dirent *dp)
 
 
 static int
-exec_ctags(struct bufdata *bdata, b_list *headers)
+exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
 {
 #ifdef DOSISH
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
         for (unsigned i = 0; i < settings.ctags_args->qty; ++i)
-                b_sprintfa(cmd, B("\"%s\" "), settings.ctags_args->lst[i]);
+                B_sprintfa(cmd, "\"%s\" ", settings.ctags_args->lst[i]);
 
         if (headers) {
                 B_LIST_SORT(headers);
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
-                b_sprintfa(cmd, B(" \"-f%s\" \"%s\" %s"),
-                            bdata->topdir->tmpfname, bdata->filename, tmp);
+                B_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
+                           bdata->topdir->tmpfname, bdata->filename, tmp);
 
                 b_destroy(tmp);
                 b_list_destroy(headers);
-
-        } else if (bdata->topdir->recurse && !bdata->topdir->is_c) {
-                b_sprintfa(cmd, B(" \"--languages=%s\" -R \"-f%s\" \"%s\""),
-                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
-                            bdata->topdir->pathname);
+        }
+        else if (bdata->topdir->recurse && !bdata->topdir->is_c) {
+                B_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
+                           &bdata->ft->ctags_name, bdata->topdir->tmpfname,
+                           bdata->topdir->pathname);
         } else {
-                echo("Not recursing!!!");
-                b_sprintfa(cmd, B(" \"-f%s\" \"%s\""),
-                            bdata->topdir->tmpfname, bdata->filename);
+                ECHO("Not recursing!!!");
+                B_sprintfa(cmd, " \"-f%s\" \"%s\"",
+                           bdata->topdir->tmpfname, bdata->filename);
         }
 
-        echo("Running ctags command `CMD.EXE /c %s`", BS(cmd));
+        ECHO("Running ctags command `CMD.EXE /c %s`", cmd);
 
         /* Yes, this directly uses unchecked user input in a call to system().
          * Frankly, if somehow someone takes over a user's vimrc then they're
@@ -648,18 +644,26 @@ exec_ctags(struct bufdata *bdata, b_list *headers)
         unsigned i;
         struct argument_vector *argv = argv_create(128);
         argv_append(argv, "ctags", true);
-        B_LIST_FOREACH(settings.ctags_args, arg, i)
+
+        B_LIST_FOREACH(settings.ctags_args, arg, i) {
                 if (arg)
                         argv_append(argv, b_bstr2cstr(arg, 0), false);
+        }
+        argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
-        argv_append(argv, argv_fmt("-f%s", BS(bdata->topdir->tmpfname)), false);
-
-        if (!headers && bdata->topdir->recurse && !bdata->topdir->is_c) {
-                argv_append(argv, argv_fmt("--languages=%s", BS(&bdata->ft->ctags_name)), false);
+        if ((force != 2) && bdata->topdir->recurse && !bdata->topdir->is_c) {
+                argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
-        } else {
+        }
+        else {
+                if (bdata->topdir->is_c)
+                        argv_append(argv, "--languages=c,c++", true);
+                else
+                        argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
+
                 argv_append(argv, b_bstr2cstr(bdata->filename, 0), false);
+
                 if (headers) {
                         B_LIST_SORT(headers);
                         B_LIST_FOREACH(headers, bstr, i)
@@ -673,9 +677,9 @@ exec_ctags(struct bufdata *bdata, b_list *headers)
         {
                 bstring *cmd = b_alloc_null(2048);
                 for (char **tmp = argv->lst; *tmp; ++tmp)
-                        b_sprintfa(cmd, B("\"%n\", "), *tmp);
+                        B_sprintfa(cmd, "\"%n\", ", *tmp);
                 cmd->data[cmd->slen -= 2] = '\0';
-                b_fprintf(stderr, B("Running command 'ctags' with args [%s]\n"), cmd);
+                ECHO("Running command 'ctags' with args [%s]\n", cmd);
                 b_free(cmd);
         }
 #endif
@@ -693,7 +697,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers)
         argv_destroy(argv);
         b_list_destroy(headers);
 
-        echo("Status is %d", status);
+        ECHO("Status is %d", status);
 #endif
 
         return status;

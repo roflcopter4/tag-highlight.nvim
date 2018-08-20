@@ -295,14 +295,23 @@ BSTR_PUBLIC bstring *  b_basename(const bstring *path);
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 
-BSTR_PUBLIC bstring *  b_sprintf(const bstring *fmt, ...);
-BSTR_PUBLIC bstring *  b_vsprintf(const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_fprintf(FILE *out_fp, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_dprintf(const int out_fd, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vdprintf(const int out_fd, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_sprintfa(bstring *dest, const bstring *fmt, ...);
+BSTR_PUBLIC bstring *  b_sprintf  (const bstring *fmt, ...);
+BSTR_PUBLIC bstring *  b_vsprintf (const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_fprintf  (FILE *out_fp, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vfprintf (FILE *out_fp, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_dprintf  (const int out_fd, const bstring *fmt, ...);
+BSTR_PUBLIC int        b_vdprintf (const int out_fd, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        b_sprintfa (bstring *dest, const bstring *fmt, ...);
 BSTR_PUBLIC int        b_vsprintfa(bstring *dest, const bstring *fmt, va_list args);
+
+#define B_sprintf(FMT_, ...)          b_sprintf(B(FMT_), __VA_ARGS__)
+#define B_vsprintf(FMT_, ...)         b_vsprintf(B(FMT_), __VA_ARGS__)
+#define B_fprintf(FP_, FMT_, ...)     b_fprintf((FP_), B(FMT_), __VA_ARGS__)
+#define B_vfprintf(FP_, FMT_, ...)    b_vfprintf((FP_), B(FMT_), __VA_ARGS__)
+#define B_dprintf(FD_, FMT_, ...)     b_dprintf((FD_), B(FMT_), __VA_ARGS__)
+#define B_vdprintf(FD_, FMT_, ...)    b_vdprintf((FD_), B(FMT_), __VA_ARGS__)
+#define B_sprintfa(DST_, FMT_, ...)   b_sprintfa((DST_), B(FMT_), __VA_ARGS__)
+#define B_vsdprintfa(DST_, FMT_, ...) b_vsprintfa((DST_), B(FMT_), __VA_ARGS__)
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)

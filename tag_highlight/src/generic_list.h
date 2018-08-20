@@ -6,6 +6,10 @@
 
 #include "util.h"
 
+#if !defined(__GNUC__) && !defined(__attribute__)
+#  define __attribute__(...)
+#endif
+
 typedef struct generic_list {
         unsigned qty;
         unsigned mlen;
@@ -31,10 +35,10 @@ struct argument_vector {
 };
 
 extern struct argument_vector *argv_create(const unsigned len);
-extern void argv_append (struct argument_vector *lst, const char *str, const bool cpy);
-extern void argv_destroy(struct argument_vector *lst);
-extern char *argv_fmt   (const char *const restrict fmt, ...)
-        __attribute__((__format__(printf, 1, 2)));
+extern void argv_append (struct argument_vector *argv, const char *str, const bool cpy);
+extern void argv_destroy(struct argument_vector *argv);
+extern void argv_fmt    (struct argument_vector *argv, const char *const __restrict fmt, ...)
+        __attribute__((__format__(printf, 2, 3)));
 
 
 #  ifdef __cplusplus

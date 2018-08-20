@@ -40,14 +40,14 @@
  * Returns strlen(src); if retval >= dst_size, truncation occurred.
  */
 size_t
-strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size)
+strlcpy(char *__restrict dst, const char *__restrict src, size_t dst_size)
 {
         const char *orig_src = src;
         size_t      nleft    = dst_size;
 
         /* Copy as many bytes as will fit */
         if (nleft != 0)
-                while (--nleft != 0)  /* Break when nleft is 1 */
+                while (--nleft != 0) /* Break when nleft is 1 */
                         if ((*dst++ = *src++) == '\0')
                                 break;
 
@@ -55,12 +55,12 @@ strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size)
          * its remaining length. */
         if (nleft == 0) {
                 if (dst_size != 0)
-                        *dst = '\0';  /* NUL-terminate dst */
+                        *dst = '\0'; /* NUL-terminate dst */
                 while (*src++ != '\0')
                         ;
         }
 
-        return (src - orig_src - 1);  /* count does not include NUL */
+        return (src - orig_src - 1); /* count does not include NUL */
 }
 
 #endif
@@ -94,7 +94,7 @@ strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size)
  * If retval >= dst_size, truncation occurred.
  */
 size_t
-strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
+strlcat(char *__restrict dst, const char *__restrict src, size_t dst_size)
 {
         const char *orig_dst = dst;
         const char *orig_src = src;
@@ -105,7 +105,7 @@ strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
         while (nleft-- != 0 && *dst != '\0')
                 ++dst;
         dst_len = dst - orig_dst;
-        nleft = dst_size - dst_len;
+        nleft   = dst_size - dst_len;
 
         if (nleft-- == 0)
                 return (dst_len + strlen(src));
@@ -119,7 +119,7 @@ strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
         }
         *dst = '\0';
 
-        return (dst_len + (src - orig_src));  /* count does not include NUL */
+        return (dst_len + (src - orig_src)); /* count does not include NUL */
 }
 
 #endif
@@ -147,15 +147,12 @@ strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size)
  *      $OpenBSD: strtonum.c,v 1.7 2013/04/17 18:40:58 tedu Exp $
  */
 
-#define INVALID  1
+#define INVALID 1
 #define TOOSMALL 2
 #define TOOLARGE 3
 
 int64_t
-strtonum(const char * numstr,
-         long long    minval,
-         long long    maxval,
-         const char **errstrp)
+strtonum(const char *numstr, long long minval, long long maxval, const char **errstrp)
 {
         long long ret   = 0;
         int       error = 0;
@@ -164,14 +161,14 @@ strtonum(const char * numstr,
                 const char *errstr;
                 int         err;
         } ev[4] = {
-            { NULL,        0      },
-            { "invalid",   EINVAL },
-            { "too small", ERANGE },
-            { "too large", ERANGE },
+            {NULL, 0},
+            {"invalid", EINVAL},
+            {"too small", ERANGE},
+            {"too large", ERANGE},
         };
 
         ev[0].err = errno;
-        errno = 0;
+        errno     = 0;
         if (minval > maxval) {
                 error = INVALID;
         } else {
@@ -199,41 +196,41 @@ strtonum(const char * numstr,
 /* strsep */
 
 /*-
-* SPDX-License-Identifier: BSD-3-Clause
-*
-* Copyright (c) 1990, 1993
-*	The Regents of the University of California.  All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in the
-*    documentation and/or other materials provided with the distribution.
-* 3. Neither the name of the University nor the names of its contributors
-*    may be used to endorse or promote products derived from this software
-*    without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-* ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-* OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-* SUCH DAMAGE.
-*/
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright (c) 1990, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 char *
 strsep(char **stringp, const char *delim)
 {
         const char *delimp;
-        char       *ptr, *tok;
+        char *      ptr, *tok;
         char        src_ch, del_ch;
 
         if ((ptr = tok = *stringp) == NULL)
@@ -286,16 +283,16 @@ strsep(char **stringp, const char *delim)
 void *
 memrchr(const void *str, const int ch, size_t n)
 {
-	const unsigned char *cp;
+        const unsigned char *cp;
 
-	if (n != 0) {
-		cp = (unsigned char *)str + n;
-		do {
-			if (*(--cp) == (unsigned char)ch)
-				return((void *)cp);
-		} while (--n != 0);
-	}
-	return(NULL);
+        if (n != 0) {
+                cp = (unsigned char *)str + n;
+                do {
+                        if (*(--cp) == (unsigned char)ch)
+                                return ((void *)cp);
+                } while (--n != 0);
+        }
+        return (NULL);
 }
 #endif
 /*============================================================================*/
@@ -334,13 +331,13 @@ memrchr(const void *str, const int ch, size_t n)
 char *
 strchrnul(const char *ptr, const int ch)
 {
-	const char c = ch;
+        const char c = ch;
 
-	for (;; ++ptr) {
-		if (*ptr == c || *ptr == '\0')
-			return ((char *)ptr);
-	}
-	/* NOTREACHED */
+        for (;; ++ptr) {
+                if (*ptr == c || *ptr == '\0')
+                        return ((char *)ptr);
+        }
+        /* NOTREACHED */
 }
 #endif
 /*============================================================================*/
@@ -385,20 +382,20 @@ static const uint64_t epoch = 116444736000000000llu;
  * elapsed_time().
  */
 int
-gettimeofday(struct timeval * tp, struct timezone * tzp)
+gettimeofday(struct timeval *tp, struct timezone *tzp)
 {
-	FILETIME        file_time;
-	SYSTEMTIME      system_time;
-	ULARGE_INTEGER  ularge;
+        FILETIME       file_time;
+        SYSTEMTIME     system_time;
+        ULARGE_INTEGER ularge;
 
-	GetSystemTime(&system_time);
-	SystemTimeToFileTime(&system_time, &file_time);
-	ularge.LowPart  = file_time.dwLowDateTime;
-	ularge.HighPart = file_time.dwHighDateTime;
+        GetSystemTime(&system_time);
+        SystemTimeToFileTime(&system_time, &file_time);
+        ularge.LowPart  = file_time.dwLowDateTime;
+        ularge.HighPart = file_time.dwHighDateTime;
 
-	tp->tv_sec  = (int64_t)(((uint64_t)ularge.QuadPart - epoch) / 10000000llu);
-	tp->tv_usec = (int64_t)((uint64_t)system_time.wMilliseconds * 1000llu);
+        tp->tv_sec  = (int64_t)(((uint64_t)ularge.QuadPart - epoch) / 10000000llu);
+        tp->tv_usec = (int64_t)((uint64_t)system_time.wMilliseconds * 1000llu);
 
-	return 0;
+        return 0;
 }
 #endif

@@ -120,8 +120,8 @@ write_lzma(struct top_dir *topdir)
                 .threads    = find_num_cpus(),
                 .block_size = 0,
                 .timeout    = 200/*ms*/,
-                /* .preset     = 9, */
-                .preset     = LZMA_PRESET_EXTREME,
+                .preset     = 6,
+                /* .preset     = LZMA_PRESET_EXTREME, */
                 .filters    = NULL,
                 .check      = LZMA_CHECK_CRC64,
                 /* 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL */
@@ -143,9 +143,9 @@ write_lzma(struct top_dir *topdir)
         /* uint64_t    memuse = lzma_stream_encoder_mt_memusage(&mt_opts); */
 
         lzma_stream strm = LZMA_STREAM_INIT;
-        lzma_ret    ret  = lzma_stream_encoder_mt(&strm, &mt_opts);
+        /* lzma_ret    ret  = lzma_stream_encoder_mt(&strm, &mt_opts); */
         /* lzma_ret    ret  = lzma_easy_encoder(&strm, settings.comp_level, LZMA_CHECK_CRC64); */
-        /* lzma_ret    ret  = lzma_easy_encoder(&strm, 9, LZMA_CHECK_CRC64); */
+        lzma_ret    ret  = lzma_easy_encoder(&strm, 1, LZMA_CHECK_CRC64);
         assert(ret == LZMA_OK);
 
         /* uint8_t *out_buf = xcalloc(st.st_size, 1); */
@@ -156,16 +156,16 @@ write_lzma(struct top_dir *topdir)
         strm.avail_out = size;
         strm.avail_in  = size;
 
-        eprintf("Running lzma code now\n");
+        ECHO("Running lzma code now");
         int iter = 1;
 
         do {
-                eprintf("Iteration number %d\n", iter++);
+                ECHO("Iteration number %d", iter++);
                 /* ret = lzma_code(&strm, LZMA_RUN); */
                 ret = lzma_code(&strm, LZMA_FINISH);
         } while (ret == LZMA_OK);
 
-        eprintf("Done!\n");
+        ECHO("Done!");
 
         if (ret != LZMA_STREAM_END)
                 warnx("Unexpected error on line %d in file %s: %d => %s",
