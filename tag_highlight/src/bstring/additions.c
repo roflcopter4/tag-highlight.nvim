@@ -7,7 +7,7 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 
-#include "bstrlib.h"
+#include "bstring.h"
 
 
 /*============================================================================*/
@@ -99,47 +99,56 @@ _memsep(char **stringp, const unsigned len, const char *delim)
 int
 b_memsep(bstring *dest, bstring *stringp, const char delim)
 {
-        /* uint8_t *ptr = stringp->data; */
-        dest->data = stringp->data;
-
-        if (!dest || !stringp)
+        if (!dest || !stringp || NO_WRITE(stringp))
                 errx(1, "invalid input strings");
+
+        dest->data = stringp->data;
 
         if (!stringp->data || stringp->slen == 0)
                 return 0;
 
         const int64_t pos = b_strchr(stringp, delim);
+        int           ret = 1;
+
         if (pos >= 0) {
-                dest->data[pos]  = '\0';
-                dest->slen       = pos;
-                stringp->data    = stringp->data + pos + 1u;
-                stringp->slen   -= pos + 1u;
-                return 1;
+                dest->data[pos] = '\0';
+                dest->slen      = pos;
+                stringp->data   = stringp->data + pos + 1u;
+                stringp->slen  -= pos + 1u;
+        } else {
+                dest->slen    = stringp->slen;
+                stringp->data = NULL;
+                stringp->slen = 0;
         }
 
-        dest->slen    = stringp->slen;
-        stringp->data = NULL;
-        stringp->slen = 0;
-        return 1;
-
-
-#if 0
-        for (unsigned i = 0; i < stringp->slen; ++i) {
-                const char *delimp = delim;
-                do {
-                        if (*delimp++ == ptr[i]) {
-                                dest->data[i]  = '\0';
-                                dest->slen     = i;
-                                stringp->data  = ptr + i + 1u;
-                                stringp->slen -= i + 1u;
-                                return i;
-                        }
-                } while (*delimp != '\0');
-        }
-#endif
+        return ret;
 }
 
+b_list *
+b_split_char(bstring *tosplit, const int delim, const bool destroy)
+{
+        if (INVALID(tosplit) || (!destroy && NO_WRITE(tosplit)))
+                RETURN_NULL();
 
+        bstring *split = destroy ? tosplit : b_strcpy(tosplit);
+        b_list  *ret   = b_list_create();
+
+        /* while (b_memsep(&buf, split, delim)) {
+                if (!buf.data || !split)
+                        abort();
+                b_list_append(&ret, b_strcpy(&buf));
+        } */
+
+        bstring tok[] = {{0, 0, NULL, 0}};
+        bstring buf[] = {{split->slen, 0, split->data, split->flags}};
+
+        while (b_memsep(tok, buf, delim)) {
+                b_list_append(&ret, b_fromblk(tok->data, tok->slen));
+        }
+
+        b_destroy(split);
+        return ret;
+}
 
 
 /*============================================================================*/
@@ -335,6 +344,21 @@ b_strcmp_wrap(const void *const vA, const void *const vB)
 {
         return b_strcmp((*(bstring const*const*const)(vA)),
                         (*(bstring const*const*const)(vB)));
+}
+
+
+bstring *
+b_steal(void *blk, const unsigned len)
+{
+        if (!blk || len == 0)
+                RETURN_NULL();
+        bstring *ret = xmalloc(sizeof *ret);
+        *ret = (bstring){
+            .slen  = len,
+            .mlen  = len + 1,
+            .data  = (uchar *)blk,
+            .flags = BSTR_STANDARD,
+        };
 }
 
 
@@ -586,6 +610,33 @@ b_list_remove_dups(b_list **listp)
 }
 
 
+bstring *
+b_list_join(const b_list *list, const bstring *sep)
+{
+        if (!list || !list->lst || list->qty == 0)
+                RETURN_NULL();
+        unsigned total = 1, i;
+        unsigned seplen = (sep) ? sep->slen : 0;
+
+        B_LIST_FOREACH (list, str, i)
+                total += str->slen + seplen;
+        
+        bstring *ret = b_alloc_null(total);
+
+        B_LIST_FOREACH (list, str, i) {
+                memcpy(ret->data + ret->slen, str->data, str->slen);
+                ret->slen += str->slen;
+                if (sep) {
+                        memcpy(ret->data + ret->slen, sep->data, sep->slen);
+                        ret->slen += sep->slen;
+                }
+        }
+
+        ret->data[ret->slen] = '\0';
+        return ret;
+}
+
+
 /*============================================================================*/
 /* Proper strstr replacements */
 /*============================================================================*/
@@ -625,76 +676,8 @@ b_strsep(bstring *ostr, const char *const delim, const int refonly)
                 while (b_memsep(tok, str, delim[0]))
                         b_list_append(&ret, b_fromblk(tok->data, tok->slen));
 
-
-#if 0
-        /* char   *data = (char *)str->data;
-        char   *tok; */
-        if (refonly)
-                while ((tok = strsep(&data, delim)))
-                        b_list_append(&ret,
-                                data ? b_refblk(tok, (psub(data, tok) - 1u))
-                                     : b_refcstr(tok));
-        else
-                while ((tok = strsep(&data, delim)))
-                        b_list_append(&ret,
-                                data ? b_fromblk(tok, (psub(data, tok) - 1u))
-                                     : b_fromcstr(tok));
-#endif
-
-
         return ret;
 }
-
-
-#if 0
-b_list *
-b_strsep2(const bstring *str, const bstring *delim, const unsigned pos, const int refonly)
-{
-        //int64_t ret;
-        //unsigned i, p;
-
-        b_list *ret   = b_list_create();
-        unsigned    i     = pos;
-        bool    found;
-
-        if (INVALID(str) || INVALID(delim) || str->slen == 0 ||
-            delim->slen == 0 || pos > str->slen)
-                RETURN_NULL();
-        //p = pos;
-
-        //do {
-                //for (i = p; i < str->slen; ++i)
-                        //if (str->data[i] == splitChar)
-                                //break;
-
-
-
-                //if ((ret = cb(parm, p, i - p)) < 0)
-                        //return ret;
-                //p = i + 1;
-        //} while (p <= str->slen);
-
-        while (i < str->slen) {
-                found = false;
-
-                for (unsigned x = 0; x < delim->slen; ++x) {
-                        uchar *next = memchr((str->data + i), delim->data[x], str->slen - i);
-                        if (!next)
-                                continue;
-                        found              = true;
-                        *next              = '\0';
-                        const unsigned len = psub(next, (str->data + i)) - 1u;
-
-                        if (refonly)
-                                b_list_append(&ret, b_refblk(str->data + i, len));
-                        else
-                                b_list_append(&ret, b_fromblk(str->data + i, len));
-                }
-                if (!found)
-                        break;
-        }
-}
-#endif
 
 
 /*============================================================================*/
@@ -799,6 +782,10 @@ b_quickread(const char *const __restrict fmt, ...)
         if (!fp)
                 RETURN_NULL();
         fstat(fileno(fp), &st);
+        if (st.st_size == 0) {
+                fclose(fp);
+                return NULL;
+        }
 
         bstring      *ret   = b_alloc_null(st.st_size + 1);
         const ssize_t nread = fread(ret->data, 1, st.st_size, fp);
@@ -941,6 +928,16 @@ b_replace_ch(bstring *bstr, const int find, const int replacement)
                 dat  = ptr + 1;
         }
 
+        return BSTR_OK;
+}
+
+int
+b_catblk_nonul(bstring *bstr, void *blk, const unsigned len)
+{
+        if (INVALID(bstr) || NO_WRITE(bstr) || !blk || len == 0)
+                RUNTIME_ERROR();
+        b_alloc(bstr, bstr->slen + 1 + len);
+        memcpy(bstr->data + bstr->slen + 1, blk, len);
         return BSTR_OK;
 }
 

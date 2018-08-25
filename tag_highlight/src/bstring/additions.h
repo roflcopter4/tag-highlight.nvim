@@ -1,13 +1,20 @@
-#ifndef TOP_BSTRLIB_H
-#  error Never include this file manually. Include "bstrlib.h".
+#ifndef TOP_BSTRING_H
+#  error Never include this file manually. Include "bstring.h".
 #endif
 #ifndef BSTRLIB_ADDITIONS_H
 #define BSTRLIB_ADDITIONS_H
 
-#include "bstrlib.h"
+#include "bstring.h"
 #include "defines.h"
 /*======================================================================================*/
 /* MY ADDITIONS */
+
+#ifndef BSTR_PUBLIC
+#  define BSTR_PUBLIC
+# endif
+#ifndef INLINE
+#  define INLINE inline
+#endif
 
 
 /**
@@ -150,6 +157,7 @@ BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB);
  * the BSTR_DATA_FREEABLE flag or ensure that the memory is freed independently.
  */
 BSTR_PUBLIC bstring *b_refblk(void *blk, unsigned len);
+BSTR_PUBLIC bstring *b_steal (void *blk, unsigned len);
 
 /**
  * The same as b_refblk with the exception that the size is derived by strlen().
@@ -248,6 +256,13 @@ BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listnam
              (CTR) < (BLIST)->qty && (((VAR) = (BLIST)->lst[(CTR)]) || 1); \
              ++(CTR))
 
+#define FOREACH_COUNTER(OP_) ({ static _Thread_local int x__ = 0; (OP_) ? ++(x__) : (x__);})
+
+#define B_LIST_FOREACH_LAZY(BLIST, VAR)                                    \
+        for (bstring *VAR = ((BLIST)->lst[(FOREACH_COUNTER(0))]);                   \
+             FOREACH_COUNTER(0) < (BLIST)->qty && (((VAR) = (BLIST)->lst[FOREACH_COUNTER(0)]) || 1); \
+             FOREACH_COUNTER(1))
+
 #define B_LIST_SORT_FAST(BLIST)                                    \
         qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), \
               &b_strcmp_fast_wrap)
@@ -266,12 +281,13 @@ BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listnam
 #define BSTR_M_SORT_FAST 0x04
 #define BSTR_M_DEL_DUPS  0x08
 
-BSTR_PUBLIC int     b_list_append(b_list **list, bstring *bstr);
-BSTR_PUBLIC int     b_list_merge(b_list **dest, b_list *src, int flags);
-BSTR_PUBLIC int     b_list_remove_dups(b_list **listp);
-BSTR_PUBLIC b_list *b_list_copy(const b_list *list);
-BSTR_PUBLIC b_list *b_list_clone(const b_list *list);
-BSTR_PUBLIC b_list *b_list_clone_swap(b_list *list);
+BSTR_PUBLIC int       b_list_append(b_list **list, bstring *bstr);
+BSTR_PUBLIC int       b_list_merge(b_list **dest, b_list *src, int flags);
+BSTR_PUBLIC int       b_list_remove_dups(b_list **listp);
+BSTR_PUBLIC b_list *  b_list_copy(const b_list *list);
+BSTR_PUBLIC b_list *  b_list_clone(const b_list *list);
+BSTR_PUBLIC b_list *  b_list_clone_swap(b_list *list);
+BSTR_PUBLIC bstring * b_list_join(const b_list *list, const bstring *sep);
 
 BSTR_PUBLIC int b_list_writeprotect(b_list *list);
 BSTR_PUBLIC int b_list_writeallow(b_list *list);
@@ -281,6 +297,7 @@ BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch)
 BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
 BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, const char delim);
 BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *const delim, const int refonly);
+BSTR_PUBLIC b_list *b_split_char(bstring *split, const int delim, const bool destroy);
 
 /*--------------------------------------------------------------------------------------*/
 
@@ -294,6 +311,7 @@ BSTR_PUBLIC bstring *  b_basename(const bstring *path);
 
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
+BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
 
 BSTR_PUBLIC bstring *  b_sprintf  (const bstring *fmt, ...);
 BSTR_PUBLIC bstring *  b_vsprintf (const bstring *fmt, va_list args);
@@ -333,5 +351,13 @@ b_conchar(bstring *bstr, const char ch)
 
         return BSTR_OK;
 }
+
+
+#undef BSTR_PRIVATE
+#undef BSTR_PUBLIC
+#undef INLINE
+#ifdef _MSC_VER
+#  undef __attribute__
+#endif
 
 #endif /* additions.h */

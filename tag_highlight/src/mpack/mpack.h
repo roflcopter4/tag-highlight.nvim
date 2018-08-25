@@ -5,7 +5,7 @@
 #  define __attribute__(...)
 #endif
 
-#include "bstring/bstrlib.h"
+#include "bstring/bstring.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -259,7 +259,7 @@ extern FILE *mpack_log;
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
 
-#define ECHO(FMT_, ...) nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__)
+#define ECHO(FMT_, ...) ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) : (void)0)
 
 
 /*============================================================================*/

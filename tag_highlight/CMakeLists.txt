@@ -63,13 +63,16 @@ if (THREADS_HAVE_PTHREAD_ARG)
     set (USE_PTHREADS 1)
 endif()
 
+string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
+
 ###############################################################################
 # Flags
 
-if ((CMAKE_BUILD_TYPE STREQUAL "DEBUG") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 
+#####################################################################################################
 if (MSVC)
     set (CMAKE_C_FLAGS_RELEASE "/MP /GS /TC /GL /W3 /Gm- /Ox /Ob2 /Zc:inline /fp:fast /Gd /Oi /MD /FC /Ot /arch:AVX2")
     
@@ -78,56 +81,53 @@ if (MSVC)
     set (CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_RELEASE})
     set (CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE})
 
+#####################################################################################################
 else()
-    
     if (MINGW)
         add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
-        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
--Werror=pointer-to-int-cast -Werror=int-conversion")
+        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types")
+        string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion")
     else()
-        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types \
--Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
+        set (WARNS "-fdiagnostics-color=always -Wall -Werror=implicit -Werror=incompatible-pointer-types")
+        string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
     endif()
 
-    CHECK_INCLUDE_FILE ("unistd.h" HAVE_UNISTD_H)
     if (NOT BUILD_DIST) 
         set (MARCH_SETTING "-march=native")
     endif()
+    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
+    set (BASE "${WARNS} ${MARCH_SETTING} -fdiagnostics-color=always")
 
-    # set (WARNS "-fdiagnostics-color=always -Weverything")
-
-    # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
-    set (BASE "${WARNS} ${MARCH_SETTING}")
-
-    string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
-
+#####################################################################################################
     if (CLANG_STR_SEARCH EQUAL -1)
-
-        set (CMAKE_C_FLAGS_DEBUG "${MARCH_SETTING} ${WARNS} ${SANIT} -O0 -g -Wextra -Wpedantic -Wformat")
-        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g -Wextra -Wpedantic -Wformat")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
-
+        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g3")
+        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -O2 -g3")
+#----------------------------------------------------------------------------------------------------
     else() # CLANG
-
+#----------------------------------------------------------------------------------------------------
         # set (BASE "${BASE} -fprofile-instr-generate")
         # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
         set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
-        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g -Wextra -Wpedantic -Wformat -Weverything \
--Wno-sign-conversion -Wno-documentation-unknown-command -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros \
--Wno-switch-enum -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g \
--Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
+        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything")
+        string(CONCAT CMAKE_C_FLAGS_DEBUG "-Wno-sign-conversion -Wno-documentation-unknown-command"
+               "-Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
+               "-Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
+        string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
+                "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
 
         set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
-
     endif()
+#####################################################################################################
 
     set (CMAKE_C_FLAGS_MINSIZEREL     "${BASE} -Os")
     set (CMAKE_C_FLAGS_RELEASE        "${BASE} -Ofast -ftree-vectorize")
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
+    # set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-static -s")
     set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
     set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
 endif()

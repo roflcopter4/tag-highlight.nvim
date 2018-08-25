@@ -1,9 +1,9 @@
-#include "util.h"
+#include "util/util.h"
 #include <limits.h>
 #include <stddef.h>
 
 #include "data.h"
-#include "mpack_code.h"
+#include "intern.h"
 
 #define DAI data.arr->items
 #define DDE data.dict->entries

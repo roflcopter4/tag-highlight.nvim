@@ -4,6 +4,11 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
+/* #define WITH_JEMALLOC */
+#ifdef WITH_JEMALLOC
+#  include <jemalloc/jemalloc.h>
+#endif
+
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -46,6 +51,7 @@
      typedef signed long long int ssize_t;
 #  endif
 #else
+#  include <sys/time.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
 #endif
@@ -75,7 +81,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "bstring/bstrlib.h"
+#include "bstring/bstring.h"
 #include "contrib/contrib.h"
 #include "data.h"
 
@@ -127,11 +133,13 @@ struct backups {
 #define aALSZ(...)      __attribute__((__alloc_size__(__VA_ARGS__)))
 #define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
 
+extern const long double SLEEP_CONV;
+
 #ifdef DOSISH
 #  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
-#  define fsleep(VAL)  Sleep((VAL) * 1000)
+#  define fsleep(VAL)  Sleep((long long)((long double)(VAL) * SLEEP_CONV))
 #  define eprintf(...)                                          \
         do {                                                    \
                 fprintf(stderr, "tag_highlight: " __VA_ARGS__); \
@@ -143,8 +151,8 @@ struct backups {
         nanosleep(                                                              \
             (struct timespec[]){                                                \
                 {(int64_t)(VAL),                                                \
-                 (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))) \
-                           * 1000000000.0L)}                                    \
+                 (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))  \
+                           ) * SLEEP_CONV)}                                     \
             }, NULL)
 #endif
 
@@ -208,14 +216,59 @@ NORETURN void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4
 #define warn(...)       __warn(true, __VA_ARGS__)
 #define warnx(...)      __warn(false, __VA_ARGS__)
 
+#define echo    warnx
 #ifdef DEBUG
 #  define SHOUT(...)      __warn(false, __VA_ARGS__)
 #  define echo    warnx
 #else
 #  undef eprintf
 #  define eprintf(...)
-#  define echo(...)
+/* #  define echo(...) */
 #  define SHOUT(...) __warn(false, __VA_ARGS__)
+#endif
+
+extern const long double USEC2SECOND;
+extern const long double NSEC2SECOND;
+#define TDIFF(STV1, STV2)                                                 \
+        (((long double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
+         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
+
+#define SPECDIFF(STV1, STV2)                                              \
+        (((long double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
+         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
+
+#ifdef DOSISH
+   typedef struct timer_s {
+           struct timeval tv1, tv2;
+   } timer;
+#  define TIMER_START(T_) (gettimeofday(&(T_).tv1, NULL))
+#  define TIMER_START_BAR(T_)                    \
+        do {                                     \
+                gettimeofday(&(T_).tv1, NULL);   \
+                SHOUT("----------------------"); \
+        } while (0)
+#  define TIMER_REPORT(T_, MSG_)                                            \
+        do {                                                                \
+                gettimeofday(&(T_).tv2, NULL);                              \
+                SHOUT("Time for \"%s\": % *Lfs", (MSG_),                    \
+                      (int)(30 - sizeof(MSG_)), TDIFF((T_).tv1, (T_).tv2)); \
+        } while (0)
+#else
+   typedef struct timer_s {
+           struct timespec tv1, tv2;
+   } timer;
+#  define TIMER_START(T_) (clock_gettime(CLOCK_REALTIME, &(T_).tv1))
+#  define TIMER_START_BAR(T_)                             \
+        do {                                              \
+                clock_gettime(CLOCK_REALTIME, &(T_).tv1); \
+                SHOUT("----------------------");          \
+        } while (0)
+#  define TIMER_REPORT(T_, MSG_)                                               \
+        do {                                                                   \
+                clock_gettime(CLOCK_REALTIME, &(T_).tv2);                      \
+                SHOUT("Time for \"%s\": % *.9Lfs", (MSG_),                     \
+                      (int)(35 - sizeof(MSG_)), SPECDIFF((T_).tv1, (T_).tv2)); \
+        } while (0)
 #endif
 
 /*===========================================================================*/
@@ -244,7 +297,7 @@ extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
 #  define xcalloc calloc
 #endif
 
-#ifdef HAVE_REALLOCARRAY
+#if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
    extern void * xreallocarray (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
 #  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
 #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
@@ -254,10 +307,9 @@ extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
 #endif
 
 #define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#define b_list_dump_nvim(LST_) __b_dump_list_nvim((LST_), #LST_)
+#define b_list_dump_nvim(LST_) __b_list_dump_nvim((LST_), #LST_)
 
 extern void __b_list_dump_nvim(const b_list *list, const char *listname);
-
 
 #ifdef __cplusplus
     }

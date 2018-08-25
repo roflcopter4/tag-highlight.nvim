@@ -1,4 +1,4 @@
-#include "util.h"
+#include "util/util.h"
 
 #include "data.h"
 #include "highlight.h"
@@ -31,18 +31,18 @@ static void *           do_tok_search(void *vdata);
 struct taglist *
 process_tags(struct bufdata *bdata, b_list *toks)
 {
-#ifdef DEBUG
-        thislog     = safe_fopen_fmt("%s/rejectlog.log", "wb", HOME);
-#endif
+/* #ifdef DEBUG
+        thislog     = safe_fopen_fmt("%s/.tag_highlight_log/rejectlog.log", "wb", HOME);
+#endif */
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
 
         struct taglist *list = tok_search(bdata, toks);
         if (!list)
                 return NULL;
 
-#ifdef DEBUG
+/* #ifdef DEBUG
         fclose(thislog);
-#endif
+#endif */
         return list;
 
 }

@@ -1,9 +1,9 @@
-#include "util.h"
+#include "util/util.h"
 #include <dirent.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #define STARTSIZE 1024
 #define GUESS 100
@@ -18,6 +18,24 @@
              if ((stat((PATH), (ST)) != 0))                     \
                      err(1, "Failed to stat file '%s", (PATH)); \
      } while (0)
+
+#include <execinfo.h>
+#define FATAL_ERROR(...)                                               \
+        __extension__({                                                \
+                void * arr[128];                                       \
+                char   buf[8192];                                      \
+                size_t num     = backtrace(arr, 128);                  \
+                char **strings = backtrace_symbols(arr, num);          \
+                snprintf(buf, 8192, __VA_ARGS__);                      \
+                                                                       \
+                warnx("Fatal error in func %s in bstrlib.c, line %d\n" \
+                      "%s" "STACKTRACE: ", FUNC_NAME, __LINE__, buf);  \
+                for (unsigned i_ = 0; i_ < num; ++i_)                  \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);     \
+                                                                       \
+                free(strings);                                         \
+                abort();                                               \
+        })
 
 extern const char *program_name;
 
@@ -116,7 +134,8 @@ xmalloc(const size_t size)
 {
         void *tmp = malloc(size);
         if (tmp == NULL)
-                err(100, "Malloc call failed - attempted %zu bytes", size);
+                FATAL_ERROR("Malloc call failed - attempted %zu bytes", size);
+                /* err(100, "Malloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 
@@ -126,7 +145,8 @@ xcalloc(const int num, const size_t size)
 {
         void *tmp = calloc(num, size);
         if (tmp == NULL)
-                err(101, "Calloc call failed - attempted %zu bytes", size);
+                FATAL_ERROR("Calloc call failed - attempted %zu bytes", size);
+                /* err(101, "Calloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 #endif
@@ -137,7 +157,8 @@ xrealloc(void *ptr, const size_t size)
 {
         void *tmp = realloc(ptr, size);
         if (tmp == NULL)
-                err(102, "Realloc call failed - attempted %zu bytes", size);
+                FATAL_ERROR("Realloc call failed - attempted %zu bytes", size);
+                /* err(102, "Realloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 
@@ -148,7 +169,8 @@ xreallocarray(void *ptr, size_t num, size_t size)
 {
         void *tmp = reallocarray(ptr, num, size);
         if (tmp == NULL)
-                err(103, "Realloc call failed - attempted %zu bytes", size);
+                FATAL_ERROR("Realloc call failed - attempted %zu bytes", size);
+                /* err(103, "Realloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 #endif

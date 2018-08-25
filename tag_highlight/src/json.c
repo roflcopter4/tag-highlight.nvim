@@ -1,8 +1,8 @@
-#include "util.h"
+#include "util/util.h"
 #include <sys/stat.h>
 
 #include "contrib/jsmn/jsmn.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #ifdef DOSISH
 #  include <direct.h>

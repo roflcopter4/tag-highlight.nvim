@@ -1,4 +1,4 @@
-#include "util.h"
+#include "util/util.h"
 #include <setjmp.h>
 #include <signal.h>
 
@@ -9,13 +9,12 @@
 #else
 #  include <sys/socket.h>
 #  include <sys/stat.h>
-#  include <sys/time.h>
 #  include <sys/un.h>
 #endif
 
 #include "data.h"
 #include "highlight.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #define WIN_BIN_FAIL(STREAM_) \
         err(1, "Failed to change " STREAM_ "to binary mode.")
@@ -23,9 +22,7 @@
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
 
-#define TDIFF(STV1, STV2)                                                \
-        (((long double)((STV2).tv_usec - (STV1).tv_usec) / 1000000.0L) + \
-         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
+static const long double WAIT_TIME   = 3.0L;
 
 #define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 
@@ -33,7 +30,6 @@ extern jmp_buf         exit_buf;
 extern int             decode_log_raw;
 extern FILE           *decode_log, *cmd_log, *echo_log, *main_log;
 static pthread_t       top_thread;
-static struct timeval  gtv;
 
 
 static void          exit_cleanup(void);
@@ -53,10 +49,12 @@ int
 main(UNUSED int argc, char *argv[])
 {
         atexit(exit_cleanup);
-        gettimeofday(&gtv, NULL);
         extern const char *program_name;
         top_thread   = pthread_self();
         program_name = basename(argv[0]);
+
+        timer main_timer;
+        TIMER_START(main_timer);
 
 #ifdef DOSISH
         HOME = alloca(PATH_MAX+1);
@@ -76,48 +74,57 @@ main(UNUSED int argc, char *argv[])
                 temp.sa_handler = sigusr_wrap;
                 sigaction(SIGUSR1, &temp, NULL);
                 sigaction(SIGTERM, &temp, NULL);
+                sigaction(SIGINT,  &temp, NULL);
         }
 #endif
 #ifdef DEBUG
-        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", HOME);
-        decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", HOME);
-        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", HOME);
-        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", HOME);
-        decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, HOME);
+        char LOGDIR[PATH_MAX+1];
+        snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
+        mkdir(LOGDIR, 0777);
+        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
+        decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", LOGDIR);
+        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
+        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
+        decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, LOGDIR);
 #endif
         sockfd = create_socket(1);
         eprintf("sockfd is %d\n", sockfd);
 
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
-        settings.comp_type       = get_compression_type(0);
-        settings.comp_level      = nvim_get_var_pkg(0, "compression_level", E_NUM        ).num;
-        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args",        E_STRLIST    ).ptr;
-        settings.enabled         = nvim_get_var_pkg(0, "enabled",           E_BOOL       ).num;
-        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore",            E_STRLIST    ).ptr;
-        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags",      E_MPACK_DICT ).ptr;
-        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs",    E_STRLIST    ).ptr;
-        settings.settings_file   = nvim_get_var_pkg(0, "settings_file",     E_STRING     ).ptr;
-        settings.use_compression = nvim_get_var_pkg(0, "use_compression",   E_BOOL       ).num;
-        settings.verbose         = nvim_get_var_pkg(0, "verbose",           E_BOOL       ).num;
+        settings.enabled         = nvim_get_var_pkg(0, "enabled",           E_BOOL      ).num;
+        settings.ctags_bin       = nvim_get_var_pkg(0, "ctags_bin",         E_STRING    ).ptr;
+        if (!settings.enabled || !settings.ctags_bin)
+                exit(0);
+        SHOUT("ctags_bin: %s", BS(settings.ctags_bin));
+        eprintf("WTF\n");
 
-        assert(settings.enabled);
+        settings.comp_type       = get_compression_type(0);
+        settings.comp_level      = nvim_get_var_pkg(0, "compression_level", E_NUM       ).num;
+        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args",        E_STRLIST   ).ptr;
+        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore",            E_STRLIST   ).ptr;
+        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags",      E_MPACK_DICT).ptr;
+        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs",    E_STRLIST   ).ptr;
+        settings.settings_file   = nvim_get_var_pkg(0, "settings_file",     E_STRING    ).ptr;
+        settings.verbose         = nvim_get_var_pkg(0, "verbose",           E_BOOL      ).num;
+
+#ifdef DEBUG
+        settings.verbose = true;
+#endif
 
         open_main_log();
-        int initial_buf;
 
         /* Initialize all opened buffers. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
                         if (buffers.bad_bufs.qty)
                                 buffers.bad_bufs.qty = 0;
-                        fsleep(3.0L);
+                        fsleep(WAIT_TIME);
                         echo("Retrying (attempt number %u)\n", attempts);
                 }
 
-                initial_buf = nvim_get_current_buf(0);
+                const int initial_buf = nvim_get_current_buf(0);
                 if (new_buffer(0, initial_buf)) {
-                        struct timeval  tv2;
                         struct bufdata *bdata = find_buffer(initial_buf);
 
                         nvim_buf_attach(1, initial_buf);
@@ -125,8 +132,11 @@ main(UNUSED int argc, char *argv[])
                         get_initial_taglist(bdata);
                         update_highlight(initial_buf, bdata);
 
-                        gettimeofday(&tv2, NULL);
-                        SHOUT("Time for file initialization: %Lfs", TDIFF(gtv, tv2));
+                        TIMER_REPORT(main_timer, "main initialization");
+
+                        /* bstring *tmp = find_file(BS(bdata->topdir->pathname), "*.[ch]"); */
+                        /* SHOUT("%s", BS(tmp)); */
+                        /* b_destroy(tmp); */
                 }
         }
 
@@ -149,11 +159,6 @@ main(UNUSED int argc, char *argv[])
 
 /*======================================================================================*/
 
-#define WAIT_TIME (0.05L)
-#undef fsleep
-#define fsleep(TIME_)
-
-
 /* 
  * Handle an update from the small vimscript plugin. Updates are recieved upon
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
@@ -165,7 +170,7 @@ interrupt_call(void *vdata)
         static int             bufnum    = (-1);
         static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
         struct int_pdata      *data      = vdata;
-        struct timeval         ltv1, ltv2;
+        timer t;
 
         pthread_mutex_lock(&int_mutex);
 
@@ -175,11 +180,10 @@ interrupt_call(void *vdata)
         /*
          * New buffer was opened or current buffer changed.
          */
-        case 'A':
+        case 'A':  /* XXX Fix these damn letters, they've gotten totally out of order. */
         case 'D': {
-                fsleep(WAIT_TIME);
                 const int prev = bufnum;
-                gettimeofday(&ltv1, NULL);
+                TIMER_START_BAR(t);
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
 
@@ -193,18 +197,14 @@ interrupt_call(void *vdata)
                                 get_initial_taglist(bdata);
                                 update_highlight(bufnum, bdata);
 
-                                gettimeofday(&ltv2, NULL);
-                                SHOUT("Time for file initialization: %Lfs",
-                                      TDIFF(ltv1, ltv2));
+                                TIMER_REPORT(t, "initialization");
                         }
                 } else if (prev != bufnum) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
-                        fsleep(WAIT_TIME);
 
                         update_highlight(bufnum, bdata);
-                        gettimeofday(&ltv2, NULL);
-                        SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
+                        TIMER_REPORT(t, "update");
                 }
 
                 break;
@@ -214,8 +214,7 @@ interrupt_call(void *vdata)
          */
         case 'B':
         case 'F': {
-                fsleep(WAIT_TIME);
-                gettimeofday(&ltv1, NULL);
+                TIMER_START_BAR(t);
                 bufnum                 = nvim_get_current_buf(0);
                 struct bufdata *bdata  = find_buffer(bufnum);
 
@@ -227,8 +226,7 @@ interrupt_call(void *vdata)
 
                 if (update_taglist(bdata, (data->val == 'F'))) {
                         update_highlight(bufnum, bdata);
-                        gettimeofday(&ltv2, NULL);
-                        SHOUT("Time for update: %Lfs", TDIFF(ltv1, ltv2));
+                        TIMER_REPORT(t, "update");
                 }
 
                 break;
@@ -357,8 +355,8 @@ create_socket(const int mes_fd)
 static comp_type_t
 get_compression_type(const int fd)
 {
-        bstring *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING).ptr;
-        enum comp_type_e  ret = COMP_NONE;
+        bstring    *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING).ptr;
+        comp_type_t ret = COMP_NONE;
 
         if (b_iseq(tmp, B("gzip"))) {
                 ret = COMP_GZIP;

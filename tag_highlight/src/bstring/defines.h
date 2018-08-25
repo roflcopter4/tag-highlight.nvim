@@ -1,5 +1,5 @@
-#ifndef TOP_BSTRLIB_H
-#  error Never include this file manually. Include "bstrlib.h".
+#ifndef TOP_BSTRING_H
+#  error Never include this file manually. Include "bstring.h".
 #endif
 
 #ifndef BSTRLIB_DEFINES_H

@@ -1,4 +1,4 @@
-#include "util.h"
+#include "util/util.h"
 #include <dirent.h>
 
 #include "data.h"
@@ -618,7 +618,7 @@ destroy_call_array(struct atomic_call_array *calls)
                                 ++x;
                                 break;
                         case 's': case 'S':
-                                b_destroy(calls->args[i][x++].str);
+                                b_destroy(calls->args[i][x].str); ++x;
                                 break;
                         }
                 }

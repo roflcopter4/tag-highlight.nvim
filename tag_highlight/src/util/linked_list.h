@@ -1,7 +1,7 @@
 #ifndef SRC_LINKED_LIST_H
 #define SRC_LINKED_LIST_H
 
-#include "bstring/bstrlib.h"
+#include "bstring/bstring.h"
 #include <stdbool.h>
 #include <stdint.h>
 

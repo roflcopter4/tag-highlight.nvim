@@ -4,7 +4,7 @@
    extern "C" {
 #  endif
 
-#include "util.h"
+#include "util/util.h"
 
 #if !defined(__GNUC__) && !defined(__attribute__)
 #  define __attribute__(...)

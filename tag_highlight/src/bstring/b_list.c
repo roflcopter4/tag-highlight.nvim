@@ -36,7 +36,7 @@
 #include <assert.h>
 #include <inttypes.h>
 
-#include "bstrlib.h"
+#include "bstring.h"
 
 /* 
  * This file was broken off from the main bstrlib.c file in a forlorn effort to
@@ -107,6 +107,8 @@ b_list_alloc(b_list *sl, const uint msz)
         if (nsz < (size_t)smsz)
                 RUNTIME_ERROR();
 
+        blen = xrealloc(sl->lst, nsz);
+#if 0
         blen = realloc(sl->lst, nsz);
         if (!blen) {
                 smsz = msz;
@@ -115,6 +117,7 @@ b_list_alloc(b_list *sl, const uint msz)
                 if (!blen)
                         ALLOCATION_ERROR(BSTR_ERR);
         }
+#endif
 
         sl->mlen = smsz;
         sl->lst  = blen;

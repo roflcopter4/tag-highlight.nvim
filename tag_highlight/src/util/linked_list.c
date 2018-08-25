@@ -1,10 +1,10 @@
 
-#include "util.h"
+#include "util/util.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "linked_list.h"
+#include "util/linked_list.h"
 
 #define V(PTR_) ((void *)(PTR_))
 #define MSG1()                                                                                  \

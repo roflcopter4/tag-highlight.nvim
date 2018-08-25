@@ -7,15 +7,15 @@ let g:tag_highlight#c#t = { 'group': 'cTypeTag' }
 
 let g:tag_highlight#c#g = {
             \ 'group': 'cEnumTypeTag',
-            \ 'prefix': '\%(enum\s\+\)\@5<=',
+            \ 'prefix': '\%(enum\s\)\@5<=',
             \ }
 let g:tag_highlight#c#s = {
             \   'group': 'cStructTag',
-            \   'prefix': '\%(struct\s\+\)\@7<='
+            \   'prefix': '\%(struct\s\)\@7<='
             \ }
 let g:tag_highlight#c#u = {
             \ 'group': 'cUnionTag',
-            \ 'prefix': '\%(union\s\+\)\@6<=',
+            \ 'prefix': '\%(union\s\)\@6<=',
             \ }
 
 let g:tag_highlight#c#e = { 'group': 'cEnumTag' }

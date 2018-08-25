@@ -77,6 +77,12 @@ function! s:ClearBuffer()
     endif
 endfunction
 
+function! s:ExitKill()
+    if exists('g:tag_highlight#binpid') 
+        echom system('kill -INT ' . g:tag_highlight#binpid) 
+    endif
+endfunction
+
 "===============================================================================
 
 let s:job1 = 0
@@ -124,6 +130,8 @@ command! TaghighlightStop call s:StopTagHighlight()
 command! TaghighlightClear call s:ClearBuffer()
 command! TaghighlightUpdate call s:ForceUpdateTags()
 
+command! TestExitKill call s:ExitKill()
+
 if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
     augroup Tag_Highlight_Init
         autocmd VimEnter * call s:InitTagHighlight()
@@ -134,6 +142,9 @@ augroup TagHighlightAu
     autocmd BufAdd * call s:NewBuf()
     autocmd BufWritePost * call s:UpdateTags()
     autocmd BufEnter * call s:BufChanged()
+    " autocmd VimLeavePre,VimLeave * call s:StopTagHighlight()
+    " autocmd VimLeavePre,VimLeave * :!pkill -INT tag_highlight
+    autocmd VimLeavePre * call s:ExitKill()
 augroup END
 
 let g:tag_highlight#shim_loaded = 1

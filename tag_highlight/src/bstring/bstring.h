@@ -40,8 +40,8 @@
  * bstring functions.
  */
 
-#ifndef TOP_BSTRLIB_H
-#define TOP_BSTRLIB_H
+#ifndef TOP_BSTRING_H
+#define TOP_BSTRING_H
 
 #include "defines.h"
 
@@ -182,6 +182,7 @@ BSTR_PUBLIC int b_assign_blk(bstring *a, const void *buf, unsigned len);
  */
 BSTR_PUBLIC int b_free(bstring *bstr);
 
+#if 0
 INLINE int
 __b_destroy(bstring **bstr)
 {
@@ -190,8 +191,10 @@ __b_destroy(bstring **bstr)
                 *bstr = NULL;
         return ret;
 }
-
 #define b_destroy(BSTR) (__b_destroy(&(BSTR)))
+#endif
+
+#define b_destroy(BSTR) ((b_free(BSTR) == BSTR_OK) ? ((BSTR) = NULL) : (NULL))
 
 
 /* Space allocation hinting functions */
@@ -253,6 +256,12 @@ BSTR_PUBLIC int b_alloc(bstring *bstr, unsigned olen);
  * ensure that b has been allocated with at least 64 characters.
  */
 BSTR_PUBLIC int b_allocmin(bstring *bstr, unsigned len);
+
+
+INLINE int b_growby(bstring *bstr, unsigned len)
+{
+        return b_alloc(bstr, bstr->mlen + len);
+}
 
 
 /*======================================================================================*/
@@ -861,4 +870,4 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 }
 #endif
 
-#endif /* bstrlib.h */
+#endif /* bstring.h */

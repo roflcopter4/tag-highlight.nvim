@@ -1,4 +1,4 @@
-#include "util.h"
+#include "util/util.h"
 #include <ctype.h>
 
 #include "data.h"
@@ -24,7 +24,7 @@ static const struct comment_s {
 } comments[] = {{0, '\0'}, {1, '#'}, {2, ';'}, {3, '"'}};
 
 
-static void handle_cstyle(bstring *vim_buf);
+static void handle_cstyle(bstring **vim_bufp);
 static void handle_python(bstring *vim_buf);
 
 /* These functions perform a rather crude stripping of comments and string
@@ -63,7 +63,7 @@ strip_comments(struct bufdata *bdata)
         }
         if (com) {
                 switch (com->type) {
-                case C_LIKE: handle_cstyle(joined); break;
+                case C_LIKE: handle_cstyle(&joined); break;
                 case PYTHON: handle_python(joined); break;
                 default:     abort();
                 }
@@ -78,128 +78,8 @@ strip_comments(struct bufdata *bdata)
 /*============================================================================*/
 /* C style languages */
 
-#define WANT_IF_ZERO (UCHAR_MAX + 1)
 
 #if 0
-static void
-handle_cstyle(bstring **vim_buf)
-{
-        b_list  *list    = b_list_create();
-        uint8_t *bak     = (*vim_buf)->data;
-        int      ifcount = 0;
-        short    want    = 0;
-        bool     esc     = 0;
-        bstring  line[]  = {{0, 0, NULL, 0}};
-
-        while (b_memsep(line, *vim_buf, '\n')) {
-                const unsigned     len  = line->slen;
-                const uchar *const str  = line->data;
-                bstring           *repl = b_alloc_null(len + 1u);
-                repl->slen              = len;
-                unsigned i              = 0;
-                unsigned x              = 0;
-
-                while (isspace(str[i]))
-                        repl->data[x++] = str[i++];
-
-                if (want == WANT_IF_ZERO) {
-                        if (str[i] == '#') {
-                                int tmp = i + 1;
-                                while (isspace(str[tmp]))
-                                        ++tmp;
-                                if (strncmp((char *)(&str[tmp]), SLS("if")) == 0)
-                                        ++ifcount;
-                                else if (strncmp((char *)(&str[tmp]), SLS("endif")) == 0)
-                                        --ifcount;
-
-                                if (ifcount == 0)
-                                        want = 0;
-                        }
-                        goto next_line;
-
-                } else if (!want && str[i] == '#') {
-                        int tmp = i + 1;
-                        while (isspace(str[tmp]))
-                                ++tmp;
-                        if (strncmp((char *)(&str[tmp]), SLS("if 0")) == 0) {
-                                ++ifcount;
-                                want = WANT_IF_ZERO;
-                                goto next_line;
-                        }
-                }
-
-                for (; i < len; ++i) {
-                        if (isspace(str[i])) {
-                                ; /* No need to do anything. */
-                        } else if (want) {
-                                if (want == '\n')
-                                        goto line_comment;
-                                if (str[i] == want) {
-                                        switch (want) {
-                                        case '*':
-                                                if (str[i+1] == '/') {
-                                                        want = 0;
-                                                        i   += 2;
-                                                }
-                                                break;
-                                        case '\'':
-                                        case '"':
-                                                if (!esc) {
-                                                        want = 0;
-                                                        ++i;
-                                                }
-                                                break;
-                                        }
-                                }
-                        } else {
-                                switch (str[i]) {
-                                case '\'':
-                                        want = '\'';
-                                        break;
-                                case '"':
-                                        want = '"';
-                                        break;
-                                case '/':
-                                        if (str[i+1] == '*') {
-                                                want = '*';
-                                                repl->data[x++] = ' ';
-                                                ++i;
-                                        } else if (str[i+1] == '/') {
-                                        line_comment:
-                                                if (str[len-1] == '\\')
-                                                        want = '\n';
-                                                else
-                                                        want = 0;
-
-                                                goto next_line;
-                                        }
-                                        break;
-                                }
-                        }
-
-                        if (!want && str[i])
-                                repl->data[x++] = str[i];
-
-                        esc = (str[i] == '\\') ? !esc : false;
-                }
-
-        next_line:
-                repl->data[(repl->slen = x)] = '\0';
-                b_list_append(&list, repl);
-                esc = false;
-        }
-
-        free(bak);
-        free(*vim_buf);
-        *vim_buf = b_join(list, B("\n"));
-        b_list_destroy(list);
-}
-
-#endif
-
-/*============================================================================*/
-/* C style languages */
-
 #define QUOTE() (single_q || double_q)
 
 #define check_quote(CHECK, OTHER)                      \
@@ -338,6 +218,146 @@ handle_cstyle(bstring *vim_buf)
 
 #undef QUOTE
 #undef check_quote
+#endif
+
+
+/*============================================================================*/
+
+#define GUESS_AVERAGE_LINELEN (45ll)
+#define WANT_IF_ZERO          (UCHAR_MAX + 1)
+
+
+static void
+handle_cstyle(bstring **vim_bufp)
+{
+        bstring        *data     = *vim_bufp;
+        uint8_t        *bak      = data->data;
+        bstring         tok[]    = {{0, 0, NULL, 0}};
+        int             ifcount  = 0;
+        bool            esc      = 0;
+        unsigned short  want     = 0;
+        b_list         *list     = b_list_create_alloc(data->slen / GUESS_AVERAGE_LINELEN);
+
+        while (data && *data->data && b_memsep(tok, data, '\n')) {
+                char     *repl  = xmalloc(tok->slen + 2ll);
+                char     *line  = (char *)tok->data;
+                unsigned  len   = tok->slen;
+                unsigned  i     = 0;
+                unsigned  x     = 0;
+                bool      empty = true;
+
+                while (isblank(line[i]))
+                        ++i;
+
+                if (want == WANT_IF_ZERO) {
+                        if (line[i] == '#') {
+                                unsigned tmp = i + 1u;
+                                while (isblank(line[tmp]))
+                                        ++tmp;
+                                if (strncmp(&line[tmp], SLS("if")) == 0)
+                                        ++ifcount;
+                                else if (strncmp(&line[tmp], SLS("endif")) == 0)
+                                        --ifcount;
+
+                                if (ifcount == 0)
+                                        want = 0;
+                        }
+                        goto next_line;
+
+                } else if (!want && line[i] == '#') {
+                        unsigned tmp = i + 1u;
+                        while (isblank(line[tmp]))
+                                ++tmp;
+                        if (strncmp(&line[tmp], SLS("if 0")) == 0) {
+                                ++ifcount;
+                                want = WANT_IF_ZERO;
+                                goto next_line;
+                        }
+                }
+
+                for (; i < len; ++i) {
+                        if (isblank(line[i])) {
+                                /* No need to do anything. */
+                        } else if (want) {
+                                if (want == '\n')
+                                        goto line_comment;
+                                if (line[i] == want) {
+                                        switch (want) {
+                                        case '*':
+                                                if (line[i+1] == '/') {
+                                                        want = 0;
+                                                        i   += 2;
+                                                }
+                                                break;
+                                        case '\'':
+                                        case '"':
+                                                if (!esc) {
+                                                        ++i;
+                                                        want = 0;
+                                                }
+                                                break;
+                                        /* Clang whines if I don't have a default */
+                                        default:;
+                                        }
+                                }
+                        } else {
+                                switch (line[i]) {
+                                case '\'':
+                                        want = '\'';
+                                        break;
+                                case '"':
+                                        want = '"';
+                                        break;
+                                case '/':
+                                        if (line[i+1] == '*') {
+                                                want      = '*';
+                                                repl[x++] = ' ';
+                                                empty     = false;
+                                                ++i;
+                                        } else if (line[i+1] == '/') {
+                                        line_comment:
+                                                if (line[len-1] == '\\' &&
+                                                    (len > 3 && line[len-2] != '\\'))
+                                                        want = '\n';
+                                                else
+                                                        want = 0;
+                                                goto next_line;
+                                        }
+                                        break;
+                                }
+                        }
+
+                        if (!want && line[i] &&
+                            (!isblank(line[i]) || (x > 0 && !isblank(repl[x-1]))))
+                        {
+                                repl[x++] = line[i];
+                                empty     = false;
+                        }
+
+                        esc = (line[i] == '\\') ? !esc : false;
+                }
+
+        next_line:
+                esc = false;
+                if (!empty) {
+                        repl[x++] = '\n';
+                        repl[x]   = '\0';
+                        b_list_append(&list, b_steal(repl, x));
+                } else {
+                        free(repl);
+                }
+        }
+
+        free(bak);
+        free(*vim_bufp);
+        *vim_bufp = b_list_join(list, NULL);
+
+        FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
+        b_fputs(fp, *vim_bufp);
+        fclose(fp);
+
+        b_list_destroy(list);
+}
 
 
 /*============================================================================*/

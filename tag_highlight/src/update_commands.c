@@ -1,8 +1,8 @@
-#include "util.h"
+#include "util/util.h"
 
 #include "data.h"
 #include "highlight.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
@@ -38,7 +38,10 @@ extern FILE *cmd_log;
 void
 update_highlight(const int bufnum, struct bufdata *bdata)
 {
+        timer t;
         pthread_mutex_lock(&update_mutex);
+        TIMER_START(t);
+
         bdata = null_find_bufdata(bufnum, bdata);
         ECHO("Updating commands for bufnum %d", bufnum);
 
@@ -52,24 +55,26 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 if (restored_groups)
                         b_list_writeprotect(restored_groups);
                 destroy_mpack_dict(tmp);
+
                 if (restored_groups) {
                         b_list_writeallow(restored_groups);
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
                         b_list_destroy(restored_groups);
                 }
-                bdata->ft->restore_cmds_initialized = true;
-        }
 
-        if (bdata->calls) {
-                update_from_cache(bdata);
-                pthread_mutex_unlock(&update_mutex);
-                return;
+                bdata->ft->restore_cmds_initialized = true;
         }
 
         bstring        *joined;
         b_list         *toks;
         struct taglist *tags;
         bool            retry = true;
+
+        if (bdata->calls) {
+                update_from_cache(bdata);
+                goto done;
+        }
+
 retry:
         joined = strip_comments(bdata);
         toks   = tokenize(bdata, joined); 
@@ -105,6 +110,9 @@ retry:
                 retry = false;
                 goto retry;
         }
+
+done:
+        TIMER_REPORT(t, "update highlight");
         pthread_mutex_unlock(&update_mutex);
 }
 
@@ -281,6 +289,11 @@ get_restore_cmds(b_list *restored_groups)
                                         if (!((tmp = strchr(ptr, '\n')) + 1))
                                                 break;
                         }
+
+                        unsigned _x;
+                        /* B_LIST_FOREACH (toks, str, _x) {
+                                ECHO("Got '%s'", str);
+                        } */
 
                         b_list_remove_dups(&toks);
                         for (unsigned x = 0; x < toks->qty; ++x) {

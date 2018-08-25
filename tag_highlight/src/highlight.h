@@ -1,9 +1,9 @@
 #ifndef SRC_HIGHLIGHT_H
 #define SRC_HIGHLIGHT_H
 
-/* #include "util.h" */
+/* #include "util/util.h" */
 
-#include "bstring/bstrlib.h"
+#include "bstring/bstring.h"
 #include "data.h"
 
 
@@ -11,6 +11,7 @@ extern bool run_ctags(struct bufdata *bdata, int force);
 /* extern bool check_gzfile(struct bufdata *bdata); */
 extern int get_initial_taglist(struct bufdata *bdata);
 extern int update_taglist(struct bufdata *bdata, int force);
+extern b_list *find_header_files(struct bufdata *bdata);
 
 extern void update_highlight(int bufnum, struct bufdata *bdata);
 extern void clear_highlight(int bufnum, struct bufdata *bdata);

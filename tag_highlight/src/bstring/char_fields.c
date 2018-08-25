@@ -34,7 +34,7 @@
 
 #include "private.h"
 
-#include "bstrlib.h"
+#include "bstring.h"
 
 
 /*

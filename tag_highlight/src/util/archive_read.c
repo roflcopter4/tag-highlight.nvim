@@ -1,6 +1,6 @@
-#include "archive_util.h"
+#include "archive.h"
 #ifdef HAVE_CONFIG_H
-#  include "util.h"
+#  include "util/util.h"
 #else
 #  include "../util.h"
 #endif

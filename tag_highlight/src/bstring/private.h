@@ -16,7 +16,7 @@
 #  pragma warning(disable : 5045) // spectre
 #endif
 
-#include "bstrlib.h"
+#include "bstring.h"
 
 //#include "unused.h"
 
@@ -81,15 +81,21 @@ typedef unsigned int uint;
             va_list ap;
             va_start(ap, fmt);
             char buf[8192];
-            if (print_err)
+            snprintf(buf, 8192, "%s\n", fmt);
+            va_end(ap);
+
+            /* if (print_err)
                     snprintf(buf, 8192, "%s: %s\n", fmt, strerror(errno));
             else
-                    snprintf(buf, 8192, "%s\n", fmt);
-            vfprintf(stderr, buf, ap);
-#ifdef _WIN32
+                    snprintf(buf, 8192, "%s\n", fmt); */
+            /* vfprintf(stderr, buf, ap); */
+            if (print_err)
+                    perror(buf);
+            else
+                    fputs(buf, stderr);
+#  ifdef _WIN32
             fflush(stderr);
-#endif
-            va_end(ap);
+#  endif
     }
 #  define warn(...)       _warn(true, __VA_ARGS__)
 #  define warnx(...)      _warn(false, __VA_ARGS__)
@@ -108,10 +114,22 @@ typedef unsigned int uint;
 
 /*============================================================================*/
 
+/* #define X_ERROR */
+
+#ifdef X_ERROR
+#  define BSTR_INTERN_NULL_ACTION abort();
+#  define BSTR_INTERN_INT_ACTION abort();
+#else
+#  define BSTR_INTERN_NULL_ACTION return NULL;
+#  define BSTR_INTERN_INT_ACTION  return BSTR_ERR;
+#endif
+
+#undef DEBUG
+
 /* 
  * Debugging aids
  */
-#if defined(DEBUG)
+/* #if defined(DEBUG)
 #  ifdef _WIN32
     #define FATAL_ERROR(...)        \
         do {                        \
@@ -130,57 +148,78 @@ typedef unsigned int uint;
                       FUNC_NAME, __LINE__);                             \
                 return NULL;                                            \
         } while (0)
-#  else
-#    define FATAL_ERROR(...)                                           \
-        do {                                                           \
-                void * arr[128];                                       \
-                size_t num     = backtrace(arr, 128);                  \
-                char **strings = backtrace_symbols(arr, num);          \
-                char   buf[8192];                                      \
-                snprintf(buf, 8192, __VA_ARGS__);                      \
-                                                                       \
-                warnx("Fatal error in func %s in bstrlib.c, line %d\n" \
-                      "%s"                                             \
-                      "STACKTRACE: ",                                  \
-                      FUNC_NAME, __LINE__, buf);                       \
-                for (unsigned i_ = 0; i_ < num; ++i_)                  \
-                        fprintf(stderr, "  -  %s\n", strings[i_]);     \
-                                                                       \
-                free(strings);                                         \
-                abort();                                               \
+#  else */
+#if 0
+#    define FATAL_ERROR(...)                                                                \
+        do {                                                                                \
+                void * arr[128];                                                            \
+                size_t num     = backtrace(arr, 128);                                       \
+                char **strings = backtrace_symbols(arr, num);                               \
+                char   buf[8192];                                                           \
+                snprintf(buf, 8192, __VA_ARGS__);                                           \
+                                                                                            \
+                warn("Fatal error in func %s in bstrlib.c, line %d", FUNC_NAME, __LINE__);  \
+                fprintf(stderr, "%s\n", buf);                                               \
+                fputs("STACKTRACE: \n", stderr);                                            \
+                    for (unsigned i_ = 0; i_ < num; ++i_)                                   \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);                          \
+                                                                                            \
+                free(strings);                                                              \
+                abort();                                                                    \
         } while (0)
-#    define RUNTIME_ERROR()                                              \
+#endif
+#    define FATAL_ERROR(...)                                                                \
+        do {                                                                                \
+                void * arr[128];                                                            \
+                size_t num     = backtrace(arr, 128);                                       \
+                /* char **strings = backtrace_symbols(arr, num); */                               \
+                char   buf[8192];                                                           \
+                snprintf(buf, 8192, __VA_ARGS__);                                           \
+                                                                                            \
+                warn("Fatal error in func %s in bstrlib.c, line %d", FUNC_NAME, __LINE__);  \
+                fprintf(stderr, "%s\n", buf);                                               \
+                fputs("STACKTRACE: \n", stderr);                                            \
+                backtrace_symbols_fd(arr, num, 2); \
+                    /* for (unsigned i_ = 0; i_ < num; ++i_) */                                   \
+                        /* fprintf(stderr, "  -  %s\n", strings[i_]); */                          \
+                                                                                            \
+                /* free(strings); */                                                              \
+                abort();                                                                    \
+        } while (0)
+#if 0
+#    define RUNTIME_ERROR()                                                \
+        do {                                                               \
+                void * arr[128];                                           \
+                size_t num     = backtrace(arr, 128);                      \
+                char **strings = backtrace_symbols(arr, num);              \
+                                                                           \
+                warnx("Runtime error in func %s in bstrlib.c, line %d\n"   \
+                      "STACKTRACE: ",                                      \
+                      FUNC_NAME, __LINE__);                                \
+                for (unsigned i_ = 0; i_ < num; ++i_)                      \
+                        fprintf(stderr, "  -  %s\n", strings[i_]);         \
+                                                                           \
+                free(strings);                                             \
+                BSTR_INTERN_INT_ACTION                                     \
+        } while (0)
+#    define RETURN_NULL()                                                \
         do {                                                             \
                 void * arr[128];                                         \
                 size_t num     = backtrace(arr, 128);                    \
                 char **strings = backtrace_symbols(arr, num);            \
                                                                          \
-                warnx("Runtime error in func %s in bstrlib.c, line %d\n" \
+                warnx("Null return in func %s in bstrlib.c, line %d\n"   \
                       "STACKTRACE: ",                                    \
                       FUNC_NAME, __LINE__);                              \
                 for (unsigned i_ = 0; i_ < num; ++i_)                    \
                         fprintf(stderr, "  -  %s\n", strings[i_]);       \
                                                                          \
                 free(strings);                                           \
-                return BSTR_ERR;                                         \
+                BSTR_INTERN_NULL_ACTION                                  \
         } while (0)
-#    define RETURN_NULL()                                              \
-        do {                                                           \
-                void * arr[128];                                       \
-                size_t num     = backtrace(arr, 128);                  \
-                char **strings = backtrace_symbols(arr, num);          \
-                                                                       \
-                warnx("Null return in func %s in bstrlib.c, line %d\n" \
-                      "STACKTRACE: ",                                  \
-                      FUNC_NAME, __LINE__);                            \
-                for (unsigned i_ = 0; i_ < num; ++i_)                  \
-                        fprintf(stderr, "  -  %s\n", strings[i_]);     \
-                                                                       \
-                free(strings);                                         \
-                return NULL;                                           \
-        } while (0)
+#endif
 
-#  endif
+/* #  endif
 #  define ALLOCATION_ERROR(RETVAL)                                         \
         do {                                                               \
                 warnx("Allocation error in func %s in bstrlib.c, line %d", \
@@ -201,7 +240,10 @@ typedef unsigned int uint;
 #  define RUNTIME_ERROR()          return BSTR_ERR
 #  define RETURN_NULL()            return NULL
 #  define ALLOCATION_ERROR(RETVAL) abort();
-#endif
+#endif */
+
+#  define RUNTIME_ERROR()          return BSTR_ERR
+#  define RETURN_NULL()            return NULL
 
 
 /*============================================================================*/
@@ -211,6 +253,7 @@ typedef unsigned int uint;
 //#  define HAVE_VASPRINTF
 //#endif
 #define USE_XMALLOC
+/* #include <jemalloc/jemalloc.h> */
 
 /* 
  * These make the code neater and save the programmer from having to check for
@@ -220,14 +263,13 @@ typedef unsigned int uint;
  */
 #ifdef USE_XMALLOC
 static inline void *
-xmalloc(size_t size)
+xmalloc(const size_t size)
 {
         void *tmp = malloc(size);
-        if (!tmp) {
-                warn("Failed to allocate %zu bytes", size);
-                abort();
-        }
-        return tmp; 
+        if (tmp == NULL)
+                FATAL_ERROR("Malloc call failed - attempted %zu bytes", size);
+                /* err(100, "Malloc call failed - attempted %zu bytes", size); */
+        return tmp;
 }
 #else
 #  define xmalloc malloc
@@ -238,13 +280,15 @@ xrealloc(void *ptr, size_t size)
 {
         void *tmp = realloc(ptr, size);
         if (!tmp) {
-                warn("Failed to reallocate %zu bytes", size);
-                abort();
+                FATAL_ERROR("Realloc call failed - attempted %zu bytes", size);
+                /* warn("Failed to reallocate %zu bytes", size);
+                abort(); */
         }
         return tmp; 
 }
 
 #ifdef HAVE_VASPRINTF
+#  ifdef USE_XMALLOC
 static inline int
 xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 {
@@ -255,6 +299,9 @@ xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
         }
         return ret;
 }
+#  else
+#    define xvasprintf vasprintf
+#  endif
 #endif
 
 /*============================================================================*/

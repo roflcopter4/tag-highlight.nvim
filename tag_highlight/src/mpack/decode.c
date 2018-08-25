@@ -1,9 +1,10 @@
-#include "util.h"
+#include "util/util.h"
 #include <stddef.h>
+#include <sys/socket.h>
 
 #include "data.h"
 #include "mpack.h"
-#include "mpack_code.h"
+#include "intern.h"
 
 extern int decode_log_raw;
 extern FILE *decodelog;
@@ -464,17 +465,21 @@ id_pack_type(const uint8_t byte)
 static void
 stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
-        const int32_t fd    = *((int32_t *)src);
-        size_t        nread = 0;
-
+        const int32_t fd = *((int32_t *)src);
+#ifdef DOSISH
+        size_t nread = 0;
         do {
-                const ssize_t n = read(fd, dest, (nbytes - nread));
-                if (n != (-1ll))
-                        nread += (size_t)n;
+                const size_t n = read(fd, dest, (nbytes - nread));
+                if (n > 0)
+                        nread += n;
         } while (nread > nbytes);
+#else
+        const ssize_t n = recv(fd, dest, nbytes, MSG_WAITALL);
+        assert((size_t)n == nbytes);
+#endif
 
-#ifdef DEBUG
-        UNUSED ssize_t n = write(decode_log_raw, dest, nbytes);
+#ifdef MPACK_RAW
+        UNUSED ssize_t m = write(decode_log_raw, dest, nbytes);
 #endif
 }
 

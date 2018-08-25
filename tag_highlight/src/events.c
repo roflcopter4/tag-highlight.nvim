@@ -1,7 +1,7 @@
-#include "util.h"
+#include "util/util.h"
 
 #include "data.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #define BT bt_init
 /* #define WRITE_BUF_UPDATES */

@@ -38,7 +38,7 @@
 
 #include "private.h"
 
-#include "bstrlib.h"
+#include "bstring.h"
 
 
 /**
@@ -72,6 +72,7 @@ snapUpSize(unsigned i)
 }
 
 
+#if 0
 int
 b_alloc(bstring *bstr, const unsigned olen)
 {
@@ -112,6 +113,47 @@ b_alloc(bstring *bstr, const unsigned olen)
                         if (!tmp)
                                 goto retry;
 
+                        if (bstr->slen)
+                                memcpy(tmp, bstr->data, bstr->slen);
+                        free(bstr->data);
+                }
+
+                bstr->data             = tmp;
+                bstr->mlen             = len;
+                bstr->data[bstr->slen] = (uchar)'\0';
+                bstr->flags            = BSTR_STANDARD;
+        }
+        return BSTR_OK;
+}
+#endif
+
+
+int
+b_alloc(bstring *bstr, const unsigned olen)
+{
+        if (INVALID(bstr) || olen == 0)
+                RUNTIME_ERROR();
+        if (NO_ALLOC(bstr))
+                FATAL_ERROR("Error, attempt to reallocate a static bstring.\n");
+        if (NO_WRITE(bstr))
+                RUNTIME_ERROR();
+
+        if (olen >= bstr->mlen) {
+                uchar *tmp;
+                unsigned len = snapUpSize(olen);
+                if (len <= bstr->mlen)
+                        return BSTR_OK;
+
+                /* Assume probability of a non-moving realloc is 0.125 */
+                if (7 * bstr->mlen < 8 * bstr->slen) {
+                        /* If slen is close to mlen in size then use realloc
+                         * to reduce the memory defragmentation */
+                        tmp = xrealloc(bstr->data, len);
+                } else {
+                        /* If slen is not close to mlen then avoid the penalty
+                         * of copying the extra bytes that are allocated, but
+                         * not considered part of the string */
+                        tmp = xmalloc(len);
                         if (bstr->slen)
                                 memcpy(tmp, bstr->data, bstr->slen);
                         free(bstr->data);

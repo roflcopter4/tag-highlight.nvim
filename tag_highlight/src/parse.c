@@ -1,8 +1,8 @@
-#include "util.h"
+#include "util/util.h"
 
 #include "data.h"
 #include "highlight.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 
 #define THE_WORD "int"
 
@@ -206,8 +206,8 @@ add_hl_call(struct atomic_call_array **calls,
                 echo("allocating calls...");
                 (*calls)            = xmalloc(sizeof **calls);
                 (*calls)->mlen      = 32;
-                (*calls)->fmt       = calloc(sizeof(char *), (*calls)->mlen);
-                (*calls)->args      = calloc(sizeof(union atomic_call_args *), (*calls)->mlen);
+                (*calls)->fmt       = xcalloc(sizeof(char *), (*calls)->mlen);
+                (*calls)->args      = xcalloc(sizeof(union atomic_call_args *), (*calls)->mlen);
                 (*calls)->qty       = 0;
         } else if ((*calls)->qty >= (*calls)->mlen-1) {
                 (*calls)->mlen     *= 2;

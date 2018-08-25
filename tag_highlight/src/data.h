@@ -1,10 +1,10 @@
 #ifndef SRC_DATA_H
 #define SRC_DATA_H
 
-#include "linked_list.h"
+#include "util/linked_list.h"
 
-#include "generic_list.h"
-#include "mpack.h"
+#include "util/generic_list.h"
+#include "mpack/mpack.h"
 #include <pthread.h>
 
 #define DATA_ARRSIZE 4096
@@ -30,14 +30,15 @@ struct settings_s {
         bool enabled;
         bool use_compression;
         bool verbose;
+        enum comp_type_e { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type;
 
+        bstring      *ctags_bin;
         bstring      *settings_file;
         b_list       *ctags_args;
         b_list       *ignored_ftypes;
         b_list       *norecurse_dirs;
         mpack_dict_t *ignored_tags;
         mpack_dict_t *order;
-        enum comp_type_e { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type;
 };
 typedef enum comp_type_e comp_type_t;
 

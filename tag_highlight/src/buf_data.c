@@ -1,8 +1,8 @@
-#include "util.h"
+#include "util/util.h"
 
 #include "data.h"
 #include "highlight.h"
-#include "mpack.h"
+#include "mpack/mpack.h"
 #include <signal.h>
 
 #ifdef _WIN32
@@ -93,7 +93,6 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
 {
         struct bufdata *bdata = xmalloc(sizeof *bdata);
         bdata->calls       = NULL;
-        /* bdata->cmd_cache   = NULL; */
         bdata->ctick       = bdata->last_ctick = 0;
         bdata->filename    = nvim_buf_get_name(fd, bufnum);
         bdata->ft          = ft;
@@ -101,11 +100,8 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
         bdata->lines       = ll_make_new();
         bdata->num         = bufnum;
         bdata->thread_pid  = (-1);
-
-        /* Buf is only initialized after nvim sends the first 'lines' update. */
-        bdata->initialized = false;
-        /* Topdir init must be the last step. */
-        bdata->topdir = init_topdir(fd, bdata);
+        bdata->initialized = false; /* Initialized is true only after recieving the buffer contents. */
+        bdata->topdir = init_topdir(fd, bdata); /* Topdir init must be the last step. */
 
         return bdata;
 }
@@ -123,7 +119,6 @@ destroy_bufdata(struct bufdata **bdata)
 
         b_destroy((*bdata)->filename);
         ll_destroy((*bdata)->lines);
-        /* b_list_destroy((*bdata)->cmd_cache); */
         destroy_call_array((*bdata)->calls);
 
         if (--((*bdata)->topdir->refs) == 0) {
@@ -158,7 +153,6 @@ find_buffer(const int bufnum)
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 if (buffers.lst[i] && buffers.lst[i]->num == bufnum)
                         return buffers.lst[i];
-
         return NULL;
 }
 
@@ -169,7 +163,6 @@ find_buffer_ind(const int bufnum)
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 if (buffers.lst[i] && buffers.lst[i]->num == bufnum)
                         return (int)i;
-
         return (-1);
 }
 
@@ -237,9 +230,11 @@ init_topdir(const int fd, struct bufdata *bdata)
         bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
 
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                echo("Comparing '%s' to '%s'", BS(((struct top_dir *)(top_dirs->lst[i]))->pathname), BS(base));
-                if (b_iseq(((struct top_dir *)(top_dirs->lst[i]))->pathname, base)) {
-                        ((struct top_dir *)(top_dirs->lst[i]))->refs++;
+                echo("Comparing '%s' to '%s'",
+                     BS(((struct top_dir *)top_dirs->lst[i])->pathname), BS(base));
+
+                if (b_iseq(((struct top_dir *)top_dirs->lst[i])->pathname, base)) {
+                        ((struct top_dir *)top_dirs->lst[i])->refs++;
                         b_destroy(base);
                         return top_dirs->lst[i];
                 }
@@ -265,8 +260,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         if (tmp->tmpfd == (-1))
                 errx(1, "Failed to open temporary file!");
 
-        /* Set the vim 'tags' option. */
-        {
+        {       /* Set the vim 'tags' option. */
                 char buf[8192];
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tmp->tmpfname));
                 nvim_command(fd, btp_fromblk(buf, n));
@@ -281,11 +275,11 @@ init_topdir(const int fd, struct bufdata *bdata)
         }
 
         if (settings.comp_type == COMP_GZIP)
-                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags.gz"));
+                ret = B_sprintfa(tmp->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
         else if (settings.comp_type == COMP_LZMA)
-                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags.xz"));
+                ret = B_sprintfa(tmp->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
         else
-                ret = b_append_all(tmp->gzfile, B("."), &bdata->ft->vim_name, B(".tags"));
+                ret = B_sprintfa(tmp->gzfile, ".%s.tags", &bdata->ft->vim_name);
 
         assert(ret == BSTR_OK);
 
@@ -331,9 +325,8 @@ check_project_directories(bstring *dir)
                 return dir;
         }
 
-        unsigned x = 0;
-
-        for (unsigned i = 0; i < candidates->qty; ++i)
+        unsigned i = 0, x = 0;
+        for (; i < candidates->qty; ++i)
                 if (candidates->lst[i]->slen > candidates->lst[x]->slen)
                         x = i;
 

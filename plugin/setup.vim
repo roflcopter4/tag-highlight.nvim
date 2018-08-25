@@ -59,19 +59,32 @@ call s:InitVar('norecurse_dirs', [
                 \ ])
 
 if g:tag_highlight#run_ctags
-    let s:found = 0
+    let s:ctags_bin = 0
 
-    if executable(g:tag_highlight#ctags_bin) && system(g:tag_highlight#ctags_bin . ' --version') =~# 'Universal'
-        let s:found = 1
-    elseif executable('ctags') && system('ctags --version') =~# 'Universal'
-        let g:tag_highlight#ctags_bin = 'ctags'
-        let s:found = 1
-    elseif executable('uctags') && system('uctags --version') =~# 'Universal'
-        let g:tag_highlight#ctags_bin = 'uctags'
-        let s:found = 1
+    function! s:test_ctags(str)
+        return executable(a:str) && system(a:str.' --version') =~# 'Universal'
+    endfunction
+
+    if s:test_ctags(g:tag_highlight#ctags_bin)
+        let s:ctags_bin = g:tag_highlight#ctags_bin
+    elseif s:test_ctags('ctags')
+        let s:ctags_bin = 'ctags'
+    elseif s:test_ctags('uctags')
+        let s:ctags_bin = 'uctags'
+    elseif s:test_ctags('/usr/local/bin/ctags')
+        let s:ctags_bin = '/usr/local/bin/ctags'
+    elseif s:test_ctags('/usr/bin/ctags')
+        let s:ctags_bin = '/usr/bin/ctags'
+    elseif s:test_ctags('/opt/bin/ctags')
+        let s:ctags_bin = '/opt/bin/ctags'
+    elseif s:test_ctags(expand('~/.local/bin/ctags'))
+        let s:ctags_bin = expand('~/.local/bin/ctags')
+    else
+        unlet s:ctags_bin
     endif
 
-    if s:found
+    if exists('s:ctags_bin')
+        let g:tag_highlight#ctags_bin = s:ctags_bin
         call s:InitVar('ctags_args', [
                 \   '--fields=+l',
                 \   '--c-kinds=+px',
@@ -82,10 +95,12 @@ if g:tag_highlight#run_ctags
                 \   '--languages=-Pod',
                 \ ])
     else
+        let g:tag_highlight#enabled = 0
+        unlet g:tag_highlight#ctags_bin
         echohl ErrorMsg
         echom 'tag_highlight: Universal Ctags not found, cannot run ctags.'
         echohl None
-        let g:tag_highlight#run_ctags = 0
+        finish
     endif
 endif
 
