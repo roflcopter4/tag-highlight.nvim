@@ -14,6 +14,7 @@
 
 #include "data.h"
 #include "highlight.h"
+#include "api.h"
 #include "mpack/mpack.h"
 
 #define WIN_BIN_FAIL(STREAM_) \
@@ -29,15 +30,17 @@ static const long double WAIT_TIME   = 3.0L;
 extern jmp_buf         exit_buf;
 extern int             decode_log_raw;
 extern FILE           *decode_log, *cmd_log, *echo_log, *main_log;
-static pthread_t       top_thread;
+pthread_t top_thread;
 
+extern void          get_init_lines(struct bufdata *bdata);
 
 static void          exit_cleanup(void);
 static int           create_socket(int mes_fd);
 static comp_type_t   get_compression_type(int fd);
-static void          get_init_lines(struct bufdata *bdata);
 static void          open_main_log(void);
-NORETURN static void sigusr_wrap(UNUSED int notused);
+static void          sigusr_wrap(UNUSED int notused);
+
+extern void * event_loop(void *vdata);
 
 //extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject,
 //                                 const int flags);
@@ -50,8 +53,8 @@ main(UNUSED int argc, char *argv[])
 {
         atexit(exit_cleanup);
         extern const char *program_name;
-        top_thread   = pthread_self();
-        program_name = basename(argv[0]);
+        top_thread     = pthread_self();
+        program_name   = basename(argv[0]);
 
         timer main_timer;
         TIMER_START(main_timer);
@@ -59,7 +62,9 @@ main(UNUSED int argc, char *argv[])
 #ifdef DOSISH
         HOME = alloca(PATH_MAX+1);
         snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
-        /* Set the standard streams to binary mode in Windows. */
+
+        /* Set the standard streams to binary mode in Windows. Don't bother with
+         * signals, it's not worth the effort. */
         if (_setmode(0, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stdin");
         if (_setmode(1, O_BINARY) == (-1))
@@ -73,8 +78,9 @@ main(UNUSED int argc, char *argv[])
                 memset(&temp, 0, sizeof(temp));
                 temp.sa_handler = sigusr_wrap;
                 sigaction(SIGUSR1, &temp, NULL);
-                sigaction(SIGTERM, &temp, NULL);
-                sigaction(SIGINT,  &temp, NULL);
+                sigaction(SIGINT,  &temp, NULL); // Sigint, sigterm and sigpipe
+                sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
+                sigaction(SIGTERM, &temp, NULL); // nvim exits.
         }
 #endif
 #ifdef DEBUG
@@ -87,18 +93,28 @@ main(UNUSED int argc, char *argv[])
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
         decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, LOGDIR);
 #endif
+        const int retval = setjmp(exit_buf);
+        if (retval == 1)
+                exit(0);
+
+        pthread_t      thr[3];
+        pthread_attr_t attr[3];
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[0]);
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[1]);
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[2]);
+
+        pthread_create(&thr[0], &attr[0], event_loop, NULL);
         sockfd = create_socket(1);
-        eprintf("sockfd is %d\n", sockfd);
+        pthread_create(&thr[1], &attr[1], event_loop, (void *)(&sockfd));
+        bufchan = create_socket(1);
+        pthread_create(&thr[2], &attr[2], event_loop, (void *)(&bufchan));
 
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
-        settings.enabled         = nvim_get_var_pkg(0, "enabled",           E_BOOL      ).num;
-        settings.ctags_bin       = nvim_get_var_pkg(0, "ctags_bin",         E_STRING    ).ptr;
+        settings.enabled         = nvim_get_var_pkg(0, "enabled",   E_BOOL  ).num;
+        settings.ctags_bin       = nvim_get_var_pkg(0, "ctags_bin", E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
-        SHOUT("ctags_bin: %s", BS(settings.ctags_bin));
-        eprintf("WTF\n");
-
         settings.comp_type       = get_compression_type(0);
         settings.comp_level      = nvim_get_var_pkg(0, "compression_level", E_NUM       ).num;
         settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args",        E_STRLIST   ).ptr;
@@ -110,11 +126,12 @@ main(UNUSED int argc, char *argv[])
 
 #ifdef DEBUG
         settings.verbose = true;
+        open_main_log();
 #endif
 
-        open_main_log();
-
-        /* Initialize all opened buffers. */
+        /* Try to initialize a buffer. If the current one isn't recognized, keep
+         * trying periodically until we see one that is. In case we never
+         * recognize a buffer, the wait time between tries is modestly long. */
         for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
                         if (buffers.bad_bufs.qty)
@@ -127,137 +144,25 @@ main(UNUSED int argc, char *argv[])
                 if (new_buffer(0, initial_buf)) {
                         struct bufdata *bdata = find_buffer(initial_buf);
 
-                        nvim_buf_attach(1, initial_buf);
+                        nvim_buf_attach(BUFFER_ATTACH_FD, initial_buf);
                         get_init_lines(bdata);
                         get_initial_taglist(bdata);
                         update_highlight(initial_buf, bdata);
 
                         TIMER_REPORT(main_timer, "main initialization");
-
-                        /* bstring *tmp = find_file(BS(bdata->topdir->pathname), "*.[ch]"); */
-                        /* SHOUT("%s", BS(tmp)); */
-                        /* b_destroy(tmp); */
                 }
         }
 
-        /* Rewinding with longjmp is the easiest way to get back to the main
-         * thread from any sub threads at exit time, ensuring a smooth cleanup. */
-        const int retval = setjmp(exit_buf);
-        if (retval == 0) {
-                for (;;) {
-                        mpack_obj *event = decode_stream(1, MES_NOTIFICATION);
-                        if (event) {
-                                handle_nvim_event(event);
-                                mpack_destroy(event);
-                        }
-                }
-        }
+        /* Wait for something to kill us. */
+        pause();
+
+        /* The signal handler should return unless the signal was unexpected.
+         * Clean up the main loop threads before exiting. */
+        pthread_cancel(thr[0]);
+        pthread_cancel(thr[1]);
+        pthread_cancel(thr[2]);
 
         return 0;
-}
-
-
-/*======================================================================================*/
-
-/* 
- * Handle an update from the small vimscript plugin. Updates are recieved upon
- * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
- * response to the user calling the provided clear command.
- */
-void *
-interrupt_call(void *vdata)
-{
-        static int             bufnum    = (-1);
-        static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
-        struct int_pdata      *data      = vdata;
-        timer t;
-
-        pthread_mutex_lock(&int_mutex);
-
-        echo("Recieved \"%c\"; waking up!", data->val);
-
-        switch (data->val) {
-        /*
-         * New buffer was opened or current buffer changed.
-         */
-        case 'A':  /* XXX Fix these damn letters, they've gotten totally out of order. */
-        case 'D': {
-                const int prev = bufnum;
-                TIMER_START_BAR(t);
-                bufnum                = nvim_get_current_buf(0);
-                struct bufdata *bdata = find_buffer(bufnum);
-
-                if (!bdata) {
-                try_attach:
-                        if (new_buffer(0, bufnum)) {
-                                nvim_buf_attach(1, bufnum);
-                                bdata = find_buffer(bufnum);
-
-                                get_init_lines(bdata);
-                                get_initial_taglist(bdata);
-                                update_highlight(bufnum, bdata);
-
-                                TIMER_REPORT(t, "initialization");
-                        }
-                } else if (prev != bufnum) {
-                        if (!bdata->calls)
-                                get_initial_taglist(bdata);
-
-                        update_highlight(bufnum, bdata);
-                        TIMER_REPORT(t, "update");
-                }
-
-                break;
-        }
-        /*
-         * Buffer was written, or filetype/syntax was changed.
-         */
-        case 'B':
-        case 'F': {
-                TIMER_START_BAR(t);
-                bufnum                 = nvim_get_current_buf(0);
-                struct bufdata *bdata  = find_buffer(bufnum);
-
-                if (!bdata) {
-                        echo("Failed to find buffer! %d -> p: %p\n",
-                             bufnum, (void *)bdata);
-                        goto try_attach;
-                }
-
-                if (update_taglist(bdata, (data->val == 'F'))) {
-                        update_highlight(bufnum, bdata);
-                        TIMER_REPORT(t, "update");
-                }
-
-                break;
-        }
-        /*
-         * User called the kill command.
-         */
-        case 'C': {
-                clear_highlight(nvim_get_current_buf(0), NULL);
-#ifdef DOSISH
-                pthread_kill(data->parent_tid, SIGTERM);
-#else
-                pthread_kill(data->parent_tid, SIGUSR1);
-#endif
-                break;
-        }
-        /*
-         * User called the clear highlight command.
-         */
-        case 'E':
-                clear_highlight(nvim_get_current_buf(0), NULL);
-                break;
-
-        default:
-                ECHO("Hmm, nothing to do...");
-                break;
-        }
-
-        free(vdata);
-        pthread_mutex_unlock(&int_mutex);
-        pthread_exit(NULL);
 }
 
 
@@ -385,13 +290,12 @@ get_compression_type(const int fd)
 /*======================================================================================*/
 
 
-NORETURN static void
+static void
 sigusr_wrap(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(exit_buf, 1);
-        else
-                pthread_exit(NULL);
+                return;
+        pthread_exit(NULL);
 }
 
 
@@ -408,7 +312,7 @@ open_main_log(void)
 }
 
 
-static void
+void
 get_init_lines(struct bufdata *bdata)
 {
         b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));

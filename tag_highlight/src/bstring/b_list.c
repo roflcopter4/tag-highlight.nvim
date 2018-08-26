@@ -52,9 +52,11 @@ b_list *
 b_list_create(void)
 {
         b_list *sl = xmalloc(sizeof(b_list));
-        sl->lst    = xmalloc(1 * sizeof(bstring *));
+        sl->lst    = calloc(4, sizeof(bstring *));
         sl->qty    = 0;
         sl->mlen   = 1;
+        if (!sl->lst)
+                FATAL_ERROR("calloc failed");
 
         return sl;
 }
@@ -62,10 +64,13 @@ b_list_create(void)
 b_list *
 b_list_create_alloc(const uint msz)
 {
+        const int safesize = (msz == 0) ? 1 : msz;
+
         b_list *sl = xmalloc(sizeof(b_list));
-        sl->lst    = xmalloc(msz * sizeof(bstring *));
+        sl->lst    = xmalloc(safesize * sizeof(bstring *));
         sl->qty    = 0;
-        sl->mlen   = msz;
+        sl->mlen   = safesize;
+        sl->lst[0] = NULL;
 
         return sl;
 }

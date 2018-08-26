@@ -117,42 +117,9 @@ typedef union {
         int64_t  num;
 } retval_t;
 
+extern const char *const m_message_type_repr[4];
 
 /*============================================================================*/
-
-
-/* API Wrappers */
-extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
-extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((format(printf, 2, 3)));
-extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
-extern void       nvim_b_printf(int fd, const bstring *fmt, ...);
-
-extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-extern b_list   * nvim_buf_attach         (int fd, int bufnum);
-extern void       nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
-extern unsigned   nvim_buf_get_changedtick(int fd, int bufnum);
-extern b_list   * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end);
-extern bstring  * nvim_buf_get_name       (int fd, int bufnum);
-extern retval_t   nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect);
-extern retval_t   nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect);
-extern unsigned   nvim_buf_line_count     (int fd, int bufnum);
-extern void       nvim_call_atomic        (int fd, const struct atomic_call_array *calls);
-extern retval_t   nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect);
-extern retval_t   nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
-extern bool       nvim_command            (int fd, const bstring *cmd);
-extern retval_t   nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect);
-extern void       nvim_get_api_info       (int fd);
-extern int        nvim_get_current_buf    (int fd);
-extern bstring  * nvim_get_current_line   (int fd);
-extern retval_t   nvim_get_option         (int fd, const bstring *optname, mpack_expect_t expect);
-extern retval_t   nvim_get_var            (int fd, const bstring *varname, mpack_expect_t expect);
-extern retval_t   nvim_list_bufs          (int fd);
-extern void       nvim_subscribe          (int fd, const bstring *event);
-extern bool       nvim_set_var            (int fd, const bstring *varname, const bstring *fmt, ...);
-
-extern bstring * get_notification(int fd);
-
-
 /* Decode and Destroy */
 extern void        mpack_print_object (FILE *fp, const mpack_obj *result);
 extern void        mpack_destroy      (mpack_obj *root);
@@ -170,11 +137,6 @@ extern void        mpack_encode_boolean   (mpack_obj *root, mpack_obj **item, bo
 extern void        mpack_encode_dictionary(mpack_obj *root, mpack_obj **item, unsigned len);
 extern void        mpack_encode_nil       (mpack_obj *root, mpack_obj **item);
 extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, ...);
-
-/* Convenience Macros */
-#define nvim_out_write(FD, MES) __nvim_write((FD), NW_STANDARD, (MES))
-#define nvim_err_write(FD, MES) __nvim_write((FD), NW_ERROR, (MES))
-
 
 /*============================================================================*/
 /* Type conversions and Misc */
@@ -227,23 +189,6 @@ m_index(mpack_obj *obj, const unsigned index)
 }
 
 
-#define blist_from_var(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                        \
-            nvim_get_var((FDES), B(VARNAME), MPACK_ARRAY, (FATAL_)), true)
-
-#define nvim_get_var_num(FDES, VARNAME, FATAL_) \
-        P2I(nvim_get_var((FDES), B(VARNAME), MPACK_NUM, (FATAL_)))
-
-
-#define PKG "tag_highlight"
-
-#define blist_from_var_pkg(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                            \
-            nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_ARRAY, (FATAL_)), true)
-
-#define nvim_get_var_num_pkg(FDES, VARNAME, FATAL_) \
-        P2I(nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_NUM, (FATAL_)))
-
 /* I am very lazy. */
 #define DAI data.arr->items
 #define DDE data.dict->entries
@@ -258,8 +203,6 @@ extern FILE *mpack_log;
 #else
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
-
-#define ECHO(FMT_, ...) ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) : (void)0)
 
 
 /*============================================================================*/

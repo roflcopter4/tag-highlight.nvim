@@ -341,7 +341,7 @@ do_tok_search(void *vdata)
                 cpy->data += pos;
                 cpy->slen -= pos;
 
-                char /* *tok, */ kind = '\0';
+                char kind = '\0';
                 bstring match_lang[]  = {{0, 0, NULL, 0u}};
                 bstring tok[]         = {{0, 0, NULL, 0u}};
 

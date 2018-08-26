@@ -22,8 +22,9 @@ extern genlist *genlist_create(void);
 extern int      genlist_destroy(genlist *sl);
 extern genlist *genlist_create_alloc(const unsigned msz);
 extern int      genlist_alloc(genlist *sl, const unsigned msz);
-extern int      genlist_append(genlist **listp, void *item);
-extern int      genlist_remove(genlist *listp, unsigned index);
+extern int      genlist_append(genlist *listp, void *item);
+extern int      genlist_remove_index(genlist *list, const unsigned index);
+extern int      genlist_remove(genlist *listp, const void *obj);
 extern genlist *genlist_copy(const genlist *list, const genlist_copy_func cpy);
 /* genlist *genlist_copy(const genlist *list); */
 

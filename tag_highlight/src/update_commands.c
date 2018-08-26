@@ -2,7 +2,10 @@
 
 #include "data.h"
 #include "highlight.h"
+#include "api.h"
 #include "mpack/mpack.h"
+
+#include <lzma.h> /* TAG: /usr/include/lzma */
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
@@ -43,6 +46,11 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         TIMER_START(t);
 
         bdata = null_find_bufdata(bufnum, bdata);
+        if (!bdata->topdir || !bdata->lines || bdata->lines->qty <= 1) {
+                pthread_mutex_unlock(&update_mutex);
+                return;
+        }
+
         ECHO("Updating commands for bufnum %d", bufnum);
 
         if (!bdata->ft->restore_cmds_initialized) {
@@ -339,21 +347,16 @@ add_cmd_call(struct atomic_call_array **calls, bstring *cmd)
         if (!*calls) {
                 (*calls)        = xmalloc(sizeof **calls);
                 (*calls)->mlen  = 16;
-                (*calls)->fmt   = xcalloc(sizeof(char *), (*calls)->mlen);
-                (*calls)->args  = xcalloc(sizeof(union atomic_call_args *),
-                                          (*calls)->mlen);
+                (*calls)->fmt   = xcalloc((*calls)->mlen, sizeof(char *));
+                (*calls)->args  = xcalloc((*calls)->mlen, sizeof(union atomic_call_args *));
                 (*calls)->qty   = 0;
         } else if ((*calls)->qty >= (*calls)->mlen-1) {
                 (*calls)->mlen *= 2;
-                (*calls)->fmt   = nrealloc((*calls)->fmt,
-                                           sizeof(char *),
-                                           (*calls)->mlen);
-                (*calls)->args  = nrealloc((*calls)->args,
-                                           sizeof(union atomic_call_args *),
-                                           (*calls)->mlen);
+                (*calls)->fmt   = nrealloc((*calls)->fmt,  (*calls)->mlen, sizeof(char *));
+                (*calls)->args  = nrealloc((*calls)->args, (*calls)->mlen, sizeof(union atomic_call_args *));
         }
 
-        (*calls)->args[(*calls)->qty]        = nmalloc(sizeof(union atomic_call_args), 2);
+        (*calls)->args[(*calls)->qty]        = nmalloc(2, sizeof(union atomic_call_args));
         (*calls)->fmt[(*calls)->qty]         = strdup("s[s]");
         (*calls)->args[(*calls)->qty][0].str = b_lit2bstr("nvim_command");
         (*calls)->args[(*calls)->qty][1].str = cmd;

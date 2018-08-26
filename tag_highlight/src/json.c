@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 
 #include "contrib/jsmn/jsmn.h"
+#include "api.h"
 #include "mpack/mpack.h"
 
 #ifdef DOSISH
@@ -84,7 +85,7 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
         jsmn_parser p;
         jsmn_init(&p);
         const int  ntoks = jsmn_parse(&p, (char *)buf, size, NULL, 0);
-        jsmntok_t *toks  = nmalloc(sizeof(*toks), ntoks);
+        jsmntok_t *toks  = nmalloc(ntoks, sizeof(*toks));
 
         ECHO("Parsing json file (%d toks).", ntoks);
         jsmn_init(&p);

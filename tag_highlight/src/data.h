@@ -3,8 +3,9 @@
 
 #include "util/linked_list.h"
 
-#include "util/generic_list.h"
+#include "api.h"
 #include "mpack/mpack.h"
+#include "util/generic_list.h"
 #include <pthread.h>
 
 #define DATA_ARRSIZE 4096
@@ -115,11 +116,12 @@ extern struct buffer_list  buffers;
 extern struct ftdata_s     ftdata[];
 extern genlist *top_dirs;
 
-extern int   sockfd;
+extern int sockfd, bufchan;
 extern const size_t ftdata_len;
 extern const char *const m_type_names[];
 
-#define DEFAULT_FD sockfd
+#define DEFAULT_FD (sockfd)
+#define BUFFER_ATTACH_FD (bufchan)
 
 
 /*===========================================================================*/

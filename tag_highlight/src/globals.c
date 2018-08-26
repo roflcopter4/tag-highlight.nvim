@@ -21,6 +21,9 @@ const char *const m_type_names[] = {
     "MPACK_EXT",           "MPACK_STRING", "MPACK_ARRAY", "MPACK_DICT",
 };
 
+const char *const m_message_type_repr[4] = {"MES_REQUEST", "MES_RESPONSE",
+                                            "MES_NOTIFICATION", "MES_ANY"};
+
 const struct mpack_masks m_masks[] = {
     { G_NIL,    M_NIL,       false, 0xC0u,  0, "M_NIL"       },
     { G_BOOL,   M_TRUE,      false, 0xC3u,  0, "M_TRUE"      },
@@ -95,7 +98,8 @@ struct backups      backup_pointers = { NULL, 0, 0 };
 const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
 
-int             sockfd = (-1);
+int             sockfd         = (-1);
+int             bufchan        = (-1);
 int             decode_log_raw = (-1);
 const char *    program_name;
 char *          HOME;

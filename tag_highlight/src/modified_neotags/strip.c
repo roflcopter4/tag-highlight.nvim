@@ -223,16 +223,18 @@ handle_cstyle(bstring *vim_buf)
 
 /*============================================================================*/
 
-#define GUESS_AVERAGE_LINELEN (45ll)
+#define GUESS_AVERAGE_LINELEN (45llu)
 #define WANT_IF_ZERO          (UCHAR_MAX + 1)
 
 
 static void
 handle_cstyle(bstring **vim_bufp)
 {
+        if (!vim_bufp || !*vim_bufp || !(*vim_bufp)->data)
+                errx(1, "Null paramater");
         bstring        *data     = *vim_bufp;
         uint8_t        *bak      = data->data;
-        bstring         tok[]    = {{0, 0, NULL, 0}};
+        bstring         tok[1]   = {{0, 0, NULL, 0}};
         int             ifcount  = 0;
         bool            esc      = 0;
         unsigned short  want     = 0;
@@ -324,11 +326,12 @@ handle_cstyle(bstring **vim_bufp)
                                                 goto next_line;
                                         }
                                         break;
+                                /* But it doesn't whine here. Go figure. */
                                 }
                         }
 
-                        if (!want && line[i] &&
-                            (!isblank(line[i]) || (x > 0 && !isblank(repl[x-1]))))
+                        if (!want && line[i] /* && */
+                            /* (!isblank(line[i]) || (x > 0 && !isblank(repl[x-1]))) */)
                         {
                                 repl[x++] = line[i];
                                 empty     = false;

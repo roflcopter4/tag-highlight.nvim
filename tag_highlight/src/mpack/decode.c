@@ -8,8 +8,14 @@
 
 extern int decode_log_raw;
 extern FILE *decodelog;
-static pthread_mutex_t mpack_stdin_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+/* static pthread_mutex_t mpack_stdin_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER; */
+/* static pthread_mutex_t mpack_mutex_arr */
+/* static genlist mpack_mutex_list[1] = {{0, 16, NULL}}; */
+
+static genlist *       mpack_mutex_list = NULL;
+static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
@@ -29,6 +35,7 @@ static mpack_obj * decode_bool      (const struct mpack_masks *mask);
 static const struct mpack_masks * id_pack_type(uint8_t byte);
 static void stream_read(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbytes);
+static void free_mutexes(void);
 
 
 #define IAT(NUM_, AT__) ((uint64_t)((NUM_)[AT__]))
@@ -48,6 +55,11 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
+struct mpack_mutex {
+        int             fd;
+        pthread_mutex_t mut;
+};
+
 
 /*============================================================================*/
 
@@ -55,16 +67,42 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
 mpack_obj *
 decode_stream(int32_t fd, const enum message_types expected_type)
 {
+        pthread_mutex_lock(&mpack_search_mutex);
+        int mid = -1;
         pthread_mutex_t *mut = NULL;
+        if (!mpack_mutex_list || !mpack_mutex_list->lst) {
+                mpack_mutex_list = genlist_create_alloc(16);
+                atexit(free_mutexes);
+        }
 
-        if (fd == 1) {
+        if (fd == 1)
+                fd  = 0;
+
+        for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
+                struct mpack_mutex *cur = mpack_mutex_list->lst[i];
+                if (cur->fd == fd) {
+                        mid = i;
+                        mut = &cur->mut;
+                        break;
+                }
+        }
+        if (!mut) {
+                struct mpack_mutex *tmp = xmalloc(sizeof(struct mpack_mutex));
+                tmp->fd  = fd;
+                /* tmp->mut = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER; */
+                pthread_mutex_init(&tmp->mut, NULL);
+                genlist_append(mpack_mutex_list, tmp);
+                mid = mpack_mutex_list->qty;
+                mut = &tmp->mut;
+        }
+        pthread_mutex_unlock(&mpack_search_mutex);
+
+        /* if (fd == 1) {
                 fd  = 0;
                 mut = &mpack_stdin_mutex;
         } else
-                mut = &mpack_socket_mutex;
-
+                mut = &mpack_socket_mutex; */
         pthread_mutex_lock(mut);
-
         mpack_obj *ret = do_decode(&stream_read, &fd);
 
         if (!ret)
@@ -78,9 +116,9 @@ decode_stream(int32_t fd, const enum message_types expected_type)
                         mpack_type(ret));
                 abort();
         }
-
         pthread_mutex_unlock(mut);
 
+#if 0
         if (expected_type != MES_ANY &&
             expected_type != (ret->DAI[0]->data.num))
         {
@@ -93,6 +131,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
 
                 return decode_stream(fd, expected_type);
         }
+#endif
 
         //UNUSED ssize_t n = write(decode_log_raw, "\n\n", 2);
         return ret;
@@ -233,7 +272,7 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struc
 
         item->flags              = MPACK_DICT | MPACK_ENCODE;
         item->data.dict          = xmalloc(sizeof(struct mpack_dictionary));
-        item->data.dict->entries = nmalloc(sizeof(struct dict_ent *), size);
+        item->data.dict->entries = nmalloc(size, sizeof(struct dict_ent *));
         item->data.dict->qty     = item->data.dict->max = size;
 
         for (uint32_t i = 0; i < item->data.arr->max; ++i) {
@@ -491,4 +530,12 @@ obj_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         for (unsigned i = 0; i < nbytes; ++i)
                 dest[i] = *buf->data++;
         buf->slen -= nbytes;
+}
+
+
+static void
+free_mutexes(void)
+{
+        if (mpack_mutex_list)
+                genlist_destroy(mpack_mutex_list);
 }

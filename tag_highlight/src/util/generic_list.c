@@ -101,22 +101,51 @@ genlist_alloc(genlist *sl, const unsigned msz)
 }
 
 
+/* int                                                                               */
+/* genlist_append(genlist **listp, void *item)                                       */
+/* {                                                                                 */
+/*         if (!listp || !*listp || !(*listp)->lst)                                  */
+/*                 RUNTIME_ERROR();                                                  */
+/*                                                                                   */
+/*         if ((*listp)->qty == ((*listp)->mlen - 1))                                */
+/*                 (*listp)->lst = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) *   */
+/*                                                          sizeof(*(*listp)->lst)); */
+/*         (*listp)->lst[(*listp)->qty++] = item;                                    */
+/*                                                                                   */
+/*         return 0;                                                                 */
+/* }                                                                                 */
+
 int
-genlist_append(genlist **listp, void *item)
+genlist_append(genlist *listp, void *item)
 {
-        if (!listp || !*listp || !(*listp)->lst)
+        if (!listp || !listp->lst)
                 RUNTIME_ERROR();
 
-        if ((*listp)->qty == ((*listp)->mlen - 1))
-                (*listp)->lst = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) *
-                                                         sizeof(*(*listp)->lst));
-        (*listp)->lst[(*listp)->qty++] = item;
+        if (listp->qty == (listp->mlen - 1))
+                listp->lst = xrealloc(listp->lst, (listp->mlen *= 2) * sizeof(void *));
+        listp->lst[listp->qty++] = item;
 
         return 0;
 }
 
+int 
+genlist_remove(genlist *list, const void *obj)
+{
+        if (!list || !list->lst || !obj)
+                RUNTIME_ERROR();
+
+        for (unsigned i = 0; i < list->qty; ++i) {
+                if (list->lst[i] == obj) {
+                        genlist_remove_index(list, i);
+                        return 0;
+                }
+        }
+
+        return (-1);
+}
+
 int
-genlist_remove(genlist *list, const unsigned index)
+genlist_remove_index(genlist *list, const unsigned index)
 {
         if (!list || !list->lst || index >= list->qty)
                 RUNTIME_ERROR();
@@ -124,10 +153,14 @@ genlist_remove(genlist *list, const unsigned index)
         free(list->lst[index]);
         list->lst[index] = NULL;
 
-        memmove(list->lst + index, list->lst + index + 1, --list->qty - index);
+        if (index == list->qty - 1)
+                --list->qty;
+        else
+                list->lst[index] = list->lst[--list->qty];
+
+        /* memmove(list->lst + index, list->lst + index + 1, --list->qty - index); */
         return 0;
 }
-
 
 genlist *
 genlist_copy(const genlist *list, const genlist_copy_func cpy)
@@ -153,7 +186,7 @@ struct argument_vector *
 argv_create(const unsigned len)
 {
         struct argument_vector *argv = xmalloc(sizeof(struct argument_vector));
-        argv->lst                    = nmalloc(sizeof(char *), len);
+        argv->lst                    = nmalloc(len, sizeof(char *));
         argv->qty                    = 0;
         argv->mlen                   = len;
         return argv;
@@ -164,7 +197,7 @@ void
 argv_append(struct argument_vector *argv, const char *str, const bool cpy)
 {
         if (argv->qty == (argv->mlen - 1))
-                argv->lst = nrealloc(argv->lst, sizeof(char *), (argv->mlen *= 2));
+                argv->lst = nrealloc(argv->lst, (argv->mlen *= 2), sizeof(char *));
 
         if (cpy)
                 argv->lst[argv->qty++] = strdup(str);

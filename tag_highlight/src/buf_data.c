@@ -2,6 +2,7 @@
 
 #include "data.h"
 #include "highlight.h"
+#include "api.h"
 #include "mpack/mpack.h"
 #include <signal.h>
 
@@ -135,7 +136,7 @@ destroy_bufdata(struct bufdata **bdata)
 
                 for (unsigned i = 0; i < top_dirs->qty; ++i)
                         if (top_dirs->lst[i] == topdir)
-                                genlist_remove(top_dirs, i);
+                                genlist_remove_index(top_dirs, i);
         }
 
         xfree(*bdata);
@@ -283,7 +284,7 @@ init_topdir(const int fd, struct bufdata *bdata)
 
         assert(ret == BSTR_OK);
 
-        genlist_append(&top_dirs, tmp);
+        genlist_append(top_dirs, tmp);
         if (!recurse || is_c)
                 b_free(base);
 

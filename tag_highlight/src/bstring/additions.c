@@ -359,6 +359,7 @@ b_steal(void *blk, const unsigned len)
             .data  = (uchar *)blk,
             .flags = BSTR_STANDARD,
         };
+        return ret;
 }
 
 
@@ -615,8 +616,9 @@ b_list_join(const b_list *list, const bstring *sep)
 {
         if (!list || !list->lst || list->qty == 0)
                 RETURN_NULL();
-        unsigned total = 1, i;
-        unsigned seplen = (sep) ? sep->slen : 0;
+        unsigned i;
+        unsigned total = 1;
+        unsigned seplen = (sep != NULL) ? sep->slen : 0;
 
         B_LIST_FOREACH (list, str, i)
                 total += str->slen + seplen;
@@ -626,7 +628,7 @@ b_list_join(const b_list *list, const bstring *sep)
         B_LIST_FOREACH (list, str, i) {
                 memcpy(ret->data + ret->slen, str->data, str->slen);
                 ret->slen += str->slen;
-                if (sep) {
+                if (sep != NULL) {
                         memcpy(ret->data + ret->slen, sep->data, sep->slen);
                         ret->slen += sep->slen;
                 }
@@ -1306,7 +1308,6 @@ b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
 
         dest->slen += app->slen;
         dest->data[dest->slen] = '\0';
-        assert(dest->slen == strlen(BS(dest)));
         dest->mlen = newlen;
         b_free(app);
 

@@ -54,6 +54,9 @@ typedef unsigned char uchar;
 #define BSTR_DATA_FREEABLE 0x04u
 #define BSTR_LIST_END      0x08u
 #define BSTR_CLONE         0x10u
+#define BSTR_MASK_USR3     0x20u
+#define BSTR_MASK_USR2     0x40u
+#define BSTR_MASK_USR1     0x80u
 
 #define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 

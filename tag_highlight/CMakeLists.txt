@@ -95,6 +95,7 @@ else()
     if (NOT BUILD_DIST) 
         set (MARCH_SETTING "-march=native")
     endif()
+
     set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
     set (BASE "${WARNS} ${MARCH_SETTING} -fdiagnostics-color=always")
 
@@ -102,13 +103,13 @@ else()
     if (CLANG_STR_SEARCH EQUAL -1)
         set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat")
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g3")
-        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -O2 -g3")
+        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
 #----------------------------------------------------------------------------------------------------
     else() # CLANG
 #----------------------------------------------------------------------------------------------------
         # set (BASE "${BASE} -fprofile-instr-generate")
         # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
-        set (SANIT "")
+        # set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
         set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything")
@@ -123,8 +124,9 @@ else()
     endif()
 #####################################################################################################
 
-    set (CMAKE_C_FLAGS_MINSIZEREL     "${BASE} -Os")
-    set (CMAKE_C_FLAGS_RELEASE        "${BASE} -Ofast -ftree-vectorize")
+    set (CMAKE_C_FLAGS_MINSIZEREL "${BASE} -Os")
+    # set (CMAKE_C_FLAGS_RELEASE    "${BASE} -g3 ${SANIT} -O3 -ftree-vectorize")
+    set (CMAKE_C_FLAGS_RELEASE    "${BASE} -g3 -O3 -ftree-vectorize")
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
     # set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-static -s")

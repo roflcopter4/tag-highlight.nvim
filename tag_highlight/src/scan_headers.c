@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
+#include "api.h"
 #include "util/find.h"
 
 #define SKIP_SPACE(STR_, CTR_)                \
@@ -14,6 +15,8 @@
 #define PATH_STR                (PATH_MAX + 1u)
 #define LIT_STRLEN(STR_)        (sizeof(STR_) - 1llu)
 #define CHAR_AT(UCHAR_, CTR_)   ((char *)(&((UCHAR_)[CTR_])))
+#define B_SYS_OK                (BSTR_MASK_USR1)
+#define B_SYS_WITH_DIR          (BSTR_MASK_USR2)
 #define SEARCH_WITH_THREADS
 
 #include "data.h"
@@ -32,6 +35,8 @@ static void *    recurse_headers_shim(void *vdata);
 static void      recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                                  const bstring *cur_header, int level);
 
+static void handle_file(b_list *includes, bstring *file, const bstring *cur_header);
+
 struct pdata {
         b_list **      searched;
         b_list *       src_dirs;
@@ -46,6 +51,7 @@ find_header_files(struct bufdata *bdata)
         b_list *includes = find_includes(bdata);
         b_list *src_dirs = find_src_dirs(bdata, includes);
         
+        bstring *asswipe = NULL;
         if (!includes || !src_dirs) {
                 if (includes)
                         b_list_destroy(includes);
@@ -115,8 +121,9 @@ find_includes(struct bufdata *bdata)
         LL_FOREACH_F (bdata->lines, node) {
                 bstring *file = analyze_line(node->data);
                 if (file) {
-                        b_list_append(&includes, file);
-                        b_list_append(&includes, b_dirname(bdata->filename));
+                        handle_file(includes, file, bdata->filename);
+                        /* b_list_append(&includes, file);
+                        b_list_append(&includes, b_dirname(bdata->filename)); */
                 }
         }
         if (includes->qty == 0) {
@@ -162,6 +169,7 @@ find_src_dirs(struct bufdata *bdata, b_list *includes)
 /*======================================================================================*/
 
 #ifdef DOSISH
+
 static b_list *
 find_header_paths(const b_list *src_dirs, const b_list *includes)
 {
@@ -222,7 +230,7 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
 
 #else /* not DOSISH */
 
-static bstring *find_header_paths_system(bstring *file);
+static bstring *find_header_paths_system(bstring *file, const bstring *sysdir);
 
 static b_list *
 find_header_paths(const b_list *src_dirs, const b_list *includes)
@@ -237,10 +245,15 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         for (i = 0; i < includes_clone->qty; i += 2) {
                 bstring   *file = includes_clone->lst[i];
                 bstring   *path = includes_clone->lst[i+1];
-                bstring   *tmp  = b_concat_all(path, B("/"), file);
-                const bool sys  = (file->data[file->slen+1] == 'S');
 
+#if 0
+                if (!path)
+                        goto try_sys;
+#endif
+
+                bstring    *tmp = b_concat_all(path, B("/"), file);
                 struct stat st;
+
                 if (stat(BS(tmp), &st) == 0) {
                 add:    b_list_append(&headers, tmp);
                         b_free(file);
@@ -259,8 +272,12 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
                                 }
                         }
 
-                        if (sys && (tmp = find_header_paths_system(file)))
-                                goto add;
+#if 0
+                try_sys:
+                        if (file->flags & B_SYS_OK)
+                                if ((tmp = find_header_paths_system(file, path)))
+                                        goto add;
+#endif
                 }
 
                 b_free(path);
@@ -304,10 +321,14 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
 }
 
 static bstring *
-find_header_paths_system(bstring *file)
+find_header_paths_system(bstring *file, const bstring *sysdir)
 {
-        static const char *paths[] = {"/usr/include", "/usr/local/include"};
-        bstring           *ret     = NULL;
+        const char *paths[3] = {"/usr/include", "/usr/local/include", NULL};
+        bstring    *ret     = NULL;
+        if (sysdir)
+                paths[2] = BS(sysdir);
+
+        eprintf("Trying to find %s in the system directories\n", BS(file));
 
         if (b_strchr(file, '/') >= 0) {
                 char     p[PATH_STR];
@@ -315,6 +336,8 @@ find_header_paths_system(bstring *file)
                 bstring *f = b_basename(file);
 
                 for (int i = 0; i < ARRSIZ(paths) && !ret; ++i) {
+                        if (!paths[i] || !paths[i][0])
+                                continue;
                         snprintf(p, PATH_STR, "%s/%s", paths[i], BS(d));
                         const int fd = open(p, O_DIRECTORY|O_PATH);
                         if (fd == (-1))
@@ -372,6 +395,15 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                 pthread_mutex_unlock(&searched_mutex);
         }
 
+#if 0
+        bstring *d = b_dirname(cur_header);
+        if (b_iseq(d, B("/usr/include")) && !(cur_header->flags & B_SYS_OK)) {
+                b_destroy(d);
+                return;
+        }
+        b_destroy(d);
+#endif
+
         b_list  *includes = b_list_create();
         bstring  line[]   = {{0, 0, NULL, 0}};
         bstring *slurp    = b_quickread(BS(cur_header));
@@ -379,10 +411,8 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
 
         while (b_memsep(line, slurp, '\n')) {
                 bstring *file = analyze_line(line);
-                if (file) {
-                        b_list_append(&includes, file);
-                        b_list_append(&includes, b_dirname(cur_header));
-                }
+                if (file)
+                        handle_file(includes, file, cur_header);
                 b_free(line);
         }
         free(slurp);
@@ -423,18 +453,61 @@ analyze_line(const bstring *line)
                                 ++i;
                                 ch = (ch == '<') ? '>' : ch;
                                 uchar *end = memchr(&str[i], ch, len - i);
+
                                 if (end) {
                                         ret = b_fromblk(&str[i], PSUB(end, &str[i]));
-                                        if (ch == '>' && b_strstr(line, B("/* TAG */"), i) > 0) {
-                                                b_catblk_nonul(ret, "S", 1);
-                                                b_fputs(stderr, ret);
+
+#if 0
+                                        if (ch == '>') {
+                                                int n = 0;
+                                                if (b_strstr(line, B("/* TAG */"), i) > 0) {
+                                                        ret->flags |= B_SYS_OK;
+                                                        b_fputs(stderr, ret, B("\n"));
+                                                } else if ((n = b_strstr(line, B("/* TAG: "), i)) > 0) {
+                                                        eprintf("Found %s!", &line->data[n]);
+                                                        n += 8;
+                                                        const int m = b_strchrp(line, '*', n) - 1;
+                                                        b_conchar(ret, '\0');
+                                                        b_catblk(ret, line->data + n, m-n);
+                                                        ret->flags |= B_SYS_OK | B_SYS_WITH_DIR;
+                                                }
                                         }
+#endif
                                 }
                         }
                 }
         }
 
         return ret;
+}
+
+static void
+handle_file(b_list *includes, bstring *file, const bstring *cur_header)
+{
+#if 0
+        if (file->flags & B_SYS_OK) {
+                if (file->flags & B_SYS_WITH_DIR) {
+                        size_t n      = strlen(BS(file));
+                        char * sysdir = (char *)(file->data + n + 1);
+                        file->slen    = n;
+                        fprintf(stderr, "Found %s, with '%s' and %02X, %02X\n",
+                                BS(file), sysdir, file->flags, BSTR_STANDARD);
+
+                        b_list_append(&includes, file);
+                        b_list_append(&includes, b_fromcstr(sysdir));
+                } else {
+                        fprintf(stderr, "Found %s, with no dir and %02X, %02X\n",
+                                BS(file), file->flags, BSTR_STANDARD);
+                        b_list_append(&includes, file);
+                        b_list_append(&includes, (bstring *)NULL);
+                }
+        } else {
+#endif
+                b_list_append(&includes, file);
+                b_list_append(&includes, b_dirname(cur_header));
+#if 0
+        }
+#endif
 }
 
 /*======================================================================================*/

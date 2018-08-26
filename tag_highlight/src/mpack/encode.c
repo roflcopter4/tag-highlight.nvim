@@ -93,7 +93,7 @@ mpack_encode_array(mpack_obj       *root,
         sanity_check(root, item, 64, true);
 
         (*item)->data.arr        = xmalloc(sizeof(mpack_array_t));
-        (*item)->data.arr->items = nmalloc(sizeof(mpack_obj *), len);
+        (*item)->data.arr->items = nmalloc(len, sizeof(mpack_obj *));
         (*item)->data.arr->qty   = len;
         (*item)->data.arr->max   = len;
         (*item)->flags          |= (uint8_t)MPACK_ARRAY;
@@ -125,7 +125,7 @@ mpack_encode_dictionary(mpack_obj       *root,
         sanity_check(root, item, 64, true);
 
         (*item)->data.dict          = xmalloc(sizeof(mpack_dict_t));
-        (*item)->data.dict->entries = nmalloc(sizeof(struct dict_ent *), len);
+        (*item)->data.dict->entries = nmalloc(len, sizeof(struct dict_ent *));
         (*item)->data.dict->qty     = len;
         (*item)->data.dict->max     = len;
         (*item)->flags             |= (uint8_t)MPACK_DICT;

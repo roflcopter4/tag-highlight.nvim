@@ -206,17 +206,17 @@ add_hl_call(struct atomic_call_array **calls,
                 echo("allocating calls...");
                 (*calls)            = xmalloc(sizeof **calls);
                 (*calls)->mlen      = 32;
-                (*calls)->fmt       = xcalloc(sizeof(char *), (*calls)->mlen);
-                (*calls)->args      = xcalloc(sizeof(union atomic_call_args *), (*calls)->mlen);
+                (*calls)->fmt       = xcalloc((*calls)->mlen, sizeof(char *));
+                (*calls)->args      = xcalloc((*calls)->mlen, sizeof(union atomic_call_args *));
                 (*calls)->qty       = 0;
         } else if ((*calls)->qty >= (*calls)->mlen-1) {
                 (*calls)->mlen     *= 2;
-                (*calls)->fmt       = nrealloc((*calls)->fmt, sizeof(char *), (*calls)->mlen);
-                (*calls)->args      = nrealloc((*calls)->args, sizeof(union atomic_call_args *), (*calls)->mlen);
+                (*calls)->fmt       = nrealloc((*calls)->fmt, (*calls)->mlen, sizeof(char *));
+                (*calls)->args      = nrealloc((*calls)->args, (*calls)->mlen, sizeof(union atomic_call_args *));
         }
 
         (*calls)->fmt[(*calls)->qty]         = strdup("s[dd,s,ddd]");
-        (*calls)->args[(*calls)->qty]        = nmalloc(sizeof(union atomic_call_args), 7);
+        (*calls)->args[(*calls)->qty]        = nmalloc(7, sizeof(union atomic_call_args));
         (*calls)->args[(*calls)->qty][0].str = b_lit2bstr("nvim_buf_add_highlight");
         (*calls)->args[(*calls)->qty][1].num = bufnum;
         (*calls)->args[(*calls)->qty][2].num = hl_id;

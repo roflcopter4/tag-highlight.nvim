@@ -20,21 +20,27 @@
      } while (0)
 
 #include <execinfo.h>
-#define FATAL_ERROR(...)                                               \
-        __extension__({                                                \
-                void * arr[128];                                       \
-                char   buf[8192];                                      \
-                size_t num     = backtrace(arr, 128);                  \
-                char **strings = backtrace_symbols(arr, num);          \
-                snprintf(buf, 8192, __VA_ARGS__);                      \
-                                                                       \
-                warnx("Fatal error in func %s in bstrlib.c, line %d\n" \
-                      "%s" "STACKTRACE: ", FUNC_NAME, __LINE__, buf);  \
-                for (unsigned i_ = 0; i_ < num; ++i_)                  \
-                        fprintf(stderr, "  -  %s\n", strings[i_]);     \
-                                                                       \
-                free(strings);                                         \
-                abort();                                               \
+#define SHOW_STACKTRACE()                          \
+        __extension__({                            \
+                void * arr[128];                   \
+                size_t num = backtrace(arr, 128);  \
+                fflush(stderr);                    \
+                dprintf(2, "STACKTRACE: \n");      \
+                backtrace_symbols_fd(arr, num, 2); \
+        })
+#define FATAL_ERROR(...)                                           \
+        __extension__({                                            \
+                void * arr[128];                                   \
+                char   buf[8192];                                  \
+                size_t num = backtrace(arr, 128);                  \
+                snprintf(buf, 8192, __VA_ARGS__);                  \
+                                                                   \
+                warnx("Fatal error in func %s in bstrlib.c, line " \
+                      "%d\n%sSTACKTRACE: ",                        \
+                      FUNC_NAME, __LINE__, buf);                   \
+                fflush(stderr);                                    \
+                backtrace_symbols_fd(arr, num, 2);                 \
+                abort();                                           \
         })
 
 extern const char *program_name;
@@ -269,6 +275,8 @@ __err(UNUSED const int status, const bool print_err, const char *const __restric
 
         vfprintf(stderr, buf, ap);
         va_end(ap);
+
+        SHOW_STACKTRACE();
 
         abort();
         /* exit(status); */

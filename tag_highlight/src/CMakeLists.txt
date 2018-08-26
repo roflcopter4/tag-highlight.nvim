@@ -25,10 +25,12 @@ set (tag_highlight_SOURCES
     util/linked_list.c
     util/util.c
 
+    api.c
     buf_data.c
     ctags.c
     events.c
     globals.c
+    loop.c
     main.c
     parse.c
     scan_headers.c
@@ -73,7 +75,10 @@ else()
     target_link_libraries(tag_highlight -pthread)
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
     target_link_libraries(tag_highlight ${JEMALLOC_STUFF})
-    # target_link_libraries(tag_highlight -lunwind)
+
+    if (CLANG_STR_SEARCH)
+        target_link_libraries(tag_highlight -lunwind)
+    endif()
 #   target_link_libraries(tag_highlight -lpcre2-8)
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")

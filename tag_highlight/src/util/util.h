@@ -114,6 +114,15 @@ struct backups {
                 pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
         } while (0)
 
+#define START_DETACHED_PTHREAD(FUNC_, DATA_)                                   \
+        do {                                                                   \
+                pthread_t      __th;                                           \
+                pthread_attr_t _attr_;                                         \
+                pthread_attr_init(&_attr_);                                    \
+                pthread_attr_setdetachstate(&_attr_, PTHREAD_CREATE_DETACHED); \
+                pthread_create(&__th, &_attr_, (FUNC_), (DATA_));              \
+        } while (0)
+
 
 #define ASSERT(CONDITION_, ...)  do { if (!(CONDITION_)) err(50, __VA_ARGS__); } while (0)
 #define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)

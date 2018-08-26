@@ -10,6 +10,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "api.h"
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);
@@ -137,12 +138,19 @@ write_gzfile(struct top_dir *topdir)
 {
         ECHO("Compressing tagfile.");
         switch (settings.comp_type) {
-        case COMP_NONE: write_plain(topdir); break;
-        case COMP_GZIP: write_gzip(topdir);  break;
+        case COMP_NONE:
+                write_plain(topdir);
+                break;
+        case COMP_LZMA:
 #ifdef LZMA_SUPPORT
-        case COMP_LZMA: write_lzma(topdir);  break;
+                write_lzma(topdir);
+                break;
 #endif
-        default:        abort();
+        case COMP_GZIP:
+                write_gzip(topdir);
+                break;
+        default:
+                abort();
         }
         ECHO("Finished compressing tagfile!");
 }
@@ -228,7 +236,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
 
         argv_append(argv, (const char *)0, false);
 
-#if 1
+#ifdef DEBUG
         {
                 bstring *cmd = b_alloc_null(2048);
                 for (char **tmp = argv->lst; *tmp; ++tmp)
@@ -236,6 +244,12 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                 cmd->data[cmd->slen -= 2] = '\0';
                 ECHO("Running command 'ctags' with args [%s]\n", cmd);
                 b_free(cmd);
+
+                FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/ctags_arguments.log", "wb", HOME);
+                fprintf(fp, "%s\n", BS(settings.ctags_bin));
+                for (char **tmp = argv->lst; *tmp; ++tmp)
+                        fprintf(fp, "%s\n", *tmp);
+                fclose(fp);
         }
 #endif
 
@@ -243,13 +257,8 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         const int pid    = fork();
 
         if (pid == 0) {
-                if (b_strchr(settings.ctags_bin, '/') >= 0) {
-                        if (execv(BS(settings.ctags_bin), argv->lst) != 0)
-                                err(1, "Exec failed");
-                } else {
-                        if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
-                                err(1, "Exec failed");
-                }
+                if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
+                        err(1, "Exec failed");
         } else {
                 waitpid(pid, &status, 0);
         }

@@ -4,11 +4,11 @@
 #include "data.h"
 #include "mpack.h"
 
-static mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...);
-static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func);
+/* static mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...); */
+/* static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func); */
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
-static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type);
+/* static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type); */
 
 static unsigned        sok_count, io_count;
 static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -16,369 +16,12 @@ static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
-#define ENCODE_FMT_ARRSIZE 8192
 #define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
 #define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
 #define CHECK_DEF_FD(FD__) ((FD__) = (((FD__) == 0) ? DEFAULT_FD : (FD__)))
 #define BS_FROMARR(ARRAY_) {(sizeof(ARRAY_) - 1), 0, (unsigned char *)(ARRAY_), 0}
 
 /*======================================================================================*/
-
-
-static mpack_obj *
-generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
-{
-        pthread_mutex_lock(&mpack_main_mutex);
-        CHECK_DEF_FD(*fd);
-        mpack_obj *pack;
-
-        if (fmt) {
-                va_list        ap;
-                const unsigned size = fmt->slen + 16u;
-                char *         buf  = alloca(size);
-                snprintf(buf, size, "d,d,s:[!%s]", BS(fmt));
-
-                va_start(ap, fmt);
-                pack = encode_fmt(0, buf, MES_REQUEST, INC_COUNT(*fd), fn, &ap);
-                va_end(ap);
-        } else {
-                pack = encode_fmt(0, "d,d,s:[]", MES_REQUEST, INC_COUNT(*fd), fn);
-        }
-
-        write_and_clean(*fd, pack, fn);
-
-        mpack_obj *result = decode_stream(*fd, MES_RESPONSE);
-        mpack_print_object(mpack_log, result);
-        pthread_mutex_unlock(&mpack_main_mutex);
-        return result;
-}
-
-
-/*======================================================================================*/
-
-void
-__nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
-{
-        pthread_mutex_lock(&mpack_main_mutex);
-        CHECK_DEF_FD(fd);
-        bstring *func;
-        switch (type) {
-        case NW_STANDARD: func = B("nvim_out_write");   break;
-        case NW_ERROR:    func = B("nvim_err_write");   break;
-        case NW_ERROR_LN: func = B("nvim_err_writeln"); break;
-        default:          errx(1, "Should be unreachable!");
-        }
-
-        mpack_obj *pack = encode_fmt(0, "d,d,s:[s]", MES_REQUEST, INC_COUNT(fd), func, mes);
-        write_and_clean(fd, pack, func);
-        mpack_obj *tmp  = decode_stream(fd, MES_RESPONSE);
-        pthread_mutex_unlock(&mpack_main_mutex);
-
-        mpack_print_object(mpack_log, tmp);
-        mpack_destroy(tmp);
-}
-
-void
-nvim_printf(const int fd, const char *const restrict fmt, ...)
-{
-        va_list ap;
-        va_start(ap, fmt);
-        bstring *tmp = b_vformat(fmt, ap);
-        va_end(ap);
-
-        nvim_out_write(fd, tmp);
-        b_destroy(tmp);
-}
-
-void
-nvim_vprintf(const int fd, const char *const restrict fmt, va_list args)
-{
-        bstring *tmp = b_vformat(fmt, args);
-        nvim_out_write(fd, tmp);
-        b_destroy(tmp);
-}
-
-void
-nvim_b_printf(const int fd, const bstring *fmt, ...)
-{
-        va_list ap;
-        va_start(ap, fmt);
-        bstring *tmp = b_vsprintf(fmt, ap);
-        va_end(ap);
-        nvim_out_write(fd, tmp);
-        b_free(tmp);
-}
-
-
-/*--------------------------------------------------------------------------------------*/
-
-#define VALUE (m_index(result, 3))
-
-
-b_list *
-nvim_buf_attach(int fd, const int bufnum)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        pthread_mutex_lock(&mpack_main_mutex);
-
-        CHECK_DEF_FD(fd);
-        mpack_obj *pack = encode_fmt(0, "d,d,s:[d,B,[]]", MES_REQUEST,
-                                     INC_COUNT(fd), &fn, bufnum, false);
-        write_and_clean(fd, pack, &fn);
-
-        /* Don't wait for the response, it will be handled in the main thread. */
-        pthread_mutex_unlock(&mpack_main_mutex);
-        return NULL;
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-retval_t
-nvim_list_bufs(int fd)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, NULL);
-        return m_expect_intern(result, E_MPACK_ARRAY);
-}
-
-int
-nvim_get_current_buf(int fd)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, NULL);
-        return (int)m_expect_intern(result, E_NUM).num;
-}
-
-bstring *
-nvim_get_current_line(int fd)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, NULL);
-        return m_expect_intern(result, E_STRING).ptr;
-}
-
-unsigned
-nvim_buf_line_count(int fd, const int bufnum)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("d"), bufnum);
-        return (unsigned)m_expect_intern(result, E_NUM).num;
-}
-
-b_list *
-nvim_buf_get_lines(int fd, const unsigned bufnum, const int start, const int end)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("d,d,d,d"), bufnum, start, end, 0);
-        return m_expect_intern(result, E_STRLIST).ptr;
-}
-
-
-bstring *
-nvim_buf_get_name(int fd, const int bufnum)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        char       fullname[PATH_MAX + 1];
-        mpack_obj *result = generic_call(&fd, &fn, B("d"), bufnum);
-        bstring   *ret    = m_expect_intern(result, E_STRING).ptr;
-        b_assign_cstr(ret, realpath(BS(ret), fullname));
-        return ret;
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-bool
-nvim_command(int fd, const bstring *cmd)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s"), cmd);
-        const bool ret    = mpack_type(m_index(result, 2)) == MPACK_NIL;
-
-        if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
-                bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
-                b_fputs(stderr, errmsg, B("\n"));
-        }
-        mpack_destroy(result);
-
-        return ret;
-}
-
-retval_t
-nvim_command_output(int fd, const bstring *cmd, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s"), cmd);
-        return m_expect_intern(result, expect);
-}
-
-retval_t
-nvim_call_function(int fd, const bstring *function, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s,[]"), function);
-        return m_expect_intern(result, expect);
-}
-
-retval_t
-nvim_call_function_args(int fd, const bstring *function, const mpack_expect_t expect,
-                        const bstring *fmt, ...)
-{
-        static bstring fn  = bt_init("nvim_call_function");
-        bstring       *buf = b_sprintf(B("[s,[!%s]]"), fmt);
-        va_list        ap;
-
-        va_start(ap, fmt);
-        mpack_obj *result = generic_call(&fd, &fn, buf, function, &ap);
-        va_end(ap);
-
-        b_free(buf);
-        return m_expect_intern(result, expect);
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-retval_t
-nvim_get_var(int fd, const bstring *varname, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s"), varname);
-        return m_expect_intern(result, expect);
-}
-
-retval_t
-nvim_get_option(int fd, const bstring *optname, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s"), optname);
-        return m_expect_intern(result, expect);
-}
-
-retval_t
-nvim_buf_get_var(int fd, const int bufnum, const bstring *varname, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("d,s"), bufnum, varname);
-        return m_expect_intern(result, expect);
-}
-
-retval_t
-nvim_buf_get_option(int fd, const int bufnum, const bstring *optname, const mpack_expect_t expect)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("d,s"), bufnum, optname);
-        return m_expect_intern(result, expect);
-}
-
-unsigned
-nvim_buf_get_changedtick(int fd, const int bufnum)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("d"), bufnum);
-        return (unsigned)m_expect_intern(result, E_NUM).num;
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-bool
-nvim_set_var(int fd, const bstring *varname, const bstring *fmt, ...)
-{
-        va_list  ap;
-        static bstring fn  = BS_FROMARR(__func__);
-        bstring       *tmp = b_sprintf(B("[s,!%s]"), fmt);
-
-        va_start(ap, fmt);
-        mpack_obj *result = generic_call(&fd, &fn, tmp, varname, &ap);
-        va_end(ap);
-
-        b_free(tmp);
-        return mpack_type(m_index(result, 2)) == MPACK_NIL;
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-int
-nvim_buf_add_highlight(int fd, const unsigned bufnum, const int hl_id, const bstring *group,
-                       const unsigned line, const unsigned start, const int end)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("dd,s,ddd"), bufnum,
-                                         hl_id, group, line, start, end);
-        return (int)m_expect_intern(result, E_NUM).num;
-}
-
-void
-nvim_buf_clear_highlight(int fd, const unsigned bufnum, const int hl_id,
-                         const unsigned start, const int end)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("dd,dd"), bufnum, hl_id, start, end);
-        PRINT_AND_DESTROY(result);
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-void
-nvim_get_api_info(int fd)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, NULL);
-        PRINT_AND_DESTROY(result);
-}
-
-void
-nvim_subscribe(int fd, const bstring *event)
-{
-        static bstring fn = BS_FROMARR(__func__);
-        mpack_obj *result = generic_call(&fd, &fn, B("s"), event);
-        PRINT_AND_DESTROY(result);
-}
-
-void
-nvim_call_atomic(int fd, const struct atomic_call_array *calls)
-{
-        CHECK_DEF_FD(fd);
-        static bstring fn             = BS_FROMARR(__func__);
-        union atomic_call_args **args = calls->args;
-        bstring                 *fmt  = b_fromcstr_alloc(4096, "d,d,s:[:");
-
-        if (calls->qty) {
-                b_sprintfa(fmt, B("[ @[%n],"), calls->fmt[0]);
-
-                for (unsigned i = 1; i < calls->qty; ++i)
-                        b_sprintfa(fmt, B("[*%n],"), calls->fmt[i]);
-
-                b_catlit(fmt, " ]:]");
-        }
-
-        pthread_mutex_lock(&mpack_main_mutex);
-        mpack_obj *pack = encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
-                                     INC_COUNT(fd), &fn, args);
-        write_and_clean(fd, pack, &fn);
-
-        mpack_obj *result = decode_stream(fd, MES_RESPONSE);
-        pthread_mutex_unlock(&mpack_main_mutex);
-        PRINT_AND_DESTROY(result);
-        b_destroy(fmt);
-}
-
-
-/*======================================================================================*/
-
-
-bstring *
-get_notification(int fd)
-{
-        /* No mutex to lock here. */
-        CHECK_DEF_FD(fd);
-        mpack_obj *result = decode_stream(fd, MES_NOTIFICATION);
-        bstring   *ret    = b_strcpy(result->DAI[1]->data.str);
-        PRINT_AND_DESTROY(result);
-        return ret;
-}
-
-
-/*======================================================================================*/
-
 
 retval_t
 m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
@@ -489,37 +132,13 @@ error:
 }
 
 
-static inline retval_t
-m_expect_intern(mpack_obj *root, mpack_expect_t type)
-{
-        mpack_obj *errmsg = m_index(root, 2);
-        mpack_obj *data   = m_index(root, 3);
-        retval_t   ret    = { .ptr = NULL };
-
-        if (mpack_type(errmsg) != MPACK_NIL) {
-                bstring *err_str = m_expect(m_index(errmsg, 1), E_STRING, true).ptr;
-                if (err_str) {
-                        warnx("Neovim returned with an err_str: '%s'", BS(err_str));
-                        b_destroy(err_str);
-                        root->DAI[2] = NULL;
-                }
-        } else {
-                ret = m_expect(data, type, true);
-                root->DAI[3] = NULL;
-        }
-
-        mpack_destroy(root);
-        return ret;
-}
-
-
 /*======================================================================================*/
 
 
 void
 mpack_destroy(mpack_obj *root)
 {
-        struct item_free_stack tofree = { nmalloc(sizeof(void *), 8192), 0, 8192 };
+        struct item_free_stack tofree = { nmalloc(1024, sizeof(void *)), 0, 1024 };
         collect_items(&tofree, root);
 
         for (int64_t i = (int64_t)(tofree.qty - 1); i >= 0; --i) {
@@ -631,28 +250,6 @@ destroy_call_array(struct atomic_call_array *calls)
 }
 
 
-static void
-write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
-{
-#ifdef DEBUG
-#  ifdef LOG_RAW_MPACK
-        char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
-        const int rawlog = safe_open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
-        b_write(rawlog, B("\n"), *pack->packed, B("\n"));
-        close(rawlog);
-#  endif
-        if (func && mpack_log)
-                fprintf(mpack_log, "=================================\n"
-                        "Writing request no %d to fd %d: \"%s\"\n",
-                        COUNT(fd) - 1, fd, BS(func));
-
-        mpack_print_object(mpack_log, pack);
-#endif
-        b_write(fd, *pack->packed);
-        mpack_destroy(pack);
-}
-
-
 /*======================================================================================*/
 /* Type conversions */
 
@@ -678,20 +275,6 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
                         b_list_append(&ret, array->items[i]->data.str);
         }
 
-        return ret;
-}
-
-
-retval_t
-nvim_get_var_fmt(const int fd, const mpack_expect_t expect, const char *fmt, ...)
-{
-        va_list ap;
-        va_start(ap, fmt);
-        bstring *varname = b_vformat(fmt, ap);
-        va_end(ap);
-
-        retval_t ret = nvim_get_var(fd, varname, expect);
-        b_destroy(varname);
         return ret;
 }
 
@@ -723,9 +306,17 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 
 /*======================================================================================*/
 
-#define NEW_STACK(TYPE_, NAME_, SIZE_, NUM_)             \
-        TYPE_    NAME_       = nmalloc((SIZE_), (NUM_)); \
-        unsigned NAME_##_ctr = 0;
+/* I'm using two variables, stack and counter, rather than some struct simply to
+ * get around any type checking problems. This way allows the stack to be
+ * composed of the actual type it holds (rather than a void pointer) and also
+ * allows the elements to be integers without requiring some hack. */
+
+/* #define NEW_STACK(TYPE_, NAME_, NUM_, SIZE_)             \ */
+        /* TYPE_    NAME_       = nmalloc((NUM_), (SIZE_)); \ */
+        /* unsigned NAME_##_ctr = 0 */
+#define NEW_STACK(TYPE_, NAME_)             \
+        TYPE_    NAME_[64]; \
+        unsigned NAME_##_ctr = 0
 
 #define POP(STACK_) \
         (((STACK_##_ctr == 0) ? (abort(), 0) : 0), ((STACK_)[--STACK_##_ctr]))
@@ -793,6 +384,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
         } while (0)
 
 #define TWO_THIRDS(NUM_) ((1 * (NUM_)) / 3)
+#define ENCODE_FMT_ARRSIZE 128
 
 
 /* 
@@ -842,20 +434,23 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                                                 : ENCODE_FMT_ARRSIZE;
         va_list      args;
         int          ch;
-        unsigned    *sub_lengths = nmalloc(sizeof(unsigned), arr_size);
+        unsigned     sub_lengths_sz = arr_size;
+        /* fprintf(stderr, "allocating size %u\n", arr_size); */
+        unsigned    *sub_lengths = nalloca(arr_size, sizeof(unsigned));
         unsigned    *cur_len     = &sub_lengths[0];
         unsigned     len_ctr     = 1;
         const char  *ptr         = fmt;
         va_list     *ref         = NULL;
         *cur_len                 = 0;
 
-        NEW_STACK(unsigned **, len_stack, sizeof(unsigned *), TWO_THIRDS(arr_size));
+        /* NEW_STACK(unsigned **, len_stack, TWO_THIRDS(arr_size), sizeof(unsigned *)); */
+        NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);
 
         /* Go through the format string once to get the number of arguments and
          * in particular the number and size of any arrays. */
         while ((ch = *ptr++)) {
-                assert(len_ctr < arr_size);
+                /* assert(len_ctr < arr_size); */
 
                 switch (ch) {
                 /* Legal values. Increment size and continue. */
@@ -870,6 +465,11 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case '[': case '{':
                         ++*cur_len;
                         PUSH(len_stack, cur_len);
+                        //if (len_ctr == sub_lengths_sz) {
+                        //        errx(1, "Somehow we outstripped our size!\n");
+                        //        /* fprintf(stderr, "Reallocating from %u to %u\n", sub_lengths_sz, sub_lengths_sz * 2);
+                        //        sub_lengths = nrealloc(sub_lengths, (sub_lengths_sz *= 2), sizeof(unsigned)); */
+                        //}
                         cur_len = &sub_lengths[len_ctr++];
                         *cur_len = 0;
                         break;
@@ -902,7 +502,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         pack = mpack_make_new(sub_lengths[0], false);
 #endif
 
-        unsigned   *sub_ctrlist  = nmalloc(sizeof(unsigned), arr_size);
+        unsigned   *sub_ctrlist  = nalloca(len_ctr + 1, sizeof(unsigned));
         unsigned   *cur_ctr      = sub_ctrlist;
         mpack_obj **cur_obj      = NULL;
         unsigned    subctr_ctr   = 1;
@@ -914,8 +514,10 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         *cur_ctr                 = 1;
 
         RESET(len_stack);
-        NEW_STACK(mpack_obj **, obj_stack, sizeof(mpack_obj *), TWO_THIRDS(arr_size));
-        NEW_STACK(unsigned *, dict_stack, sizeof(unsigned), TWO_THIRDS(arr_size));
+        /* NEW_STACK(mpack_obj **, obj_stack, TWO_THIRDS(arr_size), sizeof(mpack_obj *)); */
+        /* NEW_STACK(unsigned *, dict_stack, TWO_THIRDS(arr_size), sizeof(unsigned)); */
+        NEW_STACK(mpack_obj *, obj_stack);
+        NEW_STACK(unsigned, dict_stack);
         PUSH(len_stack, cur_ctr);
         PUSH(obj_stack, pack);
         PUSH(dict_stack, 0);
@@ -1031,12 +633,12 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 ++*cur_ctr;
         }
 
-        free(dict_stack);
-        free(obj_stack);
-        free(sub_ctrlist);
+        /* free(dict_stack); */
+        /* free(obj_stack); */
+        /* free(sub_ctrlist); */
 cleanup:
-        free(sub_lengths);
-        free(len_stack);
+        /* free(sub_lengths); */
+        /* free(len_stack); */
         va_end(args);
         return pack;
 }

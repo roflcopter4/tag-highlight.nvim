@@ -288,16 +288,14 @@ b_fromblk(const void *blk, const unsigned len)
 
 
 bstring *
-b_alloc_null(unsigned len)
+b_alloc_null(const unsigned len)
 {
-        if (len == 0)
-                len = 1;
-
+        int safelen   = len + 1;
         bstring *bstr = xmalloc(sizeof *bstr);
         bstr->slen    = 0;
-        bstr->mlen    = len;
+        bstr->mlen    = safelen;
         bstr->flags   = BSTR_STANDARD;
-        bstr->data    = xmalloc(len);
+        bstr->data    = xmalloc(safelen);
         bstr->data[0] = (uchar)'\0';
 
         return bstr;
