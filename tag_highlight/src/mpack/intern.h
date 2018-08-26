@@ -4,6 +4,10 @@
 
 #include "mpack.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum m_groups { G_NIL, G_BOOL, G_ARRAY, G_MAP, G_STRING, G_BIN, G_INT, G_UINT, G_PLINT, G_NLINT, G_EXT };
 
 enum m_types {
@@ -72,5 +76,9 @@ struct mpack_masks {
 extern const struct mpack_masks m_masks[];
 extern const size_t m_masks_len;
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* src/mpack_code.h */

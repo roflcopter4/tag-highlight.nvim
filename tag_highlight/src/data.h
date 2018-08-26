@@ -8,6 +8,10 @@
 #include "util/generic_list.h"
 #include <pthread.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define DATA_ARRSIZE 4096
 
 enum filetype_id {
@@ -116,11 +120,11 @@ extern struct buffer_list  buffers;
 extern struct ftdata_s     ftdata[];
 extern genlist *top_dirs;
 
-extern int sockfd, bufchan;
+extern int mainchan, bufchan;
 extern const size_t ftdata_len;
 extern const char *const m_type_names[];
 
-#define DEFAULT_FD (sockfd)
+#define DEFAULT_FD       (mainchan)
 #define BUFFER_ATTACH_FD (bufchan)
 
 
@@ -155,5 +159,9 @@ extern void *interrupt_call(void *vdata);
 /* Archives */
 extern b_list *get_archived_tags(struct bufdata *bdata);
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* data.h */

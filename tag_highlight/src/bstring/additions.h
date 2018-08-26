@@ -16,6 +16,10 @@
 #  define INLINE inline
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 /**
  * Dumber macro which simply returns the data of a bstring cast to char *. No
@@ -358,6 +362,10 @@ b_conchar(bstring *bstr, const char ch)
 #undef INLINE
 #ifdef _MSC_VER
 #  undef __attribute__
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* additions.h */

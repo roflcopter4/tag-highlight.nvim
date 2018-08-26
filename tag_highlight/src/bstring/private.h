@@ -63,6 +63,10 @@
 #  define PURE
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef _MSC_VER
     typedef signed long long int ssize_t;
 #endif
@@ -374,5 +378,8 @@ BSTR_PRIVATE int b_scb(void *parm, const uint ofs, const uint len);
 #define NO_ALLOC(BSTR)  (!((BSTR)->flags & BSTR_DATA_FREEABLE))
 #define IS_STATIC(BSTR) (NO_WRITE(BSTR) && NO_ALLOC(BSTR))
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* private.h */

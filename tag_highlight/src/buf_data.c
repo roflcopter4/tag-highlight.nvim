@@ -1,8 +1,8 @@
 #include "util/util.h"
 
+#include "api.h"
 #include "data.h"
 #include "highlight.h"
-#include "api.h"
 #include "mpack/mpack.h"
 #include <signal.h>
 

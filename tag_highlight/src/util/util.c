@@ -298,7 +298,7 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         else
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_name, fmt);
 
-        nvim_vprintf(sockfd, buf, ap1);
+        nvim_vprintf(mainchan, buf, ap1);
 
 #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);

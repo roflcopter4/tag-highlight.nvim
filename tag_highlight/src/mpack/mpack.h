@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*============================================================================*/
 /* Structures, Etc */
 
@@ -205,5 +209,8 @@ extern FILE *mpack_log;
 #endif
 
 
+#ifdef __cplusplus
+}
+#endif
 /*============================================================================*/
 #endif /* mpack.h */

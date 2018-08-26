@@ -5,6 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*======================================================================================================*/
 
 typedef struct linked_list_s linked_list;
@@ -73,5 +77,9 @@ extern void ll_insert_blist_after  (linked_list *list, ll_node *at, b_list *blis
 extern void ll_insert_blist_before (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 extern bool ll_verify_size         (linked_list *list);
 
+
+#ifdef __cplusplus
+}
+#endif
 /*======================================================================================================*/
 #endif /* linked_list.h */

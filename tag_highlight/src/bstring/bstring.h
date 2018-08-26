@@ -45,6 +45,10 @@
 
 #include "defines.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*======================================================================================*/
 /* Copy functions */
 

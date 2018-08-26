@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include "data.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct archive_size {
         size_t archive;
         size_t uncompressed;
@@ -23,4 +27,7 @@ extern void write_lzma(struct top_dir *topdir);
 extern void lazy_write_lzma(struct top_dir *topdir);
 
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* archive_util.h */

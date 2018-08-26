@@ -78,4 +78,8 @@ struct bstring_list {
         bstring **lst;
 };
 
+#ifdef __cplusplus
+}
+#endif
+
 #endif /* defines.h */

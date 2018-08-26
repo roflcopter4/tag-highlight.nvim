@@ -6,6 +6,10 @@
 #include "bstring/bstring.h"
 #include "data.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 
 extern bool run_ctags(struct bufdata *bdata, int force);
 /* extern bool check_gzfile(struct bufdata *bdata); */
@@ -37,5 +41,12 @@ extern b_list * parse_json(const bstring *json_path, const bstring *filename, b_
 extern int my_highlight(int bufnum, struct bufdata *bdata);
 extern void my_parser(int bufnum, struct bufdata *bdata);
 
+extern void * event_loop(void *vdata);
+extern void   get_init_lines(struct bufdata *bdata);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* highlight.h */

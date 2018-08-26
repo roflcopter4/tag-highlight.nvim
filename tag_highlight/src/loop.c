@@ -6,7 +6,6 @@
 #include <signal.h>
 
 extern pthread_t top_thread;
-extern void get_init_lines(struct bufdata *bdata);
 static void handle_nvim_response(int fd, mpack_obj *obj);
 static void notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur);
 
@@ -187,4 +186,17 @@ interrupt_call(void *vdata)
         free(vdata);
         /* pthread_mutex_unlock(&int_mutex); */
         pthread_exit(NULL);
+}
+
+void
+get_init_lines(struct bufdata *bdata)
+{
+        b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
+        if (bdata->lines->qty == 1)
+                ll_delete_node(bdata->lines, bdata->lines->head);
+        ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
+
+        free(tmp->lst);
+        free(tmp);
+        bdata->initialized = true;
 }

@@ -1,5 +1,4 @@
 #include "util/util.h"
-#include <setjmp.h>
 #include <signal.h>
 
 #ifdef DOSISH
@@ -12,9 +11,9 @@
 #  include <sys/un.h>
 #endif
 
+#include "api.h"
 #include "data.h"
 #include "highlight.h"
-#include "api.h"
 #include "mpack/mpack.h"
 
 #define WIN_BIN_FAIL(STREAM_) \
@@ -23,27 +22,20 @@
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
         nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
 
-static const long double WAIT_TIME   = 3.0L;
-
 #define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 
-extern jmp_buf         exit_buf;
-extern int             decode_log_raw;
-extern FILE           *decode_log, *cmd_log, *echo_log, *main_log;
-pthread_t top_thread;
+static const long double WAIT_TIME = 3.0L;
+extern FILE *decode_log, *cmd_log, *echo_log, *main_log;
+extern int   decode_log_raw;
+pthread_t    top_thread;
 
-extern void          get_init_lines(struct bufdata *bdata);
+static void        exit_cleanup(void);
+static int         create_socket(int mes_fd);
+static comp_type_t get_compression_type(int fd);
+static void        open_main_log(void);
+static void        sigusr_wrap(UNUSED int notused);
 
-static void          exit_cleanup(void);
-static int           create_socket(int mes_fd);
-static comp_type_t   get_compression_type(int fd);
-static void          open_main_log(void);
-static void          sigusr_wrap(UNUSED int notused);
-
-extern void * event_loop(void *vdata);
-
-//extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject,
-//                                 const int flags);
+//extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
 /*======================================================================================*/
 
@@ -53,8 +45,8 @@ main(UNUSED int argc, char *argv[])
 {
         atexit(exit_cleanup);
         extern const char *program_name;
-        top_thread     = pthread_self();
-        program_name   = basename(argv[0]);
+        top_thread   = pthread_self();
+        program_name = basename(argv[0]);
 
         timer main_timer;
         TIMER_START(main_timer);
@@ -79,7 +71,7 @@ main(UNUSED int argc, char *argv[])
                 temp.sa_handler = sigusr_wrap;
                 sigaction(SIGUSR1, &temp, NULL);
                 sigaction(SIGINT,  &temp, NULL); // Sigint, sigterm and sigpipe
-                sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
+//                sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
                 sigaction(SIGTERM, &temp, NULL); // nvim exits.
         }
 #endif
@@ -93,9 +85,6 @@ main(UNUSED int argc, char *argv[])
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
         decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, LOGDIR);
 #endif
-        const int retval = setjmp(exit_buf);
-        if (retval == 1)
-                exit(0);
 
         pthread_t      thr[3];
         pthread_attr_t attr[3];
@@ -104,8 +93,8 @@ main(UNUSED int argc, char *argv[])
         MAKE_PTHREAD_ATTR_DETATCHED(&attr[2]);
 
         pthread_create(&thr[0], &attr[0], event_loop, NULL);
-        sockfd = create_socket(1);
-        pthread_create(&thr[1], &attr[1], event_loop, (void *)(&sockfd));
+        mainchan = create_socket(1);
+        pthread_create(&thr[1], &attr[1], event_loop, (void *)(&mainchan));
         bufchan = create_socket(1);
         pthread_create(&thr[2], &attr[2], event_loop, (void *)(&bufchan));
 
@@ -191,7 +180,6 @@ exit_cleanup(void)
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
 
-        /* genlist_destroy(top_dirs); */
         free(top_dirs->lst);
         free(top_dirs);
 
@@ -221,7 +209,8 @@ exit_cleanup(void)
                 fclose(echo_log);
         if (decode_log_raw > 0)
                 close(decode_log_raw);
-        close(sockfd);
+        close(mainchan);
+        close(bufchan);
 }
 
 
@@ -309,18 +298,4 @@ open_main_log(void)
         snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
         mkdir(buf, 0777);
         main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
-}
-
-
-void
-get_init_lines(struct bufdata *bdata)
-{
-        b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
-        if (bdata->lines->qty == 1)
-                ll_delete_node(bdata->lines, bdata->lines->head);
-        ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
-
-        free(tmp->lst);
-        free(tmp);
-        bdata->initialized = true;
 }

@@ -7,6 +7,10 @@
 #include "mpack/mpack.h"
 #include "util/generic_list.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern genlist *wait_list;
 
 struct nvim_wait {
@@ -74,6 +78,10 @@ extern bstring * get_notification(int fd);
 #define ECHO(FMT_, ...)                                                                       \
         ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
                             : (void)0)
+
+#ifdef __cplusplus
+    }
+#endif
 
 /*============================================================================*/
 #endif /* api.h */
