@@ -354,10 +354,10 @@ struct gen_b_list {
 BSTR_PRIVATE uint snapUpSize(uint i);
 
 /* char_fields.c */
-BSTR_PRIVATE int build_char_field(struct char_field *cf, const bstring *bstr);
+BSTR_PRIVATE int  build_char_field (struct char_field *cf, const bstring *bstr);
 BSTR_PRIVATE void invert_char_field(struct char_field *cf);
-BSTR_PRIVATE int b_inchrCF(const uchar *data, const uint len, const uint pos, const struct char_field *cf);
-BSTR_PRIVATE int b_inchrrCF(const uchar *data, const uint pos, const struct char_field *cf);
+BSTR_PRIVATE int  b_inchrCF        (const uchar *data, const uint len, const uint pos, const struct char_field *cf);
+BSTR_PRIVATE int  b_inchrrCF       (const uchar *data, const uint pos, const struct char_field *cf);
 
 /* b_list.c */
 BSTR_PRIVATE int b_scb(void *parm, const uint ofs, const uint len);

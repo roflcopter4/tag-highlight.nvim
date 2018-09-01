@@ -71,7 +71,7 @@ main(UNUSED int argc, char *argv[])
                 temp.sa_handler = sigusr_wrap;
                 sigaction(SIGUSR1, &temp, NULL);
                 sigaction(SIGINT,  &temp, NULL); // Sigint, sigterm and sigpipe
-//                sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
+                sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
                 sigaction(SIGTERM, &temp, NULL); // nvim exits.
         }
 #endif
@@ -142,6 +142,9 @@ main(UNUSED int argc, char *argv[])
                 }
         }
 
+        /* const int nvimpid = nvim_get_var_pkg(0, "pid", E_NUM).num; */
+        /* nvim_command(0, B("autocmd TextChanged,TextChangedI * call rpcnotify(g:tag_highlight#pid, 'text_changed', 'D')")) */
+
         /* Wait for something to kill us. */
         pause();
 
@@ -175,7 +178,6 @@ exit_cleanup(void)
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
-        destroy_mpack_dict(settings.ignored_tags);
 
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
@@ -186,6 +188,9 @@ exit_cleanup(void)
         for (unsigned i = 0; i < ftdata_len; ++i)
                 if (ftdata[i].initialized) {
                         if (ftdata[i].ignored_tags) {
+                                for (unsigned x = 0; x < ftdata[i].ignored_tags->qty; ++x)
+                                        if (ftdata[i].ignored_tags->lst[x]->flags & BSTR_MASK_USR1)
+                                                b_free(ftdata[i].ignored_tags->lst[x]);
                                 free(ftdata[i].ignored_tags->lst);
                                 free(ftdata[i].ignored_tags);
                         }
@@ -194,6 +199,7 @@ exit_cleanup(void)
                         b_free(ftdata[i].restore_cmds);
                 }
 
+        destroy_mpack_dict(settings.ignored_tags);
         free_backups(&backup_pointers);
         free(backup_pointers.lst);
 

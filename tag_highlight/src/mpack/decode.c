@@ -9,11 +9,6 @@
 extern int decode_log_raw;
 extern FILE *decodelog;
 
-/* static pthread_mutex_t mpack_stdin_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mpack_socket_mutex = PTHREAD_MUTEX_INITIALIZER; */
-/* static pthread_mutex_t mpack_mutex_arr */
-/* static genlist mpack_mutex_list[1] = {{0, 16, NULL}}; */
-
 static genlist *       mpack_mutex_list = NULL;
 static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -38,18 +33,18 @@ static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbyte
 static void free_mutexes(void);
 
 
-#define IAT(NUM_, AT__) ((uint64_t)((NUM_)[AT__]))
+#define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
-#define decode_int16(NUM_)                                     \
-        ((((NUM_)[0]) << 010) | ((NUM_)[1]))
-#define decode_int32(NUM_)                                     \
-        ((((NUM_)[0]) << 030) | (((NUM_)[1]) << 020) |         \
-         (((NUM_)[2]) << 010) | (((NUM_)[3])))
-#define decode_int64(NUM_)                                     \
-        ((IAT(NUM_, 0) << 070) | (IAT(NUM_, 1) << 060) |       \
-         (IAT(NUM_, 2) << 050) | (IAT(NUM_, 3) << 040) |       \
-         (IAT(NUM_, 4) << 030) | (IAT(NUM_, 5) << 020) |       \
-         (IAT(NUM_, 6) << 010) | (IAT(NUM_, 7)))
+#define decode_int16(NUM)                                \
+        ((((NUM)[0]) << 010) | ((NUM)[1]))
+#define decode_int32(NUM)                                \
+        ((((NUM)[0]) << 030) | (((NUM)[1]) << 020) |     \
+         (((NUM)[2]) << 010) | (((NUM)[3])))
+#define decode_int64(NUM)                                \
+        ((IAT(NUM, 0) << 070) | (IAT(NUM, 1) << 060) |   \
+         (IAT(NUM, 2) << 050) | (IAT(NUM, 3) << 040) |   \
+         (IAT(NUM, 4) << 030) | (IAT(NUM, 5) << 020) |   \
+         (IAT(NUM, 6) << 010) | (IAT(NUM, 7)))
 
 #define ERRMSG()                                                                         \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
@@ -250,7 +245,7 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struc
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = { 0, 0, 0, 0 };
+        uint8_t    word[4] = {0, 0, 0, 0};
 
 
         if (mask->fixed) {
@@ -290,7 +285,7 @@ decode_string(const read_fn READ, void *src, const uint8_t byte, const struct mp
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = { 0, 0, 0, 0 };
+        uint8_t    word[4] = {0, 0, 0, 0};
 
         if (mask->fixed) {
                 size = (uint32_t)(byte ^ mask->val);
@@ -504,7 +499,7 @@ id_pack_type(const uint8_t byte)
 static void
 stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
-        const int32_t fd = *((int32_t *)src);
+        const int fd = *((int *)src);
 #ifdef DOSISH
         size_t nread = 0;
         do {

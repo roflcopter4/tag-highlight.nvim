@@ -37,9 +37,9 @@ genlist *
 genlist_create(void)
 {
         genlist *sl = xmalloc(sizeof(genlist));
-        sl->lst     = xmalloc(1 * sizeof(void *));
+        sl->lst     = xmalloc(2 * sizeof(void *));
         sl->qty     = 0;
-        sl->mlen    = 1;
+        sl->mlen    = 2;
 
         return sl;
 }
@@ -47,10 +47,11 @@ genlist_create(void)
 genlist *
 genlist_create_alloc(const unsigned msz)
 {
+        const unsigned size = (msz <= 2) ? 2 : msz;
         genlist *sl = xmalloc(sizeof(genlist));
-        sl->lst     = xmalloc(msz * sizeof(void *));
+        sl->lst     = xmalloc(size * sizeof(void *));
         sl->qty     = 0;
-        sl->mlen    = msz;
+        sl->mlen    = size;
 
         return sl;
 }
@@ -186,7 +187,7 @@ struct argument_vector *
 argv_create(const unsigned len)
 {
         struct argument_vector *argv = xmalloc(sizeof(struct argument_vector));
-        argv->lst                    = nmalloc(len, sizeof(char *));
+        argv->lst                    = nmalloc(((len) ? len : 1), sizeof(char *));
         argv->qty                    = 0;
         argv->mlen                   = len;
         return argv;
@@ -233,4 +234,24 @@ argv_destroy(struct argument_vector *argv)
                         free(argv->lst[i]);
         free(argv->lst);
         free(argv);
+}
+
+
+void
+argv_dump__(FILE *fp, const struct argument_vector *argv, const char *const listname)
+{
+        fprintf(fp, "Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < argv->qty; ++i)
+                fprintf(fp, "%s\n", argv->lst[i]);
+        fputc('\n', fp);
+}
+
+
+void
+argv_dump_fd__(const int fd, const struct argument_vector *argv, const char *const listname)
+{
+        dprintf(fd, "Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < argv->qty; ++i)
+                dprintf(fd, "%s\n", argv->lst[i]);
+        write(fd, "\n", 1);
 }

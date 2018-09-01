@@ -400,6 +400,31 @@ ll_verify_size(linked_list *list)
 }
 
 
+bstring *
+ll_join(linked_list *list, const int sepchar)
+{
+        const unsigned seplen = (sepchar) ? 1 : 0;
+        unsigned          len = 0;
+
+        LL_FOREACH_F (list, line)
+                len += line->data->slen + seplen;
+
+        bstring *joined = b_alloc_null(len);
+
+        if (sepchar) {
+                LL_FOREACH_F (list, line) {
+                        b_concat(joined, line->data);
+                        b_conchar(joined, sepchar);
+                }
+        } else {
+                LL_FOREACH_F (list, line)
+                        b_concat(joined, line->data);
+        }
+
+        return joined;
+}
+
+
 /*============================================================================*/
 
 

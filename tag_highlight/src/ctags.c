@@ -57,6 +57,9 @@ get_initial_taglist(struct bufdata *bdata)
         struct stat st;
         int         ret = 0;
 
+        if (bdata->ft->id == FT_C)
+                return 1;
+
         TIMER_START(t);
         bdata->topdir->tags = b_list_create();
 
@@ -109,6 +112,8 @@ get_initial_taglist(struct bufdata *bdata)
 int
 update_taglist(struct bufdata *bdata, const int force)
 {
+        if (bdata->ft->id == FT_C)
+                return 1;
         if (!force && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
                 return false;
@@ -212,6 +217,9 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                         argv_append(argv, b_bstr2cstr(arg, 0), false);
         }
 
+        assert(bdata->topdir->tmpfname != NULL &&
+               bdata->topdir->tmpfname->data != NULL &&
+               bdata->topdir->tmpfname->data[0] != '\0');
         argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
         if ((force != 2) && bdata->topdir->recurse && !bdata->topdir->is_c) {
@@ -256,13 +264,11 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         int       status = 0;
         const int pid    = fork();
 
-        if (pid == 0) {
+        if (pid == 0)
                 if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
                         err(1, "Exec failed");
-        } else {
-                waitpid(pid, &status, 0);
-        }
 
+        waitpid(pid, &status, 0);
         argv_destroy(argv);
         b_list_destroy(headers);
 

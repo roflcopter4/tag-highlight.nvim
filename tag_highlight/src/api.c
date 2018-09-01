@@ -292,7 +292,7 @@ nvim_call_function_args(int fd, const bstring *function, const mpack_expect_t ex
                         const bstring *fmt, ...)
 {
         static bstring fn  = bt_init("nvim_call_function");
-        bstring       *buf = b_sprintf(B("[s,[!%s]]"), fmt);
+        bstring       *buf = b_sprintf(B("s,[!%s]"), fmt);
         va_list        ap;
 
         va_start(ap, fmt);
@@ -365,8 +365,13 @@ nvim_set_var(int fd, const bstring *varname, const bstring *fmt, ...)
 /*--------------------------------------------------------------------------------------*/
 
 int
-nvim_buf_add_highlight(int fd, const unsigned bufnum, const int hl_id, const bstring *group,
-                       const unsigned line, const unsigned start, const int end)
+nvim_buf_add_highlight(      int       fd,
+                       const unsigned  bufnum,
+                       const int       hl_id,
+                       const bstring  *group,
+                       const unsigned  line,
+                       const unsigned  start,
+                       const int       end)
 {
         static bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(&fd, &fn, B("dd,s,ddd"), bufnum,
@@ -375,8 +380,11 @@ nvim_buf_add_highlight(int fd, const unsigned bufnum, const int hl_id, const bst
 }
 
 void
-nvim_buf_clear_highlight(int fd, const unsigned bufnum, const int hl_id,
-                         const unsigned start, const int end)
+nvim_buf_clear_highlight(      int      fd,
+                         const unsigned bufnum,
+                         const int      hl_id,
+                         const unsigned start,
+                         const int      end)
 {
         static bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(&fd, &fn, B("dd,dd"), bufnum, hl_id, start, end);

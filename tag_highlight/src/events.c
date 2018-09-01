@@ -49,6 +49,7 @@ handle_unexpected_notification(mpack_obj *note)
         mpack_destroy(note);
 }
 
+extern void update_line(struct bufdata *, int, int);
 
 enum event_types
 handle_nvim_event(mpack_obj *event)
@@ -206,6 +207,8 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         free(repl_list->lst);
         free(repl_list);
+        if (first + last >= 1)
+                update_line(bdata, first, last);
         pthread_mutex_unlock(&event_mutex);
 }
 

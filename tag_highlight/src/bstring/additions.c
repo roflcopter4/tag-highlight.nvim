@@ -174,7 +174,7 @@ __b_fputs(FILE *fp, bstring *bstr, ...)
 
 
 void
-__b_write(int fd, bstring *bstr, ...)
+__b_write(const int fd, bstring *bstr, ...)
 {
         va_list va;
         va_start(va, bstr);
@@ -329,8 +329,8 @@ __b_append_all(bstring *dest, const bstring *join, const int join_end, ...)
 int
 b_strcmp_fast_wrap(const void *vA, const void *vB)
 {
-        const bstring *sA = *(bstring **)(vA);
-        const bstring *sB = *(bstring **)(vB);
+        const bstring *sA = *(bstring const*const*const)(vA);
+        const bstring *sB = *(bstring const*const*const)(vB);
 
         if (sA->slen == sB->slen)
                 return memcmp(sA->data, sB->data, sA->slen);
@@ -427,6 +427,20 @@ __b_list_dump(FILE *fp, const b_list *list, const char *listname)
         for (unsigned i = 0; i < list->qty; ++i)
                 b_fputs(fp, list->lst[i], b_tmp("\n"));
         fputc('\n', fp);
+}
+
+
+void
+__b_list_dump_fd(const int fd, const b_list *list, const char *listname)
+{
+        dprintf(fd, "Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < list->qty; ++i) {
+                if (!list->lst[i] || list->lst[i]->slen == 0)
+                        b_write(fd, B("(NULL)\n"));
+                else
+                        b_write(fd, list->lst[i], b_tmp("\n"));
+        }
+        write(fd, "\n", 1);
 }
 
 

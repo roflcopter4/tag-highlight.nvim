@@ -200,6 +200,8 @@ mpack_encode_string(mpack_obj      *root,
                     mpack_obj     **item,
                     const bstring  *string)
 {
+        if (!string)
+                string = B("");
         sanity_check(root, item, string->slen + 5, false);
 
         if (root->flags & MPACK_ENCODE) {

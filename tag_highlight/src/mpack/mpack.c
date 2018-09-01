@@ -10,14 +10,14 @@ static void       collect_items (struct item_free_stack *tofree, mpack_obj *item
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
 /* static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type); */
 
-static unsigned        sok_count, io_count;
+static unsigned        stdchan_count, bufchan_count, mainchan_count;
 static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
-#define COUNT(FD_)         (((FD_) == 1) ? io_count : sok_count)
-#define INC_COUNT(FD_)     (((FD_) == 1) ? io_count++ : sok_count++)
+#define COUNT(FD_)         (((FD_) == 1) ? stdchan_count   : ((FD_) == bufchan) ? bufchan_count   : mainchan_count)
+#define INC_COUNT(FD_)     (((FD_) == 1) ? stdchan_count++ : ((FD_) == bufchan) ? bufchan_count++ : mainchan_count++)
 #define CHECK_DEF_FD(FD__) ((FD__) = (((FD__) == 0) ? DEFAULT_FD : (FD__)))
 #define BS_FROMARR(ARRAY_) {(sizeof(ARRAY_) - 1), 0, (unsigned char *)(ARRAY_), 0}
 
@@ -26,10 +26,9 @@ static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 retval_t
 m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
 {
-        retval_t ret;
-        ret.ptr = NULL;
-        int64_t       value;
-        mpack_type_t  err_expect;
+        retval_t     ret = {.ptr = NULL};
+        int64_t      value;
+        mpack_type_t err_expect;
 
         if (!obj)
                 return ret;
@@ -314,23 +313,23 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 /* #define NEW_STACK(TYPE_, NAME_, NUM_, SIZE_)             \ */
         /* TYPE_    NAME_       = nmalloc((NUM_), (SIZE_)); \ */
         /* unsigned NAME_##_ctr = 0 */
-#define NEW_STACK(TYPE_, NAME_)             \
-        TYPE_    NAME_[64]; \
-        unsigned NAME_##_ctr = 0
+#define NEW_STACK(TYPE, NAME) \
+        TYPE     NAME[64];    \
+        unsigned NAME##_ctr = 0
 
-#define POP(STACK_) \
-        (((STACK_##_ctr == 0) ? (abort(), 0) : 0), ((STACK_)[--STACK_##_ctr]))
+#define POP(STACK) \
+        (((STACK##_ctr == 0) ? (abort(), 0) : 0), ((STACK)[--STACK##_ctr]))
 
-#define PUSH(STACK_, VAL_) \
-        ((STACK_)[STACK_##_ctr++] = (VAL_))
+#define PUSH(STACK, VAL) \
+        ((STACK)[STACK##_ctr++] = (VAL))
 
-#define PEEK(STACK_) \
-        (((STACK_##_ctr == 0) ? (abort(), 0) : 0), ((STACK_)[STACK_##_ctr - 1]))
+#define PEEK(STACK) \
+        (((STACK##_ctr == 0) ? (abort(), 0) : 0), ((STACK)[STACK##_ctr - 1]))
 
-#define RESET(STACK_) \
-        ((STACK_##_ctr) = 0, (STACK_)[0] = 0)
+#define RESET(STACK) \
+        ((STACK##_ctr) = 0, (STACK)[0] = 0)
 
-#define STACK_CTR(STACK_) (STACK_##_ctr)
+#define STACK_CTR(STACK) (STACK##_ctr)
 
 /*======================================================================================*/
 
@@ -435,13 +434,12 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         va_list      args;
         int          ch;
         unsigned     sub_lengths_sz = arr_size;
-        /* fprintf(stderr, "allocating size %u\n", arr_size); */
-        unsigned    *sub_lengths = nalloca(arr_size, sizeof(unsigned));
-        unsigned    *cur_len     = &sub_lengths[0];
-        unsigned     len_ctr     = 1;
-        const char  *ptr         = fmt;
-        va_list     *ref         = NULL;
-        *cur_len                 = 0;
+        unsigned    *sub_lengths    = nalloca(arr_size, sizeof(unsigned));
+        unsigned    *cur_len        = &sub_lengths[0];
+        unsigned     len_ctr        = 1;
+        const char  *ptr            = fmt;
+        va_list     *ref            = NULL;
+        *cur_len                    = 0;
 
         /* NEW_STACK(unsigned **, len_stack, TWO_THIRDS(arr_size), sizeof(unsigned *)); */
         NEW_STACK(unsigned *, len_stack);
@@ -491,7 +489,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         }
 
         if (STACK_CTR(len_stack) != 0)
-                errx(1, "Invalid encode format string: undetermined array/dictionary.");
+                errx(1, "Invalid encode format string: undetermined array/dictionary.\t%s", fmt);
         mpack_obj *pack = NULL;
         if (sub_lengths[0] == 0)
                 goto cleanup;
@@ -502,9 +500,9 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         pack = mpack_make_new(sub_lengths[0], false);
 #endif
 
+        mpack_obj **cur_obj      = NULL;
         unsigned   *sub_ctrlist  = nalloca(len_ctr + 1, sizeof(unsigned));
         unsigned   *cur_ctr      = sub_ctrlist;
-        mpack_obj **cur_obj      = NULL;
         unsigned    subctr_ctr   = 1;
         unsigned    a_arg_ctr    = 0;
         unsigned    a_arg_subctr = 0;
@@ -517,7 +515,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         /* NEW_STACK(mpack_obj **, obj_stack, TWO_THIRDS(arr_size), sizeof(mpack_obj *)); */
         /* NEW_STACK(unsigned *, dict_stack, TWO_THIRDS(arr_size), sizeof(unsigned)); */
         NEW_STACK(mpack_obj *, obj_stack);
-        NEW_STACK(unsigned, dict_stack);
+        NEW_STACK(unsigned char, dict_stack);
         PUSH(len_stack, cur_ctr);
         PUSH(obj_stack, pack);
         PUSH(dict_stack, 0);

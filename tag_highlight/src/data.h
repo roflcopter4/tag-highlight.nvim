@@ -27,15 +27,15 @@ enum event_types {
         EVENT_VIM_UPDATE,
 };
 
+typedef enum { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type_t;
 
 struct settings_s {
-        /* 6 bytes */
-        uint16_t job_id;
-        uint8_t  comp_level;
-        bool enabled;
-        bool use_compression;
-        bool verbose;
-        enum comp_type_e { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type;
+        uint16_t    job_id;
+        uint8_t     comp_level;
+        bool        enabled;
+        bool        use_compression;
+        bool        verbose;
+        comp_type_t comp_type;
 
         bstring      *ctags_bin;
         bstring      *settings_file;
@@ -45,13 +45,12 @@ struct settings_s {
         mpack_dict_t *ignored_tags;
         mpack_dict_t *order;
 };
-typedef enum comp_type_e comp_type_t;
 
 struct ftdata_s {
-        b_list  *equiv;
-        b_list  *ignored_tags;
-        bstring *restore_cmds;
-        bstring *order;
+        b_list       *equiv;
+        b_list       *ignored_tags;
+        bstring      *restore_cmds;
+        bstring      *order;
         const bstring vim_name;
         const bstring ctags_name;
         /* 3 bytes */
@@ -78,23 +77,25 @@ struct bufdata {
         uint32_t ctick;
         uint32_t last_ctick; // 8 bytes
         uint16_t num;
-        uint8_t  flags; // unused
+        uint8_t  hl_id;
         bool     initialized;
-        int32_t  thread_pid; // 8 bytes
 
         bstring         *filename;
+        bstring         *basename;
+        bstring         *pathname;
         b_list          *cmd_cache;
         linked_list     *lines;
         ll_node         *lastref;
         struct ftdata_s *ft;
         struct top_dir  *topdir;
         struct atomic_call_array *calls;
+        void *clangdata;
 };
         
 struct buffer_list {
         struct bufdata *lst[DATA_ARRSIZE];
         struct bad_bufs_s {
-                int lst[DATA_ARRSIZE];
+                int      lst[DATA_ARRSIZE];
                 uint16_t qty;
                 uint16_t mlen;
         } bad_bufs;
@@ -105,8 +106,8 @@ struct buffer_list {
 
 struct top_dir_list {
         struct top_dir *lst[DATA_ARRSIZE];
-        uint16_t mkr;
-        uint16_t mlen;
+        uint16_t        mkr;
+        uint16_t        mlen;
 };
 
 struct int_pdata {
@@ -118,7 +119,7 @@ struct int_pdata {
 extern struct settings_s   settings;
 extern struct buffer_list  buffers;
 extern struct ftdata_s     ftdata[];
-extern genlist *top_dirs;
+extern genlist            *top_dirs;
 
 extern int mainchan, bufchan;
 extern const size_t ftdata_len;
@@ -137,22 +138,20 @@ extern bool have_seen_file(const bstring *filename);
 /*---------------------------------------------------------------------------*/
 /* Buffers */
 
-extern bool new_buffer(int fd, int bufnum);
-extern int  find_buffer_ind(int bufnum);
-extern bool is_bad_buffer(int bufnum);
-
-extern struct bufdata *find_buffer(int bufnum);
-extern struct bufdata *get_bufdata(int fd, int bufnum, struct ftdata_s *ft);
+extern bool            new_buffer       (int fd, int bufnum);
+extern int             find_buffer_ind  (int bufnum);
+extern bool            is_bad_buffer    (int bufnum);
+extern void            destroy_bufdata  (struct bufdata **bdata);
+extern struct bufdata *find_buffer      (int bufnum);
+extern struct bufdata *get_bufdata      (int fd, int bufnum, struct ftdata_s *ft);
 extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
-extern void destroy_bufdata(struct bufdata **bdata);
 
 
 /*---------------------------------------------------------------------------*/
 /* Events */
-extern void handle_unexpected_notification(mpack_obj *note);
-extern enum event_types handle_nvim_event(mpack_obj *event);
-
-extern void *interrupt_call(void *vdata);
+extern void             handle_unexpected_notification(mpack_obj *note);
+extern enum event_types handle_nvim_event             (mpack_obj *event);
+extern void *           interrupt_call                (void *vdata);
 
 
 /*---------------------------------------------------------------------------*/

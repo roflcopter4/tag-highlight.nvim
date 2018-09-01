@@ -93,10 +93,8 @@ struct backups {
         unsigned max;
 };
 
-
 /*===========================================================================*/
 /* Generic Macros */
-
 
 #ifndef O_BINARY
 #  define O_BINARY 00
@@ -130,7 +128,6 @@ struct backups {
 #define ARRSIZ(ARR_)     (sizeof(ARR_) / sizeof(*(ARR_)))
 #define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
 #define stringify(VAR_)  #VAR_
-#define nputs(STR_)      fputs((STR_), stdout)
 #define xfree(PTR_)      (free(PTR_), (PTR_) = NULL)
 #define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
 #define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
@@ -141,6 +138,8 @@ struct backups {
 #define aMAL            __attribute__((__malloc__))
 #define aALSZ(...)      __attribute__((__alloc_size__(__VA_ARGS__)))
 #define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
+#define aNNA            __attribute__((__nonnull__))
+#define aNN(...)        __attribute__((__nonnull__(__VA_ARGS__)))
 
 extern const long double SLEEP_CONV;
 
@@ -172,17 +171,18 @@ extern const long double SLEEP_CONV;
      extern const char * __ret_func_name(const char *const function, size_t size);
 #    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
-#  define MAX(IA_, IB_)                 \
-        __extension__({                 \
-                __auto_type ia = (IA_); \
-                __auto_type ib = (IB_); \
-                (ia > ib) ? ia : ib;    \
+#  define auto_type __extension__ __auto_type
+#  define MAX(IA_, IB_)               \
+        __extension__({               \
+                auto_type ia = (IA_); \
+                auto_type ib = (IB_); \
+                (ia > ib) ? ia : ib;  \
         })
-#  define MIN(IA_, IB_)                 \
-        __extension__({                 \
-                __auto_type ia = (IA_); \
-                __auto_type ib = (IB_); \
-                (ia < ib) ? ia : ib;    \
+#  define MIN(IA_, IB_)               \
+        __extension__({               \
+                auto_type ia = (IA_); \
+                auto_type ib = (IB_); \
+                (ia < ib) ? ia : ib;  \
         })
 #else
 #  define FUNC_NAME   (__func__)
@@ -290,11 +290,11 @@ extern const long double NSEC2SECOND;
 extern void    __free_all    (void *ptr, ...);
 extern int64_t __xatoi       (const char *str, bool strict);
 extern int     find_num_cpus (void);
-extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR;
+extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR aNNA;
 extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
 extern int     safe_open     (const char *filename, int flags, int mode) aWUR;
 extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
-extern void    add_backup    (struct backups *list, void *item);
+extern void    add_backup    (struct backups *list, void *item) aNNA;
 extern void    free_backups  (struct backups *list);
 extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
 

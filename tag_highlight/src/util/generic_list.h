@@ -41,6 +41,12 @@ extern void argv_destroy(struct argument_vector *argv);
 extern void argv_fmt    (struct argument_vector *argv, const char *const __restrict fmt, ...)
         __attribute__((__format__(printf, 2, 3)));
 
+void argv_dump__(FILE *fp, const struct argument_vector *argv, const char *const listname);
+void argv_dump_fd__(int fd, const struct argument_vector *argv, const char *const listname);
+
+#define argv_dump(FP, ARGV)    (argv_dump__((FP), (ARGV), #ARGV))
+#define argv_dump_fd(FD, ARGV) (argv_dump_fd__((FD), (ARGV), #ARGV))
+
 
 #  ifdef __cplusplus
    }

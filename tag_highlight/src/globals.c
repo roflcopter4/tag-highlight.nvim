@@ -98,7 +98,7 @@ struct backups      backup_pointers = { NULL, 0, 0 };
 const size_t m_masks_len = ARRSIZ(m_masks);
 const size_t ftdata_len  = ARRSIZ(ftdata);
 
-int             mainchan         = (-1);
+int             mainchan       = (-1);
 int             bufchan        = (-1);
 int             decode_log_raw = (-1);
 const char *    program_name;

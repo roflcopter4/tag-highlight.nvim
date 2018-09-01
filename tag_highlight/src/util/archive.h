@@ -19,7 +19,7 @@ extern int   gzip_size(struct archive_size *size, const char *name);
 extern int   xz_size(struct archive_size *size, const char *filename);
 extern char *lzma_message_strm(int code);
 
-extern int getlines(b_list *tags, enum comp_type_e comptype, const bstring *filename);
+extern int getlines(b_list *tags, comp_type_t comptype, const bstring *filename);
 
 extern void write_plain(struct top_dir *topdir);
 extern void write_gzip(struct top_dir *topdir);

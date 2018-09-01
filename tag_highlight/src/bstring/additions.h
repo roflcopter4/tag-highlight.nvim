@@ -246,6 +246,7 @@ BSTR_PUBLIC void __b_fputs(FILE *fp, bstring *bstr, ...);
  */
 BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
 BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listname);
+BSTR_PUBLIC void __b_list_dump_fd(int fd, const b_list *list, const char *listname);
 
 #define b_free_all(...)        __b_free_all(__VA_ARGS__, B_LIST_END_MARK)
 #define b_puts(...)            __b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
@@ -253,6 +254,7 @@ BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listnam
 #define b_fputs(__FP, ...)     __b_fputs(__FP, __VA_ARGS__,   B_LIST_END_MARK)
 #define b_write(__FD, ...)     __b_write(__FD, __VA_ARGS__,   B_LIST_END_MARK)
 #define b_list_dump(FP_, LST_) __b_list_dump((FP_), (LST_), #LST_)
+#define b_list_dump_fd(FD_, LST_) __b_list_dump_fd((FD_), (LST_), #LST_)
 
 
 #define B_LIST_FOREACH(BLIST, VAR, CTR)                                    \
@@ -273,7 +275,7 @@ BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listnam
 
 #define B_LIST_BSEARCH_FAST(BLIST, ITEM_)             \
         bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, \
-                sizeof(*((BLIST)->lst)), &b_strcmp_fast_wrap)
+                sizeof(bstring *), &b_strcmp_fast_wrap)
 
 #define B_LIST_SORT(BLIST) \
         qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_wrap)

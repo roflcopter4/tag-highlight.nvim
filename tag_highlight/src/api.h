@@ -1,7 +1,7 @@
 #ifndef SRC_API_H
 #define SRC_API_H
 
-#include "util/util.h"
+/* #include "util/util.h" */
 
 #include "data.h"
 #include "mpack/mpack.h"
@@ -25,7 +25,7 @@ struct nvim_wait {
 /*============================================================================*/
 /* API Wrappers */
 extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
-extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((format(printf, 2, 3)));
+extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((__format__(printf,2, 3)));
 extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
 extern void       nvim_b_printf(int fd, const bstring *fmt, ...);
 
@@ -59,7 +59,7 @@ extern bstring * get_notification(int fd);
 #define nvim_err_write(FD, MES) __nvim_write((FD), NW_ERROR, (MES))
 
 #define blist_from_var(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                        \
+        mpack_array_to_blist(                 \
             nvim_get_var((FDES), B(VARNAME), MPACK_ARRAY, (FATAL_)), true)
 
 #define nvim_get_var_num(FDES, VARNAME, FATAL_) \
@@ -69,7 +69,7 @@ extern bstring * get_notification(int fd);
 #define PKG "tag_highlight"
 
 #define blist_from_var_pkg(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                            \
+        mpack_array_to_blist(                     \
             nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_ARRAY, (FATAL_)), true)
 
 #define nvim_get_var_num_pkg(FDES, VARNAME, FATAL_) \

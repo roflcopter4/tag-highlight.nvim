@@ -26,7 +26,7 @@ extern struct backups backup_pointers;
 
 
 int
-getlines(b_list *tags, const enum comp_type_e comptype, const bstring *filename)
+getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 {
         int ret;
         ECHO("Attempting to read tag file %s", filename);

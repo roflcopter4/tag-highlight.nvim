@@ -228,7 +228,9 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         return headers;
 }
 
+/*--------------------------------------------------------------------------------------*/
 #else /* not DOSISH */
+/*--------------------------------------------------------------------------------------*/
 
 static bstring *find_header_paths_system(bstring *file, const bstring *sysdir);
 
@@ -245,14 +247,12 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
         for (i = 0; i < includes_clone->qty; i += 2) {
                 bstring   *file = includes_clone->lst[i];
                 bstring   *path = includes_clone->lst[i+1];
-
-#if 0
-                if (!path)
-                        goto try_sys;
-#endif
-
-                bstring    *tmp = b_concat_all(path, B("/"), file);
+                bstring   *tmp;
                 struct stat st;
+                if (file->data[0] == '/')
+                        tmp = b_strcpy(file);
+                else
+                        tmp = b_concat_all(path, B("/"), file);
 
                 if (stat(BS(tmp), &st) == 0) {
                 add:    b_list_append(&headers, tmp);
@@ -271,13 +271,6 @@ find_header_paths(const b_list *src_dirs, const b_list *includes)
                                         goto add;
                                 }
                         }
-
-#if 0
-                try_sys:
-                        if (file->flags & B_SYS_OK)
-                                if ((tmp = find_header_paths_system(file, path)))
-                                        goto add;
-#endif
                 }
 
                 b_free(path);
@@ -355,6 +348,7 @@ find_header_paths_system(bstring *file, const bstring *sysdir)
 
         return ret;
 }
+
 #endif /* DOSISH */
 
 /*======================================================================================*/
@@ -404,9 +398,12 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
         b_destroy(d);
 #endif
 
+        bstring  line[] = {{0, 0, NULL, 0}};
+        bstring *slurp  = b_quickread(BS(cur_header));
+        if (!slurp)
+                return;
+
         b_list  *includes = b_list_create();
-        bstring  line[]   = {{0, 0, NULL, 0}};
-        bstring *slurp    = b_quickread(BS(cur_header));
         uint8_t *bak      = slurp->data;
 
         while (b_memsep(line, slurp, '\n')) {
@@ -457,22 +454,32 @@ analyze_line(const bstring *line)
                                 if (end) {
                                         ret = b_fromblk(&str[i], PSUB(end, &str[i]));
 
-#if 0
                                         if (ch == '>') {
                                                 int n = 0;
                                                 if (b_strstr(line, B("/* TAG */"), i) > 0) {
+                                                        bstring *tmp = find_header_paths_system(ret, NULL);
+                                                        if (tmp) {
+                                                                b_destroy(ret);
+                                                                ret = tmp;
+                                                        }
                                                         ret->flags |= B_SYS_OK;
                                                         b_fputs(stderr, ret, B("\n"));
-                                                } else if ((n = b_strstr(line, B("/* TAG: "), i)) > 0) {
-                                                        eprintf("Found %s!", &line->data[n]);
+                                                }
+                                                else if ((n = b_strstr(line, B("/* TAG: "), i)) > 0) {
+                                                        eprintf("Found %s!\n", &line->data[n]);
                                                         n += 8;
-                                                        const int m = b_strchrp(line, '*', n) - 1;
-                                                        b_conchar(ret, '\0');
-                                                        b_catblk(ret, line->data + n, m-n);
+                                                        const int m  = b_strchrp(line, '*', n) - 1;
+                                                        bstring ref  = bt_fromblk(line->data + n, m - n);
+                                                        ref.data[ref.slen] = '\0';
+
+                                                        bstring *tmp = find_header_paths_system(ret, &ref);
+                                                        if (tmp) {
+                                                                b_destroy(ret);
+                                                                ret = tmp;
+                                                        }
                                                         ret->flags |= B_SYS_OK | B_SYS_WITH_DIR;
                                                 }
                                         }
-#endif
                                 }
                         }
                 }
@@ -504,69 +511,11 @@ handle_file(b_list *includes, bstring *file, const bstring *cur_header)
         } else {
 #endif
                 b_list_append(&includes, file);
-                b_list_append(&includes, b_dirname(cur_header));
+                if (!(file->flags & B_SYS_OK))
+                        b_list_append(&includes, b_dirname(cur_header));
+                else
+                        b_list_append(&includes, b_fromcstr(""));
 #if 0
         }
 #endif
 }
-
-/*======================================================================================*/
-
-#if 0
-#if defined(DOSISH) || defined(MINGW)
-#  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
-#  define SEPSTR "\\"
-#else
-#  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq((FILE1_), (FILE2_)))
-#  define SEPSTR "/"
-#endif
-#define IS_DOTDOT(FNAME_) \
-        ((FNAME_)[0] == '.' && (!(FNAME_)[1] || ((FNAME_)[1] == '.' && !(FNAME_)[2])))
-
-static bstring *find_file_in_dir_recurse(const bstring *dirpath, const bstring *find);
-
-static int
-myfilter(const struct dirent *dp) {
-        return !IS_DOTDOT(dp->d_name);
-}
-
-static bstring *
-find_file_in_dir_recurse(const bstring *dirpath, const bstring *find)
-{
-        struct dirent **lst = NULL;
-        bstring        *ret = NULL;
-        const int       n   = scandir(BS(dirpath), &lst, myfilter, alphasort);
-
-        if (n <= 0)
-                return NULL;
-
-        struct dirent find_ent[1];
-        memset(find_ent, 0, sizeof(struct dirent));
-        memcpy(find_ent->d_name, find->data, find->slen + 1);
-        find_ent->d_type = DT_REG;
-
-        struct dirent **dirp  = (struct dirent **)(&find_ent);
-        struct dirent **match = bsearch(&dirp, lst, n, sizeof(struct dirent **),
-                                        (int (*)(const void *, const void *))alphasort);
-
-        if (match && *match) {
-                bstring tmp = bt_fromblk((*match)->d_name, _D_EXACT_NAMLEN(*match));
-                if (B_FILE_EQ(find, &tmp))
-                        ret = b_concat_all(dirpath, B(SEPSTR), &tmp);
-        }
-
-        for (int i = 0; i < n; ++i) {
-                if (!ret && lst[i]->d_type == DT_DIR)
-                {
-                        bstring  tmp     = bt_fromblk(lst[i]->d_name, _D_EXACT_NAMLEN(lst[i]));
-                        bstring *newpath = b_concat_all(dirpath, B(SEPSTR), &tmp);
-                        ret = find_file_in_dir_recurse(newpath, find);
-                        b_free(newpath);
-                }
-                free(lst[i]);
-        }
-
-        free(lst);
-        return ret;
-}
-#endif

@@ -77,6 +77,9 @@ extern void ll_insert_blist_after  (linked_list *list, ll_node *at, b_list *blis
 extern void ll_insert_blist_before (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 extern bool ll_verify_size         (linked_list *list);
 
+/* Depends on the data being composed of bstrings. */
+extern bstring *ll_join(linked_list *list, int sepchar);
+
 
 #ifdef __cplusplus
 }
