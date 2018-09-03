@@ -787,6 +787,8 @@ b_basename(const bstring *path)
 bstring *
 b_quickread(const char *const __restrict fmt, ...)
 {
+        if (!fmt)
+                RETURN_NULL();
         va_list ap;
         char buf[PATH_MAX + 1];
         va_start(ap, fmt);

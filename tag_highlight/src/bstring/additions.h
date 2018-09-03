@@ -27,6 +27,7 @@ extern "C" {
  * memory and should crash.
  */
 #ifdef __GNUC__
+#if 0
 #  define BS(BSTR_)                                                 \
         __extension__({                                             \
                 _Static_assert(sizeof(*BSTR_) == sizeof(bstring) && \
@@ -41,6 +42,9 @@ extern "C" {
                                "Pointer is not a bstring");        \
                 (char *)((BSTR_).data);                            \
         })
+#endif
+#  define BS(BSTR)  _Generic((BSTR), const bstring *: ((char *)((BSTR)->data)), bstring *: ((char *)((BSTR)->data)))
+#  define BTS(BSTR) _Generic((BSTR), bstring: ((char *)((BSTR).data)))
 #else
 #  define BS(BSTR_)  ((char *)((BSTR_)->data))
 #  define BTS(BSTR_) ((char *)((BSTR_).data))

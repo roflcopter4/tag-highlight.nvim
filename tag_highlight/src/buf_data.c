@@ -94,7 +94,7 @@ new_buffer(const int fd, const int bufnum)
 struct bufdata *
 get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
 {
-        struct bufdata *bdata = xmalloc(sizeof *bdata);
+        struct bufdata *bdata = xmalloc(sizeof(struct bufdata));
         bdata->filename    = nvim_buf_get_name(fd, bufnum);
         bdata->basename    = b_basename(bdata->filename);
         bdata->pathname    = b_dirname(bdata->filename);
@@ -102,7 +102,6 @@ get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
         bdata->num         = bufnum;
         bdata->ft          = ft;
         bdata->calls       = NULL;
-        bdata->lastref     = NULL;
         bdata->clangdata   = NULL;
         bdata->initialized = false; /* Initialized is true only after recieving the buffer contents. */
         bdata->ctick       = 0;

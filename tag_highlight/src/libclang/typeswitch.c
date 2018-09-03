@@ -56,7 +56,7 @@ typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enu
         unsigned                  num;
         struct cmd_info          *info  = getinfo(bdata, &num);
         struct atomic_call_array *calls = new_call_array();
-        /* clear_nvim_highlights(bdata); */
+        clear_nvim_highlights(bdata);
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);

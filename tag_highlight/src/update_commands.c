@@ -38,6 +38,7 @@ extern FILE *cmd_log;
 #endif
 
 /*======================================================================================*/
+#define BBS(BSTR) ((char *)((BSTR)->data))
 
 void
 update_highlight(const int bufnum, struct bufdata *bdata)
@@ -234,7 +235,7 @@ void
 update_line(struct bufdata *bdata, const int first, const int last)
 {
         /* libclang_update_line(bdata, first+1, last+1); */
-        libclang_update_line(bdata, first, last);
+        /* libclang_update_line(bdata, first, last); */
         /* libclang_get_hl_commands(bdata); */
 }
 
@@ -272,11 +273,13 @@ get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
                 bdata->ft->ignored_tags = b_list_create();
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                bstring *cmd    = B_sprintf("syntax list %s", restored_groups->lst[i]);
-                bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
-                b_free(cmd);
+                char         cmd[2048];
+                const size_t len = snprintf(cmd, 2048, "syntax list %s",
+                                            BS(restored_groups->lst[i]));
+                bstring *output = nvim_command_output(0, btp_fromblk(cmd, len), E_STRING).ptr;
                 if (!output)
                         continue;
+
                 const char *ptr = strstr(BS(output), "xxx");
                 if (!ptr) {
                         b_free(output);

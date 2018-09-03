@@ -442,6 +442,8 @@ tagfinder(struct mydata *data, CXCursor cursor)
 
         CXSourceLocation loc   = clang_getCursorLocation(cursor);
         CXToken         *cxtok = clang_getToken(data->tu, loc);
+        if (!cxtok)
+                return;
 
         if (clang_getTokenKind(*cxtok) == CXToken_Identifier) {
                 CXString  dispname = clang_getCursorDisplayName(cursor);
@@ -483,18 +485,22 @@ get_compile_commands(struct bufdata *bdata)
                 const unsigned   nargs   = clang_CompileCommand_getNumArgs(command);
 
                 for (unsigned x = 0; x < nargs; ++x) {
-                        CXString    tmp  = clang_CompileCommand_getArg(command, x);
-                        const char *cstr = CS(tmp);
+                        CXString    tmp   = clang_CompileCommand_getArg(command, x);
+                        const char *cstr  = CS(tmp);
+                        bstring     bstr  = bt_fromcstr(cstr);
+                        bstring    *base  = b_basename(&bstr);
 
                         if (strncmp(cstr, "-o", 2) == 0) {
-                                if (cstr[2] == '\0')
+                                if (bstr.slen == 2)
                                         ++x;
-                        } else if (strcmp(cstr, BS(bdata->filename)) != 0 &&
-                                   strcmp(cstr, BS(bdata->basename)) != 0)
+                        } else if (!b_iseq(&bstr, bdata->filename) &&
+                                   !b_iseq(&bstr, bdata->basename) &&
+                                   !b_iseq(base, bdata->basename))
                         {
                                 argv_append(ret, cstr, true);
                         }
 
+                        b_free(base);
                         clang_disposeString(tmp);
                 }
         }
