@@ -1,5 +1,5 @@
+#include "clang.h"
 #include "libclang.h"
-#include "libclang_intern.h"
 
 const char *const tagargs[TAGARGS_SIZE] = {
     "-DHAVE_CONFIG_H",
