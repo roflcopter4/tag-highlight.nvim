@@ -16,9 +16,9 @@ set (tag_highlight_SOURCES
     mpack/mpack.c
     mpack/print.c
 
-    libclang/clang.c
-    libclang/const.c
-    libclang/typeswitch.c
+    clang/clang.c
+    clang/const.c
+    clang/typeswitch.c
 
     util/archive_gzip.c
     util/archive_read.c

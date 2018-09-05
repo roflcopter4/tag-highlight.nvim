@@ -3,7 +3,7 @@
 #include "api.h"
 #include "data.h"
 #include "highlight.h"
-#include "libclang/libclang.h"
+#include "libclang/clang.h"
 #include "mpack/mpack.h"
 
 #include <lzma.h>

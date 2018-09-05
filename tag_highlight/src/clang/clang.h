@@ -1,5 +1,5 @@
-#ifndef SRC_LIBCLANG_LIBCLANG_H
-#define SRC_LIBCLANG_LIBCLANG_H
+#ifndef SRC_CLANG_CLANG_H
+#define SRC_CLANG_CLANG_H
 
 #include "data.h"
 
@@ -19,4 +19,4 @@ extern void destroy_clangdata(void *data);
 #ifdef __cplusplus
 }
 #endif
-#endif /* libclang.h */
+#endif /* clang.h */

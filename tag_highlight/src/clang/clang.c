@@ -1,7 +1,7 @@
 #include "util/util.h"
 
+#include "clang.h"
 #include "libclang.h"
-#include "libclang_intern.h"
 
 #include "api.h"
 #include "data.h"

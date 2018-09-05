@@ -1,5 +1,5 @@
-#ifndef SRC_LIBCLANG_LIBCLANG_INTERN_H
-#define SRC_LIBCLANG_LIBCLANG_INTERN_H
+#ifndef SRC_CLANG_LIBCLANG_H
+#define SRC_CLANG_LIBCLANG_H
 
 #include "util/util.h"
 
