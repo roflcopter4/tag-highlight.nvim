@@ -29,6 +29,12 @@ struct translationunit {
         unsigned           num;
 };
 
+struct cmd_info {
+        int num;
+        int kind;
+        bstring *group;
+};
+
 #if 0
 struct toklist {
         CXTranslationUnit *tu;
@@ -57,7 +63,8 @@ extern const char *const clang_paths[3];
 
 /*======================================================================================*/
 
-__attribute__((visibility("hidden"))) extern void typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators);
+__attribute__((visibility("hidden"))) extern void typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info);
+extern void typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info, int line, int end);
 
 __attribute__((visibility("hidden"))) extern void tokvisitor(struct token *tok);
 

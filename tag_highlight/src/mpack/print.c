@@ -90,7 +90,7 @@ do_mpack_print_object(const mpack_obj *result)
         }
 
         if (--recursion == 0)
-                fputc('\n', print_log);
+                putc('\n', print_log);
 }
 
 extern FILE *whyy;

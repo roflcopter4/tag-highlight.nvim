@@ -67,7 +67,9 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                         b_list_writeallow(restored_groups);
                         if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
                                 get_tags_from_restored_groups(bdata, restored_groups);
+#ifdef DEBUG
                                 b_list_dump(cmd_log, bdata->ft->ignored_tags);
+#endif
                         } else
                                 bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
 
@@ -235,7 +237,8 @@ void
 update_line(struct bufdata *bdata, const int first, const int last)
 {
         /* libclang_update_line(bdata, first+1, last+1); */
-        /* libclang_update_line(bdata, first, last); */
+        /* echo("first: %d, last: %d\n", first, last); */
+        libclang_update_line(bdata, first, last);
         /* libclang_get_hl_commands(bdata); */
 }
 
@@ -261,6 +264,11 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
         }
 
         nvim_command(0, cmd);
+
+        if (bdata->hl_id > 0) {
+                nvim_buf_clear_highlight(0, bdata->num, bdata->hl_id, 0, (-1));
+        }
+
         b_free(cmd);
 }
 

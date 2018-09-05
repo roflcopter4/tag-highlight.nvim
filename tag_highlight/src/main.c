@@ -4,7 +4,7 @@
 #ifdef DOSISH
 #  include <direct.h>
 #  undef mkdir
-#  define mkdir(PATH_, MODE_) _mkdir(PATH_)
+#  define mkdir(PATH, MODE) _mkdir(PATH)
 #else
 #  include <sys/socket.h>
 #  include <sys/stat.h>
@@ -16,11 +16,8 @@
 #include "highlight.h"
 #include "mpack/mpack.h"
 
-#define WIN_BIN_FAIL(STREAM_) \
-        err(1, "Failed to change " STREAM_ "to binary mode.")
-
-#define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
-        nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
+#define WIN_BIN_FAIL(STREAM) \
+        err(1, "Failed to change " STREAM "to binary mode.")
 
 #define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 

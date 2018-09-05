@@ -9,17 +9,11 @@
 #include "highlight.h"
 #include "mpack/mpack.h"
 
-struct cmd_info {
-        int kind;
-        bstring *group;
-};
-
 static void do_typeswitch(struct bufdata           *bdata,
                           struct atomic_call_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          const b_list             *enumerators,
-                          const unsigned            num);
+                          const b_list             *enumerators);
 static void add_hl_call(struct atomic_call_array *calls,
                         const int                 bufnum,
                         const int                 hl_id,
@@ -35,28 +29,30 @@ add_clr_call(struct atomic_call_array *calls,
 static bool check_skip(struct bufdata *bdata, struct token *tok);
 
 static struct atomic_call_array *new_call_array(void);
-static struct cmd_info *getinfo(const struct bufdata *bdata, unsigned *num);
+static struct cmd_info *getinfo(const struct bufdata *bdata);
 static const bstring *find_group(struct ftdata_s *ft, const struct cmd_info *info, unsigned num, const int ctags_kind);
 static void clear_nvim_highlights(struct bufdata *bdata);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
-#define ADD_CALL(CH)                                                      \
-        do {                                                              \
-                if (!(group = find_group(bdata->ft, info, num, (CH))))    \
-                        goto done;                                        \
-                add_hl_call(calls, bdata->num, bdata->hl_id, group, tok); \
+#define ADD_CALL(CH)                                                         \
+        do {                                                                 \
+                if (!(group = find_group(bdata->ft, info, info->num, (CH)))) \
+                        goto done;                                           \
+                add_hl_call(calls, bdata->num, bdata->hl_id, group, tok);    \
         } while (0)
 
 
 /*======================================================================================*/
 
 void
-typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators)
+typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info)
 {
-        unsigned                  num;
-        struct cmd_info          *info  = getinfo(bdata, &num);
+        /* struct cmd_info          *info  = getinfo(bdata); */
         struct atomic_call_array *calls = new_call_array();
         clear_nvim_highlights(bdata);
+
+        if (!*info)
+                *info = getinfo(bdata);
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
@@ -66,23 +62,22 @@ typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enu
                 if (check_skip(bdata, tok))
                         continue;
                 tokvisitor(tok);
-                do_typeswitch(bdata, calls, tok, info, enumerators, num);
+                do_typeswitch(bdata, calls, tok, *info, enumerators);
         }
 
-        echo("Running command...");
+        /* echo("Running command..."); */
         nvim_call_atomic(0, calls);
         destroy_call_array(calls);
-        for (unsigned i = 0; i < num; ++i)
-                b_free(info[i].group);
-        free(info);
+        /* for (unsigned i = 0; i < info->num; ++i) */
+                /* b_free(info[i].group); */
+        /* free(info); */
 }
 
 static void do_typeswitch(struct bufdata           *bdata,
                           struct atomic_call_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          const b_list             *enumerators,
-                          const unsigned            num)
+                          const b_list             *enumerators)
 {
         static thread_local unsigned lastline = UINT_MAX;
 
@@ -228,8 +223,9 @@ add_hl_call(struct atomic_call_array *calls,
         calls->args[calls->qty][5].num = tok->col1;
         calls->args[calls->qty][6].num = tok->col2;
 
-        fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %d, %d, %d)\n",
-                bufnum, hl_id, BS(group), tok->line, tok->col1, tok->col2);
+        if (cmd_log)
+                fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %d, %d, %d)\n",
+                        bufnum, hl_id, BS(group), tok->line, tok->col1, tok->col2);
         ++calls->qty;
 }
 
@@ -255,7 +251,8 @@ add_clr_call(struct atomic_call_array *calls,
         calls->args[calls->qty][3].num = line;
         calls->args[calls->qty][4].num = end;
 
-        fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n", bufnum, hl_id, line, end);
+        if (cmd_log)
+                fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n", bufnum, hl_id, line, end);
         ++calls->qty;
 }
 
@@ -272,7 +269,7 @@ clear_nvim_highlights(struct bufdata *bdata)
 }
 
 static struct cmd_info *
-getinfo(const struct bufdata *bdata, unsigned *num)
+getinfo(const struct bufdata *bdata)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
@@ -290,7 +287,7 @@ getinfo(const struct bufdata *bdata, unsigned *num)
                 b_writeallow(info[i].group);
         }
 
-        *num = ngroups;
+        info->num = ngroups;
         return info;
 }
 
@@ -312,12 +309,14 @@ find_group(struct ftdata_s *ft, const struct cmd_info *info, const unsigned num,
 }
 
 void
-typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, int line, int end)
+typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info, int line, int end)
 {
-        unsigned                  num;
-        struct cmd_info          *info  = getinfo(bdata, &num);
+        /* struct cmd_info *         info  = getinfo(bdata, &num); */
         struct atomic_call_array *calls = new_call_array();
         /* clear_nvim_highlights(bdata); */
+
+        if (!*info)
+                *info = getinfo(bdata);
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
@@ -325,17 +324,17 @@ typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *e
         add_clr_call(calls, bdata->num, bdata->hl_id, line, end);
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
-              struct token *tok = stu->tokens->lst[i];
-             if (check_skip(bdata, tok))
+                struct token *tok = stu->tokens->lst[i];
+                if (check_skip(bdata, tok))
                         continue;
                 /* tokvisitor(tok); */
-              do_typeswitch(bdata, calls, tok, info, enumerators, num);
+                do_typeswitch(bdata, calls, tok, *info, enumerators);
         }
 
-      echo("Running command...");
-     nvim_call_atomic(0, calls);
-    destroy_call_array(calls);
-     for (unsigned i = 0; i < num; ++i)
+        /* echo("Running command..."); */
+        nvim_call_atomic(0, calls);
+        destroy_call_array(calls);
+        /* for (unsigned i = 0; i < num; ++i)
                 b_free(info[i].group);
-      free(info);
+        free(info); */
 }

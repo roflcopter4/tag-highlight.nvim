@@ -137,6 +137,14 @@ error:
 void
 mpack_destroy(mpack_obj *root)
 {
+        if (!(root->flags & MPACK_ENCODE)) {
+                if (root->flags & MPACK_HAS_PACKED)
+                        b_free(*root->packed);
+                if (!(root->flags & MPACK_PHONY))
+                        free(root);
+                return;
+        }
+
         struct item_free_stack tofree = { nmalloc(1024, sizeof(void *)), 0, 1024 };
         collect_items(&tofree, root);
 
@@ -163,7 +171,7 @@ mpack_destroy(mpack_obj *root)
                                 break;
                         case MPACK_STRING:
                                 if (cur->data.str)
-                                        b_destroy(cur->data.str);
+                                        b_free(cur->data.str);
                                 break;
                         case MPACK_EXT:
                                 if (cur->data.ext)
@@ -175,7 +183,7 @@ mpack_destroy(mpack_obj *root)
                 }
 
                 if (cur->flags & MPACK_HAS_PACKED)
-                        b_destroy(*cur->packed);
+                        b_free(*cur->packed);
 
                 if (!(cur->flags & MPACK_PHONY))
                         free(cur);
@@ -236,7 +244,7 @@ destroy_call_array(struct atomic_call_array *calls)
                                 ++x;
                                 break;
                         case 's': case 'S':
-                                b_destroy(calls->args[i][x].str); ++x;
+                                b_free(calls->args[i][x].str); ++x;
                                 break;
                         }
                 }
@@ -314,17 +322,17 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
         /* TYPE_    NAME_       = nmalloc((NUM_), (SIZE_)); \ */
         /* unsigned NAME_##_ctr = 0 */
 #define NEW_STACK(TYPE, NAME) \
-        TYPE     NAME[64];    \
+        TYPE     NAME[128];    \
         unsigned NAME##_ctr = 0
 
 #define POP(STACK) \
-        (((STACK##_ctr == 0) ? (abort(), 0) : 0), ((STACK)[--STACK##_ctr]))
+        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[--STACK##_ctr]))
 
 #define PUSH(STACK, VAL) \
         ((STACK)[STACK##_ctr++] = (VAL))
 
 #define PEEK(STACK) \
-        (((STACK##_ctr == 0) ? (abort(), 0) : 0), ((STACK)[STACK##_ctr - 1]))
+        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[STACK##_ctr - 1]))
 
 #define RESET(STACK) \
         ((STACK##_ctr) = 0, (STACK)[0] = 0)
@@ -422,6 +430,10 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  * All errors are fatal.
  */
 
+/* #ifdef DEBUG */
+/* #undef DEBUG */
+/* #endif */
+
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
@@ -441,15 +453,12 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         va_list     *ref            = NULL;
         *cur_len                    = 0;
 
-        /* NEW_STACK(unsigned **, len_stack, TWO_THIRDS(arr_size), sizeof(unsigned *)); */
         NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);
 
         /* Go through the format string once to get the number of arguments and
          * in particular the number and size of any arrays. */
         while ((ch = *ptr++)) {
-                /* assert(len_ctr < arr_size); */
-
                 switch (ch) {
                 /* Legal values. Increment size and continue. */
                 case 'b': case 'B': case 'l': case 'L':
@@ -463,11 +472,6 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case '[': case '{':
                         ++*cur_len;
                         PUSH(len_stack, cur_len);
-                        //if (len_ctr == sub_lengths_sz) {
-                        //        errx(1, "Somehow we outstripped our size!\n");
-                        //        /* fprintf(stderr, "Reallocating from %u to %u\n", sub_lengths_sz, sub_lengths_sz * 2);
-                        //        sub_lengths = nrealloc(sub_lengths, (sub_lengths_sz *= 2), sizeof(unsigned)); */
-                        //}
                         cur_len = &sub_lengths[len_ctr++];
                         *cur_len = 0;
                         break;
@@ -508,17 +512,21 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         unsigned    a_arg_subctr = 0;
         len_ctr                  = 1;
         ptr                      = fmt;
-        cur_obj                  = &pack->DAI[0];
         *cur_ctr                 = 1;
+#ifdef DEBUG
+        cur_obj                  = &pack->DAI[0];
+#else
+        cur_obj                  = NULL;
+#endif
 
         RESET(len_stack);
-        /* NEW_STACK(mpack_obj **, obj_stack, TWO_THIRDS(arr_size), sizeof(mpack_obj *)); */
-        /* NEW_STACK(unsigned *, dict_stack, TWO_THIRDS(arr_size), sizeof(unsigned)); */
         NEW_STACK(mpack_obj *, obj_stack);
         NEW_STACK(unsigned char, dict_stack);
         PUSH(len_stack, cur_ctr);
-        PUSH(obj_stack, pack);
         PUSH(dict_stack, 0);
+#ifdef DEBUG
+        PUSH(obj_stack, pack);
+#endif
 
         /* This loop is where all of the actual interpretation and encoding
          * happens. A few stacks are used when recursively encoding arrays and
@@ -563,8 +571,10 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case '[':
                         mpack_encode_array(pack, cur_obj, sub_lengths[len_ctr]);
                         PUSH(dict_stack, 0);
-                        PUSH(obj_stack, *cur_obj);
                         PUSH(len_stack, cur_ctr);
+#ifdef DEBUG
+                        PUSH(obj_stack, *cur_obj);
+#endif
 
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
@@ -575,8 +585,10 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         assert((sub_lengths[len_ctr] & 1) == 0);
                         mpack_encode_dictionary(pack, cur_obj, (sub_lengths[len_ctr] / 2));
                         PUSH(dict_stack, 1);
-                        PUSH(obj_stack, *cur_obj);
                         PUSH(len_stack, cur_ctr);
+#ifdef DEBUG
+                        PUSH(obj_stack, *cur_obj);
+#endif
 
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
@@ -586,8 +598,10 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case ']':
                 case '}':
                         (void)POP(dict_stack);
-                        (void)POP(obj_stack);
                         cur_ctr = POP(len_stack);
+#ifdef DEBUG
+                        (void)POP(obj_stack);
+#endif
                         break;
 
                 case '!':
@@ -616,6 +630,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         abort();
                 }
 
+#ifdef DEBUG
                 if (PEEK(dict_stack)) {
                         if (PEEK(obj_stack)->data.dict->max > (*cur_ctr / 2)) {
                                 if ((*cur_ctr & 1) == 0)
@@ -627,16 +642,12 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         if (PEEK(obj_stack)->data.arr->max > *cur_ctr)
                                 cur_obj = &PEEK(obj_stack)->DAI[*cur_ctr];
                 }
+#endif
 
                 ++*cur_ctr;
         }
 
-        /* free(dict_stack); */
-        /* free(obj_stack); */
-        /* free(sub_ctrlist); */
 cleanup:
-        /* free(sub_lengths); */
-        /* free(len_stack); */
         va_end(args);
         return pack;
 }

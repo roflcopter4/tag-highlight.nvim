@@ -207,8 +207,9 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         free(repl_list->lst);
         free(repl_list);
-        if (first + last >= 1)
-                update_line(bdata, first, last);
+        const unsigned mx = (bdata->lines->qty > last) ? bdata->lines->qty : last; 
+        if (first + mx >= 1)
+                update_line(bdata, first, mx);
         pthread_mutex_unlock(&event_mutex);
 }
 

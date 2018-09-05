@@ -57,24 +57,6 @@ extern bstring * get_notification(int fd);
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) __nvim_write((FD), NW_STANDARD, (MES))
 #define nvim_err_write(FD, MES) __nvim_write((FD), NW_ERROR, (MES))
-
-#define blist_from_var(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                 \
-            nvim_get_var((FDES), B(VARNAME), MPACK_ARRAY, (FATAL_)), true)
-
-#define nvim_get_var_num(FDES, VARNAME, FATAL_) \
-        P2I(nvim_get_var((FDES), B(VARNAME), MPACK_NUM, (FATAL_)))
-
-
-#define PKG "tag_highlight"
-
-#define blist_from_var_pkg(FDES, VARNAME, FATAL_) \
-        mpack_array_to_blist(                     \
-            nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_ARRAY, (FATAL_)), true)
-
-#define nvim_get_var_num_pkg(FDES, VARNAME, FATAL_) \
-        P2I(nvim_get_var((FDES), B(PKG "#" VARNAME), MPACK_NUM, (FATAL_)))
-
 #define ECHO(FMT_, ...)                                                                       \
         ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
                             : (void)0)

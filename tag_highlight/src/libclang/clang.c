@@ -32,18 +32,17 @@ struct clangdata {
         CXTranslationUnit  tu;
         b_list            *enumerators;
         str_vector        *argv;
+        struct cmd_info   *info;
         char               tmp_name[TMPCHARSIZ];
 };
 
 static char tmp_path[PATH_MAX + 1];
 
-/* static struct toklist *tokenize_file(CXTranslationUnit *tu, CXFile *file, bstring *buf); */
 static void tokenize_file(struct translationunit *stu, CXFile *file);
 static struct token   *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor, const bstring *buf);
 static _Bool           get_range(CXSourceRange r, unsigned values[4]);
 static void            get_tmp_path(void);
 
-/* static void visitor(CXTranslationUnit *tu, CXToken tok, CXCursor cursor, const bstring *buf); */
 static struct translationunit *libclang_get_compilation_unit(struct bufdata *bdata);
 static void destroy_translationunit(struct translationunit *stu);
 static enum CXChildVisitResult visit_continue(CXCursor cursor, UNUSED CXCursor parent, void *client_data);
@@ -84,7 +83,7 @@ libclang_get_compilation_unit(struct bufdata *bdata)
         close(tmpfd);
 
         struct translationunit *ret = xmalloc(sizeof(struct translationunit));
-        ret->idx = clang_createIndex(1, 1);
+        ret->idx = clang_createIndex(1, 0);
         ret->tu  = NULL;
         ret->buf = buf;
 
@@ -96,7 +95,8 @@ libclang_get_compilation_unit(struct bufdata *bdata)
                 errx(1, "libclang error: %d", clerror);
 
         struct mydata enumlist = { ret->tu, b_list_create(), buf };
-        clang_visitChildren(clang_getTranslationUnitCursor(ret->tu), visit_continue, &enumlist);
+        clang_visitChildren(clang_getTranslationUnitCursor(ret->tu),
+                            visit_continue, &enumlist);
         B_LIST_SORT_FAST(enumlist.enumerators);
 
         {
@@ -110,11 +110,15 @@ libclang_get_compilation_unit(struct bufdata *bdata)
 
         CXFile file = clang_getFile(ret->tu, tmp);
         tokenize_file(ret, &file);
-        typeswitch(bdata, ret, enumlist.enumerators);
-
         bdata->clangdata = xmalloc(sizeof(struct clangdata));
+
+        ((struct clangdata *)bdata->clangdata)->info = NULL;
+        typeswitch(bdata, ret, enumlist.enumerators,
+                   &((struct clangdata *)bdata->clangdata)->info);
+
         *(struct clangdata *)(bdata->clangdata) = (struct clangdata){
-            .idx = ret->idx, .tu = ret->tu, .enumerators = enumlist.enumerators, .argv = compile_commands};
+            .idx = ret->idx, .tu = ret->tu, .argv = compile_commands,
+            .enumerators = enumlist.enumerators};
         strcpy(((struct clangdata *)(bdata->clangdata))->tmp_name, tmp);
 
         /* b_list_destroy(enumlist.enumerators); */
@@ -130,8 +134,9 @@ tokenize_file(struct translationunit *stu, CXFile *file)
 {
         CXToken        *toks = NULL;
         unsigned        num  = 0;
-        CXSourceRange   rng  = clang_getRange(clang_getLocationForOffset(stu->tu, *file, 0),
-                                              clang_getLocationForOffset(stu->tu, *file, stu->buf->slen));
+        CXSourceRange   rng  = clang_getRange(
+            clang_getLocationForOffset(stu->tu, *file, 0),
+            clang_getLocationForOffset(stu->tu, *file, stu->buf->slen));
 
         clang_tokenize(stu->tu, rng, &toks, &num);
         CXCursor *cursors = nmalloc(num, sizeof(CXCursor));
@@ -200,7 +205,6 @@ get_range(CXSourceRange r, unsigned values[4])
 /*======================================================================================*/
 
 static void tokenize_range(struct translationunit *stu, CXFile *file, int first, int last);
-void typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, int line, int end);
 
 void
 libclang_update_line(struct bufdata *bdata, int first, int last)
@@ -208,42 +212,33 @@ libclang_update_line(struct bufdata *bdata, int first, int last)
         static pthread_mutex_t line_mutex;
         pthread_mutex_lock(&line_mutex);
         struct translationunit *stu      = xmalloc(sizeof(struct translationunit));
-        struct clangdata       *cld      = bdata->clangdata;
+        struct clangdata       *scdata      = bdata->clangdata;
         stu->buf = ll_join(bdata->lines, '\n');
-        stu->tu  = cld->tu;
+        stu->tu  = scdata->tu;
 
-        struct CXUnsavedFile unsavedfile = {BS(bdata->filename), BS(stu->buf), stu->buf->slen};
-
-        int fd = open(cld->tmp_name, O_WRONLY|O_DSYNC|O_TRUNC, 0600);
+        int fd = open(scdata->tmp_name, O_WRONLY|O_TRUNC, 0600);
         b_write(fd, stu->buf);
         close(fd);
 
-        enum CXErrorCode clerror = clang_parseTranslationUnit2(
-            cld->idx, cld->tmp_name, (const char *const*)cld->argv->lst,
-            cld->argv->qty, &unsavedfile, 1, TUFLAGS, &cld->tu);
+        int ret = clang_reparseTranslationUnit(
+            scdata->tu, 0, NULL, clang_defaultReparseOptions(scdata->tu));
+        CXFile   file      = clang_getFile(scdata->tu, scdata->tmp_name);
+        int64_t  startbyte = 0;
+        int64_t  endbyte   = 0;
+        unsigned i         = 0;
 
-        /* int ret = clang_reparseTranslationUnit(cld->tu, 1, &unsavedfile, clang_defaultReparseOptions(cld->tu)); */
-        assert(clerror == 0);
-        CXFile file = clang_getFile(cld->tu, cld->tmp_name);
-        /* tokenize_file(stu, &file); */
+        LL_FOREACH_F(bdata->lines, node) {
+                if (i < first)
+                        endbyte = (startbyte += node->data->slen + 1);
+                else if (i < last+1)
+                        endbyte += node->data->slen + 1;
+                else
+                        break;
+                ++i;
+        }
 
-        size_t startbyte = nvim_call_function_args(0, B("line2byte"), E_NUM, B("d"), first-1).num;
-        size_t endbyte = nvim_call_function_args(0, B("line2byte"), E_NUM, B("d"), last+2).num;
-        /* size_t endbyte = nvim_call_function_args(0, B("line2byte"), E_NUM, B("d"), last).num; */
-        /* int endbyte = nvim_command_output(0, B("line2byte('')")) */
-        /* char *tmp = BS(stu->buf) + startbyte; */
-        /* char *nl  = strchr(tmp, '\n'); */
-        /* size_t endbyte = PSUB(nl, stu->buf->data); */
-
-       /* echo("%zu - %zu", startbyte, endbyte); */
         tokenize_range(stu, &file, startbyte, endbyte);
-       /* echo("got %d toks!", stu->num); */
-
-        /* for (unsigned i = 0; i < stu->num; ++i) */
-                /* eprintf("%s\n", ((struct token *)(stu->tokens->lst[i]))->raw); */
-                /* tokvisitor(stu->tokens->lst[i]); */
-        typeswitch_2(bdata, stu, cld->enumerators, first, last);
-
+        typeswitch_2(bdata, stu, scdata->enumerators, &scdata->info, first, last);
         destroy_translationunit(stu);
         pthread_mutex_unlock(&line_mutex);
 }
@@ -316,16 +311,10 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int first, const
         stu->num       = num;
         stu->tokens    = genlist_create_alloc(num / 2);
 
-        /* eprintf("Succesfully parsed %u tokens!\n", num); */
-
         for (unsigned i = 0; i < num; ++i) {
                 struct token *t = get_token_data2(&stu->tu, &toks[i], &cursors[i], stu->buf);
-                if (t) {
-                        /* memcpy(t->raw, tu->buf->data, t->len); */
-                        /* t->raw[t->len] = '0'; */
+                if (t)
                         genlist_append(stu->tokens, t);
-                        /* echo("%s", t->raw); */
-                }
         }
 }
 
@@ -412,7 +401,7 @@ destroy_clangdata(void *data)
         safe_argv_destroy(cdata->argv);
         clang_disposeTranslationUnit(cdata->tu);
         clang_disposeIndex(cdata->idx);
-        free(data);
+        /* free(data); */
 }
 
 static void
@@ -469,26 +458,28 @@ static str_vector *
 get_compile_commands(struct bufdata *bdata)
 {
         CXCompilationDatabase_Error cberr;
-        CXCompilationDatabase db = clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
+        CXCompilationDatabase       db = clang_CompilationDatabase_fromDirectory(
+            BS(bdata->topdir->pathname), &cberr);
         if (cberr != 0) {
                 clang_CompilationDatabase_dispose(db);
                 warn("Couldn't locate compilation database.");
                 return get_backup_commands(bdata);
         }
 
-        CXCompileCommands  cmds  = clang_CompilationDatabase_getCompileCommands(db, BS(bdata->filename));
-        const unsigned     ncmds = clang_CompileCommands_getSize(cmds);
-        str_vector         *ret   = argv_create(32);
+        CXCompileCommands cmds = clang_CompilationDatabase_getCompileCommands(
+            db, BS(bdata->filename));
+        const unsigned ncmds = clang_CompileCommands_getSize(cmds);
+        str_vector    *ret   = argv_create(32);
 
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command = clang_CompileCommands_getCommand(cmds, i);
                 const unsigned   nargs   = clang_CompileCommand_getNumArgs(command);
 
                 for (unsigned x = 0; x < nargs; ++x) {
-                        CXString    tmp   = clang_CompileCommand_getArg(command, x);
-                        const char *cstr  = CS(tmp);
-                        bstring     bstr  = bt_fromcstr(cstr);
-                        bstring    *base  = b_basename(&bstr);
+                        CXString    tmp  = clang_CompileCommand_getArg(command, x);
+                        const char *cstr = CS(tmp);
+                        bstring     bstr = bt_fromcstr(cstr);
+                        bstring    *base = b_basename(&bstr);
 
                         if (strncmp(cstr, "-o", 2) == 0) {
                                 if (bstr.slen == 2)

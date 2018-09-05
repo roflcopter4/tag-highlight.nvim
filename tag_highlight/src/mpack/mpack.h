@@ -159,7 +159,7 @@ static inline void
 destroy_mpack_dict(mpack_dict_t *dict)
 {
         mpack_obj tmp;
-        tmp.flags     = MPACK_DICT | MPACK_PHONY;
+        tmp.flags     = MPACK_DICT | MPACK_ENCODE | MPACK_PHONY;
         tmp.data.dict = dict;
         mpack_destroy(&tmp);
 }
@@ -168,7 +168,7 @@ static inline void
 destroy_mpack_array(mpack_array_t *array)
 {
         mpack_obj tmp;
-        tmp.flags    = MPACK_ARRAY | MPACK_PHONY;
+        tmp.flags    = MPACK_ARRAY | MPACK_ENCODE | MPACK_PHONY;
         tmp.data.arr = array;
         mpack_destroy(&tmp);
 }

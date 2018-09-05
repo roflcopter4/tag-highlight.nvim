@@ -178,6 +178,13 @@ interrupt_call(void *vdata)
                 clear_highlight(nvim_get_current_buf(0), NULL);
                 break;
 
+        case 'I': {
+                extern void libclang_update_line(struct bufdata *, int, int);
+                bufnum                = nvim_get_current_buf(0);
+                struct bufdata *bdata = find_buffer(bufnum);
+                libclang_update_line(bdata, 0, bdata->lines->qty);
+                break;
+        }
         default:
                 ECHO("Hmm, nothing to do...");
                 break;

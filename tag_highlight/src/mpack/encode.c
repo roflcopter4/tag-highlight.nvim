@@ -90,16 +90,18 @@ mpack_encode_array(mpack_obj       *root,
         if (!root)
                 errx(1, "Root is null! Shut up clang!");
 
-        sanity_check(root, item, 64, true);
+        sanity_check(root, item, 64, false);
 
-        (*item)->data.arr        = xmalloc(sizeof(mpack_array_t));
-        (*item)->data.arr->items = nmalloc(len, sizeof(mpack_obj *));
-        (*item)->data.arr->qty   = len;
-        (*item)->data.arr->max   = len;
-        (*item)->flags          |= (uint8_t)MPACK_ARRAY;
+        if (item && (root->flags & MPACK_ENCODE)) {
+                (*item)->data.arr        = xmalloc(sizeof(mpack_array_t));
+                (*item)->data.arr->items = nmalloc(len, sizeof(mpack_obj *));
+                (*item)->data.arr->qty   = len;
+                (*item)->data.arr->max   = len;
+                (*item)->flags          |= (uint8_t)MPACK_ARRAY;
 
-        for (unsigned i = 0; i < len; ++i)
-                (*item)->DAI[i] = NULL;
+                for (unsigned i = 0; i < len; ++i)
+                        (*item)->DAI[i] = NULL;
+        }
 
         if (len <= M_ARRAY_F_MAX) {
                 D[L++] = M_MASK_ARRAY_F | (uint8_t)len;
@@ -122,18 +124,20 @@ mpack_encode_dictionary(mpack_obj       *root,
         if (!root)
                 errx(1, "Root is null! Shut up clang!");
 
-        sanity_check(root, item, 64, true);
+        sanity_check(root, item, 64, false);
 
-        (*item)->data.dict          = xmalloc(sizeof(mpack_dict_t));
-        (*item)->data.dict->entries = nmalloc(len, sizeof(struct dict_ent *));
-        (*item)->data.dict->qty     = len;
-        (*item)->data.dict->max     = len;
-        (*item)->flags             |= (uint8_t)MPACK_DICT;
+        if (item && (root->flags & MPACK_ENCODE)) {
+                (*item)->data.dict          = xmalloc(sizeof(mpack_dict_t));
+                (*item)->data.dict->entries = nmalloc(len, sizeof(struct dict_ent *));
+                (*item)->data.dict->qty     = len;
+                (*item)->data.dict->max     = len;
+                (*item)->flags             |= (uint8_t)MPACK_DICT;
 
-        for (unsigned i = 0; i < len; ++i) {
-                (*item)->DDE[i]        = xmalloc(sizeof(struct dict_ent));
-                (*item)->DDE[i]->key   = NULL;
-                (*item)->DDE[i]->value = NULL;
+                for (unsigned i = 0; i < len; ++i) {
+                        (*item)->DDE[i]        = xmalloc(sizeof(struct dict_ent));
+                        (*item)->DDE[i]->key   = NULL;
+                        (*item)->DDE[i]->value = NULL;
+                }
         }
 
         if (len <= M_ARRAY_F_MAX) {
@@ -162,7 +166,9 @@ mpack_encode_integer(mpack_obj      *root,
         }
 
         if (value >= 0) {
-                if (value < UINT8_MAX) {
+                if (value <= 127) {
+                        D[L++] = (uint8_t)value;
+                } else if(value < UINT8_MAX) {
                         D[L++] = M_MASK_UINT_8;
                         D[L++] = (uint8_t)value;
                 } else if (value <= UINT16_MAX) {
@@ -177,7 +183,9 @@ mpack_encode_integer(mpack_obj      *root,
                 } else
                         errx(1, "Value too big!");
         } else {
-                if (value > INT8_MIN) {
+                if (value >= -32) {
+                        D[L++] = (int8_t)value;
+                } else if (value > INT8_MIN) {
                         D[L++] = M_MASK_INT_8;
                         D[L++] = (int8_t)value;
                 } else if (value >= INT16_MIN) {
@@ -265,7 +273,7 @@ sanity_check(mpack_obj       *root,
              const unsigned   check,
              const bool       force)
 {
-        if (!(*item) && (force || (root->flags & MPACK_ENCODE))) {
+        if (item && !(*item) && (force || (root->flags & MPACK_ENCODE))) {
                 (*item)        = xmalloc(sizeof(mpack_obj));
                 (*item)->flags = 0;
         }

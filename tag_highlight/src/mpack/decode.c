@@ -71,7 +71,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         }
 
         if (fd == 1)
-                fd  = 0;
+                fd = 0;
 
         for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
                 struct mpack_mutex *cur = mpack_mutex_list->lst[i];
@@ -92,11 +92,6 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         }
         pthread_mutex_unlock(&mpack_search_mutex);
 
-        /* if (fd == 1) {
-                fd  = 0;
-                mut = &mpack_stdin_mutex;
-        } else
-                mut = &mpack_socket_mutex; */
         pthread_mutex_lock(mut);
         mpack_obj *ret = do_decode(&stream_read, &fd);
 
@@ -113,22 +108,6 @@ decode_stream(int32_t fd, const enum message_types expected_type)
         }
         pthread_mutex_unlock(mut);
 
-#if 0
-        if (expected_type != MES_ANY &&
-            expected_type != (ret->DAI[0]->data.num))
-        {
-                switch (ret->DAI[0]->data.num) {
-                default:               abort();
-                case MES_REQUEST:      errx(1, "This will NEVER happen. Probably.");
-                case MES_RESPONSE:     mpack_destroy(ret); return NULL;
-                case MES_NOTIFICATION: handle_unexpected_notification(ret);
-                }
-
-                return decode_stream(fd, expected_type);
-        }
-#endif
-
-        //UNUSED ssize_t n = write(decode_log_raw, "\n\n", 2);
         return ret;
 }
 
@@ -136,6 +115,20 @@ decode_stream(int32_t fd, const enum message_types expected_type)
 mpack_obj *
 decode_obj(bstring *buf, const enum message_types expected_type)
 {
+        mpack_obj *ret = do_decode(&obj_read, buf);
+
+        if (!ret)
+                errx(1, "Failed to decode stream.");
+        if (mpack_type(ret) != MPACK_ARRAY) {
+                if (mpack_log) {
+                        mpack_print_object(mpack_log, ret);
+                        fflush(mpack_log);
+                }
+                eprintf("For some incomprehensible reason the pack's type is %d.\n",
+                        mpack_type(ret));
+                abort();
+        }
+#if 0
         mpack_obj *ret = do_decode(&obj_read, buf);
 
         if (!ret)
@@ -167,6 +160,7 @@ decode_obj(bstring *buf, const enum message_types expected_type)
 
                 return decode_obj(buf, expected_type);
         }
+#endif
 
         return ret;
 }
@@ -357,7 +351,7 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
                 }
         }
 
-        item->flags    = MPACK_NUM;
+        item->flags    = MPACK_NUM | MPACK_ENCODE;
         item->data.num = value;
 
         return item;
@@ -444,7 +438,7 @@ static mpack_obj *
 decode_bool(const struct mpack_masks *mask)
 {
         mpack_obj *item = xmalloc(sizeof *item);
-        item->flags     = MPACK_BOOL;
+        item->flags     = MPACK_BOOL | MPACK_ENCODE;
 
         switch (mask->type) {
         case M_TRUE:  item->data.boolean = true;  break;
