@@ -162,10 +162,6 @@ endif
 
 " }}}
 
-runtime! plugin/Tag_Highlight/*.vim
-
-let g:tag_highlight#loaded = 1
-
 function! s:Add_Remove_Project(operation, ...)
     if exists('a:1')
         let l:path = a:1
@@ -209,6 +205,8 @@ endfunction
 command! -nargs=? -complete=file TaghighlightAddProject call s:Add_Remove_Project(0, <q-args>)
 command! -nargs=? -complete=file TaghighlightRemoveProject call s:Add_Remove_Project(1, <q-args>)
 
+runtime! plugin/Tag_Highlight/*.vim
+
 " command! tag_highlightToggle call Tag_HighlightToggle()
 " command! tag_highlightVerbosity call tag_highlight#Toggle_Verbosity()
 " command! tag_highlightBinaryToggle call tag_highlight#Toggle_C_Binary()
@@ -217,7 +215,6 @@ command! -nargs=? -complete=file TaghighlightRemoveProject call s:Add_Remove_Pro
 " nmap <silent> <leader>tag <Plug>tag_highlightToggle
 
 "============================================================================= 
-
 highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
 highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
 highlight def link tag_highlight_StructTag		tag_highlight_TypeTag
@@ -236,6 +233,8 @@ highlight def link tag_highlight_ObjectTag		Identifier
 highlight def link tag_highlight_ModuleTag		PreProc
 highlight def link tag_highlight_PreProcTag		PreProc
 highlight def link tag_highlight_TypeTag		Type
+"============================================================================= 
 
+let g:tag_highlight#loaded = 1
 
 " vim:fdm=marker

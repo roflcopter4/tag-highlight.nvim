@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "util.h"
 #include <dirent.h>
 #include <inttypes.h>
 #include <sys/stat.h>
@@ -19,8 +19,9 @@
                      err(1, "Failed to stat file '%s", (PATH)); \
      } while (0)
 
-#include <execinfo.h>
-#define SHOW_STACKTRACE()                          \
+#ifdef HAVE_EXECINFO_H
+#  include <execinfo.h>
+#  define SHOW_STACKTRACE()                        \
         __extension__({                            \
                 void * arr[128];                   \
                 size_t num = backtrace(arr, 128);  \
@@ -28,20 +29,30 @@
                 dprintf(2, "STACKTRACE: \n");      \
                 backtrace_symbols_fd(arr, num, 2); \
         })
-#define FATAL_ERROR(...)                                           \
+#  define FATAL_ERROR(...)                                         \
         __extension__({                                            \
                 void * arr[128];                                   \
                 char   buf[8192];                                  \
                 size_t num = backtrace(arr, 128);                  \
                 snprintf(buf, 8192, __VA_ARGS__);                  \
                                                                    \
-                warnx("Fatal error in func %s in bstrlib.c, line " \
+                warnx("Fatal error in func %s in %s, line "        \
                       "%d\n%sSTACKTRACE: ",                        \
-                      FUNC_NAME, __LINE__, buf);                   \
+                      FUNC_NAME, __FILE__, __LINE__, buf);         \
                 fflush(stderr);                                    \
                 backtrace_symbols_fd(arr, num, 2);                 \
                 abort();                                           \
         })
+#else
+#  define FATAL_ERROR(...)                                    \
+        do {                                                \
+                warnx("Fatal error in func %s in %s, line " \
+                      "%d\n%sSTACKTRACE: ",                 \
+                      FUNC_NAME, __FILE__, __LINE__, buf);  \
+                fflush(stderr);                             \
+        } while (0)
+#  define SHOW_STACKTRACE(...)
+#endif
 
 extern const char *program_name;
 

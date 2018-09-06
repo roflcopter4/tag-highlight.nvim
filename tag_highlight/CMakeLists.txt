@@ -52,6 +52,8 @@ CHECK_SYMBOL_EXISTS (err          "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (posix_spawnp "spawn.h"    HAVE_POSIX_SPAWNP)
 
+CHECK_INCLUDE_FILE("execinfo.h" HAVE_EXECINFO_H)
+
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
         message(WARNING "\

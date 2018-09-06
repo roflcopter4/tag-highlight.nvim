@@ -77,6 +77,12 @@ function! s:ClearBuffer()
     endif
 endfunction
 
+function! s:ModeChange()
+    if s:init && s:job1 !=# 0
+        call rpcnotify(s:job1, 'vim_event_update', 'I')
+    endif
+endfunction
+
 function! s:ExitKill()
     if exists('g:tag_highlight#binpid') 
         echom system('kill -INT ' . g:tag_highlight#binpid) 
@@ -127,6 +133,10 @@ endfunction
 
 "===============================================================================
 
+" function! s:FirstInit()
+"     call s:InitTagHighlight()
+" endfunction
+
 command! TaghighlightInit call s:InitTagHighlight()
 command! TaghighlightStop call s:StopTagHighlight()
 command! TaghighlightClear call s:ClearBuffer()
@@ -144,9 +154,8 @@ augroup TagHighlightAu
     autocmd BufAdd * call s:NewBuf()
     autocmd BufWritePost * call s:UpdateTags()
     autocmd BufEnter * call s:BufChanged()
-    " autocmd VimLeavePre,VimLeave * call s:StopTagHighlight()
-    " autocmd VimLeavePre,VimLeave * :!pkill -INT tag_highlight
     autocmd VimLeavePre * call s:ExitKill()
+    " autocmd InsertEnter,InsertLeave *.{c,cc,cpp,cxx,h,hh,hpp} call s:ModeChange()
 augroup END
 
 let g:tag_highlight#shim_loaded = 1

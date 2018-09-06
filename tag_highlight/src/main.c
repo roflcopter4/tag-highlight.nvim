@@ -151,6 +151,8 @@ main(UNUSED int argc, char *argv[])
         pthread_cancel(thr[1]);
         pthread_cancel(thr[2]);
 
+        _exit(1);
+
         return 0;
 }
 

@@ -16,6 +16,7 @@
 
 #cmakedefine LZMA_SUPPORT
 #cmakedefine HAVE_UNISTD_H
+#cmakedefine HAVE_EXECINFO_H
 
 #define VERSION "1.1.1"
 #define PACKAGE_STRING "mytags " VERSION
