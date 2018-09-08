@@ -117,15 +117,15 @@ else()
         # set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
-        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything")
-        string(CONCAT CMAKE_C_FLAGS_DEBUG "-Wno-sign-conversion -Wno-documentation-unknown-command"
-               "-Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
-               "-Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
-        string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
-                "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
-
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
+        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything")
+        # string(CONCAT CMAKE_C_FLAGS_DEBUG "-Wno-sign-conversion -Wno-documentation-unknown-command"
+        #        " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
+        #        " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
+        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
+        # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
+        #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
+        # 
+        # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
     endif()
 #####################################################################################################
 

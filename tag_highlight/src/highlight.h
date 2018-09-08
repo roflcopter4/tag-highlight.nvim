@@ -11,9 +11,9 @@ extern "C" {
 #endif
 
 
-#define PKG "tag_highlight"
+#define PKG "tag_highlight#"
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
-        nvim_get_var((FD__), B(PKG "#" VARNAME_), (EXPECT_))
+        nvim_get_var((FD__), B(PKG VARNAME_), (EXPECT_))
 
 extern bool    run_ctags          (struct bufdata *bdata, int force);
 extern int     get_initial_taglist(struct bufdata *bdata);

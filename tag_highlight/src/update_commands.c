@@ -1,6 +1,6 @@
 #include "util/util.h"
 
-#include "api.h"
+#include "nvim_api/api.h"
 #include "data.h"
 #include "highlight.h"
 #include "clang/clang.h"
@@ -10,7 +10,7 @@
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
-        nvim_get_var(0, B(PKG "#" VARNAME_), (EXPECT_), (KEY_), (FATAL_))
+        nvim_get_var(0, B(PKG VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
 struct cmd_info {
         int kind;
@@ -19,7 +19,7 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static int  handle_kind(bstring *cmd, unsigned i, const struct ftdata_s *ft,
+static int  handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                         const struct taglist  *tags, const struct cmd_info *info);
 static struct atomic_call_array *update_commands(struct bufdata *bdata,
                                                  struct taglist *tags);
@@ -80,7 +80,8 @@ update_highlight(const int bufnum, struct bufdata *bdata)
         }
 
         if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
-                libclang_get_hl_commands(bdata);
+                /* libclang_get_hl_commands(bdata); */
+                libclang_highlight(bdata, 0, (-1));
                 pthread_mutex_unlock(&update_mutex);
                 return;
         }
@@ -148,7 +149,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
                 mpack_dict_t *dict = nvim_get_var_fmt(
-                        0, E_MPACK_DICT, PKG "#%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
+                        0, E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind   = ch;
                 info[i].group  = dict_get_key(dict, E_STRING, B("group")).ptr;
@@ -203,7 +204,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
 static int
 handle_kind(bstring *cmd, unsigned i,
-            const struct ftdata_s *ft,
+            const struct filetype *ft,
             const struct taglist  *tags,
             const struct cmd_info *info)
 {
@@ -238,8 +239,9 @@ update_line(struct bufdata *bdata, const int first, const int last)
 {
         /* libclang_update_line(bdata, first+1, last+1); */
         /* echo("first: %d, last: %d\n", first, last); */
-        libclang_update_line(bdata, first, last);
+        /* libclang_update_line(bdata, first, last); */
         /* libclang_get_hl_commands(bdata); */
+        libclang_highlight(bdata, first, last);
 }
 
 void
@@ -251,7 +253,7 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
         for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
                 mpack_dict_t *dict = nvim_get_var_fmt(
-                        0, E_MPACK_DICT, PKG "#%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
+                        0, E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
                 bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
 
                 B_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",

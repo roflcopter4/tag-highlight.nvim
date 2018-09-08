@@ -1,9 +1,9 @@
 #include "util/util.h"
 
-#include "api.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
 #include <signal.h>
 
 #ifdef _WIN32
@@ -31,13 +31,13 @@
 #  define DOSCHECK(CH_) (false)
 #endif
 
-extern void destroy_clangdata(void *data);
+extern void destroy_clangdata(struct bufdata *bdata);
 
 extern b_list         *seen_files;
 
 static void            log_prev_file(const bstring *filename);
 static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
-static void            init_filetype(int fd, struct ftdata_s *ft);
+static void            init_filetype(int fd, struct filetype *ft);
 static bool            check_norecurse_directories(const bstring *dir);
 static bstring        *check_project_directories  (bstring *dir);
 
@@ -54,7 +54,7 @@ new_buffer(const int fd, const int bufnum)
                 if (bufnum == buffers.bad_bufs.lst[i])
                         return false;
 
-        struct ftdata_s *tmp = NULL;
+        struct filetype *tmp = NULL;
         bstring         *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING).ptr;
         assert(ft != NULL);
 
@@ -68,7 +68,7 @@ new_buffer(const int fd, const int bufnum)
         if (!tmp) {
                 ECHO("Can't identify buffer %d, (ft '%s') bailing!\n", bufnum, ft);
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
-                b_destroy(ft);
+                b_free(ft);
                 return false;
         }
         for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i) {
@@ -78,7 +78,7 @@ new_buffer(const int fd, const int bufnum)
                 }
         }
 
-        b_destroy(ft);
+        b_free(ft);
         struct bufdata *bdata = get_bufdata(fd, bufnum, tmp);
         assert(bdata != NULL);
 
@@ -92,12 +92,12 @@ new_buffer(const int fd, const int bufnum)
 }
 
 struct bufdata *
-get_bufdata(const int fd, const int bufnum, struct ftdata_s *ft)
+get_bufdata(const int fd, const int bufnum, struct filetype *ft)
 {
         struct bufdata *bdata = xmalloc(sizeof(struct bufdata));
-        bdata->filename    = nvim_buf_get_name(fd, bufnum);
-        bdata->basename    = b_basename(bdata->filename);
-        bdata->pathname    = b_dirname(bdata->filename);
+        bdata->name.full   = nvim_buf_get_name(fd, bufnum);
+        bdata->name.base   = b_basename(bdata->name.full);
+        bdata->name.path   = b_dirname(bdata->name.full);
         bdata->lines       = ll_make_new();
         bdata->num         = bufnum;
         bdata->ft          = ft;
@@ -119,12 +119,12 @@ destroy_bufdata(struct bufdata **bdata)
         if (!*bdata)
                 return;
         if (!process_exiting)
-                log_prev_file((*bdata)->filename);
+                log_prev_file((*bdata)->name.full);
         const int index = find_buffer_ind((*bdata)->num);
 
-        b_destroy((*bdata)->filename);
-        b_destroy((*bdata)->basename);
-        b_destroy((*bdata)->pathname);
+        b_free((*bdata)->name.full);
+        b_free((*bdata)->name.base);
+        b_free((*bdata)->name.path);
         ll_destroy((*bdata)->lines);
         destroy_call_array((*bdata)->calls);
 
@@ -136,9 +136,9 @@ destroy_bufdata(struct bufdata **bdata)
                 close(topdir->tmpfd);
                 unlink(BS(topdir->tmpfname));
 
-                b_destroy(topdir->gzfile);
-                b_destroy(topdir->pathname);
-                b_destroy(topdir->tmpfname);
+                b_free(topdir->gzfile);
+                b_free(topdir->pathname);
+                b_free(topdir->tmpfname);
                 b_list_destroy(topdir->tags);
 
                 for (unsigned i = 0; i < top_dirs->qty; ++i)
@@ -215,38 +215,26 @@ have_seen_file(const bstring *filename)
 static struct top_dir *
 init_topdir(const int fd, struct bufdata *bdata)
 {
-        /* Emulate dirname() */
-        int           ret  = (-1);
-#if 0
-        const int64_t pos  = b_strrchr(bdata->filename, SEPCHAR);
-        bstring      *dir  = b_strcpy(bdata->filename);
-
-        if (pos < 0)
-                abort();
-
-        dir->data[pos]     = '\0';
-        dir->slen          = pos;
-#endif
-        bstring   *dir     = b_strcpy(bdata->pathname);
+        int      ret       = (-1);
+        bstring *dir       = b_strcpy(bdata->name.path);
         dir                = check_project_directories(dir);
         const bool recurse = check_norecurse_directories(dir);
         const bool is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
-        bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->filename) : dir;
+        bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
 
-        ECHO("fname: %s, dir: %s, base: %s\n", bdata->filename, dir, base);
+        ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
 
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
                 if (!top_dirs->lst[i] || !((struct top_dir *)top_dirs->lst[i])->pathname)
                         continue;
-                /* echo("Comparing '%s' to '%s'",
-                     BS(((struct top_dir *)top_dirs->lst[i])->pathname), BS(base)); */
 
                 if (b_iseq(((struct top_dir *)top_dirs->lst[i])->pathname, base)) {
                         ((struct top_dir *)top_dirs->lst[i])->refs++;
-                        b_destroy(base);
-                        echo("returning with topdir %s\n", BS(((struct top_dir *)(top_dirs->lst[i]))->pathname));
+                        b_free(base);
+                        echo("returning with topdir %s\n",
+                             BS(((struct top_dir *)(top_dirs->lst[i]))->pathname));
                         return top_dirs->lst[i];
                 }
         }
@@ -327,7 +315,7 @@ check_project_directories(bstring *dir)
                 if (strstr(BS(dir), BS(tmp)))
                         b_list_append(&candidates, tmp);
                 else
-                        b_destroy(tmp);
+                        b_free(tmp);
         }
 
         fclose(fp);
@@ -353,7 +341,7 @@ check_project_directories(bstring *dir)
 /*======================================================================================*/
 
 static void
-init_filetype(const int fd, struct ftdata_s *ft)
+init_filetype(const int fd, struct filetype *ft)
 {
         static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
         if (ft->initialized)

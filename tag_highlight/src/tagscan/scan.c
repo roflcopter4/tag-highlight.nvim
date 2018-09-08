@@ -249,7 +249,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                                       bdata->ft->equiv,
                                      &bdata->ft->ctags_name,
                                       bdata->ft->order,
-                                      bdata->filename,
+                                      bdata->name.full,
                                      &tags->lst[i * quot],
                                       num};
 

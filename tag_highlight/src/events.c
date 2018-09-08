@@ -1,7 +1,7 @@
 #include "util/util.h"
 
 #include "data.h"
-#include "api.h"
+#include "nvim_api/api.h"
 #include "mpack/mpack.h"
 
 #define BT bt_init

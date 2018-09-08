@@ -3,7 +3,7 @@
 
 #include "util/util.h"
 
-#include "api.h"
+#include "nvim_api/api.h"
 #include "mpack/mpack.h"
 #include <pthread.h>
 

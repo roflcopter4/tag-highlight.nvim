@@ -10,7 +10,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include "api.h"
+#include "nvim_api/api.h"
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);
@@ -63,7 +63,7 @@ get_initial_taglist(struct bufdata *bdata)
         TIMER_START(t);
         bdata->topdir->tags = b_list_create();
 
-        if (have_seen_file(bdata->filename)) {
+        if (have_seen_file(bdata->name.full)) {
                 ECHO("Seen file before, running ctags in case there was just a "
                      "momentary disconnect on write...");
                 goto force_ctags;
@@ -177,7 +177,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                 B_LIST_SORT(headers);
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
                 B_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
-                           bdata->topdir->tmpfname, bdata->filename, tmp);
+                           bdata->topdir->tmpfname, bdata->name.full, tmp);
 
                 b_free(tmp);
                 b_list_destroy(headers);
@@ -189,7 +189,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         } else {
                 ECHO("Not recursing!!!");
                 B_sprintfa(cmd, " \"-f%s\" \"%s\"",
-                           bdata->topdir->tmpfname, bdata->filename);
+                           bdata->topdir->tmpfname, bdata->name.full);
         }
 
         ECHO("Running ctags command `CMD.EXE /c %s`", cmd);
@@ -209,7 +209,7 @@ static int
 exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
 {
         unsigned i;
-        struct argument_vector *argv = argv_create(128);
+        str_vector *argv = argv_create(128);
         argv_append(argv, BS(settings.ctags_bin), true);
 
         B_LIST_FOREACH(settings.ctags_args, arg, i) {
@@ -233,7 +233,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                 else
                         argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
 
-                argv_append(argv, b_bstr2cstr(bdata->filename, 0), false);
+                argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);
 
                 if (headers) {
                         B_LIST_SORT(headers);
@@ -272,7 +272,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         argv_destroy(argv);
         b_list_destroy(headers);
 
-        ECHO("Status is %d", status);
+        ECHO("Status is %d", (status <<= 8));
         return status;
 }
 #endif

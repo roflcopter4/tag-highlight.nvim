@@ -2,7 +2,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "api.h"
+#include "nvim_api/api.h"
 #include "util/find.h"
 
 #define SKIP_SPACE(STR_, CTR_)                \
@@ -23,7 +23,7 @@
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "util/archive.h"
-#include "util/generic_list.h"
+#include "util/list.h"
 
 static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -121,7 +121,7 @@ find_includes(struct bufdata *bdata)
         LL_FOREACH_F (bdata->lines, node) {
                 bstring *file = analyze_line(node->data);
                 if (file) {
-                        handle_file(includes, file, bdata->filename);
+                        handle_file(includes, file, bdata->name.full);
                         /* b_list_append(&includes, file);
                         b_list_append(&includes, b_dirname(bdata->filename)); */
                 }
@@ -142,7 +142,7 @@ find_src_dirs(struct bufdata *bdata, b_list *includes)
                                        "compile_commands.json", FIND_SHORTEST);
 
         if (json_file) {
-                src_dirs = parse_json(json_file, bdata->filename, includes);
+                src_dirs = parse_json(json_file, bdata->name.full, includes);
                 if (!src_dirs) {
                         ECHO("Found nothing at all!!!");
                         src_dirs = b_list_create();
@@ -153,7 +153,7 @@ find_src_dirs(struct bufdata *bdata, b_list *includes)
         }
 
         b_list_append(&src_dirs, b_strcpy(bdata->topdir->pathname));
-        bstring *file_dir = b_dirname(bdata->filename);
+        bstring *file_dir = b_dirname(bdata->name.full);
         ECHO("File dir is: %s", file_dir);
 
         if (!b_iseq(bdata->topdir->pathname, file_dir)) {

@@ -1,6 +1,6 @@
 #include "util/util.h"
 
-#include "util/generic_list.h"
+#include "util/list.h"
 
 #define RUNTIME_ERROR() abort();
 #define RETURN_NULL() abort();

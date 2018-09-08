@@ -2,7 +2,6 @@
 #include <limits.h>
 #include <stddef.h>
 
-#include "data.h"
 #include "intern.h"
 
 #define DAI data.arr->items
@@ -77,7 +76,7 @@ mpack_make_new(const unsigned len, const bool encode)
         root->flags     = (uint8_t)(encode ? MPACK_ENCODE : 0) |
                           (uint8_t)MPACK_HAS_PACKED;
         *root->packed   = b_alloc_null(128);
-        mpack_encode_array(root, &root, len);
+        /* mpack_encode_array(root, &root, len); */
         return root;
 }
 
@@ -87,9 +86,6 @@ mpack_encode_array(mpack_obj       *root,
                    mpack_obj      **item,
                    const unsigned   len)
 {
-        if (!root)
-                errx(1, "Root is null! Shut up clang!");
-
         sanity_check(root, item, 64, false);
 
         if (item && (root->flags & MPACK_ENCODE)) {
@@ -121,9 +117,6 @@ mpack_encode_dictionary(mpack_obj       *root,
                         mpack_obj      **item,
                         const unsigned   len)
 {
-        if (!root)
-                errx(1, "Root is null! Shut up clang!");
-
         sanity_check(root, item, 64, false);
 
         if (item && (root->flags & MPACK_ENCODE)) {

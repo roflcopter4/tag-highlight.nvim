@@ -165,7 +165,7 @@ get_hl_group(bstring *buffer, struct bufdata *bdata, struct tag *tag)
         static _Thread_local bstring ret;
         static _Thread_local uchar   buf[1024];
 #   if 39
-        bstring *group = nvim_get_var_fmt(0, MPACK_STRING, B("group"), 1, PKG "#%s#%c",
+        bstring *group = nvim_get_var_fmt(0, MPACK_STRING, B("group"), 1, PKG "%s#%c",
                                           BTS(bdata->ft->vim_name), tag->kind);
 #   endif
 

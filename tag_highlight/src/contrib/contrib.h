@@ -7,7 +7,9 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "topconfig.h"
+#ifdef HAVE_CONFIG_H
+#  include "topconfig.h"
+#endif
 
 /* #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) */
    /* char *strsep(char **stringp, const char *delim); */

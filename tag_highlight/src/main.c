@@ -11,10 +11,10 @@
 #  include <sys/un.h>
 #endif
 
-#include "api.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
 
 #define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
@@ -22,15 +22,14 @@
 #define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 
 static const long double WAIT_TIME = 3.0L;
-extern FILE *decode_log, *cmd_log, *echo_log, *main_log;
-extern int   decode_log_raw;
+extern FILE *cmd_log, *echo_log, *main_log;
 pthread_t    top_thread;
 
 static void        exit_cleanup(void);
 static int         create_socket(int mes_fd);
 static comp_type_t get_compression_type(int fd);
 static void        open_main_log(void);
-static void        sigusr_wrap(UNUSED int notused);
+static void        sig_handler(UNUSED int notused);
 
 //extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
@@ -40,11 +39,7 @@ static void        sigusr_wrap(UNUSED int notused);
 int
 main(UNUSED int argc, char *argv[])
 {
-        atexit(exit_cleanup);
-        extern const char *program_name;
-        top_thread   = pthread_self();
-        program_name = basename(argv[0]);
-
+        top_thread = pthread_self();
         timer main_timer;
         TIMER_START(main_timer);
 
@@ -52,6 +47,8 @@ main(UNUSED int argc, char *argv[])
         HOME = alloca(PATH_MAX+1);
         snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
 
+        extern const char *program_invocation_short_name;
+        program_invocation_short_name = basename(argv[0]);
         /* Set the standard streams to binary mode in Windows. Don't bother with
          * signals, it's not worth the effort. */
         if (_setmode(0, O_BINARY) == (-1))
@@ -61,11 +58,12 @@ main(UNUSED int argc, char *argv[])
         if (_setmode(2, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stderr");
 #else
+        (void)argv;
         HOME = getenv("HOME");
         {
                 struct sigaction temp;
                 memset(&temp, 0, sizeof(temp));
-                temp.sa_handler = sigusr_wrap;
+                temp.sa_handler = sig_handler;
                 sigaction(SIGUSR1, &temp, NULL);
                 sigaction(SIGINT,  &temp, NULL); // Sigint, sigterm and sigpipe
                 sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
@@ -77,12 +75,11 @@ main(UNUSED int argc, char *argv[])
         snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);
         mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
-        decode_log     = safe_fopen_fmt("%s/stream_decode.log", "wb", LOGDIR);
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
-        decode_log_raw = safe_open_fmt("%s/decode_raw.log", LOG_MASK_PERM, LOGDIR);
 #endif
 
+        /* atexit(&exit_cleanup); */
         pthread_t      thr[3];
         pthread_attr_t attr[3];
         MAKE_PTHREAD_ATTR_DETATCHED(&attr[0]);
@@ -97,18 +94,18 @@ main(UNUSED int argc, char *argv[])
 
         /* Grab user settings defined either in their .vimrc or otherwise by the
          * vimscript plugin. */
-        settings.enabled         = nvim_get_var_pkg(0, "enabled",   E_BOOL  ).num;
-        settings.ctags_bin       = nvim_get_var_pkg(0, "ctags_bin", E_STRING).ptr;
+        settings.enabled        = nvim_get_var(0, B(PKG "enabled"),   E_BOOL  ).num;
+        settings.ctags_bin      = nvim_get_var(0, B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
-        settings.comp_type       = get_compression_type(0);
-        settings.comp_level      = nvim_get_var_pkg(0, "compression_level", E_NUM       ).num;
-        settings.ctags_args      = nvim_get_var_pkg(0, "ctags_args",        E_STRLIST   ).ptr;
-        settings.ignored_ftypes  = nvim_get_var_pkg(0, "ignore",            E_STRLIST   ).ptr;
-        settings.ignored_tags    = nvim_get_var_pkg(0, "ignored_tags",      E_MPACK_DICT).ptr;
-        settings.norecurse_dirs  = nvim_get_var_pkg(0, "norecurse_dirs",    E_STRLIST   ).ptr;
-        settings.settings_file   = nvim_get_var_pkg(0, "settings_file",     E_STRING    ).ptr;
-        settings.verbose         = nvim_get_var_pkg(0, "verbose",           E_BOOL      ).num;
+        settings.comp_type      = get_compression_type(0);
+        settings.comp_level     = nvim_get_var(0, B(PKG "compression_level"), E_NUM       ).num;
+        settings.ctags_args     = nvim_get_var(0, B(PKG "ctags_args"),        E_STRLIST   ).ptr;
+        settings.ignored_ftypes = nvim_get_var(0, B(PKG "ignore"),            E_STRLIST   ).ptr;
+        settings.ignored_tags   = nvim_get_var(0, B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
+        settings.norecurse_dirs = nvim_get_var(0, B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
+        settings.settings_file  = nvim_get_var(0, B(PKG "settings_file"),     E_STRING    ).ptr;
+        settings.verbose        = nvim_get_var(0, B(PKG "verbose"),           E_BOOL      ).num;
 
 #ifdef DEBUG
         settings.verbose = true;
@@ -139,9 +136,6 @@ main(UNUSED int argc, char *argv[])
                 }
         }
 
-        /* const int nvimpid = nvim_get_var_pkg(0, "pid", E_NUM).num; */
-        /* nvim_command(0, B("autocmd TextChanged,TextChangedI * call rpcnotify(g:tag_highlight#pid, 'text_changed', 'D')")) */
-
         /* Wait for something to kill us. */
         pause();
 
@@ -151,8 +145,7 @@ main(UNUSED int argc, char *argv[])
         pthread_cancel(thr[1]);
         pthread_cancel(thr[2]);
 
-        _exit(1);
-
+        exit_cleanup();
         return 0;
 }
 
@@ -184,7 +177,7 @@ exit_cleanup(void)
         free(top_dirs->lst);
         free(top_dirs);
 
-        for (unsigned i = 0; i < ftdata_len; ++i)
+        for (unsigned i = 0; i < ftdata_len; ++i) {
                 if (ftdata[i].initialized) {
                         if (ftdata[i].ignored_tags) {
                                 for (unsigned x = 0; x < ftdata[i].ignored_tags->qty; ++x)
@@ -197,6 +190,7 @@ exit_cleanup(void)
                         b_free(ftdata[i].order);
                         b_free(ftdata[i].restore_cmds);
                 }
+        }
 
         destroy_mpack_dict(settings.ignored_tags);
         free_backups(&backup_pointers);
@@ -204,16 +198,12 @@ exit_cleanup(void)
 
         if (mpack_log)
                 fclose(mpack_log);
-        if (decode_log)
-                fclose(decode_log);
         if (cmd_log)
                 fclose(cmd_log);
         if (main_log)
                 fclose(main_log);
         if (echo_log)
                 fclose(echo_log);
-        if (decode_log_raw > 0)
-                close(decode_log_raw);
         close(mainchan);
         close(bufchan);
 }
@@ -285,7 +275,7 @@ get_compression_type(const int fd)
 
 
 static void
-sigusr_wrap(UNUSED int notused)
+sig_handler(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
                 return;

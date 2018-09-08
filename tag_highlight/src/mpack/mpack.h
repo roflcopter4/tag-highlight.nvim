@@ -38,9 +38,6 @@ enum mpack_expect_types {
         E_STRLIST,
         E_DICT2ARR
 };
-enum message_types { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
-enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
-
 
 #define MPACK_HAS_PACKED	0x80	/* 10000000 */ 
 #define MPACK_ENCODE		0x40	/* 01000000 */ 
@@ -128,8 +125,8 @@ extern const char *const m_message_type_repr[4];
 extern void        mpack_print_object (FILE *fp, const mpack_obj *result);
 extern void        mpack_destroy      (mpack_obj *root);
 extern void        free_stack_push    (struct item_free_stack *list, void *item);
-extern mpack_obj * decode_stream      (int fd, enum message_types expected_type);
-extern mpack_obj * decode_obj         (bstring *buf, enum message_types expected_type);
+extern mpack_obj * decode_stream      (int fd);
+extern mpack_obj * decode_obj         (bstring *buf);
 
 
 /* Encode */
@@ -146,7 +143,6 @@ extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, 
 /* Type conversions and Misc */
 
 extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
-extern retval_t nvim_get_var_fmt    (int fd, mpack_expect_t expect, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 extern retval_t dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
 extern void     destroy_call_array  (struct atomic_call_array *calls);
 extern retval_t m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);

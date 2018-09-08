@@ -1,9 +1,5 @@
 # /src
 set (tag_highlight_SOURCES
-    bstring/bstrlib.c
-    bstring/additions.c
-    bstring/b_list.c
-    
     contrib/contrib.c
     contrib/jsmn/jsmn.c
 
@@ -11,24 +7,19 @@ set (tag_highlight_SOURCES
     tagscan/strip.c
     tagscan/tok.c
 
-    mpack/decode.c
-    mpack/encode.c
-    mpack/mpack.c
-    mpack/print.c
-
-    clang/clang.c
+    # clang/clang.c
     clang/const.c
-    clang/typeswitch.c
+    # clang/typeswitch.c
+    clang/typeid.c
+    clang/cl2.c
+    clang/clang.h
+    clang/libclang.h
 
-    util/archive_gzip.c
-    util/archive_read.c
-    util/archive_write.c
-    util/find.c
-    util/generic_list.c
-    util/linked_list.c
-    util/util.c
+    nvim_api/api.c
+    nvim_api/common.c
+    nvim_api/api.h
+    nvim_api/intern.h
 
-    api.c
     buf_data.c
     ctags.c
     events.c
@@ -39,25 +30,66 @@ set (tag_highlight_SOURCES
     parse.c
     scan_headers.c
     update_commands.c
+    data.h
+    highlight.h
 )
-file (GLOB tag_highlight_GLOB *.h)
-
-# execute_process(COMMAND lvm-config --cflags OUTPUT_VARIABLE LLVM_CFLAGS RESULT_VARIABLE LLVM_RESULT)
-# execute_process(COMMAND lvm-config --ldflags OUTPUT_VARIABLE LLVM_LDFLAGS RESULT_VARIABLE LLVM_RESULT)
-# execute_process(COMMAND lvm-config --libs OUTPUT_VARIABLE LLVM_LIBS RESULT_VARIABLE LLVM_RESULT)
-# string(STRIP "${LLVM_CFLAGS}" LLVM_CFLAGS)
-# string(STRIP "${LLVM_LDFLAGS}" LLVM_LDFLAGS)
-# string(STRIP "${LLVM_LIBS}" LLVM_LIBS)
-# message("${LLVM_CFLAGS}\n${LLVM_LDFLAGS}\n${LLVM_LIBS}")
-
 if (LZMA_SUPPORT)
    set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
 endif()
 
-add_executable(tag_highlight 
-    ${tag_highlight_GLOB}
-    ${tag_highlight_SOURCES}
+add_executable(tag_highlight ${tag_highlight_SOURCES})
+
+add_library(bstring STATIC
+    bstring/additions.c
+    bstring/b_list.c
+    bstring/bstrlib.c
+    bstring/additions.h
+    bstring/bstring.h
+    bstring/defines.h
+    bstring/private.h
 )
+add_library(mpack STATIC
+    mpack/decode.c
+    mpack/encode.c
+    mpack/mpack.c
+    mpack/print.c
+    mpack/data.c
+    mpack/intern.h
+    mpack/mpack.h
+)
+add_library(util STATIC
+    util/archive_gzip.c
+    util/archive_read.c
+    util/archive_write.c
+    util/find.c
+    util/generic_list.c
+    util/linked_list.c
+    util/util.c
+    util/archive.h
+    util/find.h
+    util/list.h
+    util/util.h
+)
+add_library(all_libs SHARED
+    nvim_api/api.c
+    nvim_api/common.c
+    bstring/bstrlib.c
+    bstring/additions.c
+    bstring/b_list.c
+    mpack/decode.c
+    mpack/encode.c
+    mpack/mpack.c
+    mpack/print.c
+    util/archive_gzip.c
+    util/archive_read.c
+    util/archive_write.c
+    util/find.c
+    util/generic_list.c
+    util/linked_list.c
+    util/util.c
+)
+
+target_link_libraries(tag_highlight util mpack bstring)
 
 add_definitions(-D_BUILD_)
 
@@ -74,25 +106,25 @@ elseif(MINGW)
 
 else()
     # set (JEMALLOC_STUFF /opt/jemalloc/lib/libjemalloc.so.2 -lm -lstdc++ -lpthread -ldl)
-    if (LZMA_SUPPORT)
-        include_directories(${LIBLZMA_INCLUDE_DIRS})
-        if (BUILD_DIST OR STATIC_LIBS_ONLY)
-            add_library(neo_LZMA_STATIC STATIC IMPORTED)
-            set_property(TARGET neo_LZMA_STATIC PROPERTY IMPORTED_LOCATION /usr/lib64/liblzma.a)
-            target_link_libraries(tag_highlight neo_LZMA_STATIC)
-        else()
-            target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
-        endif()
-    endif()
-    
+    # target_link_libraries(tag_highlight "-L/mnt/arch/backup/clang-dev/lib" /mnt/arch/backup/clang-dev/lib/libclang.so.8svn -lstdc++)
+
+    # target_link_libraries(tag_highlight -static "${myCLANGLIST}" -lstdc++)
+    # target_link_libraries(tag_highlight -Wl,-Bdynamic /mnt/arch/backup/clang-dev/lib/libclang.so -lunwind)
+    # target_link_libraries(tag_highlight -static "-L${CMAKE_SOURCE_DIR}" -lclang ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
+
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight -pthread)
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
-    target_link_libraries(tag_highlight ${JEMALLOC_STUFF})
 
+    # set(CMAKE_C_FLAGS "-I/mnt/arch/backup/clang-dev/include")
     set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
     target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
+    # target_link_libraries(tag_highlight -static /mnt/arch/backup/clang-dev/lib/libclang.a -lunwind ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
 
+    if (LZMA_SUPPORT)
+        include_directories(${LIBLZMA_INCLUDE_DIRS})
+        target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
+    endif()
     if (CLANG_STR_SEARCH)
         target_link_libraries(tag_highlight -lunwind)
     endif()

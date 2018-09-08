@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "util/linked_list.h"
+#include "util/list.h"
 
 #define V(PTR_) ((void *)(PTR_))
 #define MSG1()                                                                                  \

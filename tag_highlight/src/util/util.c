@@ -54,10 +54,7 @@
 #  define SHOW_STACKTRACE(...)
 #endif
 
-extern const char *program_name;
-
 static bool file_is_reg(const char *filename);
-
 
 FILE *
 safe_fopen(const char *filename, const char *mode)
@@ -280,9 +277,9 @@ __err(UNUSED const int status, const bool print_err, const char *const __restric
         char buf[ERRSTACKSIZE];
 
         if (print_err)
-                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_name, fmt, strerror(errno));
+                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
         else
-                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_name, fmt);
+                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
         vfprintf(stderr, buf, ap);
         va_end(ap);
@@ -305,9 +302,9 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         char buf[ERRSTACKSIZE];
 
         if (print_err)
-                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_name, fmt, strerror(errno));
+                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
         else
-                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_name, fmt);
+                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
         nvim_vprintf(mainchan, buf, ap1);
 

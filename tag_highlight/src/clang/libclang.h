@@ -63,8 +63,24 @@ extern const char *const clang_paths[3];
 
 /*======================================================================================*/
 
-__attribute__((visibility("hidden"))) extern void typeswitch(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info);
-extern void typeswitch_2(struct bufdata *bdata, struct translationunit *stu, const b_list *enumerators, struct cmd_info **info, int line, int end);
+#if 0
+__attribute__((visibility("hidden"))) extern void typeswitch(struct bufdata *bdata,
+                                                             struct translationunit *stu,
+                                                             const b_list *enumerators,
+                                                             struct cmd_info **info);
+__attribute__((visibility("hidden"))) extern void typeswitch_2(struct bufdata *bdata,
+                                                               struct translationunit *stu,
+                                                               const b_list *enumerators,
+                                                               struct cmd_info **info,
+                                                               int line,
+                                                               int end);
+#endif
+__attribute__((visibility("hidden"))) extern void type_id(struct bufdata *bdata,
+                                                          struct translationunit *stu,
+                                                          const b_list *enumerators,
+                                                          struct cmd_info *info,
+                                                          const int        line,
+                                                          const int        end);
 
 __attribute__((visibility("hidden"))) extern void tokvisitor(struct token *tok);
 

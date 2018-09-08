@@ -27,7 +27,7 @@ event_loop(void *vdata)
                 fd = 1;
 
         for (;;) {
-                mpack_obj *obj = decode_stream(fd, MES_ANY);
+                mpack_obj *obj = decode_stream(fd);
                 if (!obj)
                         errx(1, "Got NULL object from decoder, cannot continue.");
 
@@ -153,6 +153,7 @@ interrupt_call(void *vdata)
                 }
 
                 if (update_taglist(bdata, (data->val == 'F'))) {
+                        clear_highlight(nvim_get_current_buf(0), NULL);
                         update_highlight(bufnum, bdata);
                         TIMER_REPORT(t, "update");
                 }
@@ -179,10 +180,11 @@ interrupt_call(void *vdata)
                 break;
 
         case 'I': {
-                extern void libclang_update_line(struct bufdata *, int, int);
+                /* extern void libclang_update_line(struct bufdata *, int, int); */
+                extern void libclang_highlight(struct bufdata *, int, int);
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
-                libclang_update_line(bdata, 0, bdata->lines->qty);
+                libclang_highlight(bdata, 0, bdata->lines->qty);
                 break;
         }
         default:

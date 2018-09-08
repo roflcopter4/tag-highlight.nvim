@@ -1,7 +1,6 @@
 #include "util/util.h"
 #include <dirent.h>
 
-#include "data.h"
 #include "mpack.h"
 
 /* static mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...); */
@@ -12,6 +11,7 @@ static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
 
 static unsigned        stdchan_count, bufchan_count, mainchan_count;
 static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
+FILE  *mpack_log;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
@@ -429,14 +429,10 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  *
  * All errors are fatal.
  */
-
-/* #ifdef DEBUG */
-/* #undef DEBUG */
-/* #endif */
-
 mpack_obj *
 encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
+        /* eprintf("Fmt is \"%s\"\n", fmt); */
         assert(fmt != NULL && *fmt != '\0');
         union atomic_call_args    **a_args    = NULL;
         enum encode_fmt_next_type   next_type = OWN_VALIST;
@@ -493,17 +489,20 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         }
 
         if (STACK_CTR(len_stack) != 0)
-                errx(1, "Invalid encode format string: undetermined array/dictionary.\t%s", fmt);
-        mpack_obj *pack = NULL;
-        if (sub_lengths[0] == 0)
-                goto cleanup;
+                errx(1, "Invalid encode format string: undetermined array/dictionary.\n\"%s\"", fmt);
+        if (sub_lengths[0] > 1)
+                errx(1, "Invalid encode format string: Cannot encode multiple items "
+                        "at the top level. Put them in an array.\n\"%s\"", fmt);
+        if (sub_lengths[0] == 0) {
+                va_end(args);
+                return NULL;
+        }
 
 #ifdef DEBUG
-        pack = mpack_make_new(sub_lengths[0], true);
+        mpack_obj *pack = mpack_make_new(sub_lengths[0], true);
 #else
-        pack = mpack_make_new(sub_lengths[0], false);
+        mpack_obj *pack = mpack_make_new(sub_lengths[0], false);
 #endif
-
         mpack_obj **cur_obj      = NULL;
         unsigned   *sub_ctrlist  = nalloca(len_ctr + 1, sizeof(unsigned));
         unsigned   *cur_ctr      = sub_ctrlist;
@@ -514,7 +513,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         ptr                      = fmt;
         *cur_ctr                 = 1;
 #ifdef DEBUG
-        cur_obj                  = &pack->DAI[0];
+        cur_obj                  = &pack;
 #else
         cur_obj                  = NULL;
 #endif
@@ -647,7 +646,6 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 ++*cur_ctr;
         }
 
-cleanup:
         va_end(args);
         return pack;
 }

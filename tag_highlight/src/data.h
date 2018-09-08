@@ -1,11 +1,9 @@
 #ifndef SRC_DATA_H
 #define SRC_DATA_H
 
-#include "util/linked_list.h"
-
-#include "api.h"
+#include "nvim_api/api.h"
 #include "mpack/mpack.h"
-#include "util/generic_list.h"
+#include "util/list.h"
 #include <pthread.h>
 
 #ifdef __cplusplus
@@ -13,12 +11,6 @@ extern "C" {
 #endif
 
 #define DATA_ARRSIZE 4096
-
-enum filetype_id {
-        FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
-        FT_JAVASCRIPT, FT_LISP, FT_PERL, FT_PHP, FT_PYTHON,
-        FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
-};
 
 enum event_types {
         EVENT_BUF_LINES,
@@ -46,7 +38,7 @@ struct settings_s {
         mpack_dict_t *order;
 };
 
-struct ftdata_s {
+struct filetype {
         b_list       *equiv;
         b_list       *ignored_tags;
         bstring      *restore_cmds;
@@ -78,14 +70,17 @@ struct bufdata {
         uint32_t last_ctick; // 8 bytes
         uint16_t num;
         uint8_t  hl_id;
-        bool     initialized;
+        bool     initialized; // 6 bytes
 
-        bstring         *filename;
-        bstring         *basename;
-        bstring         *pathname;
+        struct {
+                bstring *full;
+                bstring *base;
+                bstring *path;
+        } name;
+
         b_list          *cmd_cache;
         linked_list     *lines;
-        struct ftdata_s *ft;
+        struct filetype *ft;
         struct top_dir  *topdir;
         struct atomic_call_array *calls;
         void *clangdata;
@@ -117,7 +112,7 @@ struct int_pdata {
 
 extern struct settings_s   settings;
 extern struct buffer_list  buffers;
-extern struct ftdata_s     ftdata[];
+extern struct filetype     ftdata[];
 extern genlist            *top_dirs;
 
 extern int mainchan, bufchan;
@@ -142,7 +137,7 @@ extern int             find_buffer_ind  (int bufnum);
 extern bool            is_bad_buffer    (int bufnum);
 extern void            destroy_bufdata  (struct bufdata **bdata);
 extern struct bufdata *find_buffer      (int bufnum);
-extern struct bufdata *get_bufdata      (int fd, int bufnum, struct ftdata_s *ft);
+extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft);
 extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 
 

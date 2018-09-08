@@ -2,9 +2,8 @@
 #include <stddef.h>
 #include <sys/socket.h>
 
-#include "data.h"
-#include "mpack.h"
 #include "intern.h"
+#include "mpack.h"
 
 extern int decode_log_raw;
 extern FILE *decodelog;
@@ -60,7 +59,7 @@ struct mpack_mutex {
 
 
 mpack_obj *
-decode_stream(int32_t fd, const enum message_types expected_type)
+decode_stream(int32_t fd)
 {
         pthread_mutex_lock(&mpack_search_mutex);
         int mid = -1;
@@ -113,7 +112,7 @@ decode_stream(int32_t fd, const enum message_types expected_type)
 
 
 mpack_obj *
-decode_obj(bstring *buf, const enum message_types expected_type)
+decode_obj(bstring *buf)
 {
         mpack_obj *ret = do_decode(&obj_read, buf);
 

@@ -1,17 +1,27 @@
 #ifndef SRC_API_H
 #define SRC_API_H
 
-/* #include "util/util.h" */
-
+#include "bstring/bstring.h"
 #include "data.h"
 #include "mpack/mpack.h"
-#include "util/generic_list.h"
+#include "util/list.h"
 
+#ifndef __GNUC__
+#  define __attribute__((...))
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 extern genlist *wait_list;
+
+enum filetype_id {
+        FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
+        FT_JAVASCRIPT, FT_LISP, FT_PERL, FT_PHP, FT_PYTHON,
+        FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
+};
+enum message_types { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
+enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
 
 struct nvim_wait {
         enum message_types mtype;
@@ -21,13 +31,34 @@ struct nvim_wait {
         mpack_obj         *obj;
 };
 
+struct nvim_buffer {
+        struct {
+                bstring full[1];
+                bstring base[1];
+                bstring path[1];
+        } name;
+
+        /* const struct nvim_filetype *ft; */
+        linked_list *contents;
+        uint32_t     ctick;
+        uint16_t     num;
+        uint16_t     flags;
+        /* enum filetype_id id; */
+};
+
+/* struct nvim_filetype {                  */
+/*         const bstring          name[1]; */
+/*         const enum filetype_id id;      */
+/* };                                      */
+
 
 /*============================================================================*/
 /* API Wrappers */
-extern void       __nvim_write (int fd, enum nvim_write_type type, const bstring *mes);
-extern void       nvim_printf  (int fd, const char *__restrict fmt, ...) __attribute__((__format__(printf,2, 3)));
-extern void       nvim_vprintf (int fd, const char *__restrict fmt, va_list args);
-extern void       nvim_b_printf(int fd, const bstring *fmt, ...);
+extern void       __nvim_write    (int fd, enum nvim_write_type type, const bstring *mes);
+extern void       nvim_printf     (int fd, const char *__restrict fmt, ...) __attribute__((__format__(printf,2, 3)));
+extern void       nvim_vprintf    (int fd, const char *__restrict fmt, va_list args);
+extern void       nvim_b_printf   (int fd, const bstring *fmt, ...);
+extern retval_t   nvim_get_var_fmt(int fd, mpack_expect_t expect, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
 
 extern int        nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
 extern b_list   * nvim_buf_attach         (int fd, int bufnum);
@@ -61,9 +92,8 @@ extern bstring * get_notification(int fd);
         ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
                             : (void)0)
 
-#ifdef __cplusplus
-    }
-#endif
-
 /*============================================================================*/
+#ifdef __cplusplus
+}
+#endif
 #endif /* api.h */
