@@ -101,7 +101,9 @@ else()
         set (MARCH_SETTING "-march=native")
     endif()
 
-    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope -fsanitize=undefined")
+    # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope -fsanitize=undefined")
+    # set (SANIT "-fsanitize=thread -fsanitize=undefined")
+    set (SANIT "-fsanitize=undefined -fsanitize-address-use-after-scope")
     set (BASE "${WARNS} ${MARCH_SETTING} -fdiagnostics-color=always")
 
 #####################################################################################################
@@ -121,11 +123,11 @@ else()
         # string(CONCAT CMAKE_C_FLAGS_DEBUG "-Wno-sign-conversion -Wno-documentation-unknown-command"
         #        " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
         #        " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
-        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -O2 -g")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g")
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
-        # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
     endif()
 #####################################################################################################
 

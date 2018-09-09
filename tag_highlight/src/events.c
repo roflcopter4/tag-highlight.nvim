@@ -1,8 +1,9 @@
 #include "util/util.h"
 
+#include "clang/clang.h"
 #include "data.h"
-#include "nvim_api/api.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
 
 #define BT bt_init
 /* #define WRITE_BUF_UPDATES */
@@ -26,8 +27,8 @@ static const struct event_id {
 static inline void b_write_ll(int fd, linked_list *ll);
 #endif
 static void handle_line_event(struct bufdata *bdata, mpack_obj **items);
-static void replace_line(struct bufdata *bdata, b_list *repl_list,
-                         unsigned lineno, unsigned replno);
+static void replace_line(struct bufdata *bdata, b_list *repl_list, unsigned lineno, unsigned replno);
+static void make_update_thread(struct bufdata *bdata, const int first, const int last);
 static const struct event_id *id_event(mpack_obj *event);
 
 
@@ -207,9 +208,35 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         free(repl_list->lst);
         free(repl_list);
+
+        /* pthread_cond_signal(&libclang_cond); */
+
+        START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
+
+#if 0
         const unsigned mx = (bdata->lines->qty > last) ? bdata->lines->qty : last; 
         if (first + mx >= 1)
                 update_line(bdata, first, mx);
+#endif
+        /* const unsigned mx = (bdata->lines->qty > last) ? bdata->lines->qty : last;  */
+        /* make_update_thread(bdata, first, mx); */
+#if 0
+        /* if (first + mx >= 1) { */
+                struct lc_thread {
+                        struct bufdata *bdata;
+                        int       first;
+                        int       last;
+                        int       ctick;
+                } *tdata = malloc(sizeof(struct lc_thread));
+                *tdata = (struct lc_thread){bdata, first, mx, bdata->ctick};
+
+                pthread_t      tid;
+                pthread_attr_t attr;
+                MAKE_PTHREAD_ATTR_DETATCHED(&attr);
+                pthread_create(&tid, &attr, &libclang_threaded_highlight, tdata);
+        /* } */
+#endif
+
         pthread_mutex_unlock(&event_mutex);
 }
 
@@ -264,4 +291,21 @@ id_event(mpack_obj *event)
                 errx(1, "Failed to identify event type.\n");
 
         return type;
+}
+
+static void
+make_update_thread(struct bufdata *bdata, const int first, const int last)
+{
+        struct lc_thread {
+                struct bufdata *bdata;
+                int       first;
+                int       last;
+                int       ctick;
+        } *tdata = malloc(sizeof(struct lc_thread));
+        *tdata = (struct lc_thread){bdata, first, last, bdata->ctick};
+
+        pthread_t      tid;
+        pthread_attr_t attr;
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr);
+        pthread_create(&tid, &attr, &libclang_threaded_highlight, tdata);
 }

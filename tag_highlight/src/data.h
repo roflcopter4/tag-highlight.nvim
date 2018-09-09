@@ -84,10 +84,11 @@ struct bufdata {
 
         /* This feels so hacky. */
 
+#if 0
         void   *clangdata;
         mpack_call_array *calls;
         b_list           *cmd_cache;
-#if 0
+#endif
         union {
                 struct { /* C, C++ */
                         void   *clangdata;
@@ -98,7 +99,6 @@ struct bufdata {
                         b_list           *cmd_cache;
                 };
         };
-#endif
 };
         
 struct buffer_list {

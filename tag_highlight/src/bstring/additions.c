@@ -173,7 +173,7 @@ __b_fputs(FILE *fp, bstring *bstr, ...)
 }
 
 
-void
+int
 __b_write(const int fd, bstring *bstr, ...)
 {
         va_list va;
@@ -184,13 +184,18 @@ __b_write(const int fd, bstring *bstr, ...)
                                 break;
                         if (bstr->data && bstr->slen > 0) {
                                 ssize_t n, total = 0;
+                                errno = 0;
                                 do {
                                         n = write(fd, bstr->data, bstr->slen);
                                 } while (n >= 0 && (total += n) != bstr->slen);
+                                if (errno)
+                                        return errno;
                         }
                 }
         }
         va_end(va);
+
+        return BSTR_OK;
 }
 
 

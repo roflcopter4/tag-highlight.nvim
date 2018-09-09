@@ -6,6 +6,7 @@
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
+#include <dirent.h>
 #include <spawn.h>
 #include <stddef.h>
 #include <wait.h>
@@ -13,11 +14,14 @@
 #define CLD(s)    ((struct clangdata *)((s)->clangdata))
 #define TMPSIZ    (512)
 #define CS(CXSTR) (clang_getCString(CXSTR))
+#if 0
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \
          | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_Incomplete)
+#endif
+#define TUFLAGS (clang_defaultEditingTranslationUnitOptions() | CXTranslationUnit_DetailedPreprocessingRecord)
 
 #define DUMPDATA()                                                 \
         do {                                                       \
@@ -69,10 +73,16 @@ libclang_highlight(struct bufdata *bdata, const int first, const int last)
 {
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_lock(&mut);
+        timer t;
 
+        /* TIMER_START(t); */
+        if (!bdata)
+                err(1, "how?");
         struct translationunit *stu = (bdata->clangdata)
                                           ? recover_compilation_unit(bdata)
                                           : init_compilation_unit(bdata);
+        /* TIMER_REPORT(t, "compilation unit"); */
+
         int64_t  startend[2];
         CXFile   file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
@@ -83,11 +93,38 @@ libclang_highlight(struct bufdata *bdata, const int first, const int last)
                 lines2bytes(bdata, startend, first, last);
         }
 
+        /* TIMER_START(t); */
         tokenize_range(stu, &file, startend[0], startend[1]);
-        type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
+        /* TIMER_REPORT(t, "tokenizing"); */
+
+        /* TIMER_START(t); */
+        mpack_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
+        nvim_call_atomic(0, calls);
+        destroy_call_array(calls);
         destroy_struct_translationunit(stu);
+        /* TIMER_REPORT(t, "calls and cleanup"); */
 
         pthread_mutex_unlock(&mut);
+}
+
+mpack_call_array *
+libclang_highlight___(struct bufdata *bdata, const int first, const int last)
+{
+        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_lock(&mut);
+        struct translationunit *stu = (bdata->clangdata) ? recover_compilation_unit(bdata) : init_compilation_unit(bdata);
+        int64_t  startend[2];
+        CXFile   file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
+        if (last == (-1)) {
+                startend[0] = 0;
+                startend[1] = stu->buf->slen;
+        } else {
+                lines2bytes(bdata, startend, first, last);
+        }
+        tokenize_range(stu, &file, startend[0], startend[1]);
+        mpack_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
+        pthread_mutex_unlock(&mut);
+        return calls;
 }
 
 static inline void
@@ -120,10 +157,17 @@ recover_compilation_unit(struct bufdata *bdata)
         stu->buf = ll_join(bdata->lines, '\n');
 
         const int fd = open(CLD(bdata)->tmp_name, O_WRONLY|O_TRUNC, 0600);
-        b_write(fd, stu->buf, B("\n"));
+        if (b_write(fd, stu->buf, B("\n")) != 0)
+                err(1, "Write failed");
         close(fd);
 
+#if 0
+        struct CXUnsavedFile usf = {BS(bdata->name.full), BS(stu->buf), stu->buf->slen};
+        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1, &usf, TUFLAGS);
+#endif
+
         int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 0, NULL, TUFLAGS);
+
         if (ret != 0)
                 errx(1, "libclang error: %d", ret);
 
@@ -160,7 +204,7 @@ init_compilation_unit(struct bufdata *bdata)
         stu->tu  = CLD(bdata)->tu;
 
         /* Get all enumerators in the translation unit separately, because clang
-         * doesn't expose them as such, only as normal integers. */
+         * doesn't expose them as such, only as normal integers (in C). */
         struct mydata enumlist = {CLD(bdata)->tu, b_list_create(), buf};
         clang_visitChildren(clang_getTranslationUnitCursor(CLD(bdata)->tu),
                             visit_continue, &enumlist);
@@ -172,6 +216,12 @@ init_compilation_unit(struct bufdata *bdata)
         CLD(bdata)->argv        = comp_cmds;
         CLD(bdata)->info        = getinfo(bdata);
         memcpy(CLD(bdata)->tmp_name, tmp, tmplen + 1);
+
+#if 0
+        char pch[PATH_MAX];
+        snprintf(pch, PATH_MAX, "%s/%s.pch", tmp_path, BS(bdata->name.base));
+        clang_saveTranslationUnit(CLD(bdata)->tu, pch, clang_defaultSaveOptions(CLD(bdata)->tu));
+#endif
 
         return stu;
 }
@@ -245,12 +295,21 @@ get_compile_commands(struct bufdata *bdata)
                                         ++x;
                         } else if (cstr[0] == '-') {
                                 argv_append(ret, cstr, true);
-                        } else if (!b_iseq(&bstr, bdata->name.full) //&&
-                                   //!b_iseq(&bstr, bdata->name.base) &&
-                                   //!b_iseq(base,  bdata->name.path) &&
+                        } else if (({
+                                           struct stat st;
+                                           int         val = stat(cstr, &st);
+                                           (val != 0 || S_ISDIR(st.st_mode));
+                                   }) &&
+                                    
+                                   /* ! b_iseq(&bstr, bdata->name.full) && */
+                                   ! b_iseq(&bstr, bdata->name.base) //&&
+                                   //! b_iseq(base,  bdata->name.path) &&
                                    /* ({struct stat st; stat(cstr, &st);}) != 0 */) {
                                 argv_append(ret, cstr, true);
                         }
+                        /* else if (!(strstr(cstr, ".c") || strstr(cstr, ".cpp") || strstr(cstr, ".cc"))) {
+                                argv_append(ret, cstr, true);
+                        } */
 
                         b_free(base);
                         clang_disposeString(tmp);
@@ -303,7 +362,6 @@ static void
 clean_tmpdir(void)
 {
 #ifndef HAVE_POSIX_SPAWNP
-#error asswipe
         char cmd[CMD_SIZ];
         snprintf(cmd, CMD_SIZ, "rm -rf \"%s\"", tmp_path);
         int status = system(cmd) << STATUS_SHIFT;

@@ -50,8 +50,10 @@ mpack_print_object(FILE *fp, const mpack_obj *result)
         return;
 #endif
         //eprintf("Printing an object.....\n");
-        assert(result != NULL);
-        assert(fp != NULL);
+        /* assert(result != NULL);
+        assert(fp != NULL); */
+        if (!fp || !result)
+                return;
 
         if (!(result->flags & MPACK_ENCODE))
                 return;

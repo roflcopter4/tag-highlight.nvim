@@ -10,6 +10,7 @@ set (tag_highlight_SOURCES
     clang/cl2.c
     clang/const.c
     clang/typeid.c
+    clang/threaded.c
     clang/clang.h
     clang/clang_intern.h
 
@@ -110,14 +111,16 @@ else()
     # target_link_libraries(tag_highlight -Wl,-Bdynamic /mnt/arch/backup/clang-dev/lib/libclang.so -lunwind)
     # target_link_libraries(tag_highlight -static "-L${CMAKE_SOURCE_DIR}" -lclang ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
 
+    # target_link_libraries(tag_highlight -static)
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight -pthread)
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
 
     # set(CMAKE_C_FLAGS "-I/mnt/arch/backup/clang-dev/include")
-    set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
-    target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
+    # set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
+    # target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
     # target_link_libraries(tag_highlight -static /mnt/arch/backup/clang-dev/lib/libclang.a -lunwind ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
+    # target_link_libraries(tag_highlight "-L/opt/DCLANG/lib" -Wl,-rpath=/opt/DCLANG/lib /opt/DCLANG/lib/libclang.so.8svn -lstdc++)
 
     if (LZMA_SUPPORT)
         include_directories(${LIBLZMA_INCLUDE_DIRS})
@@ -129,5 +132,7 @@ else()
 
     # target_link_libraries(tag_highlight -lpcre2-8)
 
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -L${LIBCLANG_LIBDIR}")
+    include_directories(/opt/more_clang/include)
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -Wl,-rpath=/opt/more_clang/lib -L/opt/more_clang/lib")
+    target_link_libraries(tag_highlight /opt/more_clang/lib/libclang.so.8svn)
 endif()

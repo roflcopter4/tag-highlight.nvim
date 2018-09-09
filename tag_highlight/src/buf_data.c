@@ -126,7 +126,9 @@ destroy_bufdata(struct bufdata **bdata)
         b_free((*bdata)->name.base);
         b_free((*bdata)->name.path);
         ll_destroy((*bdata)->lines);
-        destroy_call_array((*bdata)->calls);
+
+        if (!(*bdata)->ft->is_c && (*bdata)->calls)
+                destroy_call_array((*bdata)->calls);
 
         if ((*bdata)->clangdata)
                 destroy_clangdata(*bdata);

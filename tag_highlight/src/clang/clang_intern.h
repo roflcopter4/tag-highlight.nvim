@@ -77,14 +77,14 @@ __attribute__((visibility("hidden"))) extern void typeswitch_2(struct bufdata *b
                                                                int line,
                                                                int end);
 #endif
-/* __attribute__((visibility("hidden"))) */ extern void type_id(struct bufdata *bdata,
+__attribute__((visibility("hidden"))) extern mpack_call_array *type_id(struct bufdata *bdata,
                                                           struct translationunit *stu,
                                                           const b_list *enumerators,
                                                           struct cmd_info *info,
                                                           const int        line,
                                                           const int        end);
 
-///* __attribute__((visibility("hidden"))) */ extern void tokvisitor(struct token *tok);
+__attribute__((visibility("hidden"))) //extern void tokvisitor(struct token *tok);
 void tokvisitor(struct token *tok);
 
 #ifdef __cplusplus

@@ -248,7 +248,7 @@ BSTR_PUBLIC void __b_fputs(FILE *fp, bstring *bstr, ...);
  * Same as __b_fputs but writes to a file descriptor using the write(2) function
  * rather than a FILE * object and fwrite(3);
  */
-BSTR_PUBLIC void __b_write(int fd, bstring *bstr, ...);
+BSTR_PUBLIC int  __b_write(int fd, bstring *bstr, ...);
 BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listname);
 BSTR_PUBLIC void __b_list_dump_fd(int fd, const b_list *list, const char *listname);
 

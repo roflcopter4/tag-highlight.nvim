@@ -2,6 +2,7 @@
 #define SRC_CLANG_CLANG_H
 
 #include "data.h"
+#include <pthread.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,8 +15,14 @@ extern "C" {
 //extern void libclang_get_hl_commands(struct bufdata *bdata);
 //extern void libclang_update_line(struct bufdata *bdata, int first, int last);
 
+extern void *libclang_threaded_highlight(void *vdata);
+extern void *libclang_waiter(void *vdata);
+
 extern void libclang_highlight(struct bufdata *bdata, int first, int last);
 extern void destroy_clangdata(struct bufdata *bdata);
+
+extern pthread_cond_t libclang_cond;
+
 
 #ifdef __cplusplus
 }

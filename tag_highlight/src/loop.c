@@ -1,5 +1,6 @@
 #include "util/util.h"
 
+#include "clang/clang.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
@@ -90,13 +91,14 @@ void *
 interrupt_call(void *vdata)
 {
         static int             bufnum    = (-1);
-        static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER;
+        /* static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER; */
         struct int_pdata      *data      = vdata;
         timer t;
 
         /* pthread_mutex_lock(&int_mutex); */
 
-        echo("Recieved \"%c\"; waking up!", data->val);
+        if (data->val != 'H')
+                echo("Recieved \"%c\"; waking up!", data->val);
 
         switch (data->val) {
         /*
@@ -174,15 +176,12 @@ interrupt_call(void *vdata)
                 break;
 
         case 'H':
-
                 break;
 
         case 'I': {
-                /* extern void libclang_update_line(struct bufdata *, int, int); */
-                extern void libclang_highlight(struct bufdata *, int, int);
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
-                libclang_highlight(bdata, 0, bdata->lines->qty);
+                update_highlight(bufnum, bdata);
                 break;
         }
         default:

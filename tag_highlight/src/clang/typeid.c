@@ -42,7 +42,7 @@ static void clear_nvim_highlights(struct bufdata *bdata);
 
 /*======================================================================================*/
 
-void
+mpack_call_array *
 type_id(struct bufdata         *bdata,
         struct translationunit *stu,
         const b_list           *enumerators,
@@ -50,7 +50,7 @@ type_id(struct bufdata         *bdata,
         const int               line,
         const int               end)
 {
-        struct atomic_call_array *calls = new_call_array();
+        mpack_call_array *calls = new_call_array();
 
         if (!info)
                 errx(1, "Invalid");
@@ -65,12 +65,13 @@ type_id(struct bufdata         *bdata,
                 struct token *tok = stu->tokens->lst[i];
                 if (check_skip(bdata, tok))
                         continue;
-                tokvisitor(tok);
+                /* tokvisitor(tok); */
                 do_typeswitch(bdata, calls, tok, info, enumerators);
         }
 
-        nvim_call_atomic(0, calls);
-        destroy_call_array(calls);
+        /* nvim_call_atomic(0, calls);
+        destroy_call_array(calls); */
+        return calls;
 }
 
 /*======================================================================================*/
@@ -87,12 +88,10 @@ static void do_typeswitch(struct bufdata           *bdata,
         const bstring *group;
         int            ctagskind = 0;
 
-#if 0
         if (lastline != tok->line) {
-                add_clr_call(calls, bdata->num, (-1), tok->line, tok->line/*  + 1 */);
+                add_clr_call(calls, bdata->num, (-1), tok->line, tok->line + 1);
                 lastline = tok->line;
         }
-#endif
 
         switch (tok->cursor.kind) {
         case CXCursor_TypedefDecl:

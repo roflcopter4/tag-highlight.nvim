@@ -40,3 +40,6 @@ const char *const clang_paths[] = {
 };
 
 const size_t n_clang_paths = sizeof(clang_paths) / sizeof(clang_paths[0]);
+
+int cur_ctick;
+pthread_cond_t libclang_cond = PTHREAD_COND_INITIALIZER;

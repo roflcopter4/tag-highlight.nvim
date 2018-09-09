@@ -11,6 +11,7 @@
 #  include <sys/un.h>
 #endif
 
+#include "clang/clang.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
@@ -135,6 +136,8 @@ main(UNUSED int argc, char *argv[])
                         TIMER_REPORT(main_timer, "main initialization");
                 }
         }
+
+        START_DETACHED_PTHREAD(libclang_waiter, NULL);
 
         /* Wait for something to kill us. */
         pause();
