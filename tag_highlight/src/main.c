@@ -128,7 +128,7 @@ main(UNUSED int argc, char *argv[])
                         struct bufdata *bdata = find_buffer(initial_buf);
 
                         nvim_buf_attach(BUFFER_ATTACH_FD, initial_buf);
-                        get_init_lines(bdata);
+                        get_initial_lines(bdata);
                         get_initial_taglist(bdata);
                         update_highlight(initial_buf, bdata);
 
@@ -144,9 +144,8 @@ main(UNUSED int argc, char *argv[])
         pthread_cancel(thr[0]);
         pthread_cancel(thr[1]);
         pthread_cancel(thr[2]);
-
         exit_cleanup();
-        return 0;
+        exit(EXIT_SUCCESS);
 }
 
 

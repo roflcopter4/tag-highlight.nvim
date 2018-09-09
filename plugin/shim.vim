@@ -8,6 +8,7 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
+            call vimproc#write('/home/bml/fuck.log', l:str . "\n", 'a')
         endif
     endfor
 endfunction
@@ -83,6 +84,12 @@ function! s:ModeChange()
     endif
 endfunction
 
+function! s:CursorHold()
+    if s:init && s:job1 !=# 0
+        call rpcnotify(s:job1, 'vim_event_update', 'H')
+    endif
+endfunction
+
 function! s:ExitKill()
     if exists('g:tag_highlight#binpid') 
         echom system('kill -INT ' . g:tag_highlight#binpid) 
@@ -113,6 +120,8 @@ function! s:InitTagHighlight()
     let l:cur  = nvim_get_current_buf()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
+
+    call system('rm /home/bml/fuck.log')
 
     if filereadable(expand('~/.vim_tags/bin/tag_highlight'))
         let l:binary = expand('~/.vim_tags/bin/tag_highlight')
@@ -155,6 +164,7 @@ augroup TagHighlightAu
     autocmd BufWritePost * call s:UpdateTags()
     autocmd BufEnter * call s:BufChanged()
     autocmd VimLeavePre * call s:ExitKill()
+    autocmd CursorHold,CursorHoldI *.{c,cc,cpp,cxx,h,hh,hpp} call s:CursorHold()
     " autocmd InsertEnter,InsertLeave *.{c,cc,cpp,cxx,h,hh,hpp} call s:ModeChange()
 augroup END
 

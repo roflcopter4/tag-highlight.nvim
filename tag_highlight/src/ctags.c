@@ -28,18 +28,21 @@ run_ctags(struct bufdata *bdata, const int force)
                 return false;
         }
 
+#if 0
         /* Look for header files if we're processing C or C++ code. */
         b_list *headers = NULL;
-        if (bdata->topdir->is_c)
+        if (bdata->ft->is_c)
                 headers = find_header_files(bdata);
+#endif
 
         /* Wipe any cached commands if they exist. */
-        if (bdata->calls) {
+        if (!bdata->ft->is_c && bdata->calls) {
                 destroy_call_array(bdata->calls);
                 bdata->calls = NULL;
         }
 
-        int status = exec_ctags(bdata, headers, force);
+        /* int status = exec_ctags(bdata, headers, force); */
+        int status = exec_ctags(bdata, NULL, force);
 
         if (status != 0)
                 warnx("ctags failed with status \"%d\"\n", status);
@@ -57,7 +60,7 @@ get_initial_taglist(struct bufdata *bdata)
         struct stat st;
         int         ret = 0;
 
-        if (bdata->ft->id == FT_C)
+        if (bdata->ft->is_c)
                 return 1;
 
         TIMER_START(t);
@@ -112,7 +115,7 @@ get_initial_taglist(struct bufdata *bdata)
 int
 update_taglist(struct bufdata *bdata, const int force)
 {
-        if (bdata->ft->id == FT_C)
+        if (bdata->ft->is_c)
                 return 1;
         if (!force && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
@@ -182,7 +185,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                 b_free(tmp);
                 b_list_destroy(headers);
         }
-        else if (bdata->topdir->recurse && !bdata->topdir->is_c) {
+        else if (bdata->topdir->recurse && !bdata->ft->is_c) {
                 B_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
                            bdata->topdir->pathname);
@@ -222,15 +225,17 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                bdata->topdir->tmpfname->data[0] != '\0');
         argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
-        if ((force != 2) && bdata->topdir->recurse && !bdata->topdir->is_c) {
+        if ((force != 2) && bdata->topdir->recurse /* && !bdata->ft->is_c */) {
                 argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
         }
         else {
-                if (bdata->topdir->is_c)
+#if 0
+                if (bdata->ft->is_c)
                         argv_append(argv, "--languages=c,c++", true);
                 else
+#endif
                         argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
 
                 argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);

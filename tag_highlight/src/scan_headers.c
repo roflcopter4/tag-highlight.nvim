@@ -332,7 +332,7 @@ find_header_paths_system(bstring *file, const bstring *sysdir)
                         if (!paths[i] || !paths[i][0])
                                 continue;
                         snprintf(p, PATH_STR, "%s/%s", paths[i], BS(d));
-                        const int fd = open(p, O_DIRECTORY|O_PATH);
+                        const int fd = open(p, O_PATH|O_DIRECTORY);
                         if (fd == (-1))
                                 continue;
                         ret = find_file(p, BS(f), FIND_SHORTEST);

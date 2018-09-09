@@ -129,7 +129,7 @@ destroy_bufdata(struct bufdata **bdata)
         destroy_call_array((*bdata)->calls);
 
         if ((*bdata)->clangdata)
-                destroy_clangdata((*bdata)->clangdata);
+                destroy_clangdata(*bdata);
 
         if (--((*bdata)->topdir->refs) == 0) {
                 struct top_dir *topdir = (*bdata)->topdir;
@@ -219,8 +219,9 @@ init_topdir(const int fd, struct bufdata *bdata)
         bstring *dir       = b_strcpy(bdata->name.path);
         dir                = check_project_directories(dir);
         const bool recurse = check_norecurse_directories(dir);
-        const bool is_c    = bdata->ft->id == FT_C || bdata->ft->id == FT_CPP;
-        bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir;
+        const bool is_c    = bdata->ft->is_c;
+        /* bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir; */
+        bstring   *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
 
@@ -247,7 +248,6 @@ init_topdir(const int fd, struct bufdata *bdata)
         tdir->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
         tdir->ftid     = bdata->ft->id;
         tdir->index    = top_dirs->qty;
-        tdir->is_c     = is_c;
         tdir->pathname = dir;
         tdir->recurse  = recurse;
         tdir->refs     = 1;
@@ -285,7 +285,7 @@ init_topdir(const int fd, struct bufdata *bdata)
         assert(ret == BSTR_OK);
 
         genlist_append(top_dirs, tdir);
-        if (!recurse || is_c)
+        if (!recurse/*  || is_c */)
                 b_free(base);
 
         return tdir;

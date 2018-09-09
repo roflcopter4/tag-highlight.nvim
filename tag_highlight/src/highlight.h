@@ -44,7 +44,7 @@ extern int  my_highlight(int bufnum, struct bufdata *bdata);
 extern void my_parser   (int bufnum, struct bufdata *bdata);
 
 extern void *event_loop    (void *vdata);
-extern void  get_init_lines(struct bufdata *bdata);
+extern void  get_initial_lines(struct bufdata *bdata);
 
 
 #ifdef __cplusplus

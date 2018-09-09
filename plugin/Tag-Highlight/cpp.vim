@@ -1,5 +1,5 @@
 if !exists('g:tag_highlight#cpp#order')
-        let g:tag_highlight#cpp#order = 'cgstuedfm'
+        let g:tag_highlight#cpp#order = 'ncgstuedfm'
 endif
 
 let g:tag_highlight#cpp#c = { 'group': 'cppClassTag' }
@@ -9,6 +9,7 @@ let g:tag_highlight#cpp#t = { 'group': 'cppTypeTag' }
 let g:tag_highlight#cpp#u = { 'group': 'cppUnionTag' }
 let g:tag_highlight#cpp#e = { 'group': 'cppEnumTag' }
 let g:tag_highlight#cpp#d = { 'group': 'cppPreProcTag' }
+let g:tag_highlight#cpp#n = { 'group': 'cppNamespaceTag' }
 let g:tag_highlight#cpp#m = {
             \   'group': 'cppMemberTag',
             \   'prefix': '\%(\%(\>\|\]\|)\)\%(\.\|->\)\)\@5<=',
@@ -18,6 +19,7 @@ let g:tag_highlight#cpp#f = {
             \   'suffix': '\>\%(\s*(\)\@='
             \ }
 let g:tag_highlight#cpp#v = { 'group': 'cppGlobalVar' }
+let g:tag_highlight#cpp#q = { 'group': 'cppDunno' }
 
 let g:tag_highlight#cpp#equivalent = { 'p': 'f',
                                    \   'x': 'v', }
@@ -33,3 +35,5 @@ highlight def link cppFunctionTag	tag_highlight_FunctionTag
 highlight def link cppMemberTag		tag_highlight_MemberTag
 highlight def link cppPreProcTag	tag_highlight_PreProcTag
 highlight def link cppTypeTag		tag_highlight_TypeTag
+hi def link cppDunno Error
+highlight def link cppNamespaceTag	tag_highlight_NamespaceTag

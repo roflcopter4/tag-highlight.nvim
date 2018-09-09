@@ -1,5 +1,5 @@
 #include "clang.h"
-#include "libclang.h"
+#include "clang_intern.h"
 
 const char *const tagargs[TAGARGS_SIZE] = {
     "-DHAVE_CONFIG_H",
@@ -28,8 +28,15 @@ const char *const CX_token_spelling[5] = {
   "Comment",
 };
 
-const char *const clang_paths[3] = {
-    "-I/usr/lib64/clang/8.0.0/include",
-    "-I/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include",
-    "-I/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include-fixed",
+const char *const clang_paths[] = {
+//    //"-std=gnu++17", "-xc++",
+//    ///* "-isystem", */ "-I", "/usr/include/c++/v1",
+//    /* "-isystem", */ "-isystem/usr/lib64/clang/8.0.0/include",
+//    ///* "-isystem", */ "-I", "/usr/lib64/llvm/8/include/x86_64-pc-linux-gnu/clang/Config/config.h",
+//    /* "-isystem", */ "-isystem/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include",
+//    /* "-isystem", */ "-isystem/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include-fixed",
+//    /* "-isystem", "/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include/g++-v8", */
+        "-stdlib=libstdc++"
 };
+
+const size_t n_clang_paths = sizeof(clang_paths) / sizeof(clang_paths[0]);

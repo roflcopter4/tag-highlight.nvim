@@ -79,19 +79,17 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 bdata->ft->restore_cmds_initialized = true;
         }
 
-        if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
-                /* libclang_get_hl_commands(bdata); */
-                libclang_highlight(bdata, 0, (-1));
-                pthread_mutex_unlock(&update_mutex);
-                return;
-        }
-
         bstring        *joined;
         b_list         *toks;
         struct taglist *tags;
         bool            retry = true;
 
-        if (bdata->calls) {
+        if (bdata->ft->is_c) {
+                echo("File is c, not doing things.");
+                libclang_highlight(bdata, 0, (-1));
+                pthread_mutex_unlock(&update_mutex);
+                return;
+        } else if (bdata->calls) {
                 update_from_cache(bdata);
                 goto done;
         }

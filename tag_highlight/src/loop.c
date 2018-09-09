@@ -9,12 +9,6 @@ extern pthread_t top_thread;
 static void handle_nvim_response(int fd, mpack_obj *obj);
 static void notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur);
 
-struct nvim_response {
-        int                    num;
-        bstring               *error;
-        union mpack_item_data  data;
-};
-
 /*======================================================================================*/
 
 void *
@@ -121,7 +115,7 @@ interrupt_call(void *vdata)
                                 nvim_buf_attach(BUFFER_ATTACH_FD, bufnum);
                                 bdata = find_buffer(bufnum);
 
-                                get_init_lines(bdata);
+                                get_initial_lines(bdata);
                                 get_initial_taglist(bdata);
                                 update_highlight(bufnum, bdata);
 
@@ -179,6 +173,10 @@ interrupt_call(void *vdata)
                 clear_highlight(nvim_get_current_buf(0), NULL);
                 break;
 
+        case 'H':
+
+                break;
+
         case 'I': {
                 /* extern void libclang_update_line(struct bufdata *, int, int); */
                 extern void libclang_highlight(struct bufdata *, int, int);
@@ -198,7 +196,7 @@ interrupt_call(void *vdata)
 }
 
 void
-get_init_lines(struct bufdata *bdata)
+get_initial_lines(struct bufdata *bdata)
 {
         b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
         if (bdata->lines->qty == 1)

@@ -101,7 +101,7 @@ else()
         set (MARCH_SETTING "-march=native")
     endif()
 
-    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
+    set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope -fsanitize=undefined")
     set (BASE "${WARNS} ${MARCH_SETTING} -fdiagnostics-color=always")
 
 #####################################################################################################

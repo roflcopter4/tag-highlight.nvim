@@ -54,6 +54,7 @@ typedef struct mpack_item         mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
 typedef struct mpack_dictionary   mpack_dict_t;
+typedef struct atomic_call_array  mpack_call_array;
 
 #pragma pack(push, 1)
 

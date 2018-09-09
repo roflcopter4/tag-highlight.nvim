@@ -1,8 +1,8 @@
 #include "util/util.h"
 
-#include "util/list.h"
+#include "clang_intern.h"
 #include "clang.h"
-#include "libclang.h"
+#include "util/list.h"
 
 #include "nvim_api/api.h"
 #include "data.h"
@@ -59,12 +59,13 @@ type_id(struct bufdata         *bdata,
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
 
-        add_clr_call(calls, bdata->num, bdata->hl_id, line, end);
+        /* add_clr_call(calls, bdata->num, bdata->hl_id, line, end); */
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
                 if (check_skip(bdata, tok))
                         continue;
+                tokvisitor(tok);
                 do_typeswitch(bdata, calls, tok, info, enumerators);
         }
 
@@ -86,10 +87,12 @@ static void do_typeswitch(struct bufdata           *bdata,
         const bstring *group;
         int            ctagskind = 0;
 
+#if 0
         if (lastline != tok->line) {
                 add_clr_call(calls, bdata->num, (-1), tok->line, tok->line/*  + 1 */);
                 lastline = tok->line;
         }
+#endif
 
         switch (tok->cursor.kind) {
         case CXCursor_TypedefDecl:
@@ -139,9 +142,19 @@ static void do_typeswitch(struct bufdata           *bdata,
         case CXCursor_FunctionDecl:
                 ADD_CALL('f');
                 break;
+        case CXCursor_CXXMethod:
         case CXCursor_CallExpr:
                 /* An expression that calls a function. */
                 ADD_CALL('f');
+                break;
+
+        case CXCursor_Constructor:
+        case CXCursor_ConversionFunction:
+        case CXCursor_TemplateTypeParameter:
+        case CXCursor_NonTypeTemplateParameter:
+        case CXCursor_FunctionTemplate:
+        case CXCursor_ClassTemplate:
+                ADD_CALL('q');
                 break;
 #if 0
         case CXCursor_MacroDefinition:
@@ -156,6 +169,9 @@ static void do_typeswitch(struct bufdata           *bdata,
         case CXCursor_DeclRefExpr:
                 /* Possibly the most generic kind, this could refer to many things. */
                 switch (tok->cursortype.kind) {
+                case CXType_Enum:
+                        ADD_CALL('e');
+                        goto done;
                 case CXType_FunctionProto:
                         ADD_CALL('f');
                         goto done;

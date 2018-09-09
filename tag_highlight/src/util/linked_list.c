@@ -29,7 +29,7 @@
 #define RESOLVE_NEG(VAL_, BASE_) \
         ((VAL_) = ((VAL_) >= 0) ? (VAL_) : ((VAL_) + (BASE_) + 1))
 
-static __inline void free_data(ll_node *node) __attribute__((always_inline));
+static __inline void free_data(ll_node *node) __attribute__((__always_inline__));
 
 
 linked_list *
@@ -175,7 +175,6 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 ll_insert_after(list, at, blist->lst[start]);
                 return;
         }
-        /* MSG1(); */
 
         ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
@@ -198,7 +197,6 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 list->tail = tmp[last];
 
         free(tmp);
-        /* MSG2(); */
 }
 
 
@@ -216,7 +214,6 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 ll_insert_before(list, at, blist->lst[start]);
                 return;
         }
-        /* MSG1(); */
 
         ll_node **tmp   = nmalloc(diff, sizeof *tmp);
         tmp[0]          = xmalloc(sizeof **tmp);
@@ -239,7 +236,6 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 list->tail = tmp[last];
 
         free(tmp);
-        /* MSG2(); */
 }
 
 
@@ -442,5 +438,5 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
 static __inline void
 free_data(ll_node *node)
 {
-        b_destroy(node->data);
+        b_free(node->data);
 }

@@ -49,6 +49,7 @@ struct filetype {
         const enum filetype_id id;
         bool initialized;
         bool restore_cmds_initialized;
+        bool is_c;
 };
 
 struct top_dir {
@@ -56,7 +57,6 @@ struct top_dir {
         uint16_t index;
         uint16_t refs;
         bool     recurse;
-        bool     is_c;
         enum filetype_id ftid;
 
         bstring *gzfile;
@@ -78,12 +78,27 @@ struct bufdata {
                 bstring *path;
         } name;
 
-        b_list          *cmd_cache;
         linked_list     *lines;
         struct filetype *ft;
         struct top_dir  *topdir;
-        struct atomic_call_array *calls;
-        void *clangdata;
+
+        /* This feels so hacky. */
+
+        void   *clangdata;
+        mpack_call_array *calls;
+        b_list           *cmd_cache;
+#if 0
+        union {
+                struct { /* C, C++ */
+                        void   *clangdata;
+                        /* b_list *headers; */
+                };
+                struct { /* everything else */
+                        mpack_call_array *calls;
+                        b_list           *cmd_cache;
+                };
+        };
+#endif
 };
         
 struct buffer_list {

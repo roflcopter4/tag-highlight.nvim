@@ -222,6 +222,7 @@ highlight def link tag_highlight_UnionTag		tag_highlight_TypeTag
 highlight def link tag_highlight_MethodTag		tag_highlight_FunctionTag
 highlight def link tag_highlight_VariableTag		tag_highlight_ObjectTag
 highlight def link tag_highlight_FieldTag		tag_highlight_MemberTag
+highlight def link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
 
 highlight def link tag_highlight_GlobalVarTag		PreCondit
 highlight def link tag_highlight_ConstantTag		Constant

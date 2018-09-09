@@ -7,13 +7,11 @@ set (tag_highlight_SOURCES
     tagscan/strip.c
     tagscan/tok.c
 
-    # clang/clang.c
-    clang/const.c
-    # clang/typeswitch.c
-    clang/typeid.c
     clang/cl2.c
+    clang/const.c
+    clang/typeid.c
     clang/clang.h
-    clang/libclang.h
+    clang/clang_intern.h
 
     nvim_api/api.c
     nvim_api/common.c

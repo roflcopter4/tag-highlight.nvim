@@ -14,6 +14,7 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
+#define INIT_MUTEXES (16)
 
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
@@ -62,10 +63,9 @@ mpack_obj *
 decode_stream(int32_t fd)
 {
         pthread_mutex_lock(&mpack_search_mutex);
-        int mid = -1;
         pthread_mutex_t *mut = NULL;
         if (!mpack_mutex_list || !mpack_mutex_list->lst) {
-                mpack_mutex_list = genlist_create_alloc(16);
+                mpack_mutex_list = genlist_create_alloc(INIT_MUTEXES);
                 atexit(free_mutexes);
         }
 
@@ -75,7 +75,6 @@ decode_stream(int32_t fd)
         for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
                 struct mpack_mutex *cur = mpack_mutex_list->lst[i];
                 if (cur->fd == fd) {
-                        mid = i;
                         mut = &cur->mut;
                         break;
                 }
@@ -86,7 +85,6 @@ decode_stream(int32_t fd)
                 /* tmp->mut = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER; */
                 pthread_mutex_init(&tmp->mut, NULL);
                 genlist_append(mpack_mutex_list, tmp);
-                mid = mpack_mutex_list->qty;
                 mut = &tmp->mut;
         }
         pthread_mutex_unlock(&mpack_search_mutex);

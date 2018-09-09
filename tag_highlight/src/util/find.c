@@ -78,9 +78,9 @@ run_find(const char *path, const char *search)
         if (pipe2(pipefds, O_NONBLOCK|O_CLOEXEC) == (-1))
                 err(1, "Pipe failed");
 
-        const int flgs[2] = {fcntl(pipefds[0], F_GETFD), fcntl(pipefds[1], F_GETFD)};
+        /* const int flgs[2] = {fcntl(pipefds[0], F_GETFD), fcntl(pipefds[1], F_GETFD)};
         fcntl(pipefds[0], F_SETFD, flgs[0]|O_NONBLOCK|O_CLOEXEC);
-        fcntl(pipefds[1], F_SETFD, flgs[1]|O_NONBLOCK|O_CLOEXEC);
+        fcntl(pipefds[1], F_SETFD, flgs[1]|O_NONBLOCK|O_CLOEXEC); */
 
         const int pid = fork();
 
