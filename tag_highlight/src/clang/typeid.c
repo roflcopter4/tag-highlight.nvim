@@ -65,7 +65,7 @@ type_id(struct bufdata         *bdata,
                 struct token *tok = stu->tokens->lst[i];
                 if (check_skip(bdata, tok))
                         continue;
-                /* tokvisitor(tok); */
+                tokvisitor(tok);
                 do_typeswitch(bdata, calls, tok, info, enumerators);
         }
 

@@ -1,6 +1,7 @@
 #cmakedefine DEBUG
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_ERR
+#cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_GETTIMEOFDAY
 #cmakedefine HAVE_LIBBSD
 #cmakedefine HAVE_MEMRCHR
@@ -13,10 +14,9 @@
 #cmakedefine HAVE_STRSEP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
-
 #cmakedefine LZMA_SUPPORT
-#cmakedefine HAVE_UNISTD_H
-#cmakedefine HAVE_EXECINFO_H
 
-#define VERSION "1.1.1"
-#define PACKAGE_STRING "mytags " VERSION
+#define GCC_ALL_INCLUDE_DIRECTORIES {${MY_GCC_LIST_3}}
+
+#define VERSION "0.0.2"
+#define PACKAGE_STRING "tag_highlight " VERSION

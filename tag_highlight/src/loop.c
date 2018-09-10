@@ -104,7 +104,7 @@ interrupt_call(void *vdata)
         /*
          * New buffer was opened or current buffer changed.
          */
-        case 'A':  /* XXX Fix these damn letters, they've gotten totally out of order. */
+        case 'A':  /* FIXME Fix these damn letters, they've gotten totally out of order. */
         case 'D': {
                 const int prev = bufnum;
                 TIMER_START_BAR(t);

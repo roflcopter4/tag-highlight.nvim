@@ -113,6 +113,10 @@ main(UNUSED int argc, char *argv[])
         open_main_log();
 #endif
 
+#ifdef MYGCCTHING
+        echo("%s\n", MYGCCTHING);
+#endif
+
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
          * recognize a buffer, the wait time between tries is modestly long. */
@@ -180,17 +184,19 @@ exit_cleanup(void)
         free(top_dirs);
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
-                if (ftdata[i].initialized) {
-                        if (ftdata[i].ignored_tags) {
-                                for (unsigned x = 0; x < ftdata[i].ignored_tags->qty; ++x)
-                                        if (ftdata[i].ignored_tags->lst[x]->flags & BSTR_MASK_USR1)
-                                                b_free(ftdata[i].ignored_tags->lst[x]);
-                                free(ftdata[i].ignored_tags->lst);
-                                free(ftdata[i].ignored_tags);
+                struct filetype *ft = &ftdata[i];
+                if (ft->initialized) {
+                        if (ft->ignored_tags) {
+                                b_list *igt = ft->ignored_tags;
+                                for (unsigned x = 0; x < igt->qty; ++x)
+                                        if (igt->lst[x]->flags & BSTR_MASK_USR1)
+                                                b_free(igt->lst[x]);
+                                free(igt->lst);
+                                free(igt);
                         }
-                        b_list_destroy(ftdata[i].equiv);
-                        b_free(ftdata[i].order);
-                        b_free(ftdata[i].restore_cmds);
+                        b_list_destroy(ft->equiv);
+                        b_free(ft->order);
+                        b_free(ft->restore_cmds);
                 }
         }
 

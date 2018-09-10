@@ -118,14 +118,21 @@ libclang_waiter(UNUSED void *vdata)
         unsigned last_ctick  = nvim_buf_get_changedtick(0, last_bufnum);
 
         for (;;) {
-                /* pthread_cond_wait(&libclang_cond, &mut); */
+                int             bufnum = nvim_get_current_buf(0);
+                struct bufdata *bdata  = find_buffer(bufnum);
 
-                int bufnum = nvim_get_current_buf(0);
+                if (!bdata)
+                        continue;
+                if (!bdata->ft->is_c) {
+                        fsleep(2.0L);
+                        continue;
+                }
                 if (last_bufnum != bufnum) {
                         last_bufnum = bufnum;
                         last_ctick  = 0;
                         continue;
                 }
+
                 unsigned ctick = nvim_buf_get_changedtick(0, bufnum);
                 if (ctick != last_ctick) {
                         last_ctick            = ctick;

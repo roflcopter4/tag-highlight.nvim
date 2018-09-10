@@ -1,13 +1,12 @@
 #ifndef SRC_CLANG_LIBCLANG_H
 #define SRC_CLANG_LIBCLANG_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "util/util.h"
 
 #include "data.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* #ifdef _BUILD_ */
 #include <clang-c/CXCompilationDatabase.h> /* TAG: /usr/lib64/llvm/8/include */
@@ -20,6 +19,19 @@ extern "C" {
 #include "/usr/lib64/llvm/8/include/clang-c/Index.h"
 /* #endif */
 #endif
+
+#define TMPSIZ    (512)
+#define CLD(s)    ((struct clangdata *)((s)->clangdata))
+#define CS(CXSTR) (clang_getCString(CXSTR))
+
+struct clangdata {
+        b_list             *enumerators;
+        str_vector         *argv;
+        struct cmd_info    *info;
+        CXIndex             idx;
+        CXTranslationUnit   tu;
+        char                tmp_name[TMPSIZ];
+};
 
 struct translationunit {
         bstring           *buf;
@@ -57,36 +69,32 @@ struct token {
         char        raw[];
 };
 
-#define TAGARGS_SIZE (16)
-extern const char *const tagargs[TAGARGS_SIZE];
-extern const char *const CX_token_spelling[5];
 extern const char *const clang_paths[];
 extern const size_t      n_clang_paths;
 
+extern const char *const idx_entity_kind_repr[];
+extern const size_t      idx_entity_kind_num;
+
 /*======================================================================================*/
 
-#if 0
-__attribute__((visibility("hidden"))) extern void typeswitch(struct bufdata *bdata,
-                                                             struct translationunit *stu,
-                                                             const b_list *enumerators,
-                                                             struct cmd_info **info);
-__attribute__((visibility("hidden"))) extern void typeswitch_2(struct bufdata *bdata,
-                                                               struct translationunit *stu,
-                                                               const b_list *enumerators,
-                                                               struct cmd_info **info,
-                                                               int line,
-                                                               int end);
-#endif
-__attribute__((visibility("hidden"))) extern mpack_call_array *type_id(struct bufdata *bdata,
-                                                          struct translationunit *stu,
-                                                          const b_list *enumerators,
-                                                          struct cmd_info *info,
-                                                          const int        line,
-                                                          const int        end);
+#define INTERN __attribute__((visibility("hidden"))) extern
 
-__attribute__((visibility("hidden"))) //extern void tokvisitor(struct token *tok);
-void tokvisitor(struct token *tok);
+INTERN mpack_call_array *type_id(struct bufdata *        bdata,
+                                 struct translationunit *stu,
+                                 const b_list *          enumerators,
+                                 struct cmd_info *       info,
+                                 const int               line,
+                                 const int               end);
 
+INTERN void              tokvisitor(struct token *tok);
+INTERN IndexerCallbacks *make_cb_struct(void);
+INTERN void lc_index_file(struct bufdata *bdata);
+
+INTERN void _free_cxstrings(CXString *str, ...);
+#define free_cxstrings(...) _free_cxstrings(__VA_ARGS__, (CXString *)NULL)
+
+
+/*======================================================================================*/
 #ifdef __cplusplus
 }
 #endif

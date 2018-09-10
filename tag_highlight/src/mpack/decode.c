@@ -27,10 +27,10 @@ static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t byte, cons
 static mpack_obj * decode_ext       (read_fn READ, void *src, const struct mpack_masks *mask);
 static mpack_obj * decode_nil       (void);
 static mpack_obj * decode_bool      (const struct mpack_masks *mask);
-static const struct mpack_masks * id_pack_type(uint8_t byte);
-static void stream_read(void *restrict src, uint8_t *restrict dest, size_t nbytes);
-static void obj_read   (void *restrict src, uint8_t *restrict dest, size_t nbytes);
-static void free_mutexes(void);
+static void        stream_read      (void *restrict src, uint8_t *restrict dest, size_t nbytes);
+static void        obj_read         (void *restrict src, uint8_t *restrict dest, size_t nbytes);
+static void        free_mutexes     (void);
+static const struct mpack_masks *id_pack_type(uint8_t byte);
 
 
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
@@ -493,11 +493,10 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         const int fd = *((int *)src);
 #ifdef DOSISH
         size_t nread = 0;
-        do {
-                const size_t n = read(fd, dest, (nbytes - nread));
-                if (n > 0)
-                        nread += n;
-        } while (nread > nbytes);
+        while (nread > nbytes) {
+                size_t n = read(fd, dest, (nbytes - nread));
+                nread   += n?n:0;
+        }
 #else
         const ssize_t n = recv(fd, dest, nbytes, MSG_WAITALL);
         assert((size_t)n == nbytes);

@@ -6,14 +6,11 @@
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include <dirent.h>
 #include <spawn.h>
 #include <stddef.h>
+#include <sys/stat.h>
 #include <wait.h>
 
-#define CLD(s)    ((struct clangdata *)((s)->clangdata))
-#define TMPSIZ    (512)
-#define CS(CXSTR) (clang_getCString(CXSTR))
 #if 0
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \
@@ -33,19 +30,12 @@
                 close(dumpfd);                                     \
         } while (0)
 
+static const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
+
 struct mydata {
         CXTranslationUnit tu;
         b_list *enumerators;
         const bstring *buf;
-};
-
-struct clangdata {
-        b_list             *enumerators;
-        str_vector         *argv;
-        struct cmd_info    *info;
-        CXIndex             idx;
-        CXTranslationUnit   tu;
-        char                tmp_name[TMPSIZ];
 };
 
 static char tmp_path[PATH_MAX + 1];
@@ -83,6 +73,8 @@ libclang_highlight(struct bufdata *bdata, const int first, const int last)
                                           : init_compilation_unit(bdata);
         /* TIMER_REPORT(t, "compilation unit"); */
 
+        lc_index_file(bdata);
+
         int64_t  startend[2];
         CXFile   file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
@@ -107,6 +99,7 @@ libclang_highlight(struct bufdata *bdata, const int first, const int last)
         pthread_mutex_unlock(&mut);
 }
 
+#if 0
 mpack_call_array *
 libclang_highlight___(struct bufdata *bdata, const int first, const int last)
 {
@@ -126,6 +119,7 @@ libclang_highlight___(struct bufdata *bdata, const int first, const int last)
         pthread_mutex_unlock(&mut);
         return calls;
 }
+#endif
 
 static inline void
 lines2bytes(struct bufdata *bdata, int64_t *startend, const int first, const int last)
@@ -185,9 +179,14 @@ init_compilation_unit(struct bufdata *bdata)
         str_vector  *comp_cmds = get_compile_commands(bdata);
         const size_t tmplen    = snprintf(tmp, TMPSIZ, "%s/XXXXXX.%s", tmp_path, BTS(bdata->ft->vim_name));
         const int    tmpfd     = mkostemps(tmp, ((bdata->ft->id == FT_C) ? 2 : 4), O_DSYNC);
-        b_write(tmpfd, buf, B("\n"));
+
+        if (b_write(tmpfd, buf, B("\n")) != 0)
+                err(1, "Write error");
         close(tmpfd);
+
+#ifdef DEBUG
         argv_dump(stderr, comp_cmds);
+#endif
 
         bdata->clangdata = xmalloc(sizeof(struct clangdata));
         CLD(bdata)->idx = clang_createIndex(1, 1);
@@ -217,12 +216,6 @@ init_compilation_unit(struct bufdata *bdata)
         CLD(bdata)->info        = getinfo(bdata);
         memcpy(CLD(bdata)->tmp_name, tmp, tmplen + 1);
 
-#if 0
-        char pch[PATH_MAX];
-        snprintf(pch, PATH_MAX, "%s/%s.pch", tmp_path, BS(bdata->name.base));
-        clang_saveTranslationUnit(CLD(bdata)->tu, pch, clang_defaultSaveOptions(CLD(bdata)->tu));
-#endif
-
         return stu;
 }
 
@@ -249,8 +242,6 @@ getinfo(const struct bufdata *bdata)
         return info;
 }
 
-#include <sys/stat.h>
-
 static str_vector *
 get_compile_commands(struct bufdata *bdata)
 {
@@ -268,50 +259,24 @@ get_compile_commands(struct bufdata *bdata)
         const unsigned ncmds = clang_CompileCommands_getSize(cmds);
         str_vector    *ret   = argv_create(32);
 
-#if 0
-        argv_append(ret,
-                    ((bdata->ft->id == FT_C)
-                         ? "clang"
-                         : ((bdata->ft->id == FT_CPP) ? "clang++" : (abort(), ""))),
-                    true);
-#endif
-        /* argv_append(ret, "-include/usr/lib64/clang/8.0.0/include/stddef.h", true); */
-        /* argv_append(ret, "-isystem/usr/lib64/clang/8.0.0/include", true); */
-        argv_append(ret, "-I/usr/lib64/clang/8.0.0/include", true);
-        argv_append(ret, "-I/usr/lib64/gcc/x86_64-pc-linux-gnu/8.2.0/include/g++-v8", true);
+        for (unsigned i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
+                argv_append(ret, gcc_sys_dirs[i], false);
 
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command = clang_CompileCommands_getCommand(cmds, i);
                 const unsigned   nargs   = clang_CompileCommand_getNumArgs(command);
 
                 for (unsigned x = 0; x < nargs; ++x) {
+                        struct stat st;
                         CXString    tmp  = clang_CompileCommand_getArg(command, x);
                         const char *cstr = CS(tmp);
-                        bstring     bstr = bt_fromcstr(cstr);
-                        bstring    *base = b_basename(&bstr);
 
-                        if (strncmp(cstr, "-o", 2) == 0) {
-                                if (bstr.slen == 2)
-                                        ++x;
-                        } else if (cstr[0] == '-') {
+                        if (strcmp(cstr, "-o") == 0)
+                                ++x;
+                        else if (cstr[0] == '-' || ((stat(cstr, &st) != 0 || S_ISDIR(st.st_mode)) &&
+                                                    strcmp(cstr, BS(bdata->name.base)) != 0))
                                 argv_append(ret, cstr, true);
-                        } else if (({
-                                           struct stat st;
-                                           int         val = stat(cstr, &st);
-                                           (val != 0 || S_ISDIR(st.st_mode));
-                                   }) &&
-                                    
-                                   /* ! b_iseq(&bstr, bdata->name.full) && */
-                                   ! b_iseq(&bstr, bdata->name.base) //&&
-                                   //! b_iseq(base,  bdata->name.path) &&
-                                   /* ({struct stat st; stat(cstr, &st);}) != 0 */) {
-                                argv_append(ret, cstr, true);
-                        }
-                        /* else if (!(strstr(cstr, ".c") || strstr(cstr, ".cpp") || strstr(cstr, ".cc"))) {
-                                argv_append(ret, cstr, true);
-                        } */
 
-                        b_free(base);
                         clang_disposeString(tmp);
                 }
         }
@@ -397,16 +362,34 @@ destroy_clangdata(struct bufdata *bdata)
         if (!cdata)
                 return;
         b_list_destroy(cdata->enumerators);
-        argv_destroy(cdata->argv);
 
-        for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)
-                b_free(cdata->info[i].group);
+        for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
+                free(cdata->argv->lst[i]);
+        free(cdata->argv);
+
+        if (cdata->info) {
+                for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)
+                        b_free(cdata->info[i].group);
+                free(cdata->info);
+        }
 
         clang_disposeTranslationUnit(cdata->tu);
         clang_disposeIndex(cdata->idx);
-        free(cdata->info);
         free(cdata);
         bdata->clangdata = NULL;
+}
+
+void _free_cxstrings(CXString *str, ...)
+{
+        if (!str)
+                return;
+        va_list ap;
+        va_start(ap, str);
+        do {
+                clang_disposeString(*str);
+                str = va_arg(ap, CXString *);
+        } while (str);
+        va_end(ap);
 }
 
 /*======================================================================================*/
@@ -473,20 +456,19 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
             !get_range(clang_getTokenExtent(*tu, *tok), values))
                 return NULL;
 
-        CXString  dispname = clang_getCursorDisplayName(*cursor);
+        CXString dispname = clang_getCursorDisplayName(*cursor);
+        size_t   len      = strlen(CS(dispname)) + 1llu;
+        ret               = xmalloc(offsetof(struct token, raw) + len);
+        ret->token        = *tok;
+        ret->cursor       = *cursor;
+        ret->cursortype   = clang_getCursorType(*cursor);
+        ret->tokenkind    = clang_getTokenKind(*tok);
+        ret->line         = values[0] - 1;
+        ret->col1         = values[1] - 1;
+        ret->col2         = values[2] - 1;
+        ret->len          = values[2] - values[1];
 
-        const size_t n  = strlen(CS(dispname)) + 1llu;
-        ret             = xmalloc(offsetof(struct token, raw) + n);
-        ret->token      = *tok;
-        ret->cursor     = *cursor;
-        ret->cursortype = clang_getCursorType(*cursor);
-        ret->tokenkind  = clang_getTokenKind(*tok);
-        ret->line       = values[0] - 1;
-        ret->col1       = values[1] - 1;
-        ret->col2       = values[2] - 1;
-        ret->len        = values[2] - values[1];
-
-        memcpy(ret->raw, CS(dispname), n);
+        memcpy(ret->raw, CS(dispname), len);
         clang_disposeString(dispname);
         return ret;
 }
@@ -522,18 +504,16 @@ tokvisitor(struct token *tok)
         static char     logpth[PATH_MAX + 1];
         static unsigned n = 0;
 
-        CXString typespell     = clang_getTypeSpelling(tok->cursortype);
-        CXString typekindrepr  = clang_getTypeKindSpelling(tok->cursortype.kind);
-        CXString curs_kindspel = clang_getCursorKindSpelling(tok->cursor.kind);
-        FILE    *toklog        = safe_fopen_fmt("%s/toks.log", "ab", tmp_path);
+        CXString typespell      = clang_getTypeSpelling(tok->cursortype);
+        CXString typekindrepr   = clang_getTypeKindSpelling(tok->cursortype.kind);
+        CXString curs_kindspell = clang_getCursorKindSpelling(tok->cursor.kind);
+        FILE    *toklog         = safe_fopen_fmt("%s/toks.log", "ab", tmp_path);
 
         fprintf(toklog, "%4u: %-50s - %-17s - %-30s - %s\n",
-                n++, tok->raw, CS(typekindrepr), CS(curs_kindspel), CS(typespell));
+                n++, tok->raw, CS(typekindrepr), CS(curs_kindspell), CS(typespell));
 
         fclose(toklog);
-        clang_disposeString(typespell);
-        clang_disposeString(typekindrepr);
-        clang_disposeString(curs_kindspel);
+        free_cxstrings(&typespell, &typekindrepr, &curs_kindspell);
 }
 
 /*======================================================================================*/

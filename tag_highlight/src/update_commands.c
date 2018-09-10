@@ -21,11 +21,11 @@ struct cmd_info {
 
 static int  handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                         const struct taglist  *tags, const struct cmd_info *info);
-static struct atomic_call_array *update_commands(struct bufdata *bdata,
+static mpack_call_array *update_commands(struct bufdata *bdata,
                                                  struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
-static void add_cmd_call(struct atomic_call_array **calls, bstring *cmd);
+static void add_cmd_call(mpack_call_array **calls, bstring *cmd);
 
 static void get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
 
@@ -138,7 +138,7 @@ done:
 
 /*======================================================================================*/
 
-static struct atomic_call_array *
+static mpack_call_array *
 update_commands(struct bufdata *bdata, struct taglist *tags)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
@@ -163,7 +163,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 b_writeallow(info[i].suffix);
         }
 
-        struct atomic_call_array *calls = NULL;
+        mpack_call_array *calls = NULL;
         add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
 
         for (unsigned i = 0; i < ngroups; ++i) {
@@ -406,7 +406,7 @@ update_from_cache(struct bufdata *bdata)
 /*======================================================================================*/
 
 static void
-add_cmd_call(struct atomic_call_array **calls, bstring *cmd)
+add_cmd_call(mpack_call_array **calls, bstring *cmd)
 {
         assert(calls);
         if (!*calls) {

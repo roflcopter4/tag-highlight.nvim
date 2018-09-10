@@ -31,6 +31,8 @@
 
 static __inline void free_data(ll_node *node) __attribute__((__always_inline__));
 
+static pthread_mutex_t ll_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 linked_list *
 ll_make_new(void)
@@ -46,6 +48,7 @@ ll_make_new(void)
 void
 ll_prepend(linked_list *list, bstring *data)
 {
+        pthread_mutex_lock(&ll_mutex);
         assert(list);
         assert(data && data->data);
         ll_node *node = xmalloc(sizeof *node);
@@ -60,6 +63,7 @@ ll_prepend(linked_list *list, bstring *data)
         node->next = list->head;
         list->head = node;
         ++list->qty;
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
@@ -89,6 +93,7 @@ ll_append(linked_list *list, bstring *data)
 void
 ll_insert_after(linked_list *list, ll_node *at, bstring *data)
 {
+        pthread_mutex_lock(&ll_mutex);
         assert(list);
         ll_node *node = xmalloc(sizeof *node);
         node->data    = data;
@@ -110,12 +115,14 @@ ll_insert_after(linked_list *list, ll_node *at, bstring *data)
         /* This shuts up clang's whining about a potential memory leak. */
         assert((at && at->next == node) || list->tail == node);
         ++list->qty;
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
 void
 ll_insert_before(linked_list *list, ll_node *at, bstring *data)
 {
+        pthread_mutex_lock(&ll_mutex);
         assert(list);
         ll_node *node = xmalloc(sizeof *node);
         node->data    = data;
@@ -137,6 +144,7 @@ ll_insert_before(linked_list *list, ll_node *at, bstring *data)
         /* This shuts up clang's whining about a potential memory leak. */
         assert((at && at->prev == node) || list->head == node);
         ++list->qty;
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
@@ -175,6 +183,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 ll_insert_after(list, at, blist->lst[start]);
                 return;
         }
+        pthread_mutex_lock(&ll_mutex);
 
         ll_node **tmp  = nmalloc(diff, sizeof *tmp);
         tmp[0]         = xmalloc(sizeof **tmp);
@@ -197,6 +206,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 list->tail = tmp[last];
 
         free(tmp);
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
@@ -214,6 +224,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 ll_insert_before(list, at, blist->lst[start]);
                 return;
         }
+        pthread_mutex_lock(&ll_mutex);
 
         ll_node **tmp   = nmalloc(diff, sizeof *tmp);
         tmp[0]          = xmalloc(sizeof **tmp);
@@ -236,6 +247,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 list->tail = tmp[last];
 
         free(tmp);
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
@@ -254,6 +266,7 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
         }
         /* echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
              V(at), V(list->head), V(list->tail), range, list->qty); */
+        pthread_mutex_lock(&ll_mutex);
 
         ll_node *current        = at;
         ll_node *next           = NULL;
@@ -280,6 +293,7 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
         else
                 list->tail = prev;
 
+        pthread_mutex_unlock(&ll_mutex);
 
         /* echo("NOW: head: %p, tail: %p, qty: %d\n",
              V(list->head), V(list->tail), list->qty); */
@@ -307,6 +321,7 @@ ll_at(linked_list *list, int index)
                 return NULL;
         }
 
+        pthread_mutex_lock(&ll_mutex);
         ll_node *current;
 
         if (index < ((list->qty - 1) / 2)) {
@@ -323,6 +338,7 @@ ll_at(linked_list *list, int index)
                         current = current->prev;
         }
 
+        pthread_mutex_unlock(&ll_mutex);
         return current;
 }
 
@@ -332,6 +348,8 @@ ll_destroy(linked_list *list)
 {
         if (!list || !list->head)
                 return;
+        pthread_mutex_lock(&ll_mutex);
+
         if (list->qty == 1) {
                 ll_node *current;
                 if (list->tail)
@@ -350,6 +368,7 @@ ll_destroy(linked_list *list)
                 } while (current);
         }
 
+        pthread_mutex_unlock(&ll_mutex);
         free(list);
 }
 
@@ -358,6 +377,7 @@ void
 ll_delete_node(linked_list *list, ll_node *node)
 {
         assert(node != NULL);
+        pthread_mutex_lock(&ll_mutex);
 
         if (list->qty == 1) {
                 list->head = list->tail = NULL;
@@ -374,6 +394,7 @@ ll_delete_node(linked_list *list, ll_node *node)
 
         --list->qty;
         free(node);
+        pthread_mutex_unlock(&ll_mutex);
 }
 
 
@@ -383,6 +404,7 @@ ll_delete_node(linked_list *list, ll_node *node)
 bool
 ll_verify_size(linked_list *list)
 {
+        pthread_mutex_lock(&ll_mutex);
         assert(list);
         int cnt = 0;
         LL_FOREACH_F (list, node)
@@ -392,6 +414,7 @@ ll_verify_size(linked_list *list)
         if (!ret)
                 list->qty = cnt;
 
+        pthread_mutex_unlock(&ll_mutex);
         return ret;
 }
 
@@ -399,6 +422,7 @@ ll_verify_size(linked_list *list)
 bstring *
 ll_join(linked_list *list, const int sepchar)
 {
+        pthread_mutex_lock(&ll_mutex);
         const unsigned seplen = (sepchar) ? 1 : 0;
         unsigned          len = 0;
 
@@ -417,6 +441,7 @@ ll_join(linked_list *list, const int sepchar)
                         b_concat(joined, line->data);
         }
 
+        pthread_mutex_unlock(&ll_mutex);
         return joined;
 }
 

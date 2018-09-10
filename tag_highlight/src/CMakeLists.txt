@@ -1,8 +1,5 @@
 # /src
 set (tag_highlight_SOURCES
-    contrib/contrib.c
-    contrib/jsmn/jsmn.c
-
     tagscan/scan.c
     tagscan/strip.c
     tagscan/tok.c
@@ -11,6 +8,7 @@ set (tag_highlight_SOURCES
     clang/const.c
     clang/typeid.c
     clang/threaded.c
+    clang/index.c
     clang/clang.h
     clang/clang_intern.h
 
@@ -69,26 +67,14 @@ add_library(util STATIC
     util/list.h
     util/util.h
 )
-add_library(all_libs SHARED
-    nvim_api/api.c
-    nvim_api/common.c
-    bstring/bstrlib.c
-    bstring/additions.c
-    bstring/b_list.c
-    mpack/decode.c
-    mpack/encode.c
-    mpack/mpack.c
-    mpack/print.c
-    util/archive_gzip.c
-    util/archive_read.c
-    util/archive_write.c
-    util/find.c
-    util/generic_list.c
-    util/linked_list.c
-    util/util.c
+add_library(contrib STATIC
+    contrib/contrib.c
+    contrib/contrib.h
+    contrib/jsmn/jsmn.c
+    contrib/jsmn/jsmn.h
 )
 
-target_link_libraries(tag_highlight util mpack bstring)
+target_link_libraries(tag_highlight util mpack bstring contrib)
 
 add_definitions(-D_BUILD_)
 
@@ -117,8 +103,8 @@ else()
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
 
     # set(CMAKE_C_FLAGS "-I/mnt/arch/backup/clang-dev/include")
-    # set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
-    # target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
+    set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
+    target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
     # target_link_libraries(tag_highlight -static /mnt/arch/backup/clang-dev/lib/libclang.a -lunwind ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
     # target_link_libraries(tag_highlight "-L/opt/DCLANG/lib" -Wl,-rpath=/opt/DCLANG/lib /opt/DCLANG/lib/libclang.so.8svn -lstdc++)
 
@@ -132,7 +118,7 @@ else()
 
     # target_link_libraries(tag_highlight -lpcre2-8)
 
-    include_directories(/opt/more_clang/include)
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -Wl,-rpath=/opt/more_clang/lib -L/opt/more_clang/lib")
-    target_link_libraries(tag_highlight /opt/more_clang/lib/libclang.so.8svn)
+    # include_directories(/opt/more_clang/include)
+    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -Wl,-rpath=/opt/more_clang/lib -L/opt/more_clang/lib")
+    # target_link_libraries(tag_highlight /opt/more_clang/lib/libclang.so.8svn)
 endif()

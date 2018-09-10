@@ -1,6 +1,11 @@
 #include "clang.h"
 #include "clang_intern.h"
 
+#ifndef ARRSIZ
+#  define ARRSIZ(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
+#endif
+
+#if 0
 const char *const tagargs[TAGARGS_SIZE] = {
     "-DHAVE_CONFIG_H",
     "-D_GNU_SOURCE",
@@ -27,6 +32,7 @@ const char *const CX_token_spelling[5] = {
   "Literal",
   "Comment",
 };
+#endif
 
 const char *const clang_paths[] = {
 //    //"-std=gnu++17", "-xc++",
@@ -39,7 +45,43 @@ const char *const clang_paths[] = {
         "-stdlib=libstdc++"
 };
 
-const size_t n_clang_paths = sizeof(clang_paths) / sizeof(clang_paths[0]);
+const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
+
+const size_t n_clang_paths  = ARRSIZ(clang_paths);
+const size_t n_gcc_sys_dirs = ARRSIZ(gcc_sys_dirs);
+
+
+const char *const idx_entity_kind_repr[] = {
+    "Unexposed",
+    "Typedef",
+    "Function",
+    "Variable",
+    "Field",
+    "EnumConstant",
+    "ObjCClass",
+    "ObjCProtocol",
+    "ObjCCategory",
+    "ObjCInstanceMethod",
+    "ObjCClassMethod",
+    "ObjCProperty",
+    "ObjCIvar",
+    "Enum",
+    "Struct",
+    "Union",
+    "CXXClass",
+    "CXXNamespace",
+    "CXXNamespaceAlias",
+    "CXXStaticVariable",
+    "CXXStaticMethod",
+    "CXXInstanceMethod",
+    "CXXConstructor",
+    "CXXDestructor",
+    "CXXConversionFunction",
+    "CXXTypeAlias",
+    "CXXInterface",
+};
+const size_t idx_entity_kind_num = ARRSIZ(idx_entity_kind_repr);
+
 
 int cur_ctick;
 pthread_cond_t libclang_cond = PTHREAD_COND_INITIALIZER;

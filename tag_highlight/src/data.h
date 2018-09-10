@@ -83,18 +83,14 @@ struct bufdata {
         struct top_dir  *topdir;
 
         /* This feels so hacky. */
-
-#if 0
-        void   *clangdata;
-        mpack_call_array *calls;
-        b_list           *cmd_cache;
-#endif
         union {
-                struct { /* C, C++ */
+                /* C, C++ */
+                struct {
                         void   *clangdata;
-                        /* b_list *headers; */
+                        b_list *headers;
                 };
-                struct { /* everything else */
+                /* Everything else */
+                struct {
                         mpack_call_array *calls;
                         b_list           *cmd_cache;
                 };

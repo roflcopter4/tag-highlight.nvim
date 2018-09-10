@@ -94,20 +94,14 @@ new_buffer(const int fd, const int bufnum)
 struct bufdata *
 get_bufdata(const int fd, const int bufnum, struct filetype *ft)
 {
-        struct bufdata *bdata = xmalloc(sizeof(struct bufdata));
-        bdata->name.full   = nvim_buf_get_name(fd, bufnum);
-        bdata->name.base   = b_basename(bdata->name.full);
-        bdata->name.path   = b_dirname(bdata->name.full);
-        bdata->lines       = ll_make_new();
-        bdata->num         = bufnum;
-        bdata->ft          = ft;
-        bdata->calls       = NULL;
-        bdata->clangdata   = NULL;
-        bdata->initialized = false; /* Initialized is true only after recieving the buffer contents. */
-        bdata->ctick       = 0;
-        bdata->last_ctick  = 0;
-        bdata->hl_id       = 0;
-        bdata->topdir      = init_topdir(fd, bdata); /* Topdir init must be the last step. */
+        struct bufdata *bdata = xcalloc(1, sizeof(struct bufdata));
+        bdata->name.full      = nvim_buf_get_name(fd, bufnum);
+        bdata->name.base      = b_basename(bdata->name.full);
+        bdata->name.path      = b_dirname(bdata->name.full);
+        bdata->lines          = ll_make_new();
+        bdata->num            = bufnum;
+        bdata->ft             = ft;
+        bdata->topdir         = init_topdir(fd, bdata); /* Topdir init must be the last step. */
 
         return bdata;
 }
@@ -127,11 +121,13 @@ destroy_bufdata(struct bufdata **bdata)
         b_free((*bdata)->name.path);
         ll_destroy((*bdata)->lines);
 
-        if (!(*bdata)->ft->is_c && (*bdata)->calls)
-                destroy_call_array((*bdata)->calls);
-
-        if ((*bdata)->clangdata)
-                destroy_clangdata(*bdata);
+        if ((*bdata)->ft->is_c) {
+                if ((*bdata)->clangdata)
+                        destroy_clangdata(*bdata);
+        } else {
+                if ((*bdata)->calls)
+                        destroy_call_array((*bdata)->calls);
+        }
 
         if (--((*bdata)->topdir->refs) == 0) {
                 struct top_dir *topdir = (*bdata)->topdir;
@@ -148,7 +144,7 @@ destroy_bufdata(struct bufdata **bdata)
                                 genlist_remove_index(top_dirs, i);
         }
 
-        xfree(*bdata);
+        free(*bdata);
         *bdata = NULL;
         buffers.lst[index] = NULL;
 }
@@ -226,7 +222,6 @@ init_topdir(const int fd, struct bufdata *bdata)
         bstring   *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
-
         ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
 
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
@@ -241,10 +236,9 @@ init_topdir(const int fd, struct bufdata *bdata)
                         return top_dirs->lst[i];
                 }
         }
-
         ECHO("Initializing new topdir \"%s\"\n", dir);
 
-        struct top_dir *tdir = xmalloc(sizeof(struct top_dir));
+        struct top_dir *tdir = xcalloc(1, sizeof(struct top_dir));
         tdir->tmpfname = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
         tdir->tmpfd    = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tdir->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
@@ -253,13 +247,9 @@ init_topdir(const int fd, struct bufdata *bdata)
         tdir->pathname = dir;
         tdir->recurse  = recurse;
         tdir->refs     = 1;
-        tdir->tags     = NULL;
-
-        assert(tdir->tmpfname);
 
         tdir->pathname->flags |= BSTR_DATA_FREEABLE;
         b_catlit(tdir->gzfile, SEPSTR ".vim_tags" SEPSTR);
-
         if (tdir->tmpfd == (-1))
                 errx(1, "Failed to open temporary file!");
 
@@ -268,29 +258,30 @@ init_topdir(const int fd, struct bufdata *bdata)
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tdir->tmpfname));
                 nvim_command(fd, btp_fromblk(buf, n));
         }
+#define DIRSTR  (tdir->gzfile)
 
-        for (unsigned i = 0; i < base->slen && i < tdir->gzfile->mlen; ++i) {
+        for (unsigned i = 0; i < base->slen && i < DIRSTR->mlen; ++i) {
                 if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i])) {
-                        tdir->gzfile->data[tdir->gzfile->slen++] = '_';
-                        tdir->gzfile->data[tdir->gzfile->slen++] = '_';
+                        DIRSTR->data[DIRSTR->slen++] = '_';
+                        DIRSTR->data[DIRSTR->slen++] = '_';
                 } else
-                        tdir->gzfile->data[tdir->gzfile->slen++] = base->data[i];
+                        DIRSTR->data[DIRSTR->slen++] = base->data[i];
         }
 
         if (settings.comp_type == COMP_GZIP)
-                ret = B_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
+                ret = B_sprintfa(DIRSTR, ".%s.tags.gz", &bdata->ft->vim_name);
         else if (settings.comp_type == COMP_LZMA)
-                ret = B_sprintfa(tdir->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
+                ret = B_sprintfa(DIRSTR, ".%s.tags.xz", &bdata->ft->vim_name);
         else
-                ret = B_sprintfa(tdir->gzfile, ".%s.tags", &bdata->ft->vim_name);
+                ret = B_sprintfa(DIRSTR, ".%s.tags", &bdata->ft->vim_name);
 
         assert(ret == BSTR_OK);
-
         genlist_append(top_dirs, tdir);
         if (!recurse/*  || is_c */)
                 b_free(base);
 
         return tdir;
+#undef DIRSTR
 }
 
 static bool
@@ -350,10 +341,9 @@ init_filetype(const int fd, struct filetype *ft)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
         ft->initialized = true;
-
         ECHO("Init filetype called for ft %s\n", &ft->vim_name);
 
-        ft->order           = nvim_get_var_fmt(fd, E_STRING, "tag_highlight#%s#order", BTS(ft->vim_name)).ptr;
+        ft->order           = nvim_get_var_fmt(fd, E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
         mpack_array_t *tmp  = dict_get_key(settings.ignored_tags, E_MPACK_ARRAY, &ft->vim_name).ptr;
 
         if (tmp) {
@@ -362,7 +352,7 @@ init_filetype(const int fd, struct filetype *ft)
         } else
                 ft->ignored_tags = NULL;
 
-        mpack_dict_t *equiv = nvim_get_var_fmt(fd, E_MPACK_DICT, "tag_highlight#%s#equivalent",
+        mpack_dict_t *equiv = nvim_get_var_fmt(fd, E_MPACK_DICT, PKG "%s#equivalent",
                                                BTS(ft->vim_name)).ptr;
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
@@ -371,17 +361,15 @@ init_filetype(const int fd, struct filetype *ft)
                         bstring *toadd = equiv->entries[i]->key->data.str;
                         b_concat(toadd, equiv->entries[i]->value->data.str);
                         b_writeprotect(toadd);
-
                         mpack_destroy(equiv->entries[i]->key);
                         mpack_destroy(equiv->entries[i]->value);
-                        xfree(equiv->entries[i]);
-
+                        free(equiv->entries[i]);
                         b_writeallow(toadd);
                         b_list_append(&ft->equiv, toadd);
                 }
 
-                xfree(equiv->entries);
-                xfree(equiv);
+                free(equiv->entries);
+                free(equiv);
         } else
                 ft->equiv = NULL;
 
