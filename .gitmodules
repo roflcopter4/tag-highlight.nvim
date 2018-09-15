@@ -13,3 +13,6 @@
 [submodule "tag_highlight/src/contrib/jsmn"]
 	path = tag_highlight/src/contrib/jsmn
 	url = https://github.com/zserge/jsmn
+[submodule "tag_highlight/src/p99"]
+	path = tag_highlight/src/p99
+	url = https://github.com/roflcopter4/P99
