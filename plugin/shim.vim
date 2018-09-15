@@ -146,10 +146,10 @@ endfunction
 "     call s:InitTagHighlight()
 " endfunction
 
-command! TaghighlightInit call s:InitTagHighlight()
-command! TaghighlightStop call s:StopTagHighlight()
-command! TaghighlightClear call s:ClearBuffer()
-command! TaghighlightUpdate call s:ForceUpdateTags()
+command! THLInit call s:InitTagHighlight()
+command! THLStop call s:StopTagHighlight()
+command! THLClear call s:ClearBuffer()
+command! THLUpdate call s:ForceUpdateTags()
 
 command! TestExitKill call s:ExitKill()
 

@@ -1,6 +1,6 @@
 #include "util/util.h"
 
-#include "clang_intern.h"
+#include "intern.h"
 #include "clang.h"
 #include "util/list.h"
 
@@ -42,7 +42,13 @@ static void clear_nvim_highlights(struct bufdata *bdata);
 
 /*======================================================================================*/
 
-mpack_call_array *
+#define B_QUICK_DUMP(LST, FNAME) P99_BLOCK(                                             \
+        FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/%s.log", "wb", HOME, (FNAME)); \
+        b_list_dump(fp, LST);                                                           \
+        fclose(fp);                                                                     \
+)
+
+nvim_call_array *
 type_id(struct bufdata         *bdata,
         struct translationunit *stu,
         const b_list           *enumerators,
@@ -50,7 +56,7 @@ type_id(struct bufdata         *bdata,
         const int               line,
         const int               end)
 {
-        mpack_call_array *calls = new_call_array();
+        nvim_call_array *calls = new_call_array();
 
         if (!info)
                 errx(1, "Invalid");
@@ -60,6 +66,8 @@ type_id(struct bufdata         *bdata,
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
 
         /* add_clr_call(calls, bdata->num, bdata->hl_id, line, end); */
+
+        B_QUICK_DUMP(bdata->ft->ignored_tags, "ignored");
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];

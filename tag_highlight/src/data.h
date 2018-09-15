@@ -91,8 +91,8 @@ struct bufdata {
                 };
                 /* Everything else */
                 struct {
-                        mpack_call_array *calls;
-                        b_list           *cmd_cache;
+                        nvim_call_array *calls;
+                        b_list          *cmd_cache;
                 };
         };
 };
@@ -128,7 +128,6 @@ extern genlist            *top_dirs;
 
 extern int mainchan, bufchan;
 extern const size_t ftdata_len;
-extern const char *const m_type_names[];
 
 #define DEFAULT_FD       (mainchan)
 #define BUFFER_ATTACH_FD (bufchan)

@@ -156,14 +156,14 @@ remove_duplicate_tags(struct taglist **taglist_p)
 
         for (unsigned i = 0; i < to_free->qty; ++i) {
                 b_destroy(to_free->lst[i]->b);
-                free(to_free->lst[i]);
+                xfree(to_free->lst[i]);
                 to_free->lst[i] = NULL;
         }
 
-        /* free(to_free->lst);
-        free(to_free); */
-        free(list->lst);
-        free(list);
+        /* xfree(to_free->lst);
+        xfree(to_free); */
+        xfree(list->lst);
+        xfree(list);
         *taglist_p = repl;
 #undef TAG1
 #undef TAG2
@@ -261,8 +261,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         for (int i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
-        free(uniq->lst);
-        free(uniq);
+        xfree(uniq->lst);
+        xfree(uniq);
         unsigned total = 0, offset = 0;
 
         for (int T = 0; T < num_threads; ++T)
@@ -270,8 +270,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                         total += out[T]->qty;
         if (total == 0) {
                 warnx("No tags found in buffer.");
-                free(tid);
-                free(out);
+                xfree(tid);
+                xfree(out);
                 return NULL;
         }
 
@@ -288,8 +288,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
                                        out[T]->qty * sizeof(*out));
                                 offset += out[T]->qty;
                         }
-                        free(out[T]->lst);
-                        free(out[T]);
+                        xfree(out[T]->lst);
+                        xfree(out[T]);
                 }
         }
 
@@ -298,8 +298,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         remove_duplicate_tags(&ret);
         ECHO("Now there are %u tags...", ret->qty);
 
-        free(tid);
-        free(out);
+        xfree(tid);
+        xfree(out);
         return ret;
 }
 
@@ -330,8 +330,8 @@ do_tok_search(void *vdata)
                 uchar   *cpy_data = cpy->data;
                 LOG("cpy is '%s'\n", BS(cpy));
 
-                bstring name[]       = {{0, 0, NULL, 0u}};
-                bstring match_file[] = {{0, 0, NULL, 0u}};
+                bstring *name       = &(bstring){0, 0, NULL, 0u};
+                bstring *match_file = &(bstring){0, 0, NULL, 0u};
                 bstring *namep = name;
 
                 /* The name is first, followed by two fields we don't need. */
@@ -342,8 +342,8 @@ do_tok_search(void *vdata)
                 cpy->slen -= pos;
 
                 char kind = '\0';
-                bstring match_lang[]  = {{0, 0, NULL, 0u}};
-                bstring tok[]         = {{0, 0, NULL, 0u}};
+                bstring *match_lang = &(bstring){0, 0, NULL, 0u};;
+                bstring *tok        = &(bstring){0, 0, NULL, 0u};;
 
                 LOG("found name: '%s', len: %u\t-\tmatch_file: '%s', len: %u\n",
                     BS(name), name->slen, BS(match_file), match_file->slen);
@@ -361,8 +361,8 @@ do_tok_search(void *vdata)
                 }
 
                 if (!kind || !match_lang[0].data) {
-                        free(cpy_data);
-                        free(cpy);
+                        xfree(cpy_data);
+                        xfree(cpy);
                         continue;
                 }
 
@@ -416,11 +416,11 @@ do_tok_search(void *vdata)
                         add_tag_to_list(&ret, tag);
                 }
 #endif
-                free(cpy_data);
-                free(cpy);
+                xfree(cpy_data);
+                xfree(cpy);
         }
 
-        free(vdata);
+        xfree(vdata);
 
 #ifndef DOSISH
         pthread_exit(ret);

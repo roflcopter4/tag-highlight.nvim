@@ -111,7 +111,7 @@ get_notification(int fd)
 }
 
 void
-write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
+write_and_clean(const int fd, mpack_obj *pack, const bstring *func, FILE *logfp)
 {
 #ifdef DEBUG
 #  ifdef LOG_RAW_MPACK
@@ -120,12 +120,12 @@ write_and_clean(const int fd, mpack_obj *pack, const bstring *func)
         b_write(rawlog, B("\n"), *pack->packed, B("\n"));
         close(rawlog);
 #  endif
-        if (func && mpack_log)
-                fprintf(mpack_log, "=================================\n"
+        if (func && logfp)
+                fprintf(logfp, "=================================\n"
                         "Writing request no %d to fd %d: \"%s\"\n",
                         COUNT(fd) - 1, fd, BS(func));
 
-        mpack_print_object(mpack_log, pack);
+        mpack_print_object(logfp, pack);
 #endif
         b_write(fd, *pack->packed);
         mpack_destroy(pack);

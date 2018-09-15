@@ -1,10 +1,10 @@
 #include "util/util.h"
 
-#include "nvim_api/api.h"
 #include "data.h"
 #include "highlight.h"
-#include "clang/clang.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
+#include "clang/clang.h"
 
 #include <lzma.h>
 
@@ -19,15 +19,16 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static int  handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
-                        const struct taglist  *tags, const struct cmd_info *info);
-static mpack_call_array *update_commands(struct bufdata *bdata,
-                                                 struct taglist *tags);
+static nvim_call_array *update_commands(struct bufdata *bdata, struct taglist *tags);
 static void update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
-static void add_cmd_call(mpack_call_array **calls, bstring *cmd);
-
+static void add_cmd_call(nvim_call_array **calls, bstring *cmd);
 static void get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
+static void get_ignored_tags(struct bufdata *bdata);
+static void update_c_like(struct bufdata *bdata, bool force);
+static void update_other(struct bufdata *bdata);
+static int  handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
+                        const struct taglist  *tags, const struct cmd_info *info);
 
 extern pthread_mutex_t update_mutex;
 #ifdef DEBUG
@@ -41,7 +42,7 @@ extern FILE *cmd_log;
 #define BBS(BSTR) ((char *)((BSTR)->data))
 
 void
-update_highlight(const int bufnum, struct bufdata *bdata)
+(update_highlight)(const int bufnum, struct bufdata *bdata, const bool force)
 {
         timer t;
         pthread_mutex_lock(&update_mutex);
@@ -52,48 +53,49 @@ update_highlight(const int bufnum, struct bufdata *bdata)
                 pthread_mutex_unlock(&update_mutex);
                 return;
         }
-
         ECHO("Updating commands for bufnum %d", bufnum);
 
-        if (!bdata->ft->restore_cmds_initialized) {
-                mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
-                b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name).ptr;
+        if (!bdata->ft->restore_cmds_initialized) 
+                get_ignored_tags(bdata);
 
-                if (restored_groups)
-                        b_list_writeprotect(restored_groups);
-                destroy_mpack_dict(tmp);
+        if (bdata->ft->is_c)
+                update_c_like(bdata, force);
+        else if (bdata->calls)
+                update_from_cache(bdata);
+        else
+                update_other(bdata);
 
-                if (restored_groups) {
-                        b_list_writeallow(restored_groups);
-                        if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
-                                get_tags_from_restored_groups(bdata, restored_groups);
-#ifdef DEBUG
-                                b_list_dump(cmd_log, bdata->ft->ignored_tags);
-#endif
-                        } else
-                                bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
+        TIMER_REPORT(t, "update highlight");
+        pthread_mutex_unlock(&update_mutex);
+}
 
-                        b_list_destroy(restored_groups);
-                }
-
-                bdata->ft->restore_cmds_initialized = true;
+static void
+update_c_like(struct bufdata *bdata, const bool force)
+{
+        echo("File is c, not doing things.");
+        libclang_highlight(bdata, 0, (-1), force);
+        if (!bdata->topdir->tags && !bdata->initialized) {
+                update_taglist(bdata, UPDATE_TAGLIST_FORCE);
+                bdata->initialized = true;
         }
+}
 
+static void
+update_from_cache(struct bufdata *bdata)
+{
+        ECHO("Updating from cache.");
+        nvim_call_atomic(0, bdata->calls);
+        if (bdata->ft->restore_cmds)
+                nvim_command(0, bdata->ft->restore_cmds);
+}
+
+static void
+update_other(struct bufdata *bdata)
+{
         bstring        *joined;
         b_list         *toks;
         struct taglist *tags;
         bool            retry = true;
-
-        if (bdata->ft->is_c) {
-                echo("File is c, not doing things.");
-                libclang_highlight(bdata, 0, (-1));
-                pthread_mutex_unlock(&update_mutex);
-                return;
-        } else if (bdata->calls) {
-                update_from_cache(bdata);
-                goto done;
-        }
-
 retry:
         joined = strip_comments(bdata);
         toks   = tokenize(bdata, joined); 
@@ -108,7 +110,7 @@ retry:
                 nvim_call_atomic(0, bdata->calls);
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
-                        b_destroy(tags->lst[i]->b);
+                        b_free(tags->lst[i]->b);
                         xfree(tags->lst[i]);
                 }
                 xfree(tags->lst);
@@ -121,24 +123,20 @@ retry:
         }
 
         b_list_destroy(toks);
-        b_destroy(joined);
+        b_free(joined);
 
         if (retry) {
                 ECHO("Nothing whatsoever found. Re-running ctags with the "
                      "'--language-force' option.");
-                update_taglist(bdata, 2);
+                update_taglist(bdata, UPDATE_TAGLIST_FORCE_LANGUAGE);
                 retry = false;
                 goto retry;
         }
-
-done:
-        TIMER_REPORT(t, "update highlight");
-        pthread_mutex_unlock(&update_mutex);
 }
 
 /*======================================================================================*/
 
-static mpack_call_array *
+static nvim_call_array *
 update_commands(struct bufdata *bdata, struct taglist *tags)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
@@ -163,7 +161,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 b_writeallow(info[i].suffix);
         }
 
-        mpack_call_array *calls = NULL;
+        nvim_call_array *calls = NULL;
         add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
 
         for (unsigned i = 0; i < ngroups; ++i) {
@@ -179,11 +177,11 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                         add_cmd_call(&calls, cmd);
                 }
 
-                b_destroy(info[i].group);
+                b_free(info[i].group);
                 if (info[i].prefix)
-                        b_destroy(info[i].prefix);
+                        b_free(info[i].prefix);
                 if (info[i].suffix)
-                        b_destroy(info[i].suffix);
+                        b_free(info[i].suffix);
         }
 
 #ifdef DEBUG
@@ -206,27 +204,27 @@ handle_kind(bstring *cmd, unsigned i,
             const struct taglist  *tags,
             const struct cmd_info *info)
 {
-        bstring *group_id = B_sprintf("_tag_highlight_%s_%c_%s",
+        bstring *group_id = b_sprintf("_tag_highlight_%s_%c_%s",
                                       &ft->vim_name, info->kind, info->group);
-        B_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
+        b_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
 
         if (info->prefix || info->suffix) {
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
-                B_sprintfa(cmd, SYN_MATCH_START, group_id, prefix, tags->lst[i++]->b);
+                b_sprintfa(cmd, SYN_MATCH_START, group_id, prefix, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
-                        B_sprintfa(cmd, "\\|%s", tags->lst[i]->b);
-                B_sprintfa(cmd, SYN_MATCH_END, suffix, group_id, info->group);
+                        b_sprintfa(cmd, "\\|%s", tags->lst[i]->b);
+                b_sprintfa(cmd, SYN_MATCH_END, suffix, group_id, info->group);
         }
         else {
-                B_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
+                b_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
-                        B_sprintfa(cmd, "%s ", tags->lst[i]->b);
-                B_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
+                        b_sprintfa(cmd, "%s ", tags->lst[i]->b);
+                b_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
         }
 
-        b_destroy(group_id);
+        b_free(group_id);
         return i;
 }
 
@@ -254,7 +252,7 @@ clear_highlight(const int bufnum, struct bufdata *bdata)
                         0, E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
                 bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
 
-                B_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
+                b_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
                            &bdata->ft->vim_name, ch, group);
 
                 if (i < (bdata->ft->order->slen - 1))
@@ -331,9 +329,9 @@ get_restore_cmds(b_list *restored_groups)
         b_list *allcmds = b_list_create_alloc(restored_groups->qty);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                bstring *cmd    = B_sprintf("syntax list %s", restored_groups->lst[i]);
+                bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
                 bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
-                b_destroy(cmd);
+                b_free(cmd);
                 if (!output)
                         continue;
 
@@ -346,7 +344,7 @@ get_restore_cmds(b_list *restored_groups)
 
                 ptr += 4;
                 assert(!isblank(*ptr));
-                B_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
+                b_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
 
                 b_list *toks = b_list_create();
 
@@ -355,7 +353,7 @@ get_restore_cmds(b_list *restored_groups)
                 if (strncmp(ptr, SLS("match /")) != 0) {
                         char *tmp;
                         char link_name[1024];
-                        B_sprintfa(cmd, "syntax keyword %s ", restored_groups->lst[i]);
+                        b_sprintfa(cmd, "syntax keyword %s ", restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
                                 b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
@@ -366,11 +364,6 @@ get_restore_cmds(b_list *restored_groups)
                                                 break;
                         }
 
-                        unsigned _x;
-                        /* B_LIST_FOREACH (toks, str, _x) {
-                                ECHO("Got '%s'", str);
-                        } */
-
                         b_list_remove_dups(&toks);
                         for (unsigned x = 0; x < toks->qty; ++x) {
                                 b_concat(cmd, toks->lst[x]);
@@ -380,7 +373,7 @@ get_restore_cmds(b_list *restored_groups)
 
                         const size_t n = strlcpy(link_name, (ptr += 9), 1024);
                         assert(n > 0);
-                        B_sprintfa(cmd, " | hi! link %s %s",
+                        b_sprintfa(cmd, " | hi! link %s %s",
                                    restored_groups->lst[i], btp_fromcstr(link_name));
 
                         b_list_append(&allcmds, cmd);
@@ -395,18 +388,35 @@ get_restore_cmds(b_list *restored_groups)
 }
 
 static void
-update_from_cache(struct bufdata *bdata)
+get_ignored_tags(struct bufdata *bdata)
 {
-        ECHO("Updating from cache.");
-        nvim_call_atomic(0, bdata->calls);
-        if (bdata->ft->restore_cmds)
-                nvim_command(0, bdata->ft->restore_cmds);
+        mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
+        b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name).ptr;
+
+        if (restored_groups)
+                b_list_writeprotect(restored_groups);
+        destroy_mpack_dict(tmp);
+
+        if (restored_groups) {
+                b_list_writeallow(restored_groups);
+                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
+                        get_tags_from_restored_groups(bdata, restored_groups);
+#ifdef DEBUG
+                        b_list_dump(cmd_log, bdata->ft->ignored_tags);
+#endif
+                } else
+                        bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
+
+                b_list_destroy(restored_groups);
+        }
+
+        bdata->ft->restore_cmds_initialized = true;
 }
 
 /*======================================================================================*/
 
 static void
-add_cmd_call(mpack_call_array **calls, bstring *cmd)
+add_cmd_call(nvim_call_array **calls, bstring *cmd)
 {
         assert(calls);
         if (!*calls) {

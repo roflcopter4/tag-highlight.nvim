@@ -380,15 +380,6 @@ __free_all(void *ptr, ...)
 }
 
 void
-free_stack_push(struct item_free_stack *list, void *item)
-{
-        if (list->qty == (list->max - 1))
-                list->items = nrealloc(list->items, (list->max *= 2),
-                                       sizeof(*list->items));
-        list->items[list->qty++] = item;
-}
-
-void
 add_backup(struct backups *list, void *item)
 {
         if (!list->lst)
@@ -403,7 +394,7 @@ void
 free_backups(struct backups *list)
 {
         for (unsigned i = 0; i < list->qty; ++i)
-                free(list->lst[i]);
+                xfree(list->lst[i]);
         list->qty = 0;
 }
 

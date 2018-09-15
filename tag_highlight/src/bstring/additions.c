@@ -455,9 +455,10 @@ b_list_append(b_list **listp, bstring *bstr)
         if (!listp || !*listp || !(*listp)->lst)
                 RUNTIME_ERROR();
 
-        if ((*listp)->qty == ((*listp)->mlen - 1))
-                (*listp)->lst = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) *
-                                                          sizeof(*(*listp)->lst));
+        if ((*listp)->qty >= ((*listp)->mlen)) {
+                bstring **tmp = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) * sizeof(bstring *));
+                (*listp)->lst = tmp;
+        }
         (*listp)->lst[(*listp)->qty++] = bstr;
 
         return BSTR_OK;
@@ -574,8 +575,8 @@ b_list_merge(b_list **dest, b_list *src, const int flags)
                 (*dest)->lst[(*dest)->qty++] = src->lst[i];
 
         if (flags & BSTR_M_DEL_SRC) {
-                free(src->lst);
-                free(src);
+                xfree(src->lst);
+                xfree(src);
         }
         if (flags & BSTR_M_DEL_DUPS)
                 b_list_remove_dups(dest);
@@ -598,10 +599,12 @@ b_list_remove_dups(b_list **listp)
 
         for (unsigned i = 0; i < (*listp)->qty; ++i) {
                 b_list *tmp = b_strsep((*listp)->lst[i], " ", 0);
+                if (!tmp)
+                        continue;
                 for (unsigned x = 0; x < tmp->qty; ++x)
                         b_list_append(&toks, tmp->lst[x]);
-                free(tmp->lst);
-                free(tmp);
+                xfree(tmp->lst);
+                xfree(tmp);
         }
 
         b_list_destroy(*listp);
@@ -971,18 +974,18 @@ b_catblk_nonul(bstring *bstr, void *blk, const unsigned len)
 
 
 bstring *
-b_sprintf(const bstring *fmt, ...)
+_b_sprintf(const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        bstring *ret = b_vsprintf(fmt, ap);
+        bstring *ret = _b_vsprintf(fmt, ap);
         va_end(ap);
         return ret;
 }
 
 
 bstring *
-b_vsprintf(const bstring *fmt, va_list args)
+_b_vsprintf(const bstring *fmt, va_list args)
 {
         static bstring nullstring = bt_init("(null)");
         if (INVALID(fmt))
@@ -1236,11 +1239,11 @@ b_vsprintf(const bstring *fmt, va_list args)
 
 
 int
-b_fprintf(FILE *out_fp, const bstring *fmt, ...)
+_b_fprintf(FILE *out_fp, const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        const int ret = b_vfprintf(out_fp, fmt, ap);
+        const int ret = _b_vfprintf(out_fp, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1248,12 +1251,12 @@ b_fprintf(FILE *out_fp, const bstring *fmt, ...)
 
 
 int
-b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args)
+_b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args)
 {
         if (INVALID(fmt) || !out_fp)
                 RUNTIME_ERROR();
 
-        bstring *toprint = b_vsprintf(fmt, args);
+        bstring *toprint = _b_vsprintf(fmt, args);
         if (!toprint)
                 RUNTIME_ERROR();
 
@@ -1264,11 +1267,11 @@ b_vfprintf(FILE *out_fp, const bstring *fmt, va_list args)
 
 
 int
-b_dprintf(const int out_fd, const bstring *fmt, ...)
+_b_dprintf(const int out_fd, const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        const int ret = b_vdprintf(out_fd, fmt, ap);
+        const int ret = _b_vdprintf(out_fd, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1276,12 +1279,12 @@ b_dprintf(const int out_fd, const bstring *fmt, ...)
 
 
 int
-b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
+_b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
 {
         if (INVALID(fmt) || out_fd < 0)
                 RUNTIME_ERROR();
 
-        bstring *toprint = b_vsprintf(fmt, args);
+        bstring *toprint = _b_vsprintf(fmt, args);
         if (!toprint)
                 RUNTIME_ERROR();
 
@@ -1292,13 +1295,13 @@ b_vdprintf(const int out_fd, const bstring *fmt, va_list args)
 
 
 int
-b_sprintfa(bstring *dest, const bstring *fmt, ...)
+_b_sprintfa(bstring *dest, const bstring *fmt, ...)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();
         va_list ap;
         va_start(ap, fmt);
-        const int ret = b_vsprintfa(dest, fmt, ap);
+        const int ret = _b_vsprintfa(dest, fmt, ap);
         va_end(ap);
 
         return ret;
@@ -1306,12 +1309,12 @@ b_sprintfa(bstring *dest, const bstring *fmt, ...)
 
 
 int
-b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
+_b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
 {
         if (INVALID(dest) || NO_WRITE(dest) || INVALID(fmt))
                 RUNTIME_ERROR();
 
-        bstring *app = b_vsprintf(fmt, args);
+        bstring *app = _b_vsprintf(fmt, args);
         if (INVALID(app))
                 RUNTIME_ERROR();
 
@@ -1323,7 +1326,7 @@ b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
                 uchar *buf = xmalloc(newlen);
                 memcpy(buf, dest->data, dest->slen);
                 memcpy(buf + dest->slen, app->data, app->slen);
-                free(dest->data);
+                xfree(dest->data);
                 dest->data = buf;
         }
 

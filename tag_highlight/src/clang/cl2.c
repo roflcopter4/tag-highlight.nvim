@@ -1,11 +1,11 @@
 #include "util/util.h"
 
 #include "clang.h"
-#include "clang_intern.h"
 #include "data.h"
 #include "highlight.h"
-#include "mpack/mpack.h"
+#include "intern.h"
 #include "nvim_api/api.h"
+#include "util/find.h"
 #include <spawn.h>
 #include <stddef.h>
 #include <sys/stat.h>
@@ -18,7 +18,11 @@
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_Incomplete)
 #endif
-#define TUFLAGS (clang_defaultEditingTranslationUnitOptions() | CXTranslationUnit_DetailedPreprocessingRecord)
+#define TUFLAGS                                                                                  \
+        (/* clang_defaultEditingTranslationUnitOptions()  |  */                                         \
+         CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_PrecompiledPreamble | \
+         CXTranslationUnit_KeepGoing | CXTranslationUnit_CreatePreambleOnFirstParse)
+#define INIT_ARGV (32)
 
 #define DUMPDATA()                                                 \
         do {                                                       \
@@ -31,6 +35,7 @@
         } while (0)
 
 static const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
+static char              tmp_path[PATH_MAX + 1];
 
 struct mydata {
         CXTranslationUnit tu;
@@ -38,99 +43,77 @@ struct mydata {
         const bstring *buf;
 };
 
-static char tmp_path[PATH_MAX + 1];
-
 static struct translationunit *init_compilation_unit(struct bufdata *bdata);
 static struct translationunit *recover_compilation_unit(struct bufdata *bdata);
-static struct cmd_info *       getinfo(const struct bufdata *bdata);
+static struct cmd_info *       getinfo(struct bufdata *bdata);
 static str_vector *            get_compile_commands(struct bufdata *bdata);
 static str_vector *            get_backup_commands(struct bufdata *bdata);
+static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata);
 static void                    get_tmp_path(void);
 static void                    clean_tmpdir(void);
 static void                    tagfinder(struct mydata *data, CXCursor cursor);
 static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data);
-
-static void          destroy_struct_translationunit(struct translationunit *stu);
-static inline void   lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
-static void          tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
-static bool          get_range(CXSourceRange r, unsigned values[4]);
-static struct token *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
+static void                    destroy_struct_translationunit(struct translationunit *stu);
+static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
+static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
+static struct token *          get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
 
 /*======================================================================================*/
 
 void
-libclang_highlight(struct bufdata *bdata, const int first, const int last)
+(libclang_highlight)(struct bufdata *bdata, const int first, const int last, const bool force)
 {
+        if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
+                return;
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+        /* timer t; */
         pthread_mutex_lock(&mut);
-        timer t;
 
         /* TIMER_START(t); */
-        if (!bdata)
-                err(1, "how?");
-        struct translationunit *stu = (bdata->clangdata)
-                                          ? recover_compilation_unit(bdata)
-                                          : init_compilation_unit(bdata);
-        /* TIMER_REPORT(t, "compilation unit"); */
+        
+        struct translationunit *stu;
+        if (force) {
+                if (bdata->clangdata)
+                        destroy_clangdata(bdata);
+                stu = init_compilation_unit(bdata);
+        } else {
+                stu = (bdata->clangdata) ? recover_compilation_unit(bdata)
+                                         : init_compilation_unit(bdata);
+        }
+        /* TIMER_REPORT_RESTART(t, "Parse/reparse"); */
 
-        lc_index_file(bdata);
+        int64_t startend[2];
+        CXFile  file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
+        CLD(bdata)->mainfile = file;
 
-        int64_t  startend[2];
-        CXFile   file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
+        /* lc_index_file(bdata); */
 
         if (last == (-1)) {
                 startend[0] = 0;
                 startend[1] = stu->buf->slen;
-        } else {
+        } else
                 lines2bytes(bdata, startend, first, last);
-        }
 
-        /* TIMER_START(t); */
         tokenize_range(stu, &file, startend[0], startend[1]);
-        /* TIMER_REPORT(t, "tokenizing"); */
 
-        /* TIMER_START(t); */
-        mpack_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
+        nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
         nvim_call_atomic(0, calls);
         destroy_call_array(calls);
         destroy_struct_translationunit(stu);
-        /* TIMER_REPORT(t, "calls and cleanup"); */
 
+        /* TIMER_REPORT(t, "Other clang ops"); */
         pthread_mutex_unlock(&mut);
 }
-
-#if 0
-mpack_call_array *
-libclang_highlight___(struct bufdata *bdata, const int first, const int last)
-{
-        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-        pthread_mutex_lock(&mut);
-        struct translationunit *stu = (bdata->clangdata) ? recover_compilation_unit(bdata) : init_compilation_unit(bdata);
-        int64_t  startend[2];
-        CXFile   file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
-        if (last == (-1)) {
-                startend[0] = 0;
-                startend[1] = stu->buf->slen;
-        } else {
-                lines2bytes(bdata, startend, first, last);
-        }
-        tokenize_range(stu, &file, startend[0], startend[1]);
-        mpack_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
-        pthread_mutex_unlock(&mut);
-        return calls;
-}
-#endif
 
 static inline void
 lines2bytes(struct bufdata *bdata, int64_t *startend, const int first, const int last)
 {
-        int64_t  startbyte = 0, endbyte = 0;
-        unsigned i = 0;
+        int64_t startbyte = 0, endbyte = 0, i = 0;
 
-        LL_FOREACH_F(bdata->lines, node) {
+        LL_FOREACH_F (bdata->lines, node) {
                 if (i < first)
                         endbyte = (startbyte += node->data->slen + 1);
-                else if (i < last+1)
+                else if (i < last + 1)
                         endbyte += node->data->slen + 1;
                 else
                         break;
@@ -174,11 +157,13 @@ init_compilation_unit(struct bufdata *bdata)
         if (!*tmp_path)
                 get_tmp_path();
 
-        char         tmp[TMPSIZ];
+        char         tmp[PATH_MAX];
         bstring     *buf       = ll_join(bdata->lines, '\n');
         str_vector  *comp_cmds = get_compile_commands(bdata);
-        const size_t tmplen    = snprintf(tmp, TMPSIZ, "%s/XXXXXX.%s", tmp_path, BTS(bdata->ft->vim_name));
-        const int    tmpfd     = mkostemps(tmp, ((bdata->ft->id == FT_C) ? 2 : 4), O_DSYNC);
+        /* const size_t tmplen    = snprintf(tmp, TMPSIZ, "%s/XXXXXX.%s", tmp_path, BTS(bdata->ft->vim_name)); */
+        /* const int    tmpfd     = mkostemps(tmp, ((bdata->ft->id == FT_C) ? 2 : 4), O_DSYNC); */
+        const int tmplen = snprintf(tmp, PATH_MAX, "%s/XXXXXX%s", tmp_path, BS(bdata->name.base));
+        const int tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
 
         if (b_write(tmpfd, buf, B("\n")) != 0)
                 err(1, "Write error");
@@ -192,8 +177,8 @@ init_compilation_unit(struct bufdata *bdata)
         CLD(bdata)->idx = clang_createIndex(1, 1);
         CLD(bdata)->tu  = NULL;
 
-        int clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
-                                                  comp_cmds->qty, NULL, 0, TUFLAGS, &CLD(bdata)->tu);
+        unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
+                                                       (int)comp_cmds->qty, NULL, 0, TUFLAGS, &CLD(bdata)->tu);
 
         if (!CLD(bdata)->tu || clerror != 0)
                 errx(1, "libclang error: %d", clerror);
@@ -214,13 +199,13 @@ init_compilation_unit(struct bufdata *bdata)
         CLD(bdata)->enumerators = enumlist.enumerators;
         CLD(bdata)->argv        = comp_cmds;
         CLD(bdata)->info        = getinfo(bdata);
-        memcpy(CLD(bdata)->tmp_name, tmp, tmplen + 1);
+        memcpy(CLD(bdata)->tmp_name, tmp, (size_t)tmplen + 1llu);
 
         return stu;
 }
 
 static struct cmd_info *
-getinfo(const struct bufdata *bdata)
+getinfo(struct bufdata *bdata)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
@@ -242,22 +227,29 @@ getinfo(const struct bufdata *bdata)
         return info;
 }
 
+/*======================================================================================*/
+
 static str_vector *
 get_compile_commands(struct bufdata *bdata)
 {
         CXCompilationDatabase_Error cberr;
-        CXCompilationDatabase       db = clang_CompilationDatabase_fromDirectory(
-            BS(bdata->topdir->pathname), &cberr);
+        CXCompilationDatabase       db =
+                clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
         if (cberr != 0) {
                 clang_CompilationDatabase_dispose(db);
                 warn("Couldn't locate compilation database.");
                 return get_backup_commands(bdata);
         }
 
-        CXCompileCommands cmds = clang_CompilationDatabase_getCompileCommands(
-            db, BS(bdata->name.full));
+        /* CXCompileCommands cmds = */
+                /* clang_CompilationDatabase_getCompileCommands(db, BS(bdata->name.full)); */
+        CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
+        if (!cmds) {
+                clang_CompilationDatabase_dispose(db);
+                return get_backup_commands(bdata);
+        }
         const unsigned ncmds = clang_CompileCommands_getSize(cmds);
-        str_vector    *ret   = argv_create(32);
+        str_vector    *ret   = argv_create(INIT_ARGV);
 
         for (unsigned i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], false);
@@ -282,8 +274,7 @@ get_compile_commands(struct bufdata *bdata)
         }
 
         argv_fmt(ret, "-I%s", BS(bdata->name.path));
-        for (unsigned i = 0; i < n_clang_paths; ++i)
-                argv_append(ret, clang_paths[i], true);
+        argv_append(ret, "-stdlib=libstdc++", true);
 
         clang_CompileCommands_dispose(cmds);
         clang_CompilationDatabase_dispose(db);
@@ -293,19 +284,46 @@ get_compile_commands(struct bufdata *bdata)
 static str_vector *
 get_backup_commands(struct bufdata *bdata)
 {
-        str_vector *ret = argv_create(8);
+        str_vector *ret = argv_create(INIT_ARGV);
+#if 0
         argv_append(ret,
                     ((bdata->ft->id == FT_C)
                          ? "clang"
                          : ((bdata->ft->id == FT_CPP) ? "clang++" : (abort(), ""))),
                     true);
+#endif
+
+        for (unsigned i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
+                argv_append(ret, gcc_sys_dirs[i], false);
         argv_fmt(ret, "-I%s", BS(bdata->name.path));
         argv_fmt(ret, "-I%s", BS(bdata->topdir->pathname));
-
-        for (unsigned i = 0; i < n_clang_paths; ++i)
-                argv_append(ret, clang_paths[i], true);
+        argv_append(ret, "-stdlib=libstdc++", true);
 
         return ret;
+}
+
+static CXCompileCommands
+get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata)
+{
+        CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full));
+        const unsigned    num  = clang_CompileCommands_getSize(comp);
+        ECHO("num is %u\n", num);
+
+        if (num == 0) {
+                ECHO("Looking for backup files...");
+                clang_CompileCommands_dispose(comp);
+                bstring *file = find_file(BS(bdata->name.path), (bdata->ft->id == FT_C)
+                                          ? ".*\\.c$" : ".*\\.(cpp|cc|cxx|c++)$", FIND_FIRST);
+                if (file) {
+                        ECHO("Found %s!\n", file);
+                        comp = clang_CompilationDatabase_getCompileCommands(*db, BS(file));
+                        b_free(file);
+                } else {
+                        ECHO("Found nothing.\n");
+                        comp = NULL;
+                }
+        }
+        return comp;
 }
 
 /*======================================================================================*/
@@ -326,13 +344,7 @@ get_tmp_path(void)
 static void
 clean_tmpdir(void)
 {
-#ifndef HAVE_POSIX_SPAWNP
-        char cmd[CMD_SIZ];
-        snprintf(cmd, CMD_SIZ, "rm -rf \"%s\"", tmp_path);
-        int status = system(cmd) << STATUS_SHIFT;
-        if (status != 0)
-                err(1, "rm failed with status %d", status);
-#else
+#ifdef HAVE_POSIX_SPAWNP
         int status, pid, ret;
         char *const argv[] = {"rm", "-rf", tmp_path, (char *)0};
 
@@ -341,6 +353,12 @@ clean_tmpdir(void)
 
         waitpid(pid, &status, 0);
         if ((status <<= STATUS_SHIFT) != 0)
+                err(1, "rm failed with status %d", status);
+#else
+        char cmd[CMD_SIZ];
+        snprintf(cmd, CMD_SIZ, "rm -rf \"%s\"", tmp_path);
+        int status = system(cmd) << STATUS_SHIFT;
+        if (status != 0)
                 err(1, "rm failed with status %d", status);
 #endif
 }
@@ -351,8 +369,8 @@ destroy_struct_translationunit(struct translationunit *stu)
         clang_disposeTokens(stu->tu, stu->cxtokens, stu->num);
         genlist_destroy(stu->tokens);
         b_free(stu->buf);
-        free(stu->cxcursors);
-        free(stu);
+        xfree(stu->cxcursors);
+        xfree(stu);
 }
 
 void
@@ -364,32 +382,19 @@ destroy_clangdata(struct bufdata *bdata)
         b_list_destroy(cdata->enumerators);
 
         for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
-                free(cdata->argv->lst[i]);
-        free(cdata->argv);
+                xfree(cdata->argv->lst[i]);
+        xfree(cdata->argv);
 
         if (cdata->info) {
                 for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)
                         b_free(cdata->info[i].group);
-                free(cdata->info);
+                xfree(cdata->info);
         }
 
         clang_disposeTranslationUnit(cdata->tu);
         clang_disposeIndex(cdata->idx);
-        free(cdata);
+        xfree(cdata);
         bdata->clangdata = NULL;
-}
-
-void _free_cxstrings(CXString *str, ...)
-{
-        if (!str)
-                return;
-        va_list ap;
-        va_start(ap, str);
-        do {
-                clang_disposeString(*str);
-                str = va_arg(ap, CXString *);
-        } while (str);
-        va_end(ap);
 }
 
 /*======================================================================================*/
@@ -425,35 +430,15 @@ visit_continue(CXCursor cursor, UNUSED CXCursor parent, void *client_data)
 
 /*======================================================================================*/
 
-static bool
-get_range(CXSourceRange r, unsigned values[4])
-{
-        CXSourceLocation start = clang_getRangeStart(r);
-        CXSourceLocation end   = clang_getRangeEnd(r);
-        unsigned         rng[2][3];
-
-        clang_getExpansionLocation(start, NULL, &rng[0][0], &rng[0][1], &rng[0][2]);
-        clang_getExpansionLocation(end,   NULL, &rng[1][0], &rng[1][1], NULL);
-
-        if (rng[0][0] != rng[1][0])
-                return false;
-
-        values[0] = rng[0][0];
-        values[1] = rng[0][1];
-        values[2] = rng[1][1];
-        values[3] = rng[0][2];
-        return true;
-}
-
 static struct token *
 get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
 {
-        struct token *ret;
-        unsigned      values[4];
-        CXTokenKind   tokkind = clang_getTokenKind(*tok);
+        struct token         *ret;
+        struct resolved_range res;
+        CXTokenKind tokkind = clang_getTokenKind(*tok);
 
         if (tokkind != CXToken_Identifier ||
-            !get_range(clang_getTokenExtent(*tu, *tok), values))
+            !resolve_range(clang_getTokenExtent(*tu, *tok), &res))
                 return NULL;
 
         CXString dispname = clang_getCursorDisplayName(*cursor);
@@ -463,10 +448,10 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
         ret->tokenkind    = clang_getTokenKind(*tok);
-        ret->line         = values[0] - 1;
-        ret->col1         = values[1] - 1;
-        ret->col2         = values[2] - 1;
-        ret->len          = values[2] - values[1];
+        ret->line         = res.line - 1;
+        ret->col1         = res.start - 1;
+        ret->col2         = res.end - 1;
+        ret->len          = res.end - res.start;
 
         memcpy(ret->raw, CS(dispname), len);
         clang_disposeString(dispname);
@@ -480,8 +465,8 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
         CXToken        *toks = NULL;
         unsigned        num  = 0;
         CXSourceRange   rng  = clang_getRange(
-            clang_getLocationForOffset(stu->tu, *file, first),
-            clang_getLocationForOffset(stu->tu, *file, last)
+            clang_getLocationForOffset(stu->tu, *file, (unsigned)first),
+            clang_getLocationForOffset(stu->tu, *file, (unsigned)last)
         );
 
         clang_tokenize(stu->tu, rng, &toks, &num);
@@ -501,7 +486,6 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
 void
 tokvisitor(struct token *tok)
 {
-        static char     logpth[PATH_MAX + 1];
         static unsigned n = 0;
 
         CXString typespell      = clang_getTypeSpelling(tok->cursortype);
@@ -510,10 +494,10 @@ tokvisitor(struct token *tok)
         FILE    *toklog         = safe_fopen_fmt("%s/toks.log", "ab", tmp_path);
 
         fprintf(toklog, "%4u: %-50s - %-17s - %-30s - %s\n",
-                n++, tok->raw, CS(typekindrepr), CS(curs_kindspell), CS(typespell));
+                n++, tok->raw, P99_SEQ(CS, typekindrepr, curs_kindspell, typespell));
 
         fclose(toklog);
-        free_cxstrings(&typespell, &typekindrepr, &curs_kindspell);
+        free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
 
 /*======================================================================================*/

@@ -87,9 +87,9 @@ b_list_destroy(b_list *sl)
 
         sl->qty  = 0;
         sl->mlen = 0;
-        free(sl->lst);
+        xfree(sl->lst);
         sl->lst  = NULL;
-        free(sl);
+        xfree(sl);
 
         return BSTR_OK;
 }

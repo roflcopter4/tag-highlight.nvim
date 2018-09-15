@@ -85,7 +85,7 @@ find_header_files(struct bufdata *bdata)
 
                 for (i = 0; i < copy->qty; ++i) {
                         pthread_join(tid[i], (void **)(all + i));
-                        free(data[i]);
+                        xfree(data[i]);
                 }
 
                 for (i = 0; i < copy->qty; ++i)
@@ -328,7 +328,7 @@ find_header_paths_system(bstring *file, const bstring *sysdir)
                 bstring *d = b_dirname(file);
                 bstring *f = b_basename(file);
 
-                for (int i = 0; i < ARRSIZ(paths) && !ret; ++i) {
+                for (unsigned i = 0; i < ARRSIZ(paths) && !ret; ++i) {
                         if (!paths[i] || !paths[i][0])
                                 continue;
                         snprintf(p, PATH_STR, "%s/%s", paths[i], BS(d));
@@ -342,7 +342,7 @@ find_header_paths_system(bstring *file, const bstring *sysdir)
                 b_free(d);
                 b_free(f);
         } else {
-                for (int i = 0; i < ARRSIZ(paths) && !ret; ++i)
+                for (unsigned i = 0; i < ARRSIZ(paths) && !ret; ++i)
                         ret = find_file(paths[i], BS(file), FIND_SHORTEST);
         }
 
@@ -399,7 +399,7 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
 #endif
 
         bstring  line[] = {{0, 0, NULL, 0}};
-        bstring *slurp  = b_quickread(BS(cur_header));
+        bstring *slurp  = b_quickread("%s", BS(cur_header));
         if (!slurp)
                 return;
 
@@ -412,8 +412,8 @@ recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                         handle_file(includes, file, cur_header);
                 b_free(line);
         }
-        free(slurp);
-        free(bak);
+        xfree(slurp);
+        xfree(bak);
 
         b_list *new_headers = find_header_paths(src_dirs, includes);
         if (new_headers) {

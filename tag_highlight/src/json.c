@@ -41,12 +41,20 @@
 #endif
 
 
-static b_list *extract_info(const jsmntok_t *toks, int ntoks, const bstring *js,
-                            const bstring *filename, const bstring *base, b_list *includes);
-static unsigned cannon_path(char *restrict buf, const bstring *restrict path,
-                            const bstring *restrict file, unsigned file_offset);
-static unsigned cannon_dotpath(char *restrict buf, const bstring *restrict path,
-                               const bstring *restrict file, unsigned file_offset);
+static b_list  *extract_info(jsmntok_t const *toks,
+                             int              ntoks,
+                             bstring const   *js,
+                             bstring const   *filename,
+                             bstring const   *base,
+                             b_list          *includes);
+static unsigned cannon_path(char          *restrict buf,
+                            bstring const *restrict path,
+                            bstring const *restrict file,
+                            unsigned                file_offset);
+static unsigned cannon_dotpath(char          *restrict buf,
+                               bstring const *restrict path,
+                               bstring const *restrict file,
+                               unsigned                file_offset);
 
 
 b_list *
@@ -96,9 +104,9 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
         b_list        *ret   = extract_info(toks, ntoks, &js_tmp,
                                             filename, base, includes);
 
-        b_destroy(base);
-        free(toks);
-        free(buf);
+        b_free(base);
+        xfree(toks);
+        xfree(buf);
 
         return ret;
 }
@@ -107,10 +115,10 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
 static b_list *
 extract_info(const jsmntok_t *toks,
              const int        ntoks,
-             const bstring *  js,
-             const bstring *  filename,
-             const bstring *  base,
-             b_list *         includes)
+             const bstring   *js,
+             const bstring   *filename,
+             const bstring   *base,
+             b_list          *includes)
 {
         int arr_top = 0;
         int file_arr = (-1);
@@ -125,10 +133,10 @@ extract_info(const jsmntok_t *toks,
                         ++i;
 
                         if (!b_iseq(key, B("file"))) {
-                                b_destroy(key);
+                                b_free(key);
                                 continue;
                         }
-                        b_destroy(key);
+                        b_free(key);
 
                         ASSERTX((unsigned)toks[i].end <= js->slen,
                                 "offset %d is invalid (max %u)\n", toks[i].end, js->slen);
@@ -159,10 +167,10 @@ extract_info(const jsmntok_t *toks,
 
                         if (B_FILE_EQ(filename, tmp)) {
                                 file_arr = arr_top;
-                                b_destroy(value);
+                                b_free(value);
                                 break;
                         }
-                        b_destroy(value);
+                        b_free(value);
                         value = NULL;
                 }
         }
@@ -229,8 +237,8 @@ extract_info(const jsmntok_t *toks,
                                 //b_free(btok);
                         }
 
-                        b_destroy(cmd);
-                        b_destroy(key);
+                        b_free(cmd);
+                        b_free(key);
                         break;
                 }
                 if (b_iseq(key, B("arguments"))) {
@@ -259,23 +267,21 @@ extract_info(const jsmntok_t *toks,
 
                                         b_list_append(&ret, b_fromblk(newtok, size));
                                         /* ECHO("Which is now '%s'", BS(ret->lst[ret->qty - 1])); */
-                                } else if (arg->slen > 9u &&
-                                           strncmp(BS(arg), SLS("-include")) == 0)
-                                {
+                                } else if (arg->slen > 9u && strncmp(BS(arg), SLS("-include")) == 0) {
                                         bstring *tmp = b_fromblk(arg->data + 9,
                                                                  arg->slen - 9u);
                                         //ECHO("Adding header '%s'", BS(tmp));
                                         b_list_append(&includes, tmp);
                                 }
 
-                                b_destroy(arg);
+                                b_free(arg);
                         } while (toks[++i].type == JSMN_STRING);
 
-                        b_destroy(key);
+                        b_free(key);
                         break;
                 }
 
-                b_destroy(key);
+                b_free(key);
         }
 
         /* b_list_dump_nvim(ret); */

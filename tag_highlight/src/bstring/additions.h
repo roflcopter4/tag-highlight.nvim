@@ -73,8 +73,8 @@ extern "C" {
  * All bstring functions will refuse to modify the return from this macro,
  * including b_free(). The object must not otheriwise be free'd.
  */
-#define b_tmp(CSTR) (bstring[]){ bt_init(CSTR) }
-#define B(CSTR)     b_tmp(CSTR)
+#define b_tmp(CSTR) (&(bstring)bt_init(CSTR)) 
+#define B(CSTR)     (&(bstring)bt_init(CSTR)) 
 
 
 #if 0
@@ -120,13 +120,13 @@ extern "C" {
 
 
 #define btp_fromblk(BLK, LEN) \
-        (bstring[]){ {.slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u} }
+        (&(bstring){.slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u}) 
 
 #define btp_fromcstr(STR_) \
-        (bstring[]){ {.slen = strlen(STR_), .mlen = 0, .data = ((uchar *)(STR_)), .flags = 0x00u} }
+        (&(bstring){.slen = strlen(STR_), .mlen = 0, .data = ((uchar *)(STR_)), .flags = 0x00u}) 
 
 #define btp_fromarray(CARRAY_) \
-        (bstring[]){ {.slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .data  = ((unsigned char *)(CARRAY_)), .flags = 0} }
+        (&(bstring){.slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .data  = ((unsigned char *)(CARRAY_)), .flags = 0}) 
 
 
 #define b_litsiz                   b_staticBlkParms
@@ -134,6 +134,12 @@ extern "C" {
 #define b_assignlit(BSTR, LIT_STR) b_assign_blk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_catlit(BSTR, LIT_STR)    b_catblk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_fromlit(LIT_STR)         b_lit2bstr(LIT_STR)
+
+#define b_iseq_lit(BSTR, LIT_STR)  b_iseq((BSTR), B(LIT_STR))
+
+#define B_ISEQ(a, b) _Generic(b, \
+                bstring *: b_iseq(((void *)(a)), ((void *)(b))), const bstring *: b_iseq(((void *)(a)), ((void *)(b))), volatile bstring *: b_iseq(((void *)(a)), ((void *)(b))), \
+                char *: b_iseq_cstr(((void *)(a)), ((void *)(b))), const char *: b_iseq(((void *)(a)), ((void *)B(b))), volatile char *: b_iseq_cstr(((void *)(a)), ((void *)(b))))
 
 
 /**
@@ -204,6 +210,7 @@ b_fread(void *buf, const size_t size, const size_t nelem, void *param)
 #define B_GETS(PARAM, TERM, END_) b_gets(&b_fgetc, (PARAM), (TERM), (END_))
 #define B_READ(PARAM, END_)       b_read(&b_fread, (PARAM), (END_))
 
+__attribute__((__format__(__printf__, 1, 2)))
 BSTR_PUBLIC bstring *b_quickread(const char *__restrict fmt, ...);
 
 
@@ -323,23 +330,24 @@ BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
 
-BSTR_PUBLIC bstring *  b_sprintf  (const bstring *fmt, ...);
-BSTR_PUBLIC bstring *  b_vsprintf (const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_fprintf  (FILE *out_fp, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vfprintf (FILE *out_fp, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_dprintf  (const int out_fd, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vdprintf (const int out_fd, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        b_sprintfa (bstring *dest, const bstring *fmt, ...);
-BSTR_PUBLIC int        b_vsprintfa(bstring *dest, const bstring *fmt, va_list args);
+BSTR_PUBLIC bstring *  _b_sprintf  (const bstring *fmt, ...);
+BSTR_PUBLIC bstring *  _b_vsprintf (const bstring *fmt, va_list args);
+BSTR_PUBLIC int        _b_fprintf  (FILE *out_fp, const bstring *fmt, ...);
+BSTR_PUBLIC int        _b_vfprintf (FILE *out_fp, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        _b_dprintf  (const int out_fd, const bstring *fmt, ...);
+BSTR_PUBLIC int        _b_vdprintf (const int out_fd, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        _b_sprintfa (bstring *dest, const bstring *fmt, ...);
+BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list args);
 
-#define B_sprintf(FMT_, ...)          b_sprintf(B(FMT_), __VA_ARGS__)
-#define B_vsprintf(FMT_, ...)         b_vsprintf(B(FMT_), __VA_ARGS__)
-#define B_fprintf(FP_, FMT_, ...)     b_fprintf((FP_), B(FMT_), __VA_ARGS__)
-#define B_vfprintf(FP_, FMT_, ...)    b_vfprintf((FP_), B(FMT_), __VA_ARGS__)
-#define B_dprintf(FD_, FMT_, ...)     b_dprintf((FD_), B(FMT_), __VA_ARGS__)
-#define B_vdprintf(FD_, FMT_, ...)    b_vdprintf((FD_), B(FMT_), __VA_ARGS__)
-#define B_sprintfa(DST_, FMT_, ...)   b_sprintfa((DST_), B(FMT_), __VA_ARGS__)
-#define B_vsdprintfa(DST_, FMT_, ...) b_vsprintfa((DST_), B(FMT_), __VA_ARGS__)
+#define b_sprintf(FMT, ...)         _b_sprintf(B(FMT),          ##__VA_ARGS__)
+#define b_vsprintf(FMT, ...)        _b_vsprintf(B(FMT),         ##__VA_ARGS__)
+#define b_fprintf(FP, FMT, ...)     _b_fprintf((FP), B(FMT),    ##__VA_ARGS__)
+#define b_vfprintf(FP, FMT, ...)    _b_vfprintf((FP), B(FMT),   ##__VA_ARGS__)
+#define b_dprintf(FD, FMT, ...)     _b_dprintf((FD), B(FMT),    ##__VA_ARGS__)
+#define b_vdprintf(FD, FMT, ...)    _b_vdprintf((FD), B(FMT),   ##__VA_ARGS__)
+#define b_sprintfa(DST, FMT, ...)   _b_sprintfa((DST), B(FMT),  ##__VA_ARGS__)
+#define B_vsprintfa(DST, FMT, ...)  _b_vsprintfa((DST), B(FMT), ##__VA_ARGS__)
+#define b_vsdprintfa(DST, FMT, ...) _b_vsprintfa((DST), B(FMT), ##__VA_ARGS__)
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)

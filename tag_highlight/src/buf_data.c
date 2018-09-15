@@ -124,6 +124,8 @@ destroy_bufdata(struct bufdata **bdata)
         if ((*bdata)->ft->is_c) {
                 if ((*bdata)->clangdata)
                         destroy_clangdata(*bdata);
+                if ((*bdata)->headers)
+                        b_list_destroy((*bdata)->headers);
         } else {
                 if ((*bdata)->calls)
                         destroy_call_array((*bdata)->calls);
@@ -144,7 +146,7 @@ destroy_bufdata(struct bufdata **bdata)
                                 genlist_remove_index(top_dirs, i);
         }
 
-        free(*bdata);
+        xfree(*bdata);
         *bdata = NULL;
         buffers.lst[index] = NULL;
 }
@@ -218,8 +220,8 @@ init_topdir(const int fd, struct bufdata *bdata)
         dir                = check_project_directories(dir);
         const bool recurse = check_norecurse_directories(dir);
         const bool is_c    = bdata->ft->is_c;
-        /* bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir; */
-        bstring   *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
+        bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir;
+        /* bstring   *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir; */
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
         ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
@@ -269,15 +271,15 @@ init_topdir(const int fd, struct bufdata *bdata)
         }
 
         if (settings.comp_type == COMP_GZIP)
-                ret = B_sprintfa(DIRSTR, ".%s.tags.gz", &bdata->ft->vim_name);
+                ret = b_sprintfa(DIRSTR, ".%s.tags.gz", &bdata->ft->vim_name);
         else if (settings.comp_type == COMP_LZMA)
-                ret = B_sprintfa(DIRSTR, ".%s.tags.xz", &bdata->ft->vim_name);
+                ret = b_sprintfa(DIRSTR, ".%s.tags.xz", &bdata->ft->vim_name);
         else
-                ret = B_sprintfa(DIRSTR, ".%s.tags", &bdata->ft->vim_name);
+                ret = b_sprintfa(DIRSTR, ".%s.tags", &bdata->ft->vim_name);
 
         assert(ret == BSTR_OK);
         genlist_append(top_dirs, tdir);
-        if (!recurse/*  || is_c */)
+        if (!recurse || is_c)
                 b_free(base);
 
         return tdir;
@@ -363,13 +365,13 @@ init_filetype(const int fd, struct filetype *ft)
                         b_writeprotect(toadd);
                         mpack_destroy(equiv->entries[i]->key);
                         mpack_destroy(equiv->entries[i]->value);
-                        free(equiv->entries[i]);
+                        xfree(equiv->entries[i]);
                         b_writeallow(toadd);
                         b_list_append(&ft->equiv, toadd);
                 }
 
-                free(equiv->entries);
-                free(equiv);
+                xfree(equiv->entries);
+                xfree(equiv);
         } else
                 ft->equiv = NULL;
 

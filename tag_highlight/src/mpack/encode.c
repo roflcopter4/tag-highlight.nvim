@@ -155,7 +155,7 @@ mpack_encode_integer(mpack_obj      *root,
 
         if (root->flags & MPACK_ENCODE) {
                 (*item)->data.num = value;
-                (*item)->flags   |= (uint8_t)MPACK_NUM;
+                (*item)->flags   |= (uint8_t)MPACK_SIGNED;
         }
 
         if (value >= 0) {
@@ -194,6 +194,37 @@ mpack_encode_integer(mpack_obj      *root,
                         errx(1, "Value too small!");
         }
 }
+
+
+void
+mpack_encode_unsigned(mpack_obj      *root,
+                     mpack_obj     **item,
+                     const uint64_t  value)
+{
+        sanity_check(root, item, 15, false);
+
+        if (root->flags & MPACK_ENCODE) {
+                (*item)->data.num = value;
+                (*item)->flags   |= (uint8_t)MPACK_UNSIGNED;
+        }
+
+        if (value <= 127) {
+                D[L++] = (uint8_t)value;
+        } else if (value < UINT8_MAX) {
+                D[L++] = M_MASK_UINT_8;
+                D[L++] = (uint8_t)value;
+        } else if (value <= UINT16_MAX) {
+                D[L++] = M_MASK_UINT_16;
+                encode_uint16(D, L, value);
+        } else if (value <= UINT32_MAX) {
+                D[L++] = M_MASK_UINT_32;
+                encode_uint32(D, L, value);
+        } else {
+                D[L++] = M_MASK_UINT_64;
+                encode_uint64(D, L, value);
+        }
+}
+
 
 
 void

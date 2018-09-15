@@ -115,7 +115,7 @@ b_alloc(bstring *bstr, const unsigned olen)
 
                         if (bstr->slen)
                                 memcpy(tmp, bstr->data, bstr->slen);
-                        free(bstr->data);
+                        xfree(bstr->data);
                 }
 
                 bstr->data             = tmp;
@@ -156,7 +156,7 @@ b_alloc(bstring *bstr, const unsigned olen)
                         tmp = xmalloc(len);
                         if (bstr->slen)
                                 memcpy(tmp, bstr->data, bstr->slen);
-                        free(bstr->data);
+                        xfree(bstr->data);
                 }
 
                 bstr->data             = tmp;
@@ -204,7 +204,7 @@ b_free(bstring *bstr)
                 /* RUNTIME_ERROR(); */
 
         if (bstr->data && (bstr->flags & BSTR_DATA_FREEABLE))
-                free(bstr->data);
+                xfree(bstr->data);
 
         bstr->data = NULL;
         bstr->slen = bstr->mlen = (-1);
@@ -213,7 +213,7 @@ b_free(bstring *bstr)
                 return BSTR_ERR;
                 /* RUNTIME_ERROR(); */
 
-        free(bstr);
+        xfree(bstr);
         return BSTR_OK;
 }
 
@@ -327,7 +327,7 @@ b_bstr2cstr(const bstring *bstr, const char nul)
 int
 b_cstrfree(char *buf)
 {
-        free(buf);
+        xfree(buf);
         return BSTR_OK;
 }
 

@@ -21,7 +21,7 @@ call s:InitVar('file', '')
 call s:InitVar('ctags_bin', 'ctags')
 
 if !exists('g:tag_highlight#ignored_tags')
-    let g:tag_highlight#ignored_tags = { 'c': ['_Bool', 'static_assert', '__attribute__', 'TRUE', 'FALSE'] }
+    let g:tag_highlight#ignored_tags = { 'c': ['bool', 'static_assert', '__attribute__', 'TRUE', 'FALSE'] }
     let g:tag_highlight#ignored_tags['cpp'] = g:tag_highlight#ignored_tags['c']
 endif
 call s:InitVar('ignored_dirs', [])
@@ -196,14 +196,16 @@ function! s:Remove_Project(path)
         let l:index = index(l:lines, a:path)
         if l:index !=# (-1)
             echom 'Removing project dir "'.a:path.'"'
+            echom string(l:lines)
             call remove(l:lines, (l:index - 1))
+            echom string(l:lines)
             call writefile(l:lines, g:tag_highlight#settings_file)
         endif
     endif
 endfunction
 
-command! -nargs=? -complete=file TaghighlightAddProject call s:Add_Remove_Project(0, <q-args>)
-command! -nargs=? -complete=file TaghighlightRemoveProject call s:Add_Remove_Project(1, <q-args>)
+command! -nargs=? -complete=file THLAddProject call s:Add_Remove_Project(0, <q-args>)
+command! -nargs=? -complete=file THLRemoveProject call s:Add_Remove_Project(1, <q-args>)
 
 runtime! plugin/Tag_Highlight/*.vim
 

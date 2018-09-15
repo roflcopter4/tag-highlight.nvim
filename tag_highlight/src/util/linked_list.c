@@ -205,7 +205,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         if (!list->tail || at == list->tail)
                 list->tail = tmp[last];
 
-        free(tmp);
+        xfree(tmp);
         pthread_mutex_unlock(&ll_mutex);
 }
 
@@ -246,7 +246,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         if (!list->tail)
                 list->tail = tmp[last];
 
-        free(tmp);
+        xfree(tmp);
         pthread_mutex_unlock(&ll_mutex);
 }
 
@@ -276,7 +276,7 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
         for (unsigned i = 0; i < range && current; ++i) {
                 next = current->next;
                 free_data(current);
-                free(current);
+                xfree(current);
                 current = next;
                 --list->qty;
         }
@@ -357,19 +357,19 @@ ll_destroy(linked_list *list)
                 else
                         current = list->head;
                 free_data(current);
-                free(current);
+                xfree(current);
         } else if (list->qty > 1) {
                 ll_node *current = list->head;
                 do {
                         ll_node *tmp = current;
                         current      = current->next;
                         free_data(tmp);
-                        free(tmp);
+                        xfree(tmp);
                 } while (current);
         }
 
         pthread_mutex_unlock(&ll_mutex);
-        free(list);
+        xfree(list);
 }
 
 
@@ -393,7 +393,7 @@ ll_delete_node(linked_list *list, ll_node *node)
         }
 
         --list->qty;
-        free(node);
+        xfree(node);
         pthread_mutex_unlock(&ll_mutex);
 }
 

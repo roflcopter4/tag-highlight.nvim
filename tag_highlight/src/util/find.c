@@ -91,7 +91,7 @@ run_find(const char *path, const char *search)
                 char **tmp = (char *[]){"fd", "-au", (char *)search, (char *)path,  CNULL};
                 execvp("fd", tmp);
 
-                tmp = (char *[]){"find", (char *)path, "-name", (char *)search, CNULL};
+                tmp = (char *[]){"find", (char *)path, "-regex", (char *)search, CNULL};
                 if (execvp("find", tmp) == (-1))
                         err(1, "exec failed");
         }

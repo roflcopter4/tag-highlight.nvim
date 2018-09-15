@@ -9,8 +9,9 @@ set (tag_highlight_SOURCES
     clang/typeid.c
     clang/threaded.c
     clang/index.c
+    clang/util.c
     clang/clang.h
-    clang/clang_intern.h
+    clang/intern.h
 
     nvim_api/api.c
     nvim_api/common.c
@@ -24,7 +25,6 @@ set (tag_highlight_SOURCES
     json.c
     loop.c
     main.c
-    parse.c
     scan_headers.c
     update_commands.c
     data.h
@@ -36,7 +36,7 @@ endif()
 
 add_executable(tag_highlight ${tag_highlight_SOURCES})
 
-add_library(bstring STATIC
+add_library(bstring OBJECT
     bstring/additions.c
     bstring/b_list.c
     bstring/bstrlib.c
@@ -45,7 +45,7 @@ add_library(bstring STATIC
     bstring/defines.h
     bstring/private.h
 )
-add_library(mpack STATIC
+add_library(mpack OBJECT
     mpack/decode.c
     mpack/encode.c
     mpack/mpack.c
@@ -54,7 +54,7 @@ add_library(mpack STATIC
     mpack/intern.h
     mpack/mpack.h
 )
-add_library(util STATIC
+add_library(util OBJECT
     util/archive_gzip.c
     util/archive_read.c
     util/archive_write.c
@@ -67,7 +67,7 @@ add_library(util STATIC
     util/list.h
     util/util.h
 )
-add_library(contrib STATIC
+add_library(contrib OBJECT
     contrib/contrib.c
     contrib/contrib.h
     contrib/jsmn/jsmn.c
@@ -90,9 +90,9 @@ elseif(MINGW)
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib")
 
 else()
-    # set (JEMALLOC_STUFF /opt/jemalloc/lib/libjemalloc.so.2 -lm -lstdc++ -lpthread -ldl)
-    # target_link_libraries(tag_highlight "-L/mnt/arch/backup/clang-dev/lib" /mnt/arch/backup/clang-dev/lib/libclang.so.8svn -lstdc++)
-
+    if (USE_JEMALLOC)
+        target_link_libraries(tag_highlight /opt/jemalloc/lib/libjemalloc.so.2 -ldl)
+    endif()
     # target_link_libraries(tag_highlight -static "${myCLANGLIST}" -lstdc++)
     # target_link_libraries(tag_highlight -Wl,-Bdynamic /mnt/arch/backup/clang-dev/lib/libclang.so -lunwind)
     # target_link_libraries(tag_highlight -static "-L${CMAKE_SOURCE_DIR}" -lclang ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
@@ -101,6 +101,7 @@ else()
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight -pthread)
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
+    target_link_libraries(tag_highlight -lm -latomic)
 
     # set(CMAKE_C_FLAGS "-I/mnt/arch/backup/clang-dev/include")
     set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")

@@ -15,6 +15,7 @@ option(STATIC_LIBS_ONLY "Build with only static libraries.")
 # Libraries
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
+# set(USE_JEMALLOC ON)
 
 if (MSVC OR MINGW)
     if (MSVC)
@@ -93,8 +94,8 @@ else()
         set (WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types")
         string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion")
     else()
-        set (WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types")
-        string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
+        string(CONCAT WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types"
+            " -Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
     endif()
 
     if (NOT BUILD_DIST) 
@@ -108,8 +109,11 @@ else()
 
 #####################################################################################################
     if (CLANG_STR_SEARCH EQUAL -1)
-        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g3")
+        string(CONCAT WARNS "${WARNS}" 
+            " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
+            " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
+        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable ${SANIT} -Og -g3")
         # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
 #----------------------------------------------------------------------------------------------------
     else() # CLANG
@@ -119,10 +123,11 @@ else()
         # set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
-        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything")
-        # string(CONCAT CMAKE_C_FLAGS_DEBUG "-Wno-sign-conversion -Wno-documentation-unknown-command"
-        #        " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
-        #        " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion")
+        string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything"
+            #   " -Wno-sign-conversion -Wno-documentation-unknown-command"
+            #   " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
+            #   " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
+               )
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g")
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
@@ -166,3 +171,5 @@ list(JOIN MY_GCC_LIST_2 ", " MY_GCC_LIST_3)
 
 configure_file(cmake-config.h.in topconfig.h)
 add_subdirectory(src)
+
+# vim: tw=0

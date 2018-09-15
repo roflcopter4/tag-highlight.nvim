@@ -193,7 +193,7 @@ xz_getlines(b_list *tags, const bstring *filename)
         out_buf[size.uncompressed] = '\0';
         fclose(fp);
         lzma_end(strm);
-        free(in_buf);
+        xfree(in_buf);
 
         ll_strsep(tags, out_buf);
         return 1;

@@ -1,5 +1,5 @@
 #include "clang.h"
-#include "clang_intern.h"
+#include "intern.h"
 
 #ifndef ARRSIZ
 #  define ARRSIZ(ARR) (sizeof(ARR) / sizeof((ARR)[0]))

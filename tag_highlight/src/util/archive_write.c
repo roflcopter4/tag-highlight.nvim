@@ -68,7 +68,7 @@ write_gzip(struct top_dir *topdir)
         gzwrite(gfp, buf, st.st_size);
         gzclose(gfp);
 
-        free(buf);
+        xfree(buf);
 }
 
 #ifdef LZMA_SUPPORT
@@ -190,8 +190,8 @@ write_lzma(struct top_dir *topdir)
         fclose(fp);
 
         lzma_end(&strm);
-        free(in_buf);
-        free(out_buf);
+        xfree(in_buf);
+        xfree(out_buf);
         /* b_free(asswipe); */
 }
 #endif

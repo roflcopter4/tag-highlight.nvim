@@ -1,7 +1,7 @@
 #ifndef SRC_MPACK_H
 #define SRC_MPACK_H
 
-#ifdef _WIN32
+#ifndef __GNUC__
 #  define __attribute__(...)
 #endif
 
@@ -21,7 +21,8 @@ enum mpack_types {
         MPACK_UNINITIALIZED,
         MPACK_BOOL,
         MPACK_NIL,
-        MPACK_NUM,
+        MPACK_SIGNED,
+        MPACK_UNSIGNED,
         MPACK_EXT,
         MPACK_STRING,
         MPACK_ARRAY,
@@ -34,6 +35,7 @@ enum mpack_expect_types {
         E_MPACK_NIL,
         E_BOOL,
         E_NUM,
+        /* E_UNSIGNED, */
         E_STRING,
         E_STRLIST,
         E_DICT2ARR
@@ -54,7 +56,6 @@ typedef struct mpack_item         mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
 typedef struct mpack_dictionary   mpack_dict_t;
-typedef struct atomic_call_array  mpack_call_array;
 
 #pragma pack(push, 1)
 
@@ -63,6 +64,7 @@ struct mpack_item {
                 bool           boolean;
                 int16_t        nil;
                 int64_t        num;
+                uint64_t       uint;
                 bstring       *str;
                 mpack_array_t *arr;
                 mpack_dict_t  *dict;
@@ -101,31 +103,19 @@ struct item_free_stack {
         unsigned    max;
 };
 
-struct atomic_call_array {
-        char    **fmt;
-        union atomic_call_args {
-                bool     boolean;
-                int64_t  num;
-                bstring *str;
-                char    *c_str;
-        } **args;
-
-        uint32_t qty;
-        uint32_t mlen;
-};
-
 typedef union {
         void    *ptr;
         int64_t  num;
+        uint64_t uint;
 } retval_t;
 
 extern const char *const m_message_type_repr[4];
+extern const char *const m_type_names[];
 
 /*============================================================================*/
 /* Decode and Destroy */
 extern void        mpack_print_object (FILE *fp, const mpack_obj *result);
 extern void        mpack_destroy      (mpack_obj *root);
-extern void        free_stack_push    (struct item_free_stack *list, void *item);
 extern mpack_obj * decode_stream      (int fd);
 extern mpack_obj * decode_obj         (bstring *buf);
 
@@ -134,6 +124,7 @@ extern mpack_obj * decode_obj         (bstring *buf);
 extern mpack_obj * mpack_make_new         (unsigned len, bool encode);
 extern void        mpack_encode_array     (mpack_obj *root, mpack_obj **item, unsigned len);
 extern void        mpack_encode_integer   (mpack_obj *root, mpack_obj **item, int64_t value);
+extern void        mpack_encode_unsigned  (mpack_obj *root, mpack_obj **item, uint64_t value);
 extern void        mpack_encode_string    (mpack_obj *root, mpack_obj **item, const bstring *string);
 extern void        mpack_encode_boolean   (mpack_obj *root, mpack_obj **item, bool value);
 extern void        mpack_encode_dictionary(mpack_obj *root, mpack_obj **item, unsigned len);
@@ -145,7 +136,6 @@ extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, 
 
 extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
 extern retval_t dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
-extern void     destroy_call_array  (struct atomic_call_array *calls);
 extern retval_t m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
 /* extern b_list * blist_from_var_fmt  (int fd, const char *fmt, ...) __attribute__((format(printf, 2, 3))); */
@@ -168,14 +158,6 @@ destroy_mpack_array(mpack_array_t *array)
         tmp.flags    = MPACK_ARRAY | MPACK_ENCODE | MPACK_PHONY;
         tmp.data.arr = array;
         mpack_destroy(&tmp);
-}
-
-static inline int64_t
-P2I(int64_t *ptr)
-{
-        int64_t tmp = *ptr;
-        free(ptr);
-        return tmp;
 }
 
 static inline mpack_obj *

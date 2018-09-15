@@ -4,6 +4,7 @@
 #if defined(DOSISH) || defined(MINGW)
 #  include <direct.h>
 #else
+#  include <spawn.h>
 #  include <sys/wait.h>
 #endif
 
@@ -14,13 +15,13 @@
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);
-static int         exec_ctags(struct bufdata *bdata, b_list *headers, int force);
+static int         exec_ctags(struct bufdata *bdata, b_list *headers, enum update_taglist_opts opts);
 
 /*======================================================================================*/
 
 
 bool
-run_ctags(struct bufdata *bdata, const int force)
+run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
 {
         assert(bdata != NULL && bdata->topdir != NULL);
         if (!bdata->lines || !bdata->initialized) {
@@ -42,7 +43,7 @@ run_ctags(struct bufdata *bdata, const int force)
         }
 
         /* int status = exec_ctags(bdata, headers, force); */
-        int status = exec_ctags(bdata, NULL, force);
+        int status = exec_ctags(bdata, ((bdata->ft->is_c) ? bdata->headers : NULL), opts);
 
         if (status != 0)
                 warnx("ctags failed with status \"%d\"\n", status);
@@ -60,8 +61,8 @@ get_initial_taglist(struct bufdata *bdata)
         struct stat st;
         int         ret = 0;
 
-        if (bdata->ft->is_c)
-                return 1;
+        /* if (bdata->ft->is_c)
+                return 1; */
 
         TIMER_START(t);
         bdata->topdir->tags = b_list_create();
@@ -113,11 +114,13 @@ get_initial_taglist(struct bufdata *bdata)
 
 
 int
-update_taglist(struct bufdata *bdata, const int force)
+update_taglist(struct bufdata *bdata, const enum update_taglist_opts opts)
 {
+        /* if (bdata->ft->is_c && opts != UPDATE_TAGLIST_FORCE)
+                return 1; */
         if (bdata->ft->is_c)
                 return 1;
-        if (!force && bdata->ctick == bdata->last_ctick) {
+        if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
                 return false;
         }
@@ -126,7 +129,7 @@ update_taglist(struct bufdata *bdata, const int force)
         TIMER_START(t);
 
         bdata->last_ctick = bdata->ctick;
-        if (!run_ctags(bdata, force))
+        if (!run_ctags(bdata, opts))
                 warnx("Ctags exited with errors; trying to continue anyway.");
 
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
@@ -174,24 +177,24 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
         for (unsigned i = 0; i < settings.ctags_args->qty; ++i)
-                B_sprintfa(cmd, "\"%s\" ", settings.ctags_args->lst[i]);
+                b_sprintfa(cmd, "\"%s\" ", settings.ctags_args->lst[i]);
 
         if (headers) {
                 B_LIST_SORT(headers);
                 bstring *tmp = b_join_quote(headers, B(" "), '"');
-                B_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
+                b_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
                            bdata->topdir->tmpfname, bdata->name.full, tmp);
 
                 b_free(tmp);
                 b_list_destroy(headers);
         }
         else if (bdata->topdir->recurse && !bdata->ft->is_c) {
-                B_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
+                b_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
                            bdata->topdir->pathname);
         } else {
                 ECHO("Not recursing!!!");
-                B_sprintfa(cmd, " \"-f%s\" \"%s\"",
+                b_sprintfa(cmd, " \"-f%s\" \"%s\"",
                            bdata->topdir->tmpfname, bdata->name.full);
         }
 
@@ -209,7 +212,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
  * calling fork/exec, even at the cost of a bunch of extra allocations and copying.
  */
 static int
-exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
+exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opts opts)
 {
         unsigned i;
         str_vector *argv = argv_create(128);
@@ -225,26 +228,21 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                bdata->topdir->tmpfname->data[0] != '\0');
         argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
-        if ((force != 2) && bdata->topdir->recurse /* && !bdata->ft->is_c */) {
+        if (opts != UPDATE_TAGLIST_FORCE_LANGUAGE &&
+            bdata->topdir->recurse && !bdata->ft->is_c)
+        {
                 argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
-        }
-        else {
-#if 0
+        } else {
                 if (bdata->ft->is_c)
                         argv_append(argv, "--languages=c,c++", true);
                 else
-#endif
                         argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
-
                 argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);
-
-                if (headers) {
-                        B_LIST_SORT(headers);
-                        B_LIST_FOREACH(headers, bstr, i)
+                if (headers)
+                        B_LIST_FOREACH (headers, bstr, i)
                                 argv_append(argv, b_bstr2cstr(bstr, 0), false);
-                }
         }
 
         argv_append(argv, (const char *)0, false);
@@ -253,30 +251,32 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
         {
                 bstring *cmd = b_alloc_null(2048);
                 for (char **tmp = argv->lst; *tmp; ++tmp)
-                        B_sprintfa(cmd, "\"%n\", ", *tmp);
+                        b_sprintfa(cmd, "\"%n\", ", *tmp);
                 cmd->data[cmd->slen -= 2] = '\0';
                 ECHO("Running command 'ctags' with args [%s]\n", cmd);
                 b_free(cmd);
 
-                FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/ctags_arguments.log", "wb", HOME);
+                FILE *fp = safe_fopen_fmt(
+                    "%s/.tag_highlight_log/ctags_arguments.log", "wb", HOME);
                 fprintf(fp, "%s\n", BS(settings.ctags_bin));
                 for (char **tmp = argv->lst; *tmp; ++tmp)
                         fprintf(fp, "%s\n", *tmp);
                 fclose(fp);
         }
 #endif
+        int pid, status;
 
-        int       status = 0;
-        const int pid    = fork();
-
-        if (pid == 0)
+#ifdef HAVE_POSIX_SPAWNP
+        if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
+                err(1, "Exec failed");
+#else
+        if ((pid = fork()) == 0)
                 if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
                         err(1, "Exec failed");
+#endif
 
         waitpid(pid, &status, 0);
         argv_destroy(argv);
-        b_list_destroy(headers);
-
         ECHO("Status is %d", (status <<= 8));
         return status;
 }

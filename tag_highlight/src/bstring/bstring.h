@@ -700,10 +700,10 @@ BSTR_PUBLIC int b_formata(bstring *bstr, const char *fmt, ...) BSTR_PRINTF(2, 3)
  * Like b_format but takes a va_list instead a varargs. b_format and
  * b_format_assign simply pass through to this function.
  */
-BSTR_PUBLIC bstring *b_vformat(const char *fmt, va_list arglist);
+BSTR_PUBLIC bstring *b_vformat(const char *fmt, va_list arglist) BSTR_PRINTF(1, 0);
 
-BSTR_PUBLIC int b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist);
-BSTR_PUBLIC int b_vformata(bstring *bstr, const char *fmt, va_list arglist);
+BSTR_PUBLIC int b_vformat_assign(bstring *bstr, const char *fmt, va_list arglist) BSTR_PRINTF(2, 0);
+BSTR_PUBLIC int b_vformata(bstring *bstr, const char *fmt, va_list arglist) BSTR_PRINTF(2, 0);
 
 
 /*======================================================================================*/

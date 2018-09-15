@@ -46,7 +46,7 @@ strip_comments(struct bufdata *bdata)
 
         /* warnx("Buffer size is %u", bytenum); */
         bstring *joined = b_alloc_null(bytenum);
-        /* free(bytenum); */
+        /* xfree(bytenum); */
 
         LL_FOREACH_F (bdata->lines, line) {
                 b_concat(joined, line->data);
@@ -211,7 +211,7 @@ handle_cstyle(bstring *vim_buf)
 
         *buf = '\0';
 
-        free(vim_buf->data);
+        xfree(vim_buf->data);
         vim_buf->data = buf_orig;
         vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
 }
@@ -347,12 +347,12 @@ handle_cstyle(bstring **vim_bufp)
                         repl[x]   = '\0';
                         b_list_append(&list, b_steal(repl, x));
                 } else {
-                        free(repl);
+                        xfree(repl);
                 }
         }
 
-        free(bak);
-        free(*vim_bufp);
+        xfree(bak);
+        xfree(*vim_bufp);
         *vim_bufp = b_list_join(list, NULL);
 
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
@@ -521,7 +521,7 @@ handle_python(bstring *vim_buf)
 
         *buf = '\0';
 
-        free(vim_buf->data);
+        xfree(vim_buf->data);
         vim_buf->data = buf_orig;
         vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
 }

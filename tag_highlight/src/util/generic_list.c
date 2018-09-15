@@ -64,13 +64,13 @@ genlist_destroy(genlist *sl)
                 return (-1);
         for (unsigned i = 0; i < sl->qty; ++i)
                 if (sl->lst[i])
-                        free(sl->lst[i]);
+                        xfree(sl->lst[i]);
 
         sl->qty  = 0;
         sl->mlen = 0;
-        free(sl->lst);
+        xfree(sl->lst);
         sl->lst = NULL;
-        free(sl);
+        xfree(sl);
 
         return 0;
 }
@@ -151,7 +151,7 @@ genlist_remove_index(genlist *list, const unsigned index)
         if (!list || !list->lst || index >= list->qty)
                 RUNTIME_ERROR();
 
-        free(list->lst[index]);
+        xfree(list->lst[index]);
         list->lst[index] = NULL;
 
         if (index == list->qty - 1)
@@ -218,7 +218,7 @@ argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
 #else
         bstring *tmp = b_vformat(fmt, _ap);
         _buf         = BS(tmp);
-        free(tmp);
+        xfree(tmp);
 #endif
         va_end(_ap);
 
@@ -231,9 +231,9 @@ argv_destroy(struct argument_vector *argv)
 {
         for (unsigned i = 0; i < argv->qty; ++i)
                 if (argv->lst[i])
-                        free(argv->lst[i]);
-        free(argv->lst);
-        free(argv);
+                        xfree(argv->lst[i]);
+        xfree(argv->lst);
+        xfree(argv);
 }
 
 

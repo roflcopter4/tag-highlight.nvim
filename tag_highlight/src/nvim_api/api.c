@@ -1,14 +1,15 @@
 #include "util/util.h"
-#include <dirent.h>
 
-#include "nvim_api/api.h"
 #include "intern.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
+#include <dirent.h>
 
 /*======================================================================================*/
+/* Echo output functions (wrappers for nvim_out_write) */
 
 void
-__nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
+_nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 {
         pthread_mutex_lock(&mpack_main_mutex);
         CHECK_DEF_FD(fd);
@@ -23,7 +24,6 @@ __nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
         const int  count = INC_COUNT(fd);
         mpack_obj *pack  = encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
         write_and_clean(fd, pack, func);
-        /* mpack_obj *tmp  = decode_stream(fd, MES_RESPONSE); */
         mpack_obj *tmp = await_package(fd, count, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
 
@@ -40,7 +40,7 @@ nvim_printf(const int fd, const char *const __restrict fmt, ...)
         va_end(ap);
 
         nvim_out_write(fd, tmp);
-        b_destroy(tmp);
+        b_free(tmp);
 }
 
 void
@@ -48,7 +48,7 @@ nvim_vprintf(const int fd, const char *const __restrict fmt, va_list args)
 {
         bstring *tmp = b_vformat(fmt, args);
         nvim_out_write(fd, tmp);
-        b_destroy(tmp);
+        b_free(tmp);
 }
 
 void
@@ -56,39 +56,33 @@ nvim_b_printf(const int fd, const bstring *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        bstring *tmp = b_vsprintf(fmt, ap);
+        bstring *tmp = _b_vsprintf(fmt, ap);
         va_end(ap);
         nvim_out_write(fd, tmp);
         b_free(tmp);
 }
 
 /*--------------------------------------------------------------------------------------*/
+/* Other wrappers */
 
-#define VALUE (m_index(result, 3))
-
-
-b_list *
-nvim_buf_attach(int fd, const int bufnum)
+retval_t
+nvim_get_var_fmt(const int fd, const mpack_expect_t expect, const char *fmt, ...)
 {
-        static bstring fn = BS_FROMARR(__func__);
-#if 0
-        pthread_mutex_lock(&mpack_main_mutex);
+        va_list ap;
+        va_start(ap, fmt);
+        bstring *varname = b_vformat(fmt, ap);
+        va_end(ap);
 
-        CHECK_DEF_FD(fd);
-        mpack_obj *pack = encode_fmt(0, "[d,d,s:[d,B,[]]:]", MES_REQUEST,
-                                     INC_COUNT(fd), &fn, bufnum, false);
-        write_and_clean(fd, pack, &fn);
-
-        /* Don't wait for the response, it will be handled in the main thread. */
-        pthread_mutex_unlock(&mpack_main_mutex);
-#endif
-        mpack_obj *result = generic_call(&fd, &fn, B("d,B,[]"), bufnum, false);
-        /* mpack_destroy(result); */
-        PRINT_AND_DESTROY(result);
-        return NULL;
+        retval_t ret = nvim_get_var(fd, varname, expect);
+        b_free(varname);
+        return ret;
 }
 
-/*--------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------------------
+ * /================\
+ * |BUFFER FUNCTIONS|
+ * \================/
+ *--------------------------------------------------------------------------------------*/ 
 
 retval_t
 nvim_list_bufs(int fd)
@@ -142,7 +136,14 @@ nvim_buf_get_name(int fd, const int bufnum)
         return ret;
 }
 
+/*--------------------------------------------------------------------------------------
+ * /================\
+ * |GLOBAL FUNCTIONS|
+ * \================/
+ *--------------------------------------------------------------------------------------*/ 
+
 /*--------------------------------------------------------------------------------------*/
+/* Functions and commands */
 
 bool
 nvim_command(int fd, const bstring *cmd)
@@ -181,7 +182,7 @@ nvim_call_function_args(int fd, const bstring *function, const mpack_expect_t ex
                         const bstring *fmt, ...)
 {
         static bstring fn  = bt_init("nvim_call_function");
-        bstring       *buf = b_sprintf(B("s,[!%s]"), fmt);
+        bstring       *buf = b_sprintf("s,[!%s]", fmt);
         va_list        ap;
 
         va_start(ap, fmt);
@@ -241,7 +242,7 @@ nvim_set_var(int fd, const bstring *varname, const bstring *fmt, ...)
 {
         va_list  ap;
         static bstring fn  = BS_FROMARR(__func__);
-        bstring       *tmp = b_sprintf(B("[s,!%s]"), fmt);
+        bstring       *tmp = b_sprintf("[s,!%s]", fmt);
 
         va_start(ap, fmt);
         mpack_obj *result = generic_call(&fd, &fn, tmp, varname, &ap);
@@ -252,6 +253,7 @@ nvim_set_var(int fd, const bstring *varname, const bstring *fmt, ...)
 }
 
 /*--------------------------------------------------------------------------------------*/
+/* Highlight related functions */
 
 int
 nvim_buf_add_highlight(      int       fd,
@@ -280,6 +282,22 @@ nvim_buf_clear_highlight(      int      fd,
         PRINT_AND_DESTROY(result);
 }
 
+mpack_dict_t *
+nvim_get_hl_by_name(int fd, const bstring *name, const bool rgb)
+{
+        static bstring fn = BS_FROMARR(__func__);
+        mpack_obj *result = generic_call(&fd, &fn, B("sB"), name, rgb);
+        return m_expect_intern(result, E_MPACK_DICT).ptr;
+}
+
+mpack_dict_t *
+nvim_get_hl_by_id(int fd, const int hlid, const bool rgb)
+{
+        static bstring fn = BS_FROMARR(__func__);
+        mpack_obj *result = generic_call(&fd, &fn, B("dB"), hlid, rgb);
+        return m_expect_intern(result, E_MPACK_DICT).ptr;
+}
+
 /*--------------------------------------------------------------------------------------*/
 
 void
@@ -298,48 +316,62 @@ nvim_subscribe(int fd, const bstring *event)
         PRINT_AND_DESTROY(result);
 }
 
-void
-nvim_call_atomic(int fd, const struct atomic_call_array *calls)
+b_list *
+nvim_buf_attach(int fd, const int bufnum)
 {
+        static bstring fn = BS_FROMARR(__func__);
+        mpack_obj *result = generic_call(&fd, &fn, B("d,B,[]"), bufnum, false);
+        PRINT_AND_DESTROY(result);
+        return NULL;
+}
+
+/* void                                                             */
+/* nvim_set_client_info(int fd, const int major, const int minor, ) */
+
+/*======================================================================================*/
+/* The single most important api function gets its own section for no reason. */
+
+void
+nvim_call_atomic(int fd, const nvim_call_array *calls)
+{
+#ifdef DEBUG
+        static bool first = true;
+        if (first) {
+                char tmp[PATH_MAX];
+                snprintf(tmp, PATH_MAX, "%s/.tag_highlight_log/atomic.log", HOME);
+                unlink(tmp);
+                first = false;
+        }
+#endif
         CHECK_DEF_FD(fd);
-        static bstring fn             = BS_FROMARR(__func__);
-        union atomic_call_args **args = calls->args;
-        bstring                 *fmt  = b_fromcstr_alloc(4096, "[d,d,s:[:");
+        static bstring  fn   = BS_FROMARR(__func__);
+        nvim_call_arg **args = calls->args;
+        bstring        *fmt  = b_fromcstr_alloc(4096, "[d,d,s:[:");
 
         if (calls->qty) {
-                b_sprintfa(fmt, B("[ @[%n],"), calls->fmt[0]);
-
+                b_sprintfa(fmt, "[ @[%n],", calls->fmt[0]);
                 for (unsigned i = 1; i < calls->qty; ++i)
-                        b_sprintfa(fmt, B("[*%n],"), calls->fmt[i]);
-
+                        b_sprintfa(fmt, "[*%n],", calls->fmt[i]);
                 b_catlit(fmt, " ]");
         }
         b_catlit(fmt, ":]]");
 
         pthread_mutex_lock(&mpack_main_mutex);
+#ifdef DEBUG
+        FILE *logfp = safe_fopen_fmt("%s/.tag_highlight_log/atomic.log", "ab", HOME);
+#else
+        FILE *logfp = NULL;
+#endif
         const int  count = INC_COUNT(fd);
-        mpack_obj *pack  = encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
-                                      count, &fn, args);
-        write_and_clean(fd, pack, &fn);
-
-        /* mpack_obj *result = decode_stream(fd, MES_RESPONSE); */
+        mpack_obj *pack  = encode_fmt(calls->qty, BS(fmt), MES_REQUEST, count, &fn, args);
+        write_and_clean(fd, pack, &fn, logfp);
         mpack_obj *result = await_package(fd, count, MES_RESPONSE);
+
         pthread_mutex_unlock(&mpack_main_mutex);
-        PRINT_AND_DESTROY(result);
-        b_destroy(fmt);
-}
-
-/*======================================================================================*/
-
-retval_t
-nvim_get_var_fmt(const int fd, const mpack_expect_t expect, const char *fmt, ...)
-{
-        va_list ap;
-        va_start(ap, fmt);
-        bstring *varname = b_vformat(fmt, ap);
-        va_end(ap);
-
-        retval_t ret = nvim_get_var(fd, varname, expect);
-        b_destroy(varname);
-        return ret;
+        mpack_print_object(logfp, result);
+        mpack_destroy(result);
+        b_free(fmt);
+#ifdef DEBUG
+        fclose(logfp);
+#endif
 }

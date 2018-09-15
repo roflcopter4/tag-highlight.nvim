@@ -15,6 +15,7 @@
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
 #cmakedefine LZMA_SUPPORT
+#cmakedefine USE_JEMALLOC
 
 #define GCC_ALL_INCLUDE_DIRECTORIES {${MY_GCC_LIST_3}}
 

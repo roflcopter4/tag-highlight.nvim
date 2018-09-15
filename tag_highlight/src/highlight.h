@@ -5,6 +5,7 @@
 
 #include "bstring/bstring.h"
 #include "data.h"
+#include "p99/p99_defarg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,11 +16,17 @@ extern "C" {
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
         nvim_get_var((FD__), B(PKG VARNAME_), (EXPECT_))
 
-extern bool    run_ctags          (struct bufdata *bdata, int force);
+enum update_taglist_opts {
+        UPDATE_TAGLIST_NORMAL,
+        UPDATE_TAGLIST_FORCE,
+        UPDATE_TAGLIST_FORCE_LANGUAGE,
+};
+
+extern bool    run_ctags          (struct bufdata *bdata, enum update_taglist_opts opts);
 extern int     get_initial_taglist(struct bufdata *bdata);
-extern int     update_taglist     (struct bufdata *bdata, int force);
+extern int     update_taglist     (struct bufdata *bdata, enum update_taglist_opts opts);
 extern b_list *find_header_files  (struct bufdata *bdata);
-extern void    update_highlight   (int bufnum, struct bufdata *bdata);
+extern void    update_highlight   (int bufnum, struct bufdata *bdata, bool force);
 extern void    clear_highlight    (int bufnum, struct bufdata *bdata);
 
 
@@ -43,8 +50,11 @@ extern b_list *parse_json(const bstring *json_path, const bstring *filename, b_l
 extern int  my_highlight(int bufnum, struct bufdata *bdata);
 extern void my_parser   (int bufnum, struct bufdata *bdata);
 
-extern void *event_loop    (void *vdata);
+extern noreturn void *event_loop    (void *vdata);
 extern void  get_initial_lines(struct bufdata *bdata);
+
+#define update_highlight(...) P99_CALL_DEFARG(update_highlight, 3, __VA_ARGS__)
+#define update_highlight_defarg_2() false
 
 
 #ifdef __cplusplus

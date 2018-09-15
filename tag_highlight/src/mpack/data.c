@@ -38,8 +38,9 @@ const struct mpack_masks m_masks[] = {
 const size_t m_masks_len = (sizeof(m_masks) / sizeof(m_masks[0]));
 
 const char *const m_type_names[] = {
-    "MPACK_UNINITIALIZED", "MPACK_BOOL",   "MPACK_NIL",   "MPACK_NUM",
-    "MPACK_EXT",           "MPACK_STRING", "MPACK_ARRAY", "MPACK_DICT",
+    "MPACK_UNINITIALIZED", "MPACK_BOOL",     "MPACK_NIL",
+    "MPACK_SIGNED",        "MPACK_UNSIGNED", "MPACK_EXT",
+    "MPACK_STRING",        "MPACK_ARRAY",    "MPACK_DICT",
 };
 
 const char *const m_message_type_repr[4] = {"MES_REQUEST", "MES_RESPONSE",

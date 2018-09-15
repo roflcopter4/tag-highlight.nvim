@@ -98,7 +98,7 @@ bs_close(struct bStream *buf)
         parm = buf->parm;
         buf->parm = NULL;
         buf->isEOF = 1;
-        free(buf);
+        xfree(buf);
 
         return parm;
 }

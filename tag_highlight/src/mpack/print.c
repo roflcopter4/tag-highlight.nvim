@@ -79,13 +79,14 @@ do_mpack_print_object(const mpack_obj *result)
         /* fprintf(print_log, "Type is 0x%x\n", mpack_type(result)); */
 
         switch (mpack_type(result)) {
-        case MPACK_ARRAY:  print_array (result);    break;
-        case MPACK_BOOL:   print_bool  (result);    break;
-        case MPACK_DICT:   print_dict  (result);    break;
-        case MPACK_EXT:    print_ext   (result);    break;
-        case MPACK_NIL:    print_nil   (result);    break;
-        case MPACK_NUM:    print_number(result);    break;
-        case MPACK_STRING: print_string(result, 1); break;
+        case MPACK_ARRAY:    print_array (result);    break;
+        case MPACK_BOOL:     print_bool  (result);    break;
+        case MPACK_DICT:     print_dict  (result);    break;
+        case MPACK_EXT:      print_ext   (result);    break;
+        case MPACK_NIL:      print_nil   (result);    break;
+        case MPACK_SIGNED:
+        case MPACK_UNSIGNED: print_number(result);    break;
+        case MPACK_STRING:   print_string(result, 1); break;
         case MPACK_UNINITIALIZED:
         default:
                 errx(1, "Got uninitialized item to print!");
@@ -220,5 +221,8 @@ print_number(const mpack_obj *result)
                 abort();
         pindent();
 
-        fprintf(print_log, "%"PRId64"\n", result->data.num);
+        if (mpack_type(result) == MPACK_SIGNED)
+                fprintf(print_log, "%"PRId64"\n", result->data.num);
+        else
+                fprintf(print_log, "%"PRIu64"\n", result->data.uint);
 }

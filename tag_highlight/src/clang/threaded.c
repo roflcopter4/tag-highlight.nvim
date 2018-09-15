@@ -1,7 +1,7 @@
 #include "util/util.h"
 
 #include "clang.h"
-#include "clang_intern.h"
+#include "intern.h"
 #include "data.h"
 #include "mpack/mpack.h"
 
@@ -34,7 +34,7 @@ struct lc_thread {
         const int       ctick;
 };
 
-extern mpack_call_array *
+extern nvim_call_array *
 libclang_highlight___(struct bufdata *bdata, const int first, const int last);
 
 void *
@@ -45,8 +45,8 @@ libclang_threaded_highlight(void *vdata)
 #if 0
         struct lc_thread *data = vdata;
 
-        /* mpack_call_array *calls = libclang_highlight___(data->bdata, 0, (-1)); */
-        /* mpack_call_array *calls = libclang_highlight___(data->bdata, 0, (-1)); */
+        /* nvim_call_array *calls = libclang_highlight___(data->bdata, 0, (-1)); */
+        /* nvim_call_array *calls = libclang_highlight___(data->bdata, 0, (-1)); */
 
         /* pthread_mutex_lock(&lc_thread_mutex); */
         /* pthread_cond_wait(&lclang_cond, &lc_thread_mutex); */
@@ -70,7 +70,7 @@ libclang_threaded_highlight(void *vdata)
 bail:
         /* pthread_mutex_unlock(&lc_thread_mutex); */
         /* destroy_call_array(calls); */
-        free(vdata);
+        xfree(vdata);
         pthread_exit(NULL);
 #endif
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
@@ -93,7 +93,7 @@ bail:
 void *
 libclang_waiter(UNUSED void *vdata)
 {
-        pthread_exit(NULL);
+        /* pthread_exit(NULL); */
 #if 0
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
         static bool first = true;

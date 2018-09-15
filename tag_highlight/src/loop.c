@@ -87,7 +87,7 @@ notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
  * response to the user calling the provided clear command.
  */
-void *
+noreturn void *
 interrupt_call(void *vdata)
 {
         static int             bufnum    = (-1);
@@ -181,7 +181,7 @@ interrupt_call(void *vdata)
         case 'I': {
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
-                update_highlight(bufnum, bdata);
+                update_highlight(bufnum, bdata, true);
                 break;
         }
         default:
@@ -189,7 +189,7 @@ interrupt_call(void *vdata)
                 break;
         }
 
-        free(vdata);
+        xfree(vdata);
         /* pthread_mutex_unlock(&int_mutex); */
         pthread_exit(NULL);
 }
@@ -202,7 +202,7 @@ get_initial_lines(struct bufdata *bdata)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
 
-        free(tmp->lst);
-        free(tmp);
+        xfree(tmp->lst);
+        xfree(tmp);
         bdata->initialized = true;
 }

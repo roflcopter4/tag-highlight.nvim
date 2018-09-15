@@ -68,14 +68,10 @@ handle_nvim_event(mpack_obj *event)
         if (type->id == EVENT_VIM_UPDATE) {
                 /* The update came from the vimscript plugin. Call the handler defined
                  * in main.c in a separate thread since it might wait a while. */
-                pthread_t         tmp;
-                pthread_attr_t    attr;
                 struct int_pdata *data = xmalloc(sizeof(*data));
                 const int         val  = arr->items[0]->data.str->data[0];
                 *data = (struct int_pdata){val, pthread_self()};
-
-                MAKE_PTHREAD_ATTR_DETATCHED(&attr);
-                pthread_create(&tmp, &attr, interrupt_call, data);
+                START_DETACHED_PTHREAD(interrupt_call, data);
         } else {
                 const unsigned  bufnum = m_expect(arr->items[0], E_NUM, false).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
@@ -206,8 +202,8 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
         }
 #endif
 
-        free(repl_list->lst);
-        free(repl_list);
+        xfree(repl_list->lst);
+        xfree(repl_list);
 
         /* pthread_cond_signal(&libclang_cond); */
 

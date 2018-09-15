@@ -11,11 +11,12 @@
 #  include <sys/un.h>
 #endif
 
-#include "clang/clang.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
+#include "p99/p99_defarg.h"
+#include "clang/clang.h"
 
 #define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
@@ -32,14 +33,20 @@ static comp_type_t get_compression_type(int fd);
 static void        open_main_log(void);
 static void        sig_handler(UNUSED int notused);
 
+#define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
+#define get_compression_type_defarg_0() (0)
+
 //extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
 /*======================================================================================*/
 
-
 int
 main(UNUSED int argc, char *argv[])
 {
+#ifdef USE_JEMALLOC
+        extern char *malloc_conf;
+        malloc_conf = "junk:true,prof:true,prof_leak:true,xmalloc:true";
+#endif
         top_thread = pthread_self();
         timer main_timer;
         TIMER_START(main_timer);
@@ -80,7 +87,6 @@ main(UNUSED int argc, char *argv[])
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
 #endif
 
-        /* atexit(&exit_cleanup); */
         pthread_t      thr[3];
         pthread_attr_t attr[3];
         MAKE_PTHREAD_ATTR_DETATCHED(&attr[0]);
@@ -93,13 +99,12 @@ main(UNUSED int argc, char *argv[])
         bufchan = create_socket(1);
         pthread_create(&thr[2], &attr[2], event_loop, (void *)(&bufchan));
 
-        /* Grab user settings defined either in their .vimrc or otherwise by the
-         * vimscript plugin. */
+        /* Grab user settings defined their .vimrc or the vimscript plugin. */
         settings.enabled        = nvim_get_var(0, B(PKG "enabled"),   E_BOOL  ).num;
         settings.ctags_bin      = nvim_get_var(0, B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
-        settings.comp_type      = get_compression_type(0);
+        settings.comp_type      = get_compression_type();
         settings.comp_level     = nvim_get_var(0, B(PKG "compression_level"), E_NUM       ).num;
         settings.ctags_args     = nvim_get_var(0, B(PKG "ctags_args"),        E_STRLIST   ).ptr;
         settings.ignored_ftypes = nvim_get_var(0, B(PKG "ignore"),            E_STRLIST   ).ptr;
@@ -111,10 +116,6 @@ main(UNUSED int argc, char *argv[])
 #ifdef DEBUG
         settings.verbose = true;
         open_main_log();
-#endif
-
-#ifdef MYGCCTHING
-        echo("%s\n", MYGCCTHING);
 #endif
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
@@ -142,8 +143,9 @@ main(UNUSED int argc, char *argv[])
         }
 
         START_DETACHED_PTHREAD(libclang_waiter, NULL);
-
+        
         /* Wait for something to kill us. */
+        atexit(exit_cleanup);
         pause();
 
         /* The signal handler should return unless the signal was unexpected.
@@ -151,7 +153,6 @@ main(UNUSED int argc, char *argv[])
         pthread_cancel(thr[0]);
         pthread_cancel(thr[1]);
         pthread_cancel(thr[2]);
-        exit_cleanup();
         exit(EXIT_SUCCESS);
 }
 
@@ -180,8 +181,8 @@ exit_cleanup(void)
         for (unsigned i = 0; i < buffers.mlen; ++i)
                 destroy_bufdata(buffers.lst + i);
 
-        free(top_dirs->lst);
-        free(top_dirs);
+        xfree(top_dirs->lst);
+        xfree(top_dirs);
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 struct filetype *ft = &ftdata[i];
@@ -191,8 +192,8 @@ exit_cleanup(void)
                                 for (unsigned x = 0; x < igt->qty; ++x)
                                         if (igt->lst[x]->flags & BSTR_MASK_USR1)
                                                 b_free(igt->lst[x]);
-                                free(igt->lst);
-                                free(igt);
+                                xfree(igt->lst);
+                                xfree(igt);
                         }
                         b_list_destroy(ft->equiv);
                         b_free(ft->order);
@@ -202,7 +203,7 @@ exit_cleanup(void)
 
         destroy_mpack_dict(settings.ignored_tags);
         free_backups(&backup_pointers);
-        free(backup_pointers.lst);
+        xfree(backup_pointers.lst);
 
         if (mpack_log)
                 fclose(mpack_log);
@@ -250,14 +251,14 @@ create_socket(const int mes_fd)
 
 
 static comp_type_t
-get_compression_type(const int fd)
+(get_compression_type)(const int fd)
 {
         bstring    *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
-        if (b_iseq(tmp, B("gzip"))) {
+        if (b_iseq_lit(tmp, "gzip"))
                 ret = COMP_GZIP;
-        } else if (b_iseq(tmp, B("lzma"))) {
+        else if (b_iseq_lit(tmp, "lzma")) {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
@@ -265,16 +266,15 @@ get_compression_type(const int fd)
                       "supported in this build.");
                 ret = COMP_GZIP;
 #endif
-        } else if (b_iseq(tmp, B("none"))) {
+        } else if (b_iseq_lit(tmp, "none"))
                 ret = COMP_NONE;
-        } else {
+        else
                 ECHO("Warning: unrecognized compression type \"%s\", "
                      "defaulting to no compression.", tmp);
-        }
 
         ECHO("Comp type is %s", tmp);
 
-        b_destroy(tmp);
+        b_free(tmp);
         return ret;
 }
 

@@ -4,11 +4,9 @@
 #ifdef __cplusplus
     extern "C" {
 #endif
-/* #define WITH_JEMALLOC */
-#ifdef WITH_JEMALLOC
+#ifdef USE_JEMALLOC
 #  include <jemalloc/jemalloc.h>
 #endif
-
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -81,6 +79,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <tgmath.h>
+/* Apperently some lunatic working on glibc decided it would be a good idea to
+ * define `I' to the imaginary unit. As nice as that sounds, that's just about
+ * the stupidest thing I have ever seen in anything resembling a system header.
+ * It breaks things left, right, and centre. */
+#ifdef I
+#  undef I
+#endif
+
 #include "bstring/bstring.h"
 #include "contrib/contrib.h"
 #include "data.h"
@@ -128,7 +135,6 @@ struct backups {
 #define ARRSIZ(ARR_)     (sizeof(ARR_) / sizeof(*(ARR_)))
 #define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
 #define stringify(VAR_)  #VAR_
-#define xfree(PTR_)      (free(PTR_), (PTR_) = NULL)
 #define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
 #define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
 
@@ -190,14 +196,16 @@ extern const long double SLEEP_CONV;
 #  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
 #endif
 
-#if defined(_MSC_VER)
-#  define NORETURN      __declspec(noreturn)
-#elif defined(__GNUC__)
-#  define NORETURN __attribute__((__noreturn__))
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#  define NORETURN _Noreturn
-#else
-#  define NORETURN
+#if 1
+#  if defined(_MSC_VER)
+#    define noreturn __declspec(noreturn)
+#  elif defined(__GNUC__)
+#    define noreturn __attribute__((__noreturn__))
+#  elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#    define noreturn _Noreturn
+#  else
+#    define noreturn
+#  endif
 #endif
 
 #if defined(_MSC_VER)
@@ -218,7 +226,7 @@ extern const long double SLEEP_CONV;
 /*===========================================================================*/
 
 void          __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
-NORETURN void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
+noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
 
 #define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
 #define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
@@ -279,6 +287,7 @@ extern const long double NSEC2SECOND;
                       (int)(35 - sizeof(MSG_)), SPECDIFF((T_).tv1, (T_).tv2)); \
         } while (0)
 #endif
+#define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
 
 /*===========================================================================*/
 /* Generic Utility Functions */
@@ -314,6 +323,8 @@ extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
 #  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
+
+#define xfree(PTR) free(PTR)
 
 #define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #define b_list_dump_nvim(LST_) __b_list_dump_nvim((LST_), #LST_)

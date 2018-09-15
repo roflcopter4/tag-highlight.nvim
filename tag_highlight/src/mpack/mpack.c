@@ -7,6 +7,7 @@
 /* static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func); */
 static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
 static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
+static void free_stack_push(struct item_free_stack *list, void *item);
 /* static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type); */
 
 static unsigned        stdchan_count, bufchan_count, mainchan_count;
@@ -67,7 +68,7 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
 
         case E_BOOL:
                 if (mpack_type(obj) != (err_expect = MPACK_BOOL)) {
-                        if (mpack_type(obj) == MPACK_NUM)
+                        if (mpack_type(obj) == MPACK_SIGNED || mpack_type(obj) == MPACK_UNSIGNED)
                                 value = obj->data.num;
                         else
                                 goto error;
@@ -78,15 +79,19 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
                 break;
 
         case E_NUM:
-                if (mpack_type(obj) != (err_expect = MPACK_NUM)) {
+                if (mpack_type(obj) != (err_expect = MPACK_SIGNED) &&
+                    mpack_type(obj) != MPACK_UNSIGNED)
+                {
                         if (mpack_type(obj) == MPACK_EXT)
-                                value = obj->data.ext->num;
+                                ret.num = obj->data.ext->num;
                         else
                                 goto error;
                 } else {
-                        value = obj->data.num;
+                        if (mpack_type(obj) == MPACK_SIGNED)
+                                ret.num = obj->data.num;
+                        else
+                                ret.uint = obj->data.uint;
                 }
-                ret.num = value;
                 break;
 
         case E_STRING:
@@ -102,7 +107,7 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
                         goto error;
                 ret.ptr = mpack_array_to_blist(obj->data.arr, destroy);
                 if (destroy) {
-                        free(obj);
+                        xfree(obj);
                         destroy = false;
                 }
                 break;
@@ -141,7 +146,7 @@ mpack_destroy(mpack_obj *root)
                 if (root->flags & MPACK_HAS_PACKED)
                         b_free(*root->packed);
                 if (!(root->flags & MPACK_PHONY))
-                        free(root);
+                        xfree(root);
                 return;
         }
 
@@ -156,17 +161,17 @@ mpack_destroy(mpack_obj *root)
                         switch (mpack_type(cur)) {
                         case MPACK_ARRAY:
                                 if (cur->data.arr) {
-                                        free(cur->DAI);
-                                        free(cur->data.arr);
+                                        xfree(cur->DAI);
+                                        xfree(cur->data.arr);
                                 }
                                 break;
                         case MPACK_DICT:
                                 if (cur->data.dict) {
                                         unsigned j = 0;
                                         while (j < cur->data.dict->qty)
-                                                free(cur->DDE[j++]);
-                                        free(cur->DDE);
-                                        free(cur->data.dict);
+                                                xfree(cur->DDE[j++]);
+                                        xfree(cur->DDE);
+                                        xfree(cur->data.dict);
                                 }
                                 break;
                         case MPACK_STRING:
@@ -175,7 +180,7 @@ mpack_destroy(mpack_obj *root)
                                 break;
                         case MPACK_EXT:
                                 if (cur->data.ext)
-                                        free(cur->data.ext);
+                                        xfree(cur->data.ext);
                                 break;
                         default:
                                 break;
@@ -186,10 +191,10 @@ mpack_destroy(mpack_obj *root)
                         b_free(*cur->packed);
 
                 if (!(cur->flags & MPACK_PHONY))
-                        free(cur);
+                        xfree(cur);
         }
 
-        free(tofree.items);
+        xfree(tofree.items);
 }
 
 
@@ -229,6 +234,14 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
         }
 }
 
+static void
+free_stack_push(struct item_free_stack *list, void *item)
+{
+        if (list->qty == (list->max - 1))
+                list->items = nrealloc(list->items, (list->max *= 2),
+                                       sizeof(*list->items));
+        list->items[list->qty++] = item;
+}
 
 void
 destroy_call_array(struct atomic_call_array *calls)
@@ -248,12 +261,12 @@ destroy_call_array(struct atomic_call_array *calls)
                                 break;
                         }
                 }
-                free(calls->args[i]);
-                free(calls->fmt[i]);
+                xfree(calls->args[i]);
+                xfree(calls->fmt[i]);
         }
-        free(calls->args);
-        free(calls->fmt);
-        free(calls);
+        xfree(calls->args);
+        xfree(calls->fmt);
+        xfree(calls);
 }
 
 
@@ -460,6 +473,7 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case 'b': case 'B': case 'l': case 'L':
                 case 'd': case 'D': case 's': case 'S':
                 case 'n': case 'N': case 'c': case 'C':
+                case 'u':
                         ++*cur_len;
                         break;
 
@@ -548,6 +562,12 @@ encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         int64_t arg = 0;
                         NEXT(arg, int64_t, num);
                         mpack_encode_integer(pack, cur_obj, arg);
+                        break;
+                }
+                case 'u': {
+                        uint64_t arg = 0;
+                        NEXT(arg, uint64_t, uint);
+                        mpack_encode_unsigned(pack, cur_obj, arg);
                         break;
                 }
                 case 's': case 'S': {
