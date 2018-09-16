@@ -17,6 +17,7 @@
 #include "p99/p99_defarg.h"
 #include "clang/clang.h"
 
+extern pthread_t top_thread;
 static const long double WAIT_TIME = 3.0L;
 extern FILE *cmd_log, *echo_log, *main_log;
 pthread_t    top_thread;
@@ -35,7 +36,7 @@ static void        sig_handler(UNUSED int notused);
 int
 main(UNUSED int argc, char *argv[])
 {
-        timer main_timer;
+        struct timer main_timer;
         TIMER_START(main_timer);
         top_thread = pthread_self();
         _nvim_init();
@@ -112,11 +113,12 @@ main(UNUSED int argc, char *argv[])
                 }
         }
 
-        /* START_DETACHED_PTHREAD(libclang_waiter, NULL); */
+        START_DETACHED_PTHREAD(libclang_waiter, NULL);
         
         /* Wait for something to kill us. */
-        atexit(exit_cleanup);
+        /* atexit(exit_cleanup); */
         pause();
+        /* _exit(0); */
 
         /* The signal handler should return unless the signal was unexpected.
          * Clean up the main loop threads before exiting. */
@@ -154,6 +156,22 @@ static void open_logs(void)
 }
 
 /*======================================================================================*/
+
+/* 
+ * Does what it says on the tin.
+ */
+void
+get_initial_lines(struct bufdata *bdata)
+{
+        b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
+        if (bdata->lines->qty == 1)
+                ll_delete_node(bdata->lines, bdata->lines->head);
+        ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
+
+        xfree(tmp->lst);
+        xfree(tmp);
+        bdata->initialized = true;
+}
 
 /*
  * Free everything at exit for debugging purposes.

@@ -31,7 +31,7 @@ struct lc_thread {
         struct bufdata *bdata;
         const int       first;
         const int       last;
-        const int       ctick;
+        const unsigned  ctick;
 };
 
 extern nvim_call_array *
@@ -118,7 +118,7 @@ libclang_waiter(UNUSED void *vdata)
         unsigned last_ctick  = nvim_buf_get_changedtick(0, last_bufnum);
 
         for (;;) {
-                int             bufnum = nvim_get_current_buf(0);
+                const int       bufnum = nvim_get_current_buf(0);
                 struct bufdata *bdata  = find_buffer(bufnum);
 
                 if (!bdata)
@@ -135,8 +135,8 @@ libclang_waiter(UNUSED void *vdata)
 
                 unsigned ctick = nvim_buf_get_changedtick(0, bufnum);
                 if (ctick != last_ctick) {
-                        last_ctick            = ctick;
-                        struct bufdata *bdata = find_buffer(bufnum);
+                        last_ctick = ctick;
+                        /* bdata      = find_buffer(bufnum); */
                         libclang_highlight(bdata, 0, (-1));
                 }
 

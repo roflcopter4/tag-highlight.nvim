@@ -146,21 +146,16 @@ extern struct bufdata *find_buffer      (int bufnum);
 extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft);
 extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 
-
 /*---------------------------------------------------------------------------*/
 /* Events */
 extern void             handle_unexpected_notification(mpack_obj *note);
-extern enum event_types handle_nvim_event             (mpack_obj *event);
-extern void *           interrupt_call                (void *vdata);
-
 
 /*---------------------------------------------------------------------------*/
 /* Archives */
 extern b_list *get_archived_tags(struct bufdata *bdata);
 
-
+/*===========================================================================*/
 #ifdef __cplusplus
 }
 #endif
-
 #endif /* data.h */

@@ -56,9 +56,9 @@ run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
 int
 get_initial_taglist(struct bufdata *bdata)
 {
-        timer       t;
-        struct stat st;
-        int         ret = 0;
+        struct timer t;
+        struct stat  st;
+        int          ret = 0;
 
         /* if (bdata->ft->is_c)
                 return 1; */
@@ -123,8 +123,8 @@ update_taglist(struct bufdata *bdata, const enum update_taglist_opts opts)
                 ECHO("ctick unchanged");
                 return false;
         }
-        timer t;
-        bool  ret = true;
+        bool         ret = true;
+        struct timer t;
         TIMER_START(t);
 
         bdata->last_ctick = bdata->ctick;

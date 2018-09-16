@@ -47,18 +47,12 @@ struct token {
         CXType      cursortype;
         CXToken     token;
         CXTokenKind tokenkind;
-        unsigned    line;
-        unsigned    col1;
-        unsigned    col2;
-        unsigned    len;
+        unsigned    line, col1, col2, len;
         char        raw[];
 };
 
 struct resolved_range {
-        unsigned line;
-        unsigned start;
-        unsigned end;
-        unsigned offset;
+        unsigned line, start, end, offset;
         CXFile   file;
 };
 

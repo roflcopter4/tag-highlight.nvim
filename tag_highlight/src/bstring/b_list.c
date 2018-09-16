@@ -52,7 +52,7 @@ b_list *
 b_list_create(void)
 {
         b_list *sl = xmalloc(sizeof(b_list));
-        sl->lst    = calloc(4, sizeof(bstring *));
+        sl->lst    = xcalloc(4, sizeof(bstring *));
         sl->qty    = 0;
         sl->mlen   = 1;
         if (!sl->lst)

@@ -277,7 +277,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 
         /* Combine the returned data from all threads into one array, which is
          * then sorted and returned. */
-        struct tag    **alldata = calloc(total, sizeof(struct tag *));
+        struct tag    **alldata = xcalloc(total, sizeof(struct tag *));
         struct taglist *ret     = xmalloc(sizeof(*ret));
         *ret = (struct taglist){ alldata, total, total };
 

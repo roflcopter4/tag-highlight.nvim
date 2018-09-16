@@ -48,10 +48,9 @@ struct settings_s   settings        = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL,
 struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
 struct backups      backup_pointers = { NULL, 0, 0 };
 
-const size_t ftdata_len  = ARRSIZ(ftdata);
-
-int             mainchan       = (-1);
-int             bufchan        = (-1);
+const size_t    ftdata_len  = ARRSIZ(ftdata);
+int             mainchan    = (-1);
+int             bufchan     = (-1);
 const char *    program_name;
 char *          HOME;
 FILE *          cmd_log;

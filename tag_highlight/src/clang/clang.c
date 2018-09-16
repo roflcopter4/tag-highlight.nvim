@@ -66,7 +66,7 @@ void
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-        /* timer t; */
+        /* struct timer t; */
         pthread_mutex_lock(&mut);
 
         /* TIMER_START(t); */

@@ -24,7 +24,6 @@ set (tag_highlight_SOURCES
     events.c
     globals.c
     json.c
-    loop.c
     main.c
     scan_headers.c
     update_commands.c

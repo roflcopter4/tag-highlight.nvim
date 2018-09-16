@@ -103,7 +103,7 @@ struct item_free_stack {
         unsigned    max;
 };
 
-typedef union {
+typedef union retval {
         void    *ptr;
         int64_t  num;
         uint64_t uint;

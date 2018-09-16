@@ -255,9 +255,9 @@ extern const long double NSEC2SECOND;
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
 #ifdef DOSISH
-   typedef struct timer_s {
+   struct timer {
            struct timeval tv1, tv2;
-   } timer;
+   };
 #  define TIMER_START(T_) (gettimeofday(&(T_).tv1, NULL))
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
@@ -271,9 +271,9 @@ extern const long double NSEC2SECOND;
                       (int)(30 - sizeof(MSG_)), TDIFF((T_).tv1, (T_).tv2)); \
         } while (0)
 #else
-   typedef struct timer_s {
+   struct timer {
            struct timespec tv1, tv2;
-   } timer;
+   };
 #  define TIMER_START(T_) (clock_gettime(CLOCK_REALTIME, &(T_).tv1))
 #  define TIMER_START_BAR(T_)                             \
         do {                                              \

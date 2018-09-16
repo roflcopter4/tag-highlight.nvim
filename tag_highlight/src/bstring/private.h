@@ -173,8 +173,18 @@ xmalloc(const size_t size)
                 FATAL_ERROR("Malloc call failed - attempted %zu bytes", size);
         return tmp;
 }
+
+static inline void *
+xcalloc(const int num, const size_t size)
+{
+        void *tmp = calloc(num, size);
+        if (tmp == NULL)
+                FATAL_ERROR("Calloc call failed - attempted %zu bytes", size);
+        return tmp;
+}
 #else
 #  define xmalloc malloc
+#  define xcalloc calloc
 #endif
 
 static inline void *

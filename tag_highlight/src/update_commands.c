@@ -44,7 +44,7 @@ extern FILE *cmd_log;
 void
 (update_highlight)(const int bufnum, struct bufdata *bdata, const bool force)
 {
-        timer t;
+        struct timer t;
         pthread_mutex_lock(&update_mutex);
         TIMER_START(t);
 
