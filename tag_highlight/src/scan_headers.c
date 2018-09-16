@@ -2,9 +2,15 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include "nvim_api/api.h"
+#include "highlight.h"
 #include "util/find.h"
 
+#ifndef O_PATH
+#  define O_PATH 00
+#endif
+#ifndef O_DIRECTORY
+#  define O_DIRECTORY 00
+#endif
 #define SKIP_SPACE(STR_, CTR_)                \
         do {                                  \
                 while (isblank((STR_)[CTR_])) \
@@ -27,19 +33,19 @@
 
 static pthread_mutex_t searched_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static b_list *  find_includes(struct bufdata *bdata);
-static b_list *  find_src_dirs(struct bufdata *bdata, b_list *includes);
-static b_list *  find_header_paths(const b_list *src_dirs, const b_list *includes);
-static bstring * analyze_line(const bstring *line);
-static void *    recurse_headers_shim(void *vdata);
+static b_list   *find_includes(struct bufdata *bdata);
+static b_list   *find_src_dirs(struct bufdata *bdata, b_list *includes);
+static b_list   *find_header_paths(const b_list *src_dirs, const b_list *includes);
+static bstring  *analyze_line(const bstring *line);
+static void     *recurse_headers_shim(void *vdata);
 static void      recurse_headers(b_list **headers, b_list **searched, b_list *src_dirs,
                                  const bstring *cur_header, int level);
 
 static void handle_file(b_list *includes, bstring *file, const bstring *cur_header);
 
 struct pdata {
-        b_list **      searched;
-        b_list *       src_dirs;
+        b_list       **searched;
+        b_list        *src_dirs;
         const bstring *cur_header;
 };
 
@@ -455,7 +461,7 @@ analyze_line(const bstring *line)
                                         ret = b_fromblk(&str[i], PSUB(end, &str[i]));
 
                                         if (ch == '>') {
-                                                int n = 0;
+                                                int64_t n = 0;
                                                 if (b_strstr(line, B("/* TAG */"), i) > 0) {
                                                         bstring *tmp = find_header_paths_system(ret, NULL);
                                                         if (tmp) {
@@ -468,8 +474,8 @@ analyze_line(const bstring *line)
                                                 else if ((n = b_strstr(line, B("/* TAG: "), i)) > 0) {
                                                         eprintf("Found %s!\n", &line->data[n]);
                                                         n += 8;
-                                                        const int m  = b_strchrp(line, '*', n) - 1;
-                                                        bstring ref  = bt_fromblk(line->data + n, m - n);
+                                                        const int64_t m    = b_strchrp(line, '*', (unsigned)n) - 1ll;
+                                                        bstring       ref  = bt_fromblk(line->data + n, (unsigned)(m - n));
                                                         ref.data[ref.slen] = '\0';
 
                                                         bstring *tmp = find_header_paths_system(ret, &ref);

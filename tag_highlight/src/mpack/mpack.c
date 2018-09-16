@@ -10,17 +10,11 @@ static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
 static void free_stack_push(struct item_free_stack *list, void *item);
 /* static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type); */
 
-static unsigned        stdchan_count, bufchan_count, mainchan_count;
-static pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
 FILE  *mpack_log;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
-#define COUNT(FD_)         (((FD_) == 1) ? stdchan_count   : ((FD_) == bufchan) ? bufchan_count   : mainchan_count)
-#define INC_COUNT(FD_)     (((FD_) == 1) ? stdchan_count++ : ((FD_) == bufchan) ? bufchan_count++ : mainchan_count++)
-#define CHECK_DEF_FD(FD__) ((FD__) = (((FD__) == 0) ? DEFAULT_FD : (FD__)))
-#define BS_FROMARR(ARRAY_) {(sizeof(ARRAY_) - 1), 0, (unsigned char *)(ARRAY_), 0}
 
 /*======================================================================================*/
 
@@ -189,7 +183,6 @@ mpack_destroy(mpack_obj *root)
 
                 if (cur->flags & MPACK_HAS_PACKED)
                         b_free(*cur->packed);
-
                 if (!(cur->flags & MPACK_PHONY))
                         xfree(cur);
         }
@@ -331,9 +324,6 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
  * composed of the actual type it holds (rather than a void pointer) and also
  * allows the elements to be integers without requiring some hack. */
 
-/* #define NEW_STACK(TYPE_, NAME_, NUM_, SIZE_)             \ */
-        /* TYPE_    NAME_       = nmalloc((NUM_), (SIZE_)); \ */
-        /* unsigned NAME_##_ctr = 0 */
 #define NEW_STACK(TYPE, NAME) \
         TYPE     NAME[128];    \
         unsigned NAME##_ctr = 0
@@ -394,16 +384,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
                 }                                           \
         } while (0)
 
-#define INC_CTRS()                                     \
-        do {                                           \
-                ++len_ctr;                             \
-                PUSH(obj_stack, *cur_obj);             \
-                PUSH(len_stack, cur_ctr);              \
-                cur_ctr  = &sub_ctrlist[subctr_ctr++]; \
-                *cur_ctr = 0;                          \
-        } while (0)
-
-#define TWO_THIRDS(NUM_) ((1 * (NUM_)) / 3)
 #define ENCODE_FMT_ARRSIZE 128
 
 
@@ -443,7 +423,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  * All errors are fatal.
  */
 mpack_obj *
-encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
+mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
         /* eprintf("Fmt is \"%s\"\n", fmt); */
         assert(fmt != NULL && *fmt != '\0');

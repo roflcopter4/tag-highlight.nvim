@@ -292,6 +292,7 @@ __err(UNUSED const int status, const bool print_err, const char *const __restric
 
 
 extern FILE *echo_log;
+extern int mainchan;
 
 void
 __warn(const bool print_err, const char *const __restrict fmt, ...)

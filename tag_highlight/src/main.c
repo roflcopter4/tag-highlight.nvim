@@ -5,58 +5,47 @@
 #  include <direct.h>
 #  undef mkdir
 #  define mkdir(PATH, MODE) _mkdir(PATH)
+#  define WIN_BIN_FAIL(STREAM) \
+        err(1, "Failed to change " STREAM "to binary mode.")
 #else
-#  include <sys/socket.h>
 #  include <sys/stat.h>
-#  include <sys/un.h>
 #endif
 
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include "nvim_api/api.h"
 #include "p99/p99_defarg.h"
 #include "clang/clang.h"
-
-#define WIN_BIN_FAIL(STREAM) \
-        err(1, "Failed to change " STREAM "to binary mode.")
-
-#define LOG_MASK_PERM (O_CREAT|O_TRUNC|O_WRONLY|O_BINARY), (0644)
 
 static const long double WAIT_TIME = 3.0L;
 extern FILE *cmd_log, *echo_log, *main_log;
 pthread_t    top_thread;
 
+static void        launch_threads(pthread_t thr[3]);
+static void        open_logs(void);
 static void        exit_cleanup(void);
-static int         create_socket(int mes_fd);
 static comp_type_t get_compression_type(int fd);
-static void        open_main_log(void);
 static void        sig_handler(UNUSED int notused);
 
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (0)
-
-//extern b_list *get_pcre2_matches(const bstring *pattern, const bstring *subject, const int flags);
 
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
-#ifdef USE_JEMALLOC
-        extern char *malloc_conf;
-        malloc_conf = "junk:true,prof:true,prof_leak:true,xmalloc:true";
-#endif
-        top_thread = pthread_self();
         timer main_timer;
         TIMER_START(main_timer);
+        top_thread = pthread_self();
+        _nvim_init();
 
 #ifdef DOSISH
         HOME = alloca(PATH_MAX+1);
         snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH"));
-
         extern const char *program_invocation_short_name;
         program_invocation_short_name = basename(argv[0]);
+
         /* Set the standard streams to binary mode in Windows. Don't bother with
          * signals, it's not worth the effort. */
         if (_setmode(0, O_BINARY) == (-1))
@@ -78,26 +67,9 @@ main(UNUSED int argc, char *argv[])
                 sigaction(SIGTERM, &temp, NULL); // nvim exits.
         }
 #endif
-#ifdef DEBUG
-        char LOGDIR[PATH_MAX+1];
-        snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
-        mkdir(LOGDIR, 0777);
-        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
-        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
-        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
-#endif
-
-        pthread_t      thr[3];
-        pthread_attr_t attr[3];
-        MAKE_PTHREAD_ATTR_DETATCHED(&attr[0]);
-        MAKE_PTHREAD_ATTR_DETATCHED(&attr[1]);
-        MAKE_PTHREAD_ATTR_DETATCHED(&attr[2]);
-
-        pthread_create(&thr[0], &attr[0], event_loop, NULL);
-        mainchan = create_socket(1);
-        pthread_create(&thr[1], &attr[1], event_loop, (void *)(&mainchan));
-        bufchan = create_socket(1);
-        pthread_create(&thr[2], &attr[2], event_loop, (void *)(&bufchan));
+        open_logs();
+        pthread_t thr[3];
+        launch_threads(thr);
 
         /* Grab user settings defined their .vimrc or the vimscript plugin. */
         settings.enabled        = nvim_get_var(0, B(PKG "enabled"),   E_BOOL  ).num;
@@ -112,10 +84,8 @@ main(UNUSED int argc, char *argv[])
         settings.norecurse_dirs = nvim_get_var(0, B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
         settings.settings_file  = nvim_get_var(0, B(PKG "settings_file"),     E_STRING    ).ptr;
         settings.verbose        = nvim_get_var(0, B(PKG "verbose"),           E_BOOL      ).num;
-
 #ifdef DEBUG
         settings.verbose = true;
-        open_main_log();
 #endif
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
@@ -142,7 +112,7 @@ main(UNUSED int argc, char *argv[])
                 }
         }
 
-        START_DETACHED_PTHREAD(libclang_waiter, NULL);
+        /* START_DETACHED_PTHREAD(libclang_waiter, NULL); */
         
         /* Wait for something to kill us. */
         atexit(exit_cleanup);
@@ -156,9 +126,34 @@ main(UNUSED int argc, char *argv[])
         exit(EXIT_SUCCESS);
 }
 
+static void launch_threads(pthread_t thr[3])
+{
+        pthread_attr_t attr[3];
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[0]);
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[1]);
+        MAKE_PTHREAD_ATTR_DETATCHED(&attr[2]);
+
+        pthread_create(&thr[0], &attr[0], event_loop, NULL);
+        mainchan = _nvim_create_socket(1);
+        pthread_create(&thr[1], &attr[1], event_loop, (void *)(&mainchan));
+        bufchan = _nvim_create_socket(1);
+        pthread_create(&thr[2], &attr[2], event_loop, (void *)(&bufchan));
+}
+
+static void open_logs(void)
+{
+#ifdef DEBUG
+        char LOGDIR[PATH_MAX+1];
+        snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
+        mkdir(LOGDIR, 0777);
+        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
+        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
+        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
+        main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
+#endif
+}
 
 /*======================================================================================*/
-
 
 /*
  * Free everything at exit for debugging purposes.
@@ -217,39 +212,6 @@ exit_cleanup(void)
         close(bufchan);
 }
 
-
-/*
- * Request for Neovim to create an additional server socket, then connect to it.
- * This allows us to keep requests and responses from different threads
- * separate, so they won't get mixed up. In Windows we must instead use a named
- * pipe, which is opened like any other file.
- */
-static int
-create_socket(const int mes_fd)
-{
-        bstring *name = nvim_call_function(mes_fd, B("serverstart"), E_STRING).ptr;
-
-#ifdef DOSISH
-        const int fd = safe_open(BS(name), O_RDWR|O_BINARY, 0);
-#else
-        struct sockaddr_un addr;
-        memset(&addr, 0, sizeof(addr));
-        addr.sun_family = AF_UNIX;
-        memcpy(addr.sun_path, name->data, name->slen + 1);
-
-        int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-
-        if (fd == (-1))
-                err(1, "Failed to create socket instance.");
-        if (connect(fd, (struct sockaddr *)(&addr), sizeof(addr)) == (-1))
-                err(2, "Failed to connect to socket.");
-#endif
-
-        b_free(name);
-        return fd;
-}
-
-
 static comp_type_t
 (get_compression_type)(const int fd)
 {
@@ -278,9 +240,7 @@ static comp_type_t
         return ret;
 }
 
-
 /*======================================================================================*/
-
 
 static void
 sig_handler(UNUSED int notused)
@@ -288,17 +248,4 @@ sig_handler(UNUSED int notused)
         if (pthread_equal(top_thread, pthread_self()))
                 return;
         pthread_exit(NULL);
-}
-
-
-static void
-open_main_log(void)
-{
-#ifndef DEBUG
-        return;
-#endif
-        char buf[PATH_MAX + 1];
-        snprintf(buf, PATH_MAX + 1, "%s/.tag_highlight_log", HOME);
-        mkdir(buf, 0777);
-        main_log = safe_fopen_fmt("%s/buf.log", "wb+", buf);
 }

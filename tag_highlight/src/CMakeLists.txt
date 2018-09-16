@@ -4,7 +4,7 @@ set (tag_highlight_SOURCES
     tagscan/strip.c
     tagscan/tok.c
 
-    clang/cl2.c
+    clang/clang.c
     clang/const.c
     clang/typeid.c
     clang/threaded.c
@@ -15,6 +15,7 @@ set (tag_highlight_SOURCES
 
     nvim_api/api.c
     nvim_api/common.c
+    nvim_api/misc.c
     nvim_api/api.h
     nvim_api/intern.h
 
@@ -90,25 +91,19 @@ elseif(MINGW)
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib")
 
 else()
-    if (USE_JEMALLOC)
-        target_link_libraries(tag_highlight /opt/jemalloc/lib/libjemalloc.so.2 -ldl)
-    endif()
-    # target_link_libraries(tag_highlight -static "${myCLANGLIST}" -lstdc++)
-    # target_link_libraries(tag_highlight -Wl,-Bdynamic /mnt/arch/backup/clang-dev/lib/libclang.so -lunwind)
-    # target_link_libraries(tag_highlight -static "-L${CMAKE_SOURCE_DIR}" -lclang ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
-
-    # target_link_libraries(tag_highlight -static)
     include_directories(${ZLIB_INCLUDE_DIRS})
     target_link_libraries(tag_highlight -pthread)
     target_link_libraries(tag_highlight ${ZLIB_LIBRARIES})
     target_link_libraries(tag_highlight -lm -latomic)
 
-    # set(CMAKE_C_FLAGS "-I/mnt/arch/backup/clang-dev/include")
-    set(CMAKE_C_FLAGS "${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS}")
+    string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
     target_link_libraries(tag_highlight ${LIBCLANG_LIBRARIES})
-    # target_link_libraries(tag_highlight -static /mnt/arch/backup/clang-dev/lib/libclang.a -lunwind ${myCLANGLIST} -Wl,-Bdynamic -lstdc++ -lunwind -lm -ldl -lrt -ldl -lcurses -lxml2)
-    # target_link_libraries(tag_highlight "-L/opt/DCLANG/lib" -Wl,-rpath=/opt/DCLANG/lib /opt/DCLANG/lib/libclang.so.8svn -lstdc++)
 
+    # target_link_libraries(tag_highlight -lpcre2-8)
+
+    if (USE_JEMALLOC)
+        target_link_libraries(tag_highlight /opt/jemalloc/lib/libjemalloc.so.2 -ldl)
+    endif()
     if (LZMA_SUPPORT)
         include_directories(${LIBLZMA_INCLUDE_DIRS})
         target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
@@ -116,10 +111,4 @@ else()
     if (CLANG_STR_SEARCH)
         target_link_libraries(tag_highlight -lunwind)
     endif()
-
-    # target_link_libraries(tag_highlight -lpcre2-8)
-
-    # include_directories(/opt/more_clang/include)
-    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic -Wl,-rpath=/opt/more_clang/lib -L/opt/more_clang/lib")
-    # target_link_libraries(tag_highlight /opt/more_clang/lib/libclang.so.8svn)
 endif()

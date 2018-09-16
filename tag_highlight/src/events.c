@@ -2,8 +2,8 @@
 
 #include "clang/clang.h"
 #include "data.h"
+#include "highlight.h"
 #include "mpack/mpack.h"
-#include "nvim_api/api.h"
 
 #define BT bt_init
 /* #define WRITE_BUF_UPDATES */

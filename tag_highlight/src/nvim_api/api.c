@@ -22,7 +22,7 @@ _nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
         }
 
         const int  count = INC_COUNT(fd);
-        mpack_obj *pack  = encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
+        mpack_obj *pack  = mpack_encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
         write_and_clean(fd, pack, func);
         mpack_obj *tmp = await_package(fd, count, MES_RESPONSE);
         pthread_mutex_unlock(&mpack_main_mutex);
@@ -363,7 +363,7 @@ nvim_call_atomic(int fd, const nvim_call_array *calls)
         FILE *logfp = NULL;
 #endif
         const int  count = INC_COUNT(fd);
-        mpack_obj *pack  = encode_fmt(calls->qty, BS(fmt), MES_REQUEST, count, &fn, args);
+        mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST, count, &fn, args);
         write_and_clean(fd, pack, &fn, logfp);
         mpack_obj *result = await_package(fd, count, MES_RESPONSE);
 

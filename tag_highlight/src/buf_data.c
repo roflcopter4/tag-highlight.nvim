@@ -3,7 +3,6 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include "nvim_api/api.h"
 #include <signal.h>
 
 #ifdef _WIN32

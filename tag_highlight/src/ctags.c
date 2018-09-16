@@ -11,7 +11,6 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include "nvim_api/api.h"
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);

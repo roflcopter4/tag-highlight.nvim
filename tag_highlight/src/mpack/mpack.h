@@ -129,7 +129,7 @@ extern void        mpack_encode_string    (mpack_obj *root, mpack_obj **item, co
 extern void        mpack_encode_boolean   (mpack_obj *root, mpack_obj **item, bool value);
 extern void        mpack_encode_dictionary(mpack_obj *root, mpack_obj **item, unsigned len);
 extern void        mpack_encode_nil       (mpack_obj *root, mpack_obj **item);
-extern mpack_obj * encode_fmt             (unsigned size_hint, const char *fmt, ...);
+extern mpack_obj * mpack_encode_fmt       (unsigned size_hint, const char *fmt, ...);
 
 /*============================================================================*/
 /* Type conversions and Misc */

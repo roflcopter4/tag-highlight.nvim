@@ -196,7 +196,7 @@ extern const long double SLEEP_CONV;
 #  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
 #endif
 
-#if 1
+#ifndef noreturn
 #  if defined(_MSC_VER)
 #    define noreturn __declspec(noreturn)
 #  elif defined(__GNUC__)

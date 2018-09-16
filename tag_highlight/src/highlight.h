@@ -3,14 +3,19 @@
 
 #include "util/util.h"
 
+#define DEFAULT_FD       (mainchan)
+#define BUFFER_ATTACH_FD (bufchan)
+
 #include "bstring/bstring.h"
 #include "data.h"
+#include "nvim_api/api.h"
 #include "p99/p99_defarg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+extern int mainchan, bufchan;
 
 #define PKG "tag_highlight#"
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \

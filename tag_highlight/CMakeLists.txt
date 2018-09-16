@@ -140,7 +140,7 @@ else()
     set (CMAKE_C_FLAGS_RELEASE    "${BASE} -g3 -O3 -ftree-vectorize")
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
-    set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
+    # set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
     set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
 endif()
 

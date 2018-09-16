@@ -126,11 +126,7 @@ extern struct buffer_list  buffers;
 extern struct filetype     ftdata[];
 extern genlist            *top_dirs;
 
-extern int mainchan, bufchan;
 extern const size_t ftdata_len;
-
-#define DEFAULT_FD       (mainchan)
-#define BUFFER_ATTACH_FD (bufchan)
 
 
 /*===========================================================================*/

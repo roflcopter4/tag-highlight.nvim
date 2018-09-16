@@ -81,10 +81,10 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
                 snprintf(buf, size, "[d,d,s:[!%s]]", BS(fmt));
 
                 va_start(ap, fmt);
-                pack = encode_fmt(0, buf, MES_REQUEST, count, fn, &ap);
+                pack = mpack_encode_fmt(0, buf, MES_REQUEST, count, fn, &ap);
                 va_end(ap);
         } else {
-                pack = encode_fmt(0, "[d,d,s:[]]", MES_REQUEST, count, fn);
+                pack = mpack_encode_fmt(0, "[d,d,s:[]]", MES_REQUEST, count, fn);
         }
 
         write_and_clean(*fd, pack, fn);

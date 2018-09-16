@@ -4,6 +4,7 @@
 #include "bstring/bstring.h"
 #include "data.h"
 #include "mpack/mpack.h"
+#include "p99/p99_defarg.h"
 #include "util/list.h"
 
 #define APRINTF(a,b) __attribute__((__format__(__printf__, a, b)))
@@ -24,6 +25,7 @@ enum filetype_id {
 };
 enum message_types   { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
 enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
+enum nvim_connection_type { NVIM_STDOUT, NVIM_SOCKET, NVIM_FILE };
 
 typedef struct atomic_call_array nvim_call_array;
 typedef union  atomic_call_args  nvim_call_arg;
@@ -53,6 +55,7 @@ struct nvim_wait {
 
 /*============================================================================*/
 /* API Wrappers */
+
 extern void           _nvim_write             (int fd, enum nvim_write_type type, const bstring *mes);
 extern void           nvim_printf             (int fd, const char *__restrict fmt, ...) APRINTF(2, 3);
 extern void           nvim_vprintf            (int fd, const char *__restrict fmt, va_list args) APRINTF(2, 0);
@@ -93,6 +96,26 @@ extern void      destroy_call_array(struct atomic_call_array *calls);
         ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
                             : (void)0)
 #undef APRINTF
+
+/*============================================================================*/
+/* Misc helper functions */
+
+/**
+ * Request for Neovim to create an additional server socket/fifo, then connect
+ * to it. Multiple connections can make multithreaded applications easier to
+ * write safely.
+ */
+extern int _nvim_create_socket(int mes_fd);
+extern void _nvim_init(enum nvim_connection_type init_type, int init_fd);
+
+#define _nvim_init(...) P99_CALL_DEFARG(_nvim_init, 2, __VA_ARGS__)
+#ifdef DOSISH
+#  define _nvim_init_defarg_0() (NVIM_FILE)
+#else
+#  define _nvim_init_defarg_0() (NVIM_SOCKET)
+#endif
+#define _nvim_init_defarg_1() (1)
+
 
 /*============================================================================*/
 #ifdef __cplusplus
