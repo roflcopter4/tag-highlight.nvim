@@ -80,6 +80,8 @@
 #include <string.h>
 
 #include <tgmath.h>
+#include <threads.h>
+
 /* Apperently some lunatic working on glibc decided it would be a good idea to
  * define `I' to the imaginary unit. As nice as that sounds, that's just about
  * the stupidest thing I have ever seen in anything resembling a system header.
@@ -147,29 +149,6 @@ struct backups {
 #define aNNA            __attribute__((__nonnull__))
 #define aNN(...)        __attribute__((__nonnull__(__VA_ARGS__)))
 
-extern const long double SLEEP_CONV;
-
-#ifdef DOSISH
-#  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
-#  define strcasecmp   _stricmp
-#  define strncasecmp  _strnicmp
-#  define fsleep(VAL)  Sleep((long long)((long double)(VAL) * SLEEP_CONV))
-#  define eprintf(...)                                          \
-        do {                                                    \
-                fprintf(stderr, "tag_highlight: " __VA_ARGS__); \
-                fflush(stderr);                                 \
-        } while (0)
-#else
-#  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
-#  define fsleep(VAL)                                                           \
-        nanosleep(                                                              \
-            (struct timespec[]){                                                \
-                {(int64_t)(VAL),                                                \
-                 (int64_t)(((long double)(VAL) - (long double)((int64_t)(VAL))  \
-                           ) * SLEEP_CONV)}                                     \
-            }, NULL)
-#endif
-
 #ifdef __GNUC__
 #  if defined(__clang__) || defined(__cplusplus)
 #    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
@@ -223,8 +202,6 @@ extern const long double SLEEP_CONV;
 #  endif
 #endif
 
-/*===========================================================================*/
-
 void          __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
 noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
 
@@ -244,8 +221,34 @@ noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4
 #  define SHOUT(...) __warn(false, __VA_ARGS__)
 #endif
 
-extern const long double USEC2SECOND;
-extern const long double NSEC2SECOND;
+/*===========================================================================*/
+
+/* extern const long double SLEEP_CONV; */
+/* extern const long double USEC2SECOND */
+/* extern const long double NSEC2SECOND; */
+#define USEC2SECOND (1000000.0L)
+#define NSEC2SECOND (1000000000.0L)
+
+#define MKTIMESPEC(FLT) &(struct timespec){ \
+          (int64_t)(FLT),                   \
+          (int64_t)(((long double)((FLT) - (long double)((int64_t)(FLT)))) * NSEC2SECOND)}
+
+#ifdef DOSISH
+#  define SLEEP_CONV  (1000.0L)
+#  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
+#  define strcasecmp   _stricmp
+#  define strncasecmp  _strnicmp
+#  define fsleep(VAL)  Sleep((long long)((long double)(VAL) * SLEEP_CONV))
+#  define eprintf(...)                                          \
+        do {                                                    \
+                fprintf(stderr, "tag_highlight: " __VA_ARGS__); \
+                fflush(stderr);                                 \
+        } while (0)
+#else
+#  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
+#  define fsleep(VAL) nanosleep(MKTIMESPEC((long double)(VAL)), NULL)
+#endif
+
 #define TDIFF(STV1, STV2)                                                 \
         (((long double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
@@ -254,6 +257,9 @@ extern const long double NSEC2SECOND;
         (((long double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
+/* ---------------
+ * Timer structure
+ */
 #ifdef DOSISH
    struct timer {
            struct timeval tv1, tv2;

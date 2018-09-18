@@ -15,20 +15,25 @@
 #include "nvim_api/api.h"
 
 genlist *nvim_connections = NULL;
+genlist *wait_list        = NULL;
 
 static void add_nvim_connection(const int fd, const enum nvim_connection_type type);
 static void clean_nvim_connections(void);
+static void free_wait_list(void);
 
 /*======================================================================================*/
 
 void
-_nvim_init(const enum nvim_connection_type init_type, const int init_fd)
+(_nvim_init)(const enum nvim_connection_type init_type, const int init_fd)
 {
         if (nvim_connections)
                 errx(1, "Neovim connection already initialized.");
         nvim_connections = genlist_create_alloc(8);
         add_nvim_connection(init_fd, init_type);
         atexit(clean_nvim_connections);
+
+        wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
+        atexit(free_wait_list);
 }
 
 /*
@@ -75,4 +80,11 @@ static void
 clean_nvim_connections(void)
 {
         genlist_destroy(nvim_connections);
+}
+
+static void
+free_wait_list(void)
+{
+        if (wait_list && wait_list->lst)
+                genlist_destroy(wait_list);
 }

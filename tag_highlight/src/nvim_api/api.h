@@ -5,6 +5,7 @@
 #include "data.h"
 #include "mpack/mpack.h"
 #include "p99/p99_defarg.h"
+#include "p99/p99_futex.h"
 #include "util/list.h"
 
 #define APRINTF(a,b) __attribute__((__format__(__printf__, a, b)))
@@ -48,7 +49,8 @@ struct nvim_wait {
         enum message_types mtype;
         int16_t            fd;
         int32_t            count;
-        pthread_cond_t    *cond;
+        /* pthread_cond_t     cond; */
+        p99_futex          fut;
         mpack_obj         *obj;
 };
 

@@ -257,19 +257,29 @@ get_compile_commands(struct bufdata *bdata)
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command = clang_CompileCommands_getCommand(cmds, i);
                 const unsigned   nargs   = clang_CompileCommand_getNumArgs(command);
+                bool             fileok  = false;
 
                 for (unsigned x = 0; x < nargs; ++x) {
                         struct stat st;
-                        CXString    tmp  = clang_CompileCommand_getArg(command, x);
-                        const char *cstr = CS(tmp);
+                        bool   next_fileok = false;
+                        CXString    tmp    = clang_CompileCommand_getArg(command, x);
+                        const char *cstr   = CS(tmp);
 
                         if (strcmp(cstr, "-o") == 0)
                                 ++x;
-                        else if (cstr[0] == '-' || ((stat(cstr, &st) != 0 || S_ISDIR(st.st_mode)) &&
-                                                    strcmp(cstr, BS(bdata->name.base)) != 0))
+                        else if (cstr[0] == '-') {
+                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include"))
+                                        next_fileok = true;
+                                argv_append(ret, cstr, true);
+                        } else if (fileok)
                                 argv_append(ret, cstr, true);
 
+                        /* if ((stat(cstr, &st) != 0 || S_ISDIR(st.st_mode)) &&
+                            strcmp(cstr, BS(bdata->name.base)) != 0)
+                                argv_append(ret, cstr, true); */
+
                         clang_disposeString(tmp);
+                        fileok = next_fileok;
                 }
         }
 

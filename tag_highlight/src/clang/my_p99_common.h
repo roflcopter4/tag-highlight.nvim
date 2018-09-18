@@ -27,4 +27,7 @@
 #define P04_EQ(WHAT, X, I) (X) == (WHAT)
 #define P44_EQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_EQ, __VA_ARGS__)
 
+#define P04_STREQ(WHAT, X, I) (strcmp((WHAT), (X)) == 0)
+#define P44_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_STREQ, __VA_ARGS__)
+
 #endif /* p99_common.h */

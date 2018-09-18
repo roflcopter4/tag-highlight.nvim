@@ -61,6 +61,7 @@ pthread_mutex_t update_mutex    = PTHREAD_MUTEX_INITIALIZER;
 b_list *        seen_files      = NULL;
 bool            process_exiting = false;
 
+#if 0
 /* Some constants. */
 const long double USEC2SECOND = 1000000.0L;
 const long double NSEC2SECOND = 1000000000.0L;
@@ -68,4 +69,5 @@ const long double NSEC2SECOND = 1000000000.0L;
 const long double SLEEP_CONV = 1000.0L;
 #else
 const long double SLEEP_CONV = NSEC2SECOND;
+#endif
 #endif

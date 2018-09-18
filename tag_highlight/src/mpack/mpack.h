@@ -160,14 +160,22 @@ destroy_mpack_array(mpack_array_t *array)
         mpack_destroy(&tmp);
 }
 
+#include <pthread.h>
+extern pthread_mutex_t mpack_rw_lock;
 static inline mpack_obj *
 m_index(mpack_obj *obj, const unsigned index)
 {
-        if (mpack_type(obj) != MPACK_ARRAY)
+        pthread_mutex_lock(&mpack_rw_lock);
+        if (mpack_type(obj) != MPACK_ARRAY) {
+                pthread_mutex_unlock(&mpack_rw_lock);
                 return NULL;
-        if (obj->data.arr->qty < index)
+        }
+        if (obj->data.arr->qty < index) {
+                pthread_mutex_unlock(&mpack_rw_lock);
                 return NULL;
+        }
 
+        pthread_mutex_unlock(&mpack_rw_lock);
         return obj->data.arr->items[index];
 }
 

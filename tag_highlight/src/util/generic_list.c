@@ -32,6 +32,7 @@ snapUpSize(unsigned i)
         return i;
 }
 
+/* static pthread_mutex_t sl->mut = PTHREAD_MUTEX_INITIALIZER; */
 
 genlist *
 genlist_create(void)
@@ -40,6 +41,7 @@ genlist_create(void)
         sl->lst     = xmalloc(2 * sizeof(void *));
         sl->qty     = 0;
         sl->mlen    = 2;
+        sl->mut     = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 
         return sl;
 }
@@ -52,6 +54,7 @@ genlist_create_alloc(const unsigned msz)
         sl->lst     = xmalloc(size * sizeof(void *));
         sl->qty     = 0;
         sl->mlen    = size;
+        sl->mut     = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 
         return sl;
 }
@@ -62,6 +65,8 @@ genlist_destroy(genlist *sl)
 {
         if (!sl)
                 return (-1);
+        /* pthread_mutex_lock(&sl->mut); */
+
         for (unsigned i = 0; i < sl->qty; ++i)
                 if (sl->lst[i])
                         xfree(sl->lst[i]);
@@ -72,6 +77,7 @@ genlist_destroy(genlist *sl)
         sl->lst = NULL;
         xfree(sl);
 
+        /* pthread_mutex_unlock(&sl->mut); */
         return 0;
 }
 
@@ -88,16 +94,22 @@ genlist_alloc(genlist *sl, const unsigned msz)
         if (sl->mlen >= msz)
                 return 0;
 
+        pthread_mutex_lock(&sl->mut);
+
         smsz = snapUpSize(msz);
         nsz  = ((size_t)smsz) * sizeof(void *);
 
-        if (nsz < (size_t)smsz)
+        if (nsz < (size_t)smsz) {
+                pthread_mutex_unlock(&sl->mut);
                 RUNTIME_ERROR();
+        }
 
         ptr = xrealloc(sl->lst, nsz);
 
         sl->mlen = smsz;
         sl->lst  = ptr;
+
+        pthread_mutex_unlock(&sl->mut);
         return 0;
 }
 
@@ -117,15 +129,17 @@ genlist_alloc(genlist *sl, const unsigned msz)
 /* }                                                                                 */
 
 int
-genlist_append(genlist *listp, void *item)
+genlist_append(genlist *list, void *item)
 {
-        if (!listp || !listp->lst)
+        if (!list || !list->lst)
                 RUNTIME_ERROR();
+        pthread_mutex_lock(&list->mut);
 
-        if (listp->qty == (listp->mlen - 1))
-                listp->lst = xrealloc(listp->lst, (listp->mlen *= 2) * sizeof(void *));
-        listp->lst[listp->qty++] = item;
+        if (list->qty == (list->mlen - 1))
+                list->lst = xrealloc(list->lst, (list->mlen *= 2) * sizeof(void *));
+        list->lst[list->qty++] = item;
 
+        pthread_mutex_unlock(&list->mut);
         return 0;
 }
 
@@ -134,14 +148,17 @@ genlist_remove(genlist *list, const void *obj)
 {
         if (!list || !list->lst || !obj)
                 RUNTIME_ERROR();
+        pthread_mutex_lock(&list->mut);
 
         for (unsigned i = 0; i < list->qty; ++i) {
                 if (list->lst[i] == obj) {
+                        pthread_mutex_unlock(&list->mut);
                         genlist_remove_index(list, i);
                         return 0;
                 }
         }
 
+        pthread_mutex_unlock(&list->mut);
         return (-1);
 }
 
@@ -150,6 +167,7 @@ genlist_remove_index(genlist *list, const unsigned index)
 {
         if (!list || !list->lst || index >= list->qty)
                 RUNTIME_ERROR();
+        pthread_mutex_lock(&list->mut);
 
         xfree(list->lst[index]);
         list->lst[index] = NULL;
@@ -160,14 +178,16 @@ genlist_remove_index(genlist *list, const unsigned index)
                 list->lst[index] = list->lst[--list->qty];
 
         /* memmove(list->lst + index, list->lst + index + 1, --list->qty - index); */
+        pthread_mutex_unlock(&list->mut);
         return 0;
 }
 
 genlist *
-genlist_copy(const genlist *list, const genlist_copy_func cpy)
+genlist_copy(genlist *list, const genlist_copy_func cpy)
 {
         if (!list || !list->lst)
                 RETURN_NULL();
+        pthread_mutex_lock(&list->mut);
 
         genlist *ret = genlist_create_alloc(list->qty);
 
@@ -176,6 +196,7 @@ genlist_copy(const genlist *list, const genlist_copy_func cpy)
                 ++ret->qty;
         }
 
+        pthread_mutex_unlock(&list->mut);
         return ret;
 }
 

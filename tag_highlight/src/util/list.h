@@ -2,6 +2,7 @@
 #define SRC_LIST_H_
 
 #include "bstring/bstring.h"
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -88,9 +89,10 @@ extern bstring *ll_join(linked_list *list, int sepchar);
 #endif
 
 typedef struct generic_list {
+        void **  lst;
         unsigned qty;
         unsigned mlen;
-        void **  lst;
+        pthread_mutex_t mut;
 } genlist;
 
 typedef int (*genlist_copy_func)(void **dest, void *item);
@@ -102,7 +104,7 @@ extern int      genlist_alloc(genlist *sl, const unsigned msz);
 extern int      genlist_append(genlist *listp, void *item);
 extern int      genlist_remove_index(genlist *list, const unsigned index);
 extern int      genlist_remove(genlist *listp, const void *obj);
-extern genlist *genlist_copy(const genlist *list, const genlist_copy_func cpy);
+extern genlist *genlist_copy(genlist *list, const genlist_copy_func cpy);
 /* genlist *genlist_copy(const genlist *list); */
 
 

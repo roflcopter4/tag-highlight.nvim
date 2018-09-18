@@ -5,6 +5,10 @@
 #include "mpack/mpack.h"
 #include "clang/clang.h"
 #include <signal.h>
+#include <threads.h>
+
+#include "p99/p99_futex.h"
+#include "p99/p99_threads.h"
 
 /*======================================================================================*/
 /* Main Event Loop */
@@ -20,6 +24,17 @@ static void  replace_line         (struct bufdata *bdata, b_list *repl_list, uns
 static void  make_update_thread   (struct bufdata *bdata, int first, int last);
 static const struct event_id *id_event(mpack_obj *event);
 static enum event_types       handle_nvim_event(mpack_obj *event);
+
+extern pthread_cond_t event_loop_cond;
+pthread_cond_t event_loop_cond = PTHREAD_COND_INITIALIZER;
+
+extern p99_futex event_loop_futex;
+p99_futex event_loop_futex = P99_FUTEX_INITIALIZER(0);
+
+extern pthread_rwlock_t event_loop_rwlock;
+pthread_rwlock_t event_loop_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+/* __attribute__((__constructor__)) static void futex_init(void) { p99_futex_init(&event_loop_futex, 0); } */
 
 /*======================================================================================*/
 
@@ -53,42 +68,50 @@ event_loop(void *vdata)
                 }
         }
 
-        pthread_exit(NULL);
+        /*NOTREACHED*/pthread_exit(NULL);
 }
 
 static void
 handle_nvim_response(const int fd, mpack_obj *obj)
 {
-        for (;;) {
-                if (!wait_list || wait_list->qty == 0) {
-                        fsleep(0.01L);
-                        continue;
-                }
-                for (unsigned i = 0; i < wait_list->qty; ++i) {
-                        struct nvim_wait *cur = wait_list->lst[i];
-                        if (!cur || !cur->cond)
-                                errx(1, "Got an invalid wait list object in %s\n", FUNC_NAME);
-                        if (cur->fd != fd)
-                                continue;
-                        const int count = m_expect(m_index(obj, 1), E_NUM, false).num;
-                        if (cur->count != count)
-                                continue;
+        /* for (;;) { */
+        /* static pthread_mutex_t loop_mutex = PTHREAD_MUTEX_INITIALIZER; */
+        static mtx_t loop_mutex;
 
-                        notify_waiting_thread(obj, cur);
-                        return;
+        p99_futex_wait(&event_loop_futex);
+        mtx_lock(&loop_mutex);
+        /* pthread_mutex_lock(&loop_mutex); */
+        /* pthread_cond_wait(&event_loop_cond, &loop_mutex); */
+
+        for (unsigned i = 0; i < wait_list->qty; ++i) {
+                struct nvim_wait *cur = wait_list->lst[i];
+                if (!cur)
+                        errx(1, "Got an invalid wait list object in %s\n", FUNC_NAME);
+                if (cur->fd == fd) {
+                        const int count = (int)m_expect(m_index(obj, 1), E_NUM, false).num;
+                        if (cur->count == count) {
+                                notify_waiting_thread(obj, cur);
+                                /* pthread_mutex_unlock(&loop_mutex); */
+                                mtx_unlock(&loop_mutex);
+                                return;
+                        }
                 }
-                
-                fsleep(0.01L);
         }
+
+        errx(1, "Object not found");
+
+                /* fsleep(0.01L); */
+        /* } */
 }
 
 static void
 notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
 {
         cur->obj      = obj;
-        const int ret = pthread_cond_signal(cur->cond);
-        if (ret != 0)
-                errx(1, "pthread_signal_cond failed with status %d", ret);
+        /* const int ret = pthread_cond_signal(&cur->cond); */
+        p99_futex_wakeup(&cur->fut, 1u, 1u);
+        /* if (ret != 0)
+                errx(1, "pthread_signal_cond failed with status %d", ret); */
 }
 
 /*======================================================================================*/
@@ -210,12 +233,17 @@ interrupt_call(void *vdata)
 /* Event Handlers */
 /*======================================================================================*/
 
+#define BT bt_init
+#if defined(DEBUG) && defined(WRITE_BUF_UPDATES)
+static inline void b_write_ll(int fd, linked_list *ll);
+#endif
+
 extern FILE           *main_log;
 extern pthread_mutex_t update_mutex;
+
 static pthread_mutex_t event_mutex = PTHREAD_MUTEX_INITIALIZER;
-#define BT bt_init
 static const struct event_id {
-        const bstring name;
+        const bstring          name;
         const enum event_types id;
 } event_list[] = {
     { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
@@ -223,9 +251,6 @@ static const struct event_id {
     { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
     { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
-#if defined(DEBUG) && defined(WRITE_BUF_UPDATES)
-static inline void b_write_ll(int fd, linked_list *ll);
-#endif
 
 /*======================================================================================*/
 
@@ -265,7 +290,7 @@ handle_nvim_event(mpack_obj *event)
                 *data = (struct int_pdata){val, pthread_self()};
                 START_DETACHED_PTHREAD(interrupt_call, data);
         } else {
-                const unsigned  bufnum = m_expect(arr->items[0], E_NUM, false).num;
+                const int       bufnum = (int)m_expect(arr->items[0], E_NUM, false).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
                 if (!bdata)
                         errx(1, "Update called on uninitialized buffer.");
@@ -277,7 +302,7 @@ handle_nvim_event(mpack_obj *event)
                         handle_line_event(bdata, arr->items);
                         break;
                 case EVENT_BUF_CHANGED_TICK:
-                        bdata->ctick = m_expect(arr->items[1], E_NUM, false).num;
+                        bdata->ctick = (unsigned)m_expect(arr->items[1], E_NUM, false).num;
                         break;
                 case EVENT_BUF_DETACH:
                         destroy_bufdata(&bdata);
@@ -383,11 +408,11 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 #  endif
         /* assert(ll_verify_size(bdata->lines)); */
         const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
-        const int      n     = nvim_buf_line_count(0, bdata->num);
+        const unsigned n     = nvim_buf_line_count(0, bdata->num);
 
         if (bdata->ctick == ctick) {
-                if (bdata->lines->qty != n)
-                        errx(1, "Internal line count (%d) is incorrect. Actual: %d. Aborting",
+                if (bdata->lines->qty != (int)n)
+                        errx(1, "Internal line count (%d) is incorrect. Actual: %u. Aborting",
                              bdata->lines->qty, n);
         }
 #endif
@@ -428,7 +453,7 @@ static void
 replace_line(struct bufdata *bdata, b_list *repl_list,
              const unsigned lineno, const unsigned replno)
 {
-        ll_node *node = ll_at(bdata->lines, lineno);
+        ll_node *node = ll_at(bdata->lines, (int)lineno);
         b_destroy(node->data);
         node->data             = repl_list->lst[replno];
         repl_list->lst[replno] = NULL;
@@ -478,10 +503,10 @@ make_update_thread(struct bufdata *bdata, const int first, const int last)
 {
         struct lc_thread {
                 struct bufdata *bdata;
-                int       first;
-                int       last;
-                int       ctick;
-        } *tdata = malloc(sizeof(struct lc_thread));
+                int             first;
+                int             last;
+                unsigned        ctick;
+        } *tdata = xmalloc(sizeof(struct lc_thread));
         *tdata = (struct lc_thread){bdata, first, last, bdata->ctick};
 
         pthread_t      tid;

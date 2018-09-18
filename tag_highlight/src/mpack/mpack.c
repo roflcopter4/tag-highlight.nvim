@@ -15,6 +15,7 @@ FILE  *mpack_log;
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
+pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
 /*======================================================================================*/
 
@@ -24,6 +25,7 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
         retval_t     ret = {.ptr = NULL};
         int64_t      value;
         mpack_type_t err_expect;
+        pthread_mutex_lock(&mpack_rw_lock);
 
         if (!obj)
                 return ret;
@@ -119,6 +121,7 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
                         b_writeallow((bstring *)ret.ptr);
         }
 
+        pthread_mutex_unlock(&mpack_rw_lock);
         return ret;
 
 error:
@@ -126,6 +129,7 @@ error:
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         mpack_destroy(obj);
         ret.ptr = NULL;
+        pthread_mutex_unlock(&mpack_rw_lock);
         return ret;
 }
 
@@ -136,11 +140,13 @@ error:
 void
 mpack_destroy(mpack_obj *root)
 {
+        pthread_mutex_lock(&mpack_rw_lock);
         if (!(root->flags & MPACK_ENCODE)) {
                 if (root->flags & MPACK_HAS_PACKED)
                         b_free(*root->packed);
                 if (!(root->flags & MPACK_PHONY))
                         xfree(root);
+                pthread_mutex_unlock(&mpack_rw_lock);
                 return;
         }
 
@@ -188,6 +194,7 @@ mpack_destroy(mpack_obj *root)
         }
 
         xfree(tofree.items);
+        pthread_mutex_unlock(&mpack_rw_lock);
 }
 
 

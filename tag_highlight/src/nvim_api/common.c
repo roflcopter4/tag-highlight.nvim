@@ -1,9 +1,11 @@
 #include "util/util.h"
 #include <dirent.h>
 
-#include "nvim_api/api.h"
 #include "intern.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
+#include "p99/p99_futex.h"
+#include <threads.h>
 
 #define PTHREAD_MUTEX_ACTION(MUT, ...)     \
         do {                               \
@@ -12,38 +14,30 @@
                 pthread_mutex_unlock(MUT); \
         } while (0)
 
-uint32_t        sok_count, io_count;
 pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t api_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-genlist *wait_list = NULL;
-pthread_mutex_t wait_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static void free_wait_list(void);
+pthread_mutex_t api_mutex        = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t wait_list_mutex  = PTHREAD_MUTEX_INITIALIZER;
+extern genlist *wait_list;
+extern pthread_cond_t event_loop_cond;
+extern p99_futex event_loop_futex;
+extern pthread_rwlock_t event_loop_rwlock;
 
 /*======================================================================================*/
 
 mpack_obj *
 await_package(const int fd, const int count, const enum message_types mtype)
 {
-        pthread_cond_t    cond = PTHREAD_COND_INITIALIZER;
-        struct nvim_wait *wt;
+        struct nvim_wait *wt   = xmalloc(sizeof(struct nvim_wait));
+        *wt                    = (struct nvim_wait){mtype, (int16_t)fd, (int32_t)count,
+                                                    P99_FUTEX_INITIALIZER(0), NULL};
+        genlist_append(wait_list, wt);
 
-        {
-                pthread_mutex_lock(&wait_list_mutex);
-                if (!wait_list) {
-                        wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
-                        atexit(free_wait_list);
-                }
+        /* pthread_cond_signal(&event_loop_cond); */
+        /* pthread_mutex_lock(&api_mutex);
+        pthread_cond_wait(&wt->cond, &api_mutex); */
 
-                wt  = xmalloc(sizeof(struct nvim_wait));
-                *wt = (struct nvim_wait){mtype, (int16_t)fd, (int32_t)count, &cond, NULL};
-                genlist_append(wait_list, wt);
-                pthread_mutex_unlock(&wait_list_mutex);
-        }
-
-        pthread_mutex_lock(&api_mutex);
-        pthread_cond_wait(&cond, &api_mutex);
+        p99_futex_wakeup(&event_loop_futex, 1u, 1u);
+        p99_futex_wait(&wt->fut);
 
         if (!wt->obj)
                 errx(1, "Thread %u signalled with invalid object: aborting.",
@@ -51,18 +45,15 @@ await_package(const int fd, const int count, const enum message_types mtype)
 
         const enum message_types mestype = m_expect(m_index(wt->obj, 0), E_NUM, false).num;
 
-            if (mestype != MES_RESPONSE)
+        if (mestype != MES_RESPONSE)
                 errx(1, "Thread %u signalled object of incorrect type (%s vs %s): aborting.",
                      (unsigned)pthread_self(), m_message_type_repr[mestype],
                      m_message_type_repr[MES_RESPONSE]);
 
         mpack_obj *ret = wt->obj;
 
-        pthread_mutex_lock(&wait_list_mutex);
         genlist_remove(wait_list, wt);
-        pthread_mutex_unlock(&wait_list_mutex);
-
-        pthread_mutex_unlock(&api_mutex);
+        /* pthread_mutex_unlock(&api_mutex); */
         return ret;
 }
 
@@ -111,7 +102,7 @@ get_notification(int fd)
 }
 
 void
-write_and_clean(const int fd, mpack_obj *pack, const bstring *func, FILE *logfp)
+(write_and_clean)(const int fd, mpack_obj *pack, const bstring *func, FILE *logfp)
 {
 #ifdef DEBUG
 #  ifdef LOG_RAW_MPACK
@@ -152,11 +143,4 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
 
         mpack_destroy(root);
         return ret;
-}
-
-static void
-free_wait_list(void)
-{
-        if (wait_list && wait_list->lst)
-                genlist_destroy(wait_list);
 }
