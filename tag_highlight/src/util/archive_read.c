@@ -1,8 +1,8 @@
 #include "archive.h"
-#ifdef HAVE_CONFIG_H
+#ifdef HAVE_TOPCONFIG_H
 #  include "util/util.h"
 #else
-#  include "../util.h"
+#  include "util.h"
 #endif
 #include <sys/stat.h>
 

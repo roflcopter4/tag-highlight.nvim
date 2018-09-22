@@ -12,7 +12,14 @@ let g:tag_highlight#rust#m = { 'group': 'rustMemberTag' }
 let g:tag_highlight#rust#e = { 'group': 'rustEnumTypeTag' }
 " let g:tag_highlight#rust#P = { 'group': 'rustMethodTag' }
 let g:tag_highlight#rust#f = { 'group': 'rustFunctionTag' }
-let g:tag_highlight#rust#M = { 'group': 'rustMacroTag' }
+" let g:tag_highlight#rust#M = { 'group': 'rustMacroTag' }
+
+            " \   'suffix': '\>!\%((\)\@='
+            " \   'suffix': "\>\%(\%([^!]\|$\)\@=\|!\%((\)\@=\)"
+let g:tag_highlight#rust#M = {
+            \   'group':  'rustMacroTag',
+            \   'suffix': '\>\%(!\|\%(\s\|{\|$\)\@=\)'
+            \ }
 
 let g:tag_highlight#rust#equivalent = { 'P': 'f' }
 

@@ -72,30 +72,6 @@ strsep(char **stringp, const char *delim)
 }
 #endif
 
-#if 0
-static char *
-_memsep(char **stringp, const unsigned len, const char *delim)
-{
-        char *ptr = *stringp;
-
-        if (ptr == NULL)
-                return NULL;
-
-        for (unsigned i = 0; i < len; ++i) {
-                const char *delimp = delim;
-                do {
-                        if (*delimp++ == ptr[i]) {
-                                ptr[i]   = '\0';
-                                *stringp = ptr + i + 1u;
-                                return ptr;
-                        }
-                } while (*delimp != '\0');
-        }
-
-        return NULL;
-}
-#endif
-
 int
 b_memsep(bstring *dest, bstring *stringp, const char delim)
 {
@@ -133,16 +109,10 @@ b_split_char(bstring *tosplit, const int delim, const bool destroy)
         bstring *split = destroy ? tosplit : b_strcpy(tosplit);
         b_list  *ret   = b_list_create();
 
-        /* while (b_memsep(&buf, split, delim)) {
-                if (!buf.data || !split)
-                        abort();
-                b_list_append(&ret, b_strcpy(&buf));
-        } */
+        bstring *tok = &(bstring){0, 0, NULL, 0};
+        bstring *buf = &(bstring){split->slen, 0, split->data, split->flags};
 
-        bstring tok[] = {{0, 0, NULL, 0}};
-        bstring buf[] = {{split->slen, 0, split->data, split->flags}};
-
-        while (b_memsep(tok, buf, delim)) {
+        while (b_memsep(tok, buf, (char)delim)) {
                 b_list_append(&ret, b_fromblk(tok->data, tok->slen));
         }
 
@@ -176,9 +146,9 @@ __b_fputs(FILE *fp, bstring *bstr, ...)
 int
 __b_write(const int fd, bstring *bstr, ...)
 {
-        va_list va;
-        va_start(va, bstr);
-        for (;;bstr = va_arg(va, bstring *)) {
+        va_list ap;
+        va_start(ap, bstr);
+        for (;;bstr = va_arg(ap, bstring *)) {
                 if (bstr) {
                         if (bstr->flags & BSTR_LIST_END)
                                 break;
@@ -188,12 +158,14 @@ __b_write(const int fd, bstring *bstr, ...)
                                 do {
                                         n = write(fd, bstr->data, bstr->slen);
                                 } while (n >= 0 && (total += n) != bstr->slen);
-                                if (errno)
+                                if (errno) {
+                                        va_end(ap);
                                         return errno;
+                                }
                         }
                 }
         }
-        va_end(va);
+        va_end(ap);
 
         return BSTR_OK;
 }
@@ -456,7 +428,8 @@ b_list_append(b_list **listp, bstring *bstr)
                 RUNTIME_ERROR();
 
         if ((*listp)->qty >= ((*listp)->mlen)) {
-                bstring **tmp = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) * sizeof(bstring *));
+                bstring **tmp = xrealloc((*listp)->lst,
+                                         ((*listp)->mlen *= 2) * sizeof(bstring *));
                 (*listp)->lst = tmp;
         }
         (*listp)->lst[(*listp)->qty++] = bstr;

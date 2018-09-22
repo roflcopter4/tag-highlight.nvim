@@ -53,7 +53,7 @@ void
                 pthread_mutex_unlock(&update_mutex);
                 return;
         }
-        ECHO("Updating commands for bufnum %d", bufnum);
+        ECHO("Updating commands for bufnum %d", bdata->num);
 
         if (!bdata->ft->restore_cmds_initialized) 
                 get_ignored_tags(bdata);
@@ -241,10 +241,10 @@ update_line(struct bufdata *bdata, const int first, const int last)
 }
 
 void
-clear_highlight(const int bufnum, struct bufdata *bdata)
+(clear_highlight)(const int bufnum, struct bufdata *bdata)
 {
-        bdata        = null_find_bufdata(bufnum, bdata);
         bstring *cmd = b_alloc_null(8192);
+        bdata        = null_find_bufdata(bufnum, bdata);
 
         for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
@@ -296,7 +296,7 @@ get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
                 b_writeallow(&tmp);
 
                 if (strncmp(ptr, SLS("match /")) != 0) {
-                        bstring line[] = {{0, 0, NULL, BSTR_WRITE_ALLOWED}};
+                        bstring *line = &(bstring){0, 0, NULL, BSTR_WRITE_ALLOWED};
 
                         while (b_memsep(line, &tmp, '\n')) {
                                 while (isblank(*line->data)) {
@@ -306,7 +306,7 @@ get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
                                 if (strncmp(BS(line), SLS("links to ")) == 0)
                                         break;
 
-                                bstring tok[] = {{0, 0, NULL, 0}};
+                                bstring *tok = &(bstring){0, 0, NULL, 0};
 
                                 while (b_memsep(tok, line, ' ')) {
                                         bstring *toadd = b_fromblk(tok->data, tok->slen);

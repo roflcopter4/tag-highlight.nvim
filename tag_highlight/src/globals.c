@@ -49,8 +49,8 @@ struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZ
 struct backups      backup_pointers = { NULL, 0, 0 };
 
 const size_t    ftdata_len  = ARRSIZ(ftdata);
-int             mainchan    = (-1);
-int             bufchan     = (-1);
+/* int             mainchan    = (-1);
+int             bufchan     = (-1); */
 const char *    program_name;
 char *          HOME;
 FILE *          cmd_log;

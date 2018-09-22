@@ -87,7 +87,6 @@ safe_fopen_fmt(const char *const restrict fmt,
         return fp;
 }
 
-
 int
 safe_open(const char *const filename, const int flags, const int mode)
 {
@@ -104,7 +103,6 @@ safe_open(const char *const filename, const int flags, const int mode)
         }
         return fd;
 }
-
 
 int
 safe_open_fmt(const char *const restrict fmt,
@@ -130,7 +128,6 @@ safe_open_fmt(const char *const restrict fmt,
         return fd;
 }
 
-
 bool
 file_is_reg(const char *filename)
 {
@@ -140,104 +137,6 @@ file_is_reg(const char *filename)
         SAFE_STAT(filename, &st);
         return S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode);
 }
-
-
-#ifdef USE_XMALLOC
-void *
-xmalloc(const size_t size)
-{
-        void *tmp = malloc(size);
-        if (tmp == NULL)
-                FATAL_ERROR("Malloc call failed - attempted %zu bytes", size);
-                /* err(100, "Malloc call failed - attempted %zu bytes", size); */
-        return tmp;
-}
-
-
-void *
-xcalloc(const int num, const size_t size)
-{
-        void *tmp = calloc(num, size);
-        if (tmp == NULL)
-                FATAL_ERROR("Calloc call failed - attempted %zu bytes", size);
-                /* err(101, "Calloc call failed - attempted %zu bytes", size); */
-        return tmp;
-}
-#endif
-
-
-void *
-xrealloc(void *ptr, const size_t size)
-{
-        void *tmp = realloc(ptr, size);
-        if (tmp == NULL)
-                FATAL_ERROR("Realloc call failed - attempted %zu bytes", size);
-                /* err(102, "Realloc call failed - attempted %zu bytes", size); */
-        return tmp;
-}
-
-
-#ifdef HAVE_REALLOCARRAY
-void *
-xreallocarray(void *ptr, size_t num, size_t size)
-{
-        void *tmp = reallocarray(ptr, num, size);
-        if (tmp == NULL)
-                FATAL_ERROR("Realloc call failed - attempted %zu bytes", size);
-                /* err(103, "Realloc call failed - attempted %zu bytes", size); */
-        return tmp;
-}
-#endif
-
-#if 0
-#ifdef USE_XMALLOC
-void *
-xmalloc_(const size_t size, const bstring *caller, const int lineno)
-{
-        void *tmp = malloc(size);
-        if (tmp == NULL)
-                err(100, "Malloc call failed - attempted %zu bytes"
-                         "Called from %s on line %d.", size, BS(caller), lineno);
-        return tmp;
-}
-
-
-void *
-xcalloc_(const int num, const size_t size, const bstring *caller, const int lineno)
-{
-        void *tmp = calloc(num, size);
-        if (tmp == NULL)
-                err(101, "Calloc call failed - attempted %zu bytes"
-                         "Called from %s on line %d.", size, BS(caller), lineno);
-        return tmp;
-}
-#endif
-
-
-void *
-xrealloc_(void *ptr, const size_t size, const bstring *caller, const int lineno)
-{
-        void *tmp = realloc(ptr, size);
-        if (tmp == NULL)
-                err(102, "Realloc call failed - attempted %zu bytes.\n"
-                         "Called from %s on line %d.", size, BS(caller), lineno);
-        return tmp;
-}
-
-
-#ifdef HAVE_REALLOCARRAY
-void *
-xreallocarray_(void *ptr, size_t num, size_t size, const bstring *caller, const int lineno)
-{
-        void *tmp = reallocarray(ptr, num, size);
-        if (tmp == NULL)
-                err(103, "Realloc call failed - attempted %zu bytes"
-                         "Called from %s on line %d.", size, BS(caller), lineno);
-        return tmp;
-}
-#endif
-#endif
-
 
 int64_t
 __xatoi(const char *const str, const bool strict)
@@ -250,7 +149,6 @@ __xatoi(const char *const str, const bool strict)
 
         return (int)val;
 }
-
 
 #ifdef DOSISH
 char *
@@ -266,11 +164,9 @@ basename(char *path)
 }
 #endif
 
-
-/* #ifndef HAVE_ERR */
 #define ERRSTACKSIZE (6384)
 void
-__err(UNUSED const int status, const bool print_err, const char *const __restrict fmt, ...)
+err_(UNUSED const int status, const bool print_err, const char *const __restrict fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
@@ -290,12 +186,9 @@ __err(UNUSED const int status, const bool print_err, const char *const __restric
         /* exit(status); */
 }
 
-
 extern FILE *echo_log;
-extern int mainchan;
-
 void
-__warn(const bool print_err, const char *const __restrict fmt, ...)
+warn_(const bool print_err, const char *const __restrict fmt, ...)
 {
         va_list ap1, ap2;
         va_start(ap1, fmt);
@@ -307,7 +200,7 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         else
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
-        nvim_vprintf(mainchan, buf, ap1);
+        nvim_vprintf(0, buf, ap1);
 
 #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);
@@ -317,8 +210,6 @@ __warn(const bool print_err, const char *const __restrict fmt, ...)
         va_end(ap1);
         va_end(ap2);
 }
-/* #endif */
-
 
 int
 find_num_cpus(void)
@@ -364,7 +255,6 @@ __ret_func_name(const char *const function, const size_t size)
 }
 #endif
 
-
 /*============================================================================*/
 /* List operations */
 
@@ -394,6 +284,8 @@ add_backup(struct backups *list, void *item)
 void
 free_backups(struct backups *list)
 {
+        if (!list || !list->lst || list->qty == 0)
+                return;
         for (unsigned i = 0; i < list->qty; ++i)
                 xfree(list->lst[i]);
         list->qty = 0;

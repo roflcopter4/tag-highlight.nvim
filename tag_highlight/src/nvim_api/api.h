@@ -99,6 +99,8 @@ extern void      destroy_call_array(struct atomic_call_array *calls);
                             : (void)0)
 #undef APRINTF
 
+#define NVIM_GET_FUTEX_EXPECT(FD, CNT) (((unsigned)((uint8_t)(FD) << 030) | ((unsigned)(CNT) & 0x00FFFFFFu)) + 1u)
+
 /*============================================================================*/
 /* Misc helper functions */
 
@@ -108,8 +110,10 @@ extern void      destroy_call_array(struct atomic_call_array *calls);
  * write safely.
  */
 extern int _nvim_create_socket(int mes_fd);
-extern void _nvim_init(enum nvim_connection_type init_type, int init_fd);
+/* extern void _nvim_init(enum nvim_connection_type init_type, int init_fd); */
+extern void _nvim_init(void) __attribute__((__constructor__));
 
+#if 0
 #define _nvim_init(...) P99_CALL_DEFARG(_nvim_init, 2, __VA_ARGS__)
 #ifdef DOSISH
 #  define _nvim_init_defarg_0() (NVIM_FILE)
@@ -117,6 +121,7 @@ extern void _nvim_init(enum nvim_connection_type init_type, int init_fd);
 #  define _nvim_init_defarg_0() (NVIM_SOCKET)
 #endif
 #define _nvim_init_defarg_1() (1)
+#endif
 
 
 /*============================================================================*/

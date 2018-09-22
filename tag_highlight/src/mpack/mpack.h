@@ -63,8 +63,7 @@ struct mpack_item {
         union mpack_item_data {
                 bool           boolean;
                 int16_t        nil;
-                int64_t        num;
-                uint64_t       uint;
+                uint64_t       num; /* An unsigned var can hold a signed value */
                 bstring       *str;
                 mpack_array_t *arr;
                 mpack_dict_t  *dict;
@@ -105,8 +104,7 @@ struct item_free_stack {
 
 typedef union retval {
         void    *ptr;
-        int64_t  num;
-        uint64_t uint;
+        uint64_t num;
 } retval_t;
 
 extern const char *const m_message_type_repr[4];

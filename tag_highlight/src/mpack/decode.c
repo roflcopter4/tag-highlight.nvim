@@ -348,7 +348,7 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
                 }
         }
 
-        item->flags    = MPACK_SIGNED | MPACK_ENCODE;
+        item->flags     = MPACK_SIGNED | MPACK_ENCODE;
         item->data.num = value;
 
         return item;
@@ -387,8 +387,8 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct 
                 }
         }
 
-        item->flags     = MPACK_UNSIGNED | MPACK_ENCODE;
-        item->data.uint = value;
+        item->flags    = MPACK_UNSIGNED | MPACK_ENCODE;
+        item->data.num = value;
 
         return item;
 }

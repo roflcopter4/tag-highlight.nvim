@@ -7,6 +7,11 @@ extern "C" {
 #include "util/util.h"
 
 #include "data.h"
+
+#ifdef I
+#  undef I
+#endif
+
 #include <clang-c/CXCompilationDatabase.h>
 #include <clang-c/CXString.h>
 #include <clang-c/Index.h>

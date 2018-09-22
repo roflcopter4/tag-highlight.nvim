@@ -10,6 +10,7 @@ option(BUILD_DIST "\
 Include the required alpha (and therefore uncommon) liblzma version as a static\
 library, and use bundled BSD extensions instead of libbsd even if it is available.")
 option(STATIC_LIBS_ONLY "Build with only static libraries.")
+option(SANITIZE "Enable sanitizers")
 
 ###############################################################################
 # Libraries
@@ -37,7 +38,7 @@ else()
     find_package (LibClang REQUIRED)
 endif()
 
-set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE -DHAVE_CONFIG_H)
+set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
 
 CHECK_SYMBOL_EXISTS (reallocarray "stdlib.h"   HAVE_REALLOCARRAY)
 CHECK_SYMBOL_EXISTS (vasprintf    "stdio.h"    HAVE_VASPRINTF)
@@ -52,8 +53,14 @@ CHECK_SYMBOL_EXISTS (strchrnul    "string.h"   HAVE_STRCHRNUL)
 CHECK_SYMBOL_EXISTS (err          "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (posix_spawnp "spawn.h"    HAVE_POSIX_SPAWNP)
+CHECK_SYMBOL_EXISTS (pause        "unistd.h"   HAVE_PAUSE)
 
-CHECK_INCLUDE_FILE("execinfo.h" HAVE_EXECINFO_H)
+CHECK_INCLUDE_FILE("complex.h"     HAVE_COMPLEX_H)
+CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)
+CHECK_INCLUDE_FILE("stdatomic.h"   HAVE_STDATOMIC_H)
+CHECK_INCLUDE_FILE("stdnoreturn.h" HAVE_STDNORETURN_H)
+CHECK_INCLUDE_FILE("tgmath.h"      HAVE_TGMATH_H)
+CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
 
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
@@ -102,10 +109,20 @@ else()
         set (MARCH_SETTING "-march=native")
     endif()
 
-    set (SANIT "-fsanitize=thread -fsanitize-address-use-after-scope -fsanitize=undefined")
-    # set (SANIT "-fsanitize=thread -fsanitize=undefined")
-    # set (SANIT "-fsanitize=undefined -fsanitize-address-use-after-scope")
-    set (BASE "${WARNS} ${MARCH_SETTING} -std=gnu17 -fdiagnostics-color=always")
+
+    if (SANITIZE)
+        if ("${SANITIZE}" STREQUAL "thread")
+            set (SANIT "-fsanitize=thread -fsanitize-address-use-after-scope -fsanitize=undefined")
+        elseif ("${SANITIZE}" STREQUAL "address")
+            set (SANIT "-fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined")
+        elseif ("${SANITIZE}" STREQUAL "ON" OR "${SANITIZE}" STREQUAL "On")
+            set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
+        else ()
+            message(FATAL_ERROR "Unrecognized SANITIZE setting!")
+        endif()
+    endif()
+
+    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu17 -fdiagnostics-color=always")
 
 #####################################################################################################
     if (CLANG_STR_SEARCH EQUAL -1)
@@ -113,7 +130,8 @@ else()
             " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
             " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
         set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable ${SANIT} -Og -g3")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
         # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
 #----------------------------------------------------------------------------------------------------
     else() # CLANG
@@ -128,23 +146,32 @@ else()
             #   " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
             #   " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
                )
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} ${SANIT} -Og -g")
+        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g")
+        string (JOIN " " CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE}"
+            # "-Rpass='.*'"
+            # "-Rpass-missed='.*'" 
+            # "-Rpass='inline'"
+            # "-Rpass-missed='inline'" 
+            # "-mllvm -inline-threshold=10000000"
+            # "-mllvm -inlinehint-threshold=30000000"
+            # "-Rpass-analysis='.*'"
+        )
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
+        # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
     endif()
 #####################################################################################################
 
-    set (CMAKE_C_FLAGS_MINSIZEREL "${BASE} -Os")
-    set (CMAKE_C_FLAGS_RELEASE    "${BASE} -g3 -O3 -ftree-vectorize")
+    string (JOIN " " CMAKE_C_FLAGS_MINSIZEREL  "${CMAKE_C_FLAGS_MINSIZEREL}" "${BASE}" "-Os")
+    string (JOIN " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}" "${BASE}" "-g3 -Ofast -ftree-vectorize")
 
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
     # set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
     set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
 endif()
 
-add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H)
+add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/jsmn")

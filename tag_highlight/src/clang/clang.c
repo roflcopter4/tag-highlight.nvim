@@ -23,15 +23,16 @@
          CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_PrecompiledPreamble | \
          CXTranslationUnit_KeepGoing | CXTranslationUnit_CreatePreambleOnFirstParse)
 #define INIT_ARGV (32)
+#define DUMPDATASIZ ((int64_t)((double)PATH_MAX * 1.5))
 
-#define DUMPDATA()                                                 \
-        do {                                                       \
-                char dump[TMPSIZ];                                 \
-                snprintf(dump, TMPSIZ, "%s/XXXXXX.log", tmp_path); \
-                const int dumpfd = mkstemps(dump, 4);              \
-                argv_dump_fd(dumpfd, comp_cmds);                   \
-                b_list_dump_fd(dumpfd, enumlist.enumerators);      \
-                close(dumpfd);                                     \
+#define DUMPDATA()                                                      \
+        do {                                                            \
+                char dump[DUMPDATASIZ];                                 \
+                snprintf(dump, DUMPDATASIZ, "%s/XXXXXX.log", tmp_path); \
+                const int dumpfd = mkstemps(dump, 4);                   \
+                argv_dump_fd(dumpfd, comp_cmds);                        \
+                b_list_dump_fd(dumpfd, enumlist.enumerators);           \
+                close(dumpfd);                                          \
         } while (0)
 
 static const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
@@ -45,9 +46,9 @@ struct mydata {
 
 static struct translationunit *init_compilation_unit(struct bufdata *bdata);
 static struct translationunit *recover_compilation_unit(struct bufdata *bdata);
-static struct cmd_info *       getinfo(struct bufdata *bdata);
-static str_vector *            get_compile_commands(struct bufdata *bdata);
-static str_vector *            get_backup_commands(struct bufdata *bdata);
+static struct cmd_info        *getinfo(struct bufdata *bdata);
+static str_vector             *get_compile_commands(struct bufdata *bdata);
+static str_vector             *get_backup_commands(struct bufdata *bdata);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata);
 static void                    get_tmp_path(void);
 static void                    clean_tmpdir(void);
@@ -56,7 +57,7 @@ static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, 
 static void                    destroy_struct_translationunit(struct translationunit *stu);
 static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
 static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
-static struct token *          get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
+static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
 
 /*======================================================================================*/
 
@@ -65,28 +66,26 @@ void
 {
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
-        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-        /* struct timer t; */
+        static pthread_mutex_t  mut = PTHREAD_MUTEX_INITIALIZER;
+        struct timer t;
+        struct translationunit *stu;
         pthread_mutex_lock(&mut);
 
-        /* TIMER_START(t); */
-        
-        struct translationunit *stu;
+        TIMER_START(t);
+
         if (force) {
                 if (bdata->clangdata)
                         destroy_clangdata(bdata);
                 stu = init_compilation_unit(bdata);
-        } else {
+        } else
                 stu = (bdata->clangdata) ? recover_compilation_unit(bdata)
                                          : init_compilation_unit(bdata);
-        }
-        /* TIMER_REPORT_RESTART(t, "Parse/reparse"); */
+
+        TIMER_REPORT_RESTART(t, "Parse/reparse");
 
         int64_t startend[2];
         CXFile  file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
         CLD(bdata)->mainfile = file;
-
-        /* lc_index_file(bdata); */
 
         if (last == (-1)) {
                 startend[0] = 0;
@@ -94,15 +93,18 @@ void
         } else
                 lines2bytes(bdata, startend, first, last);
 
+
         tokenize_range(stu, &file, startend[0], startend[1]);
 
-        nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators, CLD(bdata)->info, first, last);
+        nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators,
+                                         CLD(bdata)->info, first, last);
         nvim_call_atomic(0, calls);
         destroy_call_array(calls);
         destroy_struct_translationunit(stu);
 
-        /* TIMER_REPORT(t, "Other clang ops"); */
+        TIMER_REPORT(t, "Other clang ops");
         pthread_mutex_unlock(&mut);
+
 }
 
 static inline void
@@ -138,13 +140,7 @@ recover_compilation_unit(struct bufdata *bdata)
                 err(1, "Write failed");
         close(fd);
 
-#if 0
-        struct CXUnsavedFile usf = {BS(bdata->name.full), BS(stu->buf), stu->buf->slen};
-        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1, &usf, TUFLAGS);
-#endif
-
         int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 0, NULL, TUFLAGS);
-
         if (ret != 0)
                 errx(1, "libclang error: %d", ret);
 
@@ -160,8 +156,6 @@ init_compilation_unit(struct bufdata *bdata)
         char         tmp[PATH_MAX];
         bstring     *buf       = ll_join(bdata->lines, '\n');
         str_vector  *comp_cmds = get_compile_commands(bdata);
-        /* const size_t tmplen    = snprintf(tmp, TMPSIZ, "%s/XXXXXX.%s", tmp_path, BTS(bdata->ft->vim_name)); */
-        /* const int    tmpfd     = mkostemps(tmp, ((bdata->ft->id == FT_C) ? 2 : 4), O_DSYNC); */
         const int tmplen = snprintf(tmp, PATH_MAX, "%s/XXXXXX%s", tmp_path, BS(bdata->name.base));
         const int tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
 
@@ -241,8 +235,6 @@ get_compile_commands(struct bufdata *bdata)
                 return get_backup_commands(bdata);
         }
 
-        /* CXCompileCommands cmds = */
-                /* clang_CompilationDatabase_getCompileCommands(db, BS(bdata->name.full)); */
         CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
         if (!cmds) {
                 clang_CompilationDatabase_dispose(db);
@@ -260,7 +252,7 @@ get_compile_commands(struct bufdata *bdata)
                 bool             fileok  = false;
 
                 for (unsigned x = 0; x < nargs; ++x) {
-                        struct stat st;
+                        /* struct stat st; */
                         bool   next_fileok = false;
                         CXString    tmp    = clang_CompileCommand_getArg(command, x);
                         const char *cstr   = CS(tmp);
@@ -268,15 +260,11 @@ get_compile_commands(struct bufdata *bdata)
                         if (strcmp(cstr, "-o") == 0)
                                 ++x;
                         else if (cstr[0] == '-') {
-                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include"))
+                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include", "x"))
                                         next_fileok = true;
                                 argv_append(ret, cstr, true);
                         } else if (fileok)
                                 argv_append(ret, cstr, true);
-
-                        /* if ((stat(cstr, &st) != 0 || S_ISDIR(st.st_mode)) &&
-                            strcmp(cstr, BS(bdata->name.base)) != 0)
-                                argv_append(ret, cstr, true); */
 
                         clang_disposeString(tmp);
                         fileok = next_fileok;
@@ -295,14 +283,6 @@ static str_vector *
 get_backup_commands(struct bufdata *bdata)
 {
         str_vector *ret = argv_create(INIT_ARGV);
-#if 0
-        argv_append(ret,
-                    ((bdata->ft->id == FT_C)
-                         ? "clang"
-                         : ((bdata->ft->id == FT_CPP) ? "clang++" : (abort(), ""))),
-                    true);
-#endif
-
         for (unsigned i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], false);
         argv_fmt(ret, "-I%s", BS(bdata->name.path));
@@ -393,6 +373,7 @@ destroy_clangdata(struct bufdata *bdata)
 
         for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
                 xfree(cdata->argv->lst[i]);
+        xfree(cdata->argv->lst);
         xfree(cdata->argv);
 
         if (cdata->info) {

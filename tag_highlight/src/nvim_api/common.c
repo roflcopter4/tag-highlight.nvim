@@ -5,7 +5,6 @@
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
 #include "p99/p99_futex.h"
-#include <threads.h>
 
 #define PTHREAD_MUTEX_ACTION(MUT, ...)     \
         do {                               \
@@ -19,7 +18,7 @@ pthread_mutex_t api_mutex        = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t wait_list_mutex  = PTHREAD_MUTEX_INITIALIZER;
 extern genlist *wait_list;
 extern pthread_cond_t event_loop_cond;
-extern p99_futex event_loop_futex;
+extern volatile p99_futex event_loop_futex;
 extern pthread_rwlock_t event_loop_rwlock;
 
 /*======================================================================================*/
@@ -36,8 +35,20 @@ await_package(const int fd, const int count, const enum message_types mtype)
         /* pthread_mutex_lock(&api_mutex);
         pthread_cond_wait(&wt->cond, &api_mutex); */
 
+        /* p99_futex_wakeup(&event_loop_futex, 1u, 1u);
+        p99_futex_wait(&wt->fut); */
+
         p99_futex_wakeup(&event_loop_futex, 1u, 1u);
-        p99_futex_wait(&wt->fut);
+
+        const unsigned expected = NVIM_GET_FUTEX_EXPECT(fd, count);
+
+        /* eprintf("Waiting for 0x%08X in await_package\n", expected); */
+        P99_FUTEX_COMPARE_EXCHANGE(&wt->fut,
+                                   val,
+                                   val == expected,
+                                   val,
+                                   0u, 0u);
+        /* p99_futex_wait(&wt->fut); */
 
         if (!wt->obj)
                 errx(1, "Thread %u signalled with invalid object: aborting.",

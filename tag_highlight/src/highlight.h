@@ -3,8 +3,10 @@
 
 #include "util/util.h"
 
-#define DEFAULT_FD       (mainchan)
-#define BUFFER_ATTACH_FD (bufchan)
+/* #define DEFAULT_FD       (mainchan) */
+/* #define BUFFER_ATTACH_FD (bufchan) */
+#define DEFAULT_FD       (1)
+#define BUFFER_ATTACH_FD (1)
 
 #include "bstring/bstring.h"
 #include "data.h"
@@ -15,7 +17,7 @@
 extern "C" {
 #endif
 
-extern int mainchan, bufchan;
+/* extern int mainchan, bufchan; */
 
 #define PKG "tag_highlight#"
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
@@ -55,11 +57,17 @@ extern b_list *parse_json(const bstring *json_path, const bstring *filename, b_l
 extern int  my_highlight(int bufnum, struct bufdata *bdata);
 extern void my_parser   (int bufnum, struct bufdata *bdata);
 
-extern noreturn void *event_loop    (void *vdata);
-extern void  get_initial_lines(struct bufdata *bdata);
+/* extern noreturn void *event_loop    (void *vdata); */
+extern void launch_event_loop(void);
+extern void get_initial_lines(struct bufdata *bdata);
 
 #define update_highlight(...) P99_CALL_DEFARG(update_highlight, 3, __VA_ARGS__)
+#define update_highlight_defarg_0() (-1)
+#define update_highlight_defarg_1() NULL
 #define update_highlight_defarg_2() false
+#define clear_highlight(...) P99_CALL_DEFARG(clear_highlight, 2, __VA_ARGS__)
+#define clear_highlight_defarg_o() (-1)
+#define clear_highlight_defarg_1() NULL
 
 
 #ifdef __cplusplus

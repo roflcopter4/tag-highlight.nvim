@@ -28,20 +28,12 @@ run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
                 return false;
         }
 
-#if 0
-        /* Look for header files if we're processing C or C++ code. */
-        b_list *headers = NULL;
-        if (bdata->ft->is_c)
-                headers = find_header_files(bdata);
-#endif
-
         /* Wipe any cached commands if they exist. */
         if (!bdata->ft->is_c && bdata->calls) {
                 destroy_call_array(bdata->calls);
                 bdata->calls = NULL;
         }
 
-        /* int status = exec_ctags(bdata, headers, force); */
         int status = exec_ctags(bdata, ((bdata->ft->is_c) ? bdata->headers : NULL), opts);
 
         if (status != 0)
@@ -59,10 +51,6 @@ get_initial_taglist(struct bufdata *bdata)
         struct timer t;
         struct stat  st;
         int          ret = 0;
-
-        /* if (bdata->ft->is_c)
-                return 1; */
-
         TIMER_START(t);
         bdata->topdir->tags = b_list_create();
 

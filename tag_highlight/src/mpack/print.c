@@ -224,5 +224,5 @@ print_number(const mpack_obj *result)
         if (mpack_type(result) == MPACK_SIGNED)
                 fprintf(print_log, "%"PRId64"\n", result->data.num);
         else
-                fprintf(print_log, "%"PRIu64"\n", result->data.uint);
+                fprintf(print_log, "%"PRIu64"\n", result->data.num);
 }

@@ -1,12 +1,9 @@
 #ifndef SRC_UTIL_H
 #define SRC_UTIL_H
-/*===========================================================================*/
 #ifdef __cplusplus
-    extern "C" {
+extern "C" {
 #endif
-#ifdef USE_JEMALLOC
-#  include <jemalloc/jemalloc.h>
-#endif
+/*===========================================================================*/
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -18,28 +15,28 @@
 #ifndef __GNUC__
 #  define __attribute__(...)
 #endif
-#ifdef HAVE_CONFIG_H
+#if defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"
-#else  /* This just shuts up linters too lazy to include config.h */
-#  define DEBUG
-#  if defined(__GNUC__) || defined(__FreeBSD__)
-#    define HAVE_ERR
-#  endif
-#  define VERSION "0.0.1"
-#  define PACKAGE_STRING "idunno" VERSION
-//#  define _GNU_SOURCE
+#elif defined(HAVE_CONFIG_H)
+#  include "config.h"
+#endif
+#ifdef USE_JEMALLOC
+#  include <jemalloc/jemalloc.h>
 #endif
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) && \
-          !defined(__MINGW64__) && !defined(__MINGW32__)
+     !defined(__MINGW64__) && !defined(__MINGW32__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
 #  include <io.h>
 #  include <Windows.h>
+#  include <direct.h>
 #  undef BUFSIZ
 #  define BUFSIZ 8192
 #  define PATHSEP '\\'
 #  define __CLEANUP_C
-   extern char * basename(char *path);
+#  undef mkdir
+#  define mkdir(PATH, MODE) _mkdir(PATH)
+extern char * basename(char *path);
 #  ifdef __MINGW32__
 #    include <unistd.h>
 #    include <sys/time.h>
@@ -49,6 +46,7 @@
      typedef signed long long int ssize_t;
 #  endif
 #else
+#  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
@@ -59,11 +57,8 @@
 #  include <unistd.h>
 #  include <sys/time.h>
 #  include <dirent.h>
-   extern char * basename(char *path);
+extern char * basename(char *path);
 #endif
-/*===========================================================================*/
-
-#define USE_XMALLOC
 
 #include <assert.h>
 #include <dirent.h>
@@ -79,8 +74,22 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <tgmath.h>
-#include <threads.h>
+#if 0
+#ifdef HAVE_COMPLEX_H
+#  include <complex.h>
+#endif
+#endif
+#ifdef HAVE_STDNORETURN_H
+#  include <stdnoreturn.h>
+#endif
+#if 0
+#ifdef HAVE_TGMATH_H
+#  include <tgmath.h>
+#endif
+#endif
+#ifdef HAVE_THREADS_H
+#  include <threads.h>
+#endif
 
 /* Apperently some lunatic working on glibc decided it would be a good idea to
  * define `I' to the imaginary unit. As nice as that sounds, that's just about
@@ -89,6 +98,10 @@
 #ifdef I
 #  undef I
 #endif
+
+/*===========================================================================*/
+
+#define USE_XMALLOC
 
 #include "bstring/bstring.h"
 #include "contrib/contrib.h"
@@ -130,50 +143,40 @@ struct backups {
                 pthread_create(&__th, &_attr_, (FUNC_), (DATA_));              \
         } while (0)
 
+#define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
+#define ASSERT(COND, ...)  ((!!(COND)) ? ((void)0) : err(50, __VA_ARGS__))
+#define ASSERTX(COND, ...) ((!!(COND)) ? ((void)0) : errx(50, __VA_ARGS__))
+#define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
+#define MODULO(iA, iB)     (((iA) % (iB) + (iB)) % (iB))
+#define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
+#define SLS(STR)           ("" STR ""), LSLEN(STR)
+#define STRINGIFY(VAR)     #VAR
 
-#define ASSERT(CONDITION_, ...)  do { if (!(CONDITION_)) err(50, __VA_ARGS__); } while (0)
-#define ASSERTX(CONDITION_, ...) do { if (!(CONDITION_)) errx(50, __VA_ARGS__); } while (0)
+#define ALWAYS_INLINE __attribute__((__always_inline__)) static inline
+#define aMAL          __attribute__((__malloc__))
+#define aALSZ(...)    __attribute__((__alloc_size__(__VA_ARGS__)))
+#define aFMT(A1, A2)  __attribute__((__format__(__printf__, A1, A2)))
+#define aNNA          __attribute__((__nonnull__))
+#define aNN(...)      __attribute__((__nonnull__(__VA_ARGS__)))
 
-#define ARRSIZ(ARR_)     (sizeof(ARR_) / sizeof(*(ARR_)))
-#define modulo(iA, iB)   (((iA) % (iB) + (iB)) % (iB))
-#define stringify(VAR_)  #VAR_
-#define SLS(STR_)        ("" STR_ ""), (sizeof(STR_) - 1)
-#define PSUB(PTR1, PTR2) ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
-
-#define ALWAYS_INLINE   __attribute__((__always_inline__)) static inline
-#define UNUSED          __attribute__((__unused__))
-#define aWUR            __attribute__((__warn_unused_result__))
-#define aMAL            __attribute__((__malloc__))
-#define aALSZ(...)      __attribute__((__alloc_size__(__VA_ARGS__)))
-#define aFMT(A1_, A2_)  __attribute__((__format__(printf, A1_, A2_)))
-#define aNNA            __attribute__((__nonnull__))
-#define aNN(...)        __attribute__((__nonnull__(__VA_ARGS__)))
-
-#ifdef __GNUC__
+#if defined(__GNUC__)
 #  if defined(__clang__) || defined(__cplusplus)
 #    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
 #  else
-     extern const char * __ret_func_name(const char *const function, size_t size);
-#    define FUNC_NAME (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+extern const char * __ret_func_name(const char *const function, size_t size);
+#    define FUNC_NAME \
+        (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
 #  define auto_type __extension__ __auto_type
-#  define MAX(IA_, IB_)               \
-        __extension__({               \
-                auto_type ia = (IA_); \
-                auto_type ib = (IB_); \
-                (ia > ib) ? ia : ib;  \
-        })
-#  define MIN(IA_, IB_)               \
-        __extension__({               \
-                auto_type ia = (IA_); \
-                auto_type ib = (IB_); \
-                (ia < ib) ? ia : ib;  \
-        })
+#  define MAX(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
+#  define MIN(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
 #else
 #  define FUNC_NAME   (__func__)
 #  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
 #  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
 #endif
+
+/*===========================================================================*/
 
 #ifndef noreturn
 #  if defined(_MSC_VER)
@@ -187,66 +190,57 @@ struct backups {
 #  endif
 #endif
 
-#if defined(_MSC_VER)
-#  define thread_local  __declspec(thread)
-#  define static_assert(...)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#  define thread_local  _Thread_local
-#  define static_assert _Static_assert
-#else
-#  define static_assert(...)
-#  ifdef __GNUC__
+#ifndef thread_local
+#  if defined(_MSC_VER)
+#    define thread_local __declspec(thread)
+#  elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#    define thread_local _Thread_local
+#  elif defined(__GNUC__)
 #    define thread_local __thread
 #  else
 #    define thread_local
 #  endif
 #endif
 
-void          __warn(bool print_err, const char *fmt, ...) aFMT(2, 3);
-noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
+#if !defined(__cplusplus) && !defined(static_assert)
+#  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#    define static_assert _Static_assert
+#  else
+#    define static_assert(...)
+#  endif
+#endif
 
-#define err(EVAL, ...)  __err((EVAL), true, __VA_ARGS__)
-#define errx(EVAL, ...) __err((EVAL), false, __VA_ARGS__)
-#define warn(...)       __warn(true, __VA_ARGS__)
-#define warnx(...)      __warn(false, __VA_ARGS__)
-
-#define echo    warnx
-#ifdef DEBUG
-#  define SHOUT(...)      __warn(false, __VA_ARGS__)
-#  define echo    warnx
+#if defined(_MSC_VER)
+#  define UNUSED    __pragma(warning(suppress: 4100 4101))
+#  define WEAK_SYMB __declspec(selectany)
+#  define aWUR      _Check_return_
+#elif defined(__GNUC__)
+#  define UNUSED    __attribute__((__unused__))
+#  define WEAK_SYMB __attribute__((__weak__))
+#  define aWUR      __attribute__((__warn_unused_result__))
 #else
-#  undef eprintf
-#  define eprintf(...)
-/* #  define echo(...) */
-#  define SHOUT(...) __warn(false, __VA_ARGS__)
+#  define WEAK_SYMB static
 #endif
 
 /*===========================================================================*/
 
-/* extern const long double SLEEP_CONV; */
-/* extern const long double USEC2SECOND */
-/* extern const long double NSEC2SECOND; */
-#define USEC2SECOND (1000000.0L)
-#define NSEC2SECOND (1000000000.0L)
+WEAK_SYMB const long double USEC2SECOND = 1000000.0L;
+WEAK_SYMB const long double NSEC2SECOND = 1000000000.0L;
 
 #define MKTIMESPEC(FLT) &(struct timespec){ \
           (int64_t)(FLT),                   \
           (int64_t)(((long double)((FLT) - (long double)((int64_t)(FLT)))) * NSEC2SECOND)}
 
 #ifdef DOSISH
-#  define SLEEP_CONV  (1000.0L)
-#  define realpath(PATH_, BUF_) _fullpath((BUF_),(PATH_),_MAX_PATH)
+#  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
+#  define SLEEP_CONV   (1000.0L)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
 #  define fsleep(VAL)  Sleep((long long)((long double)(VAL) * SLEEP_CONV))
-#  define eprintf(...)                                          \
-        do {                                                    \
-                fprintf(stderr, "tag_highlight: " __VA_ARGS__); \
-                fflush(stderr);                                 \
-        } while (0)
+#  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
 #else
+#  define fsleep(VAL)  nanosleep(MKTIMESPEC((long double)(VAL)), NULL)
 #  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
-#  define fsleep(VAL) nanosleep(MKTIMESPEC((long double)(VAL)), NULL)
 #endif
 
 #define TDIFF(STV1, STV2)                                                 \
@@ -257,13 +251,34 @@ noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4
         (((long double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
          ((long double)((STV2).tv_sec - (STV1).tv_sec)))
 
-/* ---------------
+/*===========================================================================*/
+
+void          warn_(bool print_err, const char *fmt, ...) aFMT(2, 3);
+noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
+
+#define err(EVAL, ...)  err_((EVAL), true, __VA_ARGS__)
+#define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
+#define warn(...)       warn_(true, __VA_ARGS__)
+#define warnx(...)      warn_(false, __VA_ARGS__)
+
+#define echo warnx
+#ifdef DEBUG
+#  define SHOUT(...) warn_(false, __VA_ARGS__)
+#  define echo       warnx
+#else
+#  undef eprintf
+#  define eprintf(...)
+#  define SHOUT(...)  warn_(false, __VA_ARGS__)
+#endif
+
+/*===========================================================================*/
+/* 
  * Timer structure
  */
 #ifdef DOSISH
-   struct timer {
-           struct timeval tv1, tv2;
-   };
+struct timer {
+        struct timeval tv1, tv2;
+};
 #  define TIMER_START(T_) (gettimeofday(&(T_).tv1, NULL))
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
@@ -276,10 +291,12 @@ noreturn void __err (int status, bool print_err, const char *fmt, ...) aFMT(3, 4
                 SHOUT("Time for \"%s\": % *Lfs", (MSG_),                    \
                       (int)(30 - sizeof(MSG_)), TDIFF((T_).tv1, (T_).tv2)); \
         } while (0)
-#else
-   struct timer {
-           struct timespec tv1, tv2;
-   };
+
+#else // NOT DOSISH
+
+struct timer {
+        struct timespec tv1, tv2;
+};
 #  define TIMER_START(T_) (clock_gettime(CLOCK_REALTIME, &(T_).tv1))
 #  define TIMER_START_BAR(T_)                             \
         do {                                              \
@@ -311,18 +328,56 @@ extern int     safe_open     (const char *filename, int flags, int mode) aWUR;
 extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
 extern void    add_backup    (struct backups *list, void *item) aNNA;
 extern void    free_backups  (struct backups *list);
-extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
+
+/* void *  xrealloc   (void *ptr, size_t size) aWUR aALSZ(2); */
+/* void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1); */
+/* void *  xcalloc    (int num, size_t size) aWUR aMAL aALSZ(1, 2); */
 
 #ifdef USE_XMALLOC
-   extern void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1);
-   extern void *  xcalloc    (int num, size_t size) aWUR aMAL aALSZ(1, 2);
+aWUR aMAL aALSZ(1) ALWAYS_INLINE  void *
+xmalloc(const size_t size)
+{
+        void *tmp = malloc(size);
+        if (tmp == NULL)
+                err(100, "Malloc call failed - attempted %zu bytes", size);
+                /* FATAL_ERROR("Malloc call failed - attempted %zu bytes", size); */
+        return tmp;
+}
+
+aWUR aMAL aALSZ(1, 2) ALWAYS_INLINE void *
+xcalloc(const int num, const size_t size)
+{
+        void *tmp = calloc(num, size);
+        if (tmp == NULL)
+                err(101, "Calloc call failed - attempted %zu bytes", size);
+                /* FATAL_ERROR("Calloc call failed - attempted %zu bytes", size); */
+        return tmp;
+}
 #else
 #  define xmalloc malloc
 #  define xcalloc calloc
 #endif
 
+aWUR aALSZ(2) ALWAYS_INLINE void *
+xrealloc(void *ptr, const size_t size)
+{
+        void *tmp = realloc(ptr, size);
+        if (tmp == NULL)
+                err(102, "Realloc call failed - attempted %zu bytes", size);
+                /* FATAL_ERROR("Realloc call failed - attempted %zu bytes", size); */
+        return tmp;
+}
+
 #if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-   extern void * xreallocarray (void *ptr, size_t num, size_t size) aWUR aALSZ(2, 3);
+aWUR aALSZ(2, 3) ALWAYS_INLINE void *
+xreallocarray(void *ptr, size_t num, size_t size)
+{
+        void *tmp = reallocarray(ptr, num, size);
+        if (tmp == NULL)
+                err(103, "Realloc call failed - attempted %zu bytes", size);
+                /* FATAL_ERROR("Realloc call failed - attempted %zu bytes", size); */
+        return tmp;
+}
 #  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
 #  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
 #else
@@ -337,8 +392,8 @@ extern void *  xrealloc      (void *ptr, size_t size) aWUR aALSZ(2);
 
 extern void __b_list_dump_nvim(const b_list *list, const char *listname);
 
-#ifdef __cplusplus
-    }
-#endif
 /*===========================================================================*/
+#ifdef __cplusplus
+}
+#endif
 #endif /* util.h */

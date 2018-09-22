@@ -23,7 +23,8 @@ static void free_wait_list(void);
 
 /*======================================================================================*/
 
-void
+#if 0
+ void
 (_nvim_init)(const enum nvim_connection_type init_type, const int init_fd)
 {
         if (nvim_connections)
@@ -35,6 +36,20 @@ void
         wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
         atexit(free_wait_list);
 }
+#endif
+void
+_nvim_init(void)
+{
+        if (nvim_connections)
+                errx(1, "Neovim connection already initialized.");
+        nvim_connections = genlist_create_alloc(8);
+        add_nvim_connection(1, NVIM_SOCKET);
+        atexit(clean_nvim_connections);
+
+        wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
+        atexit(free_wait_list);
+}
+
 
 /*
  * Request for Neovim to create an additional server socket, then connect to it.

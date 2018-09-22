@@ -218,8 +218,10 @@ argv_create(const unsigned len)
 void
 argv_append(struct argument_vector *argv, const char *str, const bool cpy)
 {
-        if (argv->qty == (argv->mlen - 1))
-                argv->lst = nrealloc(argv->lst, (argv->mlen *= 2), sizeof(char *));
+        if (argv->qty == (argv->mlen - 1)) {
+                auto_type tmp = nrealloc(argv->lst, (argv->mlen *= 2), sizeof(char *));
+                argv->lst = tmp;
+        }
 
         if (cpy)
                 argv->lst[argv->qty++] = strdup(str);

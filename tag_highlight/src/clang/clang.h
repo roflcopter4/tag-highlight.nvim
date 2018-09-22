@@ -23,8 +23,8 @@ extern "C" {
 extern pthread_cond_t libclang_cond;
 
 extern noreturn void *libclang_threaded_highlight(void *vdata);
-extern noreturn void *libclang_waiter(void *vdata);
 
+extern void launch_libclang_waiter(void);
 extern void libclang_highlight(struct bufdata *bdata, int first, int last, bool force);
 extern void destroy_clangdata(struct bufdata *bdata);
 

@@ -62,11 +62,9 @@
 
 static void sanity_check(mpack_obj *root, mpack_obj **item, unsigned check, bool force);
 
-
 /* God am I ever lazy */
 #define D ((*root->packed)->data)
 #define L ((*root->packed)->slen)
-
 
 mpack_obj *
 mpack_make_new(const unsigned len, const bool encode)
@@ -79,7 +77,6 @@ mpack_make_new(const unsigned len, const bool encode)
         /* mpack_encode_array(root, &root, len); */
         return root;
 }
-
 
 void
 mpack_encode_array(mpack_obj       *root,
@@ -110,7 +107,6 @@ mpack_encode_array(mpack_obj       *root,
         } else
                 errx(1, "Array is too big!");
 }
-
 
 void
 mpack_encode_dictionary(mpack_obj       *root,
@@ -144,7 +140,6 @@ mpack_encode_dictionary(mpack_obj       *root,
         } else
                 errx(1, "Dictionary is too big!");
 }
-
 
 void
 mpack_encode_integer(mpack_obj      *root,
@@ -195,7 +190,6 @@ mpack_encode_integer(mpack_obj      *root,
         }
 }
 
-
 void
 mpack_encode_unsigned(mpack_obj      *root,
                      mpack_obj     **item,
@@ -205,7 +199,7 @@ mpack_encode_unsigned(mpack_obj      *root,
 
         if (root->flags & MPACK_ENCODE) {
                 (*item)->data.num = value;
-                (*item)->flags   |= (uint8_t)MPACK_UNSIGNED;
+                (*item)->flags    |= (uint8_t)MPACK_UNSIGNED;
         }
 
         if (value <= 127) {
@@ -224,8 +218,6 @@ mpack_encode_unsigned(mpack_obj      *root,
                 encode_uint64(D, L, value);
         }
 }
-
-
 
 void
 mpack_encode_string(mpack_obj      *root,
@@ -257,7 +249,6 @@ mpack_encode_string(mpack_obj      *root,
         b_concat(*root->packed, string);
 }
 
-
 void
 mpack_encode_boolean(mpack_obj  *root,
                      mpack_obj **item,
@@ -273,7 +264,6 @@ mpack_encode_boolean(mpack_obj  *root,
         D[L++] = (value) ? M_MASK_TRUE : M_MASK_FALSE;
 }
 
-
 void
 mpack_encode_nil(mpack_obj *root, mpack_obj **item)
 {
@@ -287,9 +277,7 @@ mpack_encode_nil(mpack_obj *root, mpack_obj **item)
         D[L++] = M_MASK_NIL;
 }
 
-
 /*============================================================================*/
-
 
 static void
 sanity_check(mpack_obj       *root,

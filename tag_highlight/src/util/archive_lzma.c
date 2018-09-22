@@ -262,15 +262,15 @@ lzma_message_strm(int code)
         case LZMA_STREAM_END:        return "Unexpected end of stream";
         case LZMA_NO_CHECK:          return "No integrity check; not verifying file integrity";
         case LZMA_UNSUPPORTED_CHECK: return "Unsupported type of integrity check; not verifying file integrity";
-        case LZMA_GET_CHECK:         return stringify(LZMA_GET_CHECK);
+        case LZMA_GET_CHECK:         return STRINGIFY(LZMA_GET_CHECK);
         case LZMA_MEM_ERROR:         return strerror(ENOMEM);
         case LZMA_MEMLIMIT_ERROR:    return "Memory usage limit reached";
         case LZMA_FORMAT_ERROR:      return "File format not recognized";
         case LZMA_OPTIONS_ERROR:     return "Unsupported options";
         case LZMA_DATA_ERROR:        return "Compressed data is corrupt";
         case LZMA_BUF_ERROR:         return "Unexpected end of input";
-        case LZMA_PROG_ERROR:        return stringify(LZMA_PROG_ERROR);
-        case LZMA_SEEK_NEEDED:       return stringify(LZMA_SEEK_NEEDED);
+        case LZMA_PROG_ERROR:        return STRINGIFY(LZMA_PROG_ERROR);
+        case LZMA_SEEK_NEEDED:       return STRINGIFY(LZMA_SEEK_NEEDED);
         }
         return "Internal error (bug)";
 }

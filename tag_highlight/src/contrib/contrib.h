@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 #include <string.h>
-#ifdef HAVE_CONFIG_H
+#ifdef HAVE_TOPCONFIG_H
 #  include "topconfig.h"
 #endif
 

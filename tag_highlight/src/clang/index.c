@@ -35,12 +35,12 @@ lc_index_file(struct bufdata *bdata)
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/idx.log", "wb", HOME);
         struct idx_data  data = {bdata, CLD(bdata), fp, 0};
         CXIndexAction    iact = clang_IndexAction_create(CLD(bdata)->idx);
-        IndexerCallbacks cb   = {.abortQuery             = &my_abortQuery,
-                                 .diagnostic             = &my_diagnostic,
-                                 .enteredMainFile        = &my_enteredMainFile,
+        IndexerCallbacks cb   = {/* .abortQuery             = &my_abortQuery, */
+                                 /* .diagnostic             = &my_diagnostic, */
+                                 /* .enteredMainFile        = &my_enteredMainFile, */
                                  .ppIncludedFile         = &my_ppIncludedFile,
-                                 .importedASTFile        = &my_importedASTFile,
-                                 .startedTranslationUnit = &my_startedTranslationUnit,
+                                 /* .importedASTFile        = &my_importedASTFile, */
+                                 /* .startedTranslationUnit = &my_startedTranslationUnit, */
                                  .indexDeclaration       = &my_indexDeclaration,
                                  .indexEntityReference   = &my_indexEntityReference};
 

@@ -1,10 +1,13 @@
 #cmakedefine DEBUG
+#cmakedefine USE_JEMALLOC
+#cmakedefine LZMA_SUPPORT
+
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_ERR
-#cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_GETTIMEOFDAY
 #cmakedefine HAVE_LIBBSD
 #cmakedefine HAVE_MEMRCHR
+#cmakedefine HAVE_PAUSE
 #cmakedefine HAVE_POSIX_SPAWNP
 #cmakedefine HAVE_REALLOCARRAY
 #cmakedefine HAVE_STRCHRNUL
@@ -14,8 +17,13 @@
 #cmakedefine HAVE_STRSEP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
-#cmakedefine LZMA_SUPPORT
-#cmakedefine USE_JEMALLOC
+
+#cmakedefine HAVE_COMPLEX_H
+#cmakedefine HAVE_EXECINFO_H
+#cmakedefine HAVE_STDATOMIC_H
+#cmakedefine HAVE_STDNORETURN_H
+#cmakedefine HAVE_TGMATH_H
+#cmakedefine HAVE_THREADS_H
 
 #define GCC_ALL_INCLUDE_DIRECTORIES {${MY_GCC_LIST_3}}
 

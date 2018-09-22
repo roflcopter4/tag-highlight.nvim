@@ -86,7 +86,7 @@ m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
                         if (mpack_type(obj) == MPACK_SIGNED)
                                 ret.num = obj->data.num;
                         else
-                                ret.uint = obj->data.uint;
+                                ret.num = obj->data.num;
                 }
                 break;
 
@@ -129,7 +129,8 @@ error:
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         mpack_destroy(obj);
         ret.ptr = NULL;
-        pthread_mutex_unlock(&mpack_rw_lock);
+        /* pthread_mutex_unlock(&mpack_rw_lock); */
+        abort();
         return ret;
 }
 

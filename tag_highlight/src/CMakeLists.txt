@@ -110,4 +110,6 @@ else()
     if (CLANG_STR_SEARCH)
         target_link_libraries(tag_highlight -lunwind)
     endif()
+
+    # target_link_libraries(tag_highlight -ljemalloc)
 endif()

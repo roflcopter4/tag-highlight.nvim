@@ -5,7 +5,6 @@
 #include "mpack/mpack.h"
 #include "clang/clang.h"
 #include <signal.h>
-#include <threads.h>
 
 #include "p99/p99_futex.h"
 #include "p99/p99_threads.h"
@@ -16,36 +15,63 @@
 
 extern void update_line(struct bufdata *, int, int);
 
-static void  handle_nvim_response (int fd, mpack_obj *obj);
+static void  handle_nvim_response (int fd, mpack_obj *obj, volatile p99_futex *fut);
 static void  notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur);
-static void *interrupt_call       (void *vdata);
 static void  handle_line_event    (struct bufdata *bdata, mpack_obj **items);
 static void  replace_line         (struct bufdata *bdata, b_list *repl_list, unsigned lineno, unsigned replno);
 static void  make_update_thread   (struct bufdata *bdata, int first, int last);
-static const struct event_id *id_event(mpack_obj *event);
-static enum event_types       handle_nvim_event(mpack_obj *event);
 
+static noreturn void event_loop       (void);
+static void          interrupt_call   (void *vdata);
+static void         *handle_nvim_event(mpack_obj *event);
+static const struct event_id *id_event  (mpack_obj *event);
+
+#if 0
 extern pthread_cond_t event_loop_cond;
 pthread_cond_t event_loop_cond = PTHREAD_COND_INITIALIZER;
-
 extern p99_futex event_loop_futex;
 p99_futex event_loop_futex = P99_FUTEX_INITIALIZER(0);
-
 extern pthread_rwlock_t event_loop_rwlock;
 pthread_rwlock_t event_loop_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+extern p99_futex event_loop_futexes[3];
+p99_futex event_loop_futexes[3] = {P99_SEQ(P99_FUTEX_INITIALIZER, 0, 0, 0)};
+__attribute__((__constructor__)) static void futex_init(void) { p99_futex_init(&event_loop_futex, 0); }
+#endif
 
-/* __attribute__((__constructor__)) static void futex_init(void) { p99_futex_init(&event_loop_futex, 0); } */
+extern volatile p99_futex event_loop_futex;
+volatile p99_futex        event_loop_futex        = P99_FUTEX_INITIALIZER(0);
+static pthread_once_t     event_loop_once_control = PTHREAD_ONCE_INIT;
 
 /*======================================================================================*/
 
-void *
-event_loop(void *vdata)
+noreturn static void *
+do_launch_event_loop(UNUSED void *notused)
 {
+        pthread_once(&event_loop_once_control, event_loop);
+        pthread_exit(NULL);
+}
+void
+launch_event_loop(void)
+{
+        START_DETACHED_PTHREAD(do_launch_event_loop, NULL);
+}
+
+static noreturn void
+event_loop(void)
+{
+#if 0
+        static int count = 0;
+        /* static pthread_mutex_t el_mutex = PTHREAD_MUTEX_INITIALIZER; */
         int fd;
         if (vdata)
                 fd = *(int *)vdata;
         else
-                fd = 1;
+#endif
+        /* pthread_mutex_lock(&el_mutex); */
+        /* p99_futex *fut = &event_loop_futexes[count++]; */
+        /* pthread_mutex_unlock(&el_mutex); */
+
+        const int fd = 1;
 
         for (;;) {
                 mpack_obj *obj = decode_stream(fd);
@@ -56,33 +82,24 @@ event_loop(void *vdata)
 
                 switch (mtype) {
                 case MES_NOTIFICATION:
-                        handle_nvim_event(obj);
-                        mpack_destroy(obj);    
+                        START_DETACHED_PTHREAD((void *(*)(void *))handle_nvim_event, obj);
+                        /* handle_nvim_event(obj); */
+                        /* mpack_destroy(obj); */
                         break;
                 case MES_RESPONSE:
-                        handle_nvim_response(fd, obj);
+                        handle_nvim_response(fd, obj, &event_loop_futex);
                         break;
                 case MES_REQUEST:
                 default:
                         abort();
                 }
         }
-
-        /*NOTREACHED*/pthread_exit(NULL);
 }
 
 static void
-handle_nvim_response(const int fd, mpack_obj *obj)
+handle_nvim_response(const int fd, mpack_obj *obj, volatile p99_futex *fut)
 {
-        /* for (;;) { */
-        /* static pthread_mutex_t loop_mutex = PTHREAD_MUTEX_INITIALIZER; */
-        static mtx_t loop_mutex;
-
-        p99_futex_wait(&event_loop_futex);
-        mtx_lock(&loop_mutex);
-        /* pthread_mutex_lock(&loop_mutex); */
-        /* pthread_cond_wait(&event_loop_cond, &loop_mutex); */
-
+        p99_futex_wait(fut);
         for (unsigned i = 0; i < wait_list->qty; ++i) {
                 struct nvim_wait *cur = wait_list->lst[i];
                 if (!cur)
@@ -91,27 +108,20 @@ handle_nvim_response(const int fd, mpack_obj *obj)
                         const int count = (int)m_expect(m_index(obj, 1), E_NUM, false).num;
                         if (cur->count == count) {
                                 notify_waiting_thread(obj, cur);
-                                /* pthread_mutex_unlock(&loop_mutex); */
-                                mtx_unlock(&loop_mutex);
                                 return;
                         }
                 }
         }
 
         errx(1, "Object not found");
-
-                /* fsleep(0.01L); */
-        /* } */
 }
 
 static void
 notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
 {
-        cur->obj      = obj;
-        /* const int ret = pthread_cond_signal(&cur->cond); */
-        p99_futex_wakeup(&cur->fut, 1u, 1u);
-        /* if (ret != 0)
-                errx(1, "pthread_signal_cond failed with status %d", ret); */
+        const unsigned fut_expect_ = NVIM_GET_FUTEX_EXPECT(cur->fd, cur->count);
+        cur->obj                   = obj;
+        P99_FUTEX_COMPARE_EXCHANGE(&cur->fut, val, true, fut_expect_, 0, P99_FUTEX_MAX_WAITERS);
 }
 
 /*======================================================================================*/
@@ -121,16 +131,12 @@ notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
  * response to the user calling the provided clear command.
  */
-noreturn static void *
+static void
 interrupt_call(void *vdata)
 {
-        static int             bufnum    = (-1);
-        /* static pthread_mutex_t int_mutex = PTHREAD_MUTEX_INITIALIZER; */
-        struct int_pdata      *data      = vdata;
-        struct timer t;
-
-        /* pthread_mutex_lock(&int_mutex); */
-
+        struct timer      t;
+        static int        bufnum = (-1);
+        struct int_pdata *data   = vdata;
         if (data->val != 'H')
                 echo("Recieved \"%c\"; waking up!", data->val);
 
@@ -183,7 +189,7 @@ interrupt_call(void *vdata)
                 }
 
                 if (update_taglist(bdata, (data->val == 'F'))) {
-                        clear_highlight(nvim_get_current_buf(0), NULL);
+                        clear_highlight(nvim_get_current_buf(0));
                         update_highlight(bufnum, bdata);
                         TIMER_REPORT(t, "update");
                 }
@@ -194,25 +200,32 @@ interrupt_call(void *vdata)
          * User called the kill command.
          */
         case 'C': {
-                clear_highlight(nvim_get_current_buf(0), NULL);
+                clear_highlight(nvim_get_current_buf(0));
                 extern pthread_t top_thread;
 #ifdef DOSISH
                 pthread_kill(top_thread, SIGTERM);
 #else
                 pthread_kill(top_thread, SIGUSR1);
+                /* raise(SIGUSR1); */
 #endif
-                break;
+                xfree(vdata);
+                pthread_exit(NULL);
+                /* break; */
         }
         /*
          * User called the clear highlight command.
          */
         case 'E':
-                clear_highlight(nvim_get_current_buf(0), NULL);
+                clear_highlight(nvim_get_current_buf(0));
                 break;
-
+        /* 
+         * Not used...
+         */
         case 'H':
                 break;
-
+        /* 
+         * Force an update.
+         */
         case 'I': {
                 bufnum                = nvim_get_current_buf(0);
                 struct bufdata *bdata = find_buffer(bufnum);
@@ -225,8 +238,6 @@ interrupt_call(void *vdata)
         }
 
         xfree(vdata);
-        /* pthread_mutex_unlock(&int_mutex); */
-        pthread_exit(NULL);
 }
 
 /*======================================================================================*/
@@ -261,24 +272,33 @@ handle_unexpected_notification(mpack_obj *note)
         fflush(mpack_log);
         if (!note)
                 ECHO("Object is null!!!!");
-        else if (note->DAI[0]->data.num == MES_NOTIFICATION)
-                handle_nvim_event(note);
-        else
+        else if (note->DAI[0]->data.num == MES_NOTIFICATION) {
+                pthread_t tid;
+                pthread_create(&tid, NULL, (void *(*)(void *))handle_nvim_event, note);
+                pthread_join(tid, NULL);
+        } else
                 echo("Object isn't a notification at all! -> %ld", note->DAI[0]->data.num);
-
-        mpack_destroy(note);
 }
 
-static enum event_types
+FILE *api_buffer_log;
+__attribute__((__constructor__, __used__)) static void
+openbufferlog(void)
+{
+        api_buffer_log = safe_fopen_fmt("%s/.tag_highlight_log/buf.log", "wb",
+                                        getenv("HOME"));
+}
+/* static void closebufferlog(void) { if (buffer_log) fclose(buffer_log); } __attribute__((__destructor__)) */
+
+static void *
 handle_nvim_event(mpack_obj *event)
 {
         if (!event)
-                return (-1);
+                pthread_exit(NULL);
 
         mpack_array_t *arr = m_expect(m_index(event, 2), E_MPACK_ARRAY, false).ptr;
 
 #ifdef DEBUG
-        mpack_print_object(main_log, event);
+        mpack_print_object(api_buffer_log, event);
 #endif
         const struct event_id *type = id_event(event);
 
@@ -288,7 +308,10 @@ handle_nvim_event(mpack_obj *event)
                 struct int_pdata *data = xmalloc(sizeof(*data));
                 const int         val  = arr->items[0]->data.str->data[0];
                 *data = (struct int_pdata){val, pthread_self()};
-                START_DETACHED_PTHREAD(interrupt_call, data);
+                interrupt_call(data);
+                mpack_destroy(event);
+                /* START_DETACHED_PTHREAD(interrupt_call, data);
+                mpack_destroy(event); */
         } else {
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM, false).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
@@ -300,20 +323,23 @@ handle_nvim_event(mpack_obj *event)
                         if (arr->qty < 5)
                                 errx(1, "Array is too small (%d, expect >= 5)", arr->qty);
                         handle_line_event(bdata, arr->items);
+                        mpack_destroy(event);
                         break;
                 case EVENT_BUF_CHANGED_TICK:
                         bdata->ctick = (unsigned)m_expect(arr->items[1], E_NUM, false).num;
+                        mpack_destroy(event);
                         break;
                 case EVENT_BUF_DETACH:
                         destroy_bufdata(&bdata);
                         ECHO("Detaching from buffer %d\n", bufnum);
+                        mpack_destroy(event);
                         break;
                 default:
                         abort();
                 }
         }
 
-        return type->id;
+        pthread_exit(NULL);
 }
 
 /*======================================================================================*/
@@ -406,7 +432,6 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
         b_free(fn);
 
 #  endif
-        /* assert(ll_verify_size(bdata->lines)); */
         const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
         const unsigned n     = nvim_buf_line_count(0, bdata->num);
 
@@ -416,14 +441,9 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
                              bdata->lines->qty, n);
         }
 #endif
-
         xfree(repl_list->lst);
         xfree(repl_list);
-
-        /* pthread_cond_signal(&libclang_cond); */
-
         START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
-
 #if 0
         const unsigned mx = (bdata->lines->qty > last) ? bdata->lines->qty : last; 
         if (first + mx >= 1)

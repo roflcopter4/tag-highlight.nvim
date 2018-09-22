@@ -4,7 +4,9 @@
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 #endif
-#ifdef HAVE_CONFIG_H
+#if defined(HAVE_CONFIG_H)
+#  include "config.h"
+#elif defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"
 #endif
 /* These warnings from MSVC++ are totally pointless. */
@@ -164,7 +166,7 @@ typedef unsigned int uint;
  * memory is left on the system (a very rare occurance anyway).
  */
 #ifdef USE_XMALLOC
-__attribute__((__malloc__))
+__attribute__((__malloc__, __always_inline__))
 static inline void *
 xmalloc(const size_t size)
 {
@@ -174,6 +176,7 @@ xmalloc(const size_t size)
         return tmp;
 }
 
+__attribute__((__always_inline__))
 static inline void *
 xcalloc(const int num, const size_t size)
 {
@@ -187,6 +190,7 @@ xcalloc(const int num, const size_t size)
 #  define xcalloc calloc
 #endif
 
+__attribute__((__always_inline__))
 static inline void *
 xrealloc(void *ptr, size_t size)
 {
@@ -198,7 +202,7 @@ xrealloc(void *ptr, size_t size)
 
 #ifdef HAVE_VASPRINTF
 #  ifdef USE_XMALLOC
-__attribute__((__format__(__printf__, 2, 0)))
+__attribute__((__format__(__printf__, 2, 0), __always_inline__))
 static inline int
 xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 {
