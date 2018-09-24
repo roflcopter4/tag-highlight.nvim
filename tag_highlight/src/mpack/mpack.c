@@ -20,10 +20,10 @@ pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 /*======================================================================================*/
 
 retval_t
-m_expect(mpack_obj *obj, const mpack_expect_t type, bool destroy)
+(m_expect)(mpack_obj *obj, const mpack_expect_t type, bool destroy)
 {
         retval_t     ret = {.ptr = NULL};
-        int64_t      value;
+        uint64_t     value;
         mpack_type_t err_expect;
         pthread_mutex_lock(&mpack_rw_lock);
 
@@ -131,7 +131,7 @@ error:
         ret.ptr = NULL;
         /* pthread_mutex_unlock(&mpack_rw_lock); */
         abort();
-        return ret;
+        /* return ret; */
 }
 
 
@@ -310,7 +310,7 @@ dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key
         if (!tmp)
                 return (retval_t){ .ptr = NULL };
 
-        return m_expect(tmp, expect, false);
+        return m_expect(tmp, expect);
 }
 
 
@@ -521,11 +521,11 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 #endif
 
         RESET(len_stack);
-        NEW_STACK(mpack_obj *, obj_stack);
         NEW_STACK(unsigned char, dict_stack);
         PUSH(len_stack, cur_ctr);
         PUSH(dict_stack, 0);
 #ifdef DEBUG
+        NEW_STACK(mpack_obj *, obj_stack);
         PUSH(obj_stack, pack);
 #endif
 

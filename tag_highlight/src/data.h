@@ -45,7 +45,6 @@ struct filetype {
         bstring      *order;
         const bstring vim_name;
         const bstring ctags_name;
-        /* 3 bytes */
         const enum filetype_id id;
         bool initialized;
         bool restore_cmds_initialized;
@@ -67,10 +66,10 @@ struct top_dir {
 
 struct bufdata {
         uint32_t ctick;
-        uint32_t last_ctick; // 8 bytes
+        uint32_t last_ctick;
         uint16_t num;
         uint8_t  hl_id;
-        bool     initialized; // 6 bytes
+        bool     initialized;
 
         struct {
                 bstring *full;
@@ -145,6 +144,9 @@ extern void            destroy_bufdata  (struct bufdata **bdata);
 extern struct bufdata *find_buffer      (int bufnum);
 extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft);
 extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
+
+#define new_buffer(...) P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__)
+#define new_buffer_defarg_0() (0)
 
 /*---------------------------------------------------------------------------*/
 /* Events */

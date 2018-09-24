@@ -57,7 +57,6 @@ find_header_files(struct bufdata *bdata)
         b_list *includes = find_includes(bdata);
         b_list *src_dirs = find_src_dirs(bdata, includes);
         
-        bstring *asswipe = NULL;
         if (!includes || !src_dirs) {
                 if (includes)
                         b_list_destroy(includes);

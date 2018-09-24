@@ -17,8 +17,10 @@
 
 static bstring *run_find(const char *path, const char *search);
 static bstring *read_fd(const int fd);
+#if 0
 static b_list  *split_find(const char *path, const char *search);
 static void     dump_char_list(const char *desc, char **list);
+#endif
 
 /*======================================================================================*/
 
@@ -141,6 +143,7 @@ read_fd(const int fd)
         return ret;
 }
 
+#if 0
 static b_list *
 split_find(const char *path, const char *search)
 {
@@ -160,3 +163,4 @@ dump_char_list(const char *desc, char **list)
                 fprintf(stderr, "%s, ", tmp);
         fputc('\n', stderr);
 }
+#endif

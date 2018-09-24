@@ -252,10 +252,10 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
 
 
 void
-ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
+ll_delete_range(linked_list *list, ll_node *at, const int range)
 {
         assert(list);
-        assert(list->qty >= (int)range);
+        assert(list->qty >= range);
 
         if (range == 0)
                 return;
@@ -273,7 +273,7 @@ ll_delete_range(linked_list *list, ll_node *at, const unsigned range)
         ll_node *prev           = (at) ? at->prev : NULL;
         const bool replace_head = (at == list->head || !list->head);
 
-        for (unsigned i = 0; i < range && current; ++i) {
+        for (int i = 0; i < range && current; ++i) {
                 next = current->next;
                 free_data(current);
                 xfree(current);

@@ -13,10 +13,11 @@
 #ifdef HAVE_PAUSE
 #  define PAUSE() pause()
 #else
-#  define PAUSE() do { fsleep(1000000.0L); } while (1)
+#  define PAUSE() do fsleep(1000000.0L); while (1)
 #endif
 
 static const long double WAIT_TIME = 3.0L;
+static jmp_buf           main_buf;
 extern FILE             *cmd_log, *echo_log, *main_log;
 extern pthread_t         top_thread;
 pthread_t                top_thread;
@@ -33,12 +34,13 @@ static void        sig_handler(UNUSED int notused);
 #define get_compression_type_defarg_0() (0)
 
 /*======================================================================================*/
-static jmp_buf main_buf;
+
+/* extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, uint32_t flags);
+#define get_pcre2_matches(b1, b2) (get_pcre2_matches)(B(b1), B(b2), 0) */
 
 int
 main(UNUSED int argc, char *argv[])
 {
-        /* atexit(exit_cleanup); */
         struct timer main_timer;
         TIMER_START(main_timer);
         top_thread = pthread_self();
@@ -73,14 +75,21 @@ main(UNUSED int argc, char *argv[])
 
         launch_libclang_waiter();
 
-        /* Wait for something to kill us. */
-        
+        /* Normally the main thread sits tight and waits for something to kill
+         * it via signal (usually neovim at its exit, or alternatively via a
+         * segfault...). In those cases, leave quickly. Taking time to clean up
+         * makes the editor freeze until we finish, which is very annoying. */
         if (setjmp(main_buf) == 0) {
                 PAUSE();
                 _Exit(0);
         }
 
+        /* We only get here via a longjmp, which is only possible if the user
+         * has called the command to kill this process explicitly from within
+         * neovim (via SIGUSR1). In that case, we can clean up properly before
+         * exiting because there is no hurry. */
         exit_cleanup();
+        /* Don't return from main after calling longjmp from a signal handler. */
         exit(0);
 }
 
@@ -106,7 +115,7 @@ platform_init(char **argv)
         (void)argv;
         HOME = getenv("HOME");
         struct sigaction temp;
-                memset(&temp, 0, sizeof(temp));
+        memset(&temp, 0, sizeof(temp));
         temp.sa_handler = controlled_exit;
         sigaction(SIGUSR1, &temp, NULL);
         temp.sa_handler = sig_handler;
@@ -122,18 +131,18 @@ platform_init(char **argv)
 static void
 get_settings(void)
 {
-        settings.enabled        = nvim_get_var(0, B(PKG "enabled"),   E_BOOL  ).num;
-        settings.ctags_bin      = nvim_get_var(0, B(PKG "ctags_bin"), E_STRING).ptr;
+        settings.enabled        = nvim_get_var(,B(PKG "enabled"),   E_BOOL  ).num;
+        settings.ctags_bin      = nvim_get_var(,B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
         settings.comp_type      = get_compression_type();
-        settings.comp_level     = nvim_get_var(0, B(PKG "compression_level"), E_NUM       ).num;
-        settings.ctags_args     = nvim_get_var(0, B(PKG "ctags_args"),        E_STRLIST   ).ptr;
-        settings.ignored_ftypes = nvim_get_var(0, B(PKG "ignore"),            E_STRLIST   ).ptr;
-        settings.ignored_tags   = nvim_get_var(0, B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
-        settings.norecurse_dirs = nvim_get_var(0, B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
-        settings.settings_file  = nvim_get_var(0, B(PKG "settings_file"),     E_STRING    ).ptr;
-        settings.verbose        = nvim_get_var(0, B(PKG "verbose"),           E_BOOL      ).num;
+        settings.comp_level     = nvim_get_var(,B(PKG "compression_level"), E_NUM       ).num;
+        settings.ctags_args     = nvim_get_var(,B(PKG "ctags_args"),        E_STRLIST   ).ptr;
+        settings.ignored_ftypes = nvim_get_var(,B(PKG "ignore"),            E_STRLIST   ).ptr;
+        settings.ignored_tags   = nvim_get_var(,B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
+        settings.norecurse_dirs = nvim_get_var(,B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
+        settings.settings_file  = nvim_get_var(,B(PKG "settings_file"),     E_STRING    ).ptr;
+        settings.verbose        = nvim_get_var(,B(PKG "verbose"),           E_BOOL      ).num;
 #ifdef DEBUG
         settings.verbose = true;
 #endif
@@ -161,7 +170,7 @@ open_logs(void)
 void
 get_initial_lines(struct bufdata *bdata)
 {
-        b_list *tmp = nvim_buf_get_lines(0, bdata->num, 0, (-1));
+        b_list *tmp = nvim_buf_get_lines(,bdata->num);
         if (bdata->lines->qty == 1)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));

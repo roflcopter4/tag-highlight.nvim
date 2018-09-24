@@ -29,6 +29,8 @@ set (tag_highlight_SOURCES
     update_commands.c
     data.h
     highlight.h
+
+    regex.c
 )
 if (LZMA_SUPPORT)
    set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
@@ -111,5 +113,5 @@ else()
         target_link_libraries(tag_highlight -lunwind)
     endif()
 
-    # target_link_libraries(tag_highlight -ljemalloc)
+    target_link_libraries(tag_highlight -lpcre2-8)
 endif()

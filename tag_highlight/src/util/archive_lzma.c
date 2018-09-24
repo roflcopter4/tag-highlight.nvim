@@ -255,7 +255,7 @@ io_read(struct xz_file *file, io_buf *buf_union, size_t size)
 
 
 char *
-lzma_message_strm(int code)
+lzma_message_strm(unsigned code)
 {
         switch (code) {
         case LZMA_OK:                return "Everything is ok";

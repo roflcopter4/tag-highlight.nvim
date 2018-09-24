@@ -53,7 +53,7 @@ libclang_waiter(void)
                 struct bufdata *bdata  = find_buffer(bufnum);
 
                 if (!bdata || !bdata->ft->is_c) {
-                        fsleep(5.0L);
+                        fsleep(1.0L);
                         continue;
                 }
                 if (last_bufnum != bufnum) {

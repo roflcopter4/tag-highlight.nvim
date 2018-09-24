@@ -59,6 +59,15 @@ static inline void             lines2bytes(struct bufdata *bdata, int64_t *start
 static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
 static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
 
+#ifndef TIME_CLANG
+#  undef TIMER_START
+#  undef TIMER_REPORT_RESTART
+#  undef TIMER_REPORT
+#  define TIMER_START(...)
+#  define TIMER_REPORT_RESTART(...)
+#  define TIMER_REPORT(...)
+#endif
+
 /*======================================================================================*/
 
 void

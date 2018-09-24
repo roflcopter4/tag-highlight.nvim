@@ -23,14 +23,15 @@ write_plain(struct top_dir *topdir)
 {
         struct stat st;
         fsync(topdir->tmpfd);
-        assert(fstat(topdir->tmpfd, &st) == 0);
+        if (fstat(topdir->tmpfd, &st) != 0)
+                err(1, "stat failed");
 
         uint8_t      *buf    = xcalloc(st.st_size + 1, 1);
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
         const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
-        assert(nread == (ssize_t)st.st_size);
+        DIE_UNLESSX(nread == (ssize_t)st.st_size);
 
 #if 0
         ftruncate(topdir->tmpfd, 0);
@@ -42,7 +43,7 @@ write_plain(struct top_dir *topdir)
 #endif
 
         FILE *wfp = safe_fopen(BS(topdir->gzfile), "wb");
-        assert(fwrite(buf, 1, st.st_size, wfp) == (size_t)st.st_size);
+        DIE_UNLESS((fwrite(buf, 1, (size_t)st.st_size, wfp) == (size_t)st.st_size));
         fclose(wfp);
 }
 
@@ -53,7 +54,8 @@ void
 write_gzip(struct top_dir *topdir)
 {
         struct stat st;
-        assert(fstat(topdir->tmpfd, &st) == 0);
+        if (fstat(topdir->tmpfd, &st) != 0)
+                err(1, "stat failed");
 
         uint8_t *buf = xmalloc(st.st_size);
         /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
@@ -62,7 +64,7 @@ write_gzip(struct top_dir *topdir)
         const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
-        assert(nread == (ssize_t)st.st_size);
+        DIE_UNLESS(nread == (ssize_t)st.st_size);
 
         gzFile gfp = gzopen(BS(topdir->gzfile), "wb");
         gzwrite(gfp, buf, st.st_size);
@@ -91,7 +93,6 @@ void
 write_lzma(struct top_dir *topdir)
 {
         /* struct stat st; */
-        fsync(topdir->tmpfd);
         /* assert(fstat(topdir->tmpfd, &st) == 0); */
 
         /* uint8_t *in_buf = xmalloc(st.st_size); */
@@ -115,6 +116,7 @@ write_lzma(struct top_dir *topdir)
         bstring *asswipe = B_READ(fp1);
         fclose(fp1);
 #endif
+#if 0
         lzma_mt mt_opts = { 
                 .flags      = 0,
                 .threads    = find_num_cpus(),
@@ -126,15 +128,17 @@ write_lzma(struct top_dir *topdir)
                 .check      = LZMA_CHECK_CRC64,
                 /* 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL */
         };
+#endif
 
-        struct stat st;
+        struct stat st = { .st_size = 0ll };
         fsync(topdir->tmpfd);
-        assert(fstat(topdir->tmpfd, &st) == 0);
+        if (fstat(topdir->tmpfd, &st) != 0)
+                err(1, "stat failed");
 
-        const ssize_t  size   = (ssize_t)st.st_size;
+        const size_t   size   = (size_t)st.st_size;
         uint8_t       *in_buf = xcalloc(size + 1, 1);
         FILE          *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        const ssize_t  nread  = fread(in_buf, 1, size + 1, readfp);
+        const size_t   nread  = fread(in_buf, 1, size + 1, readfp);
         fclose(readfp);
         if (nread != size)
                 errx(1, "Read %zd, expected %zu", nread, size + 1);
@@ -146,7 +150,8 @@ write_lzma(struct top_dir *topdir)
         /* lzma_ret    ret  = lzma_stream_encoder_mt(&strm, &mt_opts); */
         /* lzma_ret    ret  = lzma_easy_encoder(&strm, settings.comp_level, LZMA_CHECK_CRC64); */
         lzma_ret    ret  = lzma_easy_encoder(&strm, 1, LZMA_CHECK_CRC64);
-        assert(ret == LZMA_OK);
+        if (ret != LZMA_OK)
+                errx(1, "LZMA error: %s", lzma_message_strm(ret));
 
         /* uint8_t *out_buf = xcalloc(st.st_size, 1); */
         uint8_t *out_buf = xcalloc(size, 1);

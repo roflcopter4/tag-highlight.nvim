@@ -43,7 +43,7 @@ static bstring        *check_project_directories  (bstring *dir);
 /*======================================================================================*/
 
 bool
-new_buffer(const int fd, const int bufnum)
+(new_buffer)(const int fd, const int bufnum)
 {
         if (!seen_files)
                 seen_files = b_list_create_alloc(32);
@@ -171,13 +171,14 @@ find_buffer_ind(const int bufnum)
 }
 
 struct bufdata *
-null_find_bufdata(const int bufnum, struct bufdata *bdata)
+null_find_bufdata(int bufnum, struct bufdata *bdata)
 {
         if (!bdata) {
-                assert(bufnum > 0);
+                if (bufnum == (-1))
+                        bufnum = nvim_get_current_buf();
                 bdata = find_buffer(bufnum);
         }
-        assert(bdata != NULL || is_bad_buffer(bufnum));
+        assert(bdata != NULL && !is_bad_buffer(bufnum));
 
         return bdata;
 }
@@ -259,22 +260,24 @@ init_topdir(const int fd, struct bufdata *bdata)
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tdir->tmpfname));
                 nvim_command(fd, btp_fromblk(buf, n));
         }
-#define DIRSTR  (tdir->gzfile)
 
-        for (unsigned i = 0; i < base->slen && i < DIRSTR->mlen; ++i) {
+        /* Calling b_conchar lots of times is less efficient than just writing
+         * to the string, but for an small operation like this it is better to
+         * be safe than sorry. */
+        for (unsigned i = 0; i < base->slen && i < tdir->gzfile->mlen; ++i) {
                 if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i])) {
-                        DIRSTR->data[DIRSTR->slen++] = '_';
-                        DIRSTR->data[DIRSTR->slen++] = '_';
+                        b_conchar(tdir->gzfile, '-');
+                        b_conchar(tdir->gzfile, '-');
                 } else
-                        DIRSTR->data[DIRSTR->slen++] = base->data[i];
+                        b_conchar(tdir->gzfile, '-');
         }
 
         if (settings.comp_type == COMP_GZIP)
-                ret = b_sprintfa(DIRSTR, ".%s.tags.gz", &bdata->ft->vim_name);
+                ret = b_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
         else if (settings.comp_type == COMP_LZMA)
-                ret = b_sprintfa(DIRSTR, ".%s.tags.xz", &bdata->ft->vim_name);
+                ret = b_sprintfa(tdir->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
         else
-                ret = b_sprintfa(DIRSTR, ".%s.tags", &bdata->ft->vim_name);
+                ret = b_sprintfa(tdir->gzfile, ".%s.tags", &bdata->ft->vim_name);
 
         assert(ret == BSTR_OK);
         genlist_append(top_dirs, tdir);

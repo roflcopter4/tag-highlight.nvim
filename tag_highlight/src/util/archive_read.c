@@ -126,10 +126,8 @@ gz_getlines(b_list *tags, const bstring *filename)
         assert (numread == 0 || numread == (int64_t)size.uncompressed);
         gzclose(gfp);
 
-        /* Always remember to null terminate the thing. */
         out_buf[size.uncompressed] = '\0';
         ll_strsep(tags, out_buf);
-
         return 1;
 }
 
@@ -155,7 +153,7 @@ xz_getlines(b_list *tags, const bstring *filename)
         uint8_t *out_buf = xmalloc(size.uncompressed + 1);
 
         /* Setup the stream and initialize the decoder */
-        lzma_stream strm[] = {LZMA_STREAM_INIT};
+        lzma_stream *strm = &(lzma_stream)LZMA_STREAM_INIT;
         if ((lzma_auto_decoder(strm, UINT64_MAX, 0)) != LZMA_OK)
                 errx(1, "Unhandled internal error.");
 

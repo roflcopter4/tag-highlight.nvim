@@ -6,7 +6,7 @@
 /* #define DEFAULT_FD       (mainchan) */
 /* #define BUFFER_ATTACH_FD (bufchan) */
 #define DEFAULT_FD       (1)
-#define BUFFER_ATTACH_FD (1)
+#define BUFFER_ATTACH_FD (0)
 
 #include "bstring/bstring.h"
 #include "data.h"
@@ -66,7 +66,7 @@ extern void get_initial_lines(struct bufdata *bdata);
 #define update_highlight_defarg_1() NULL
 #define update_highlight_defarg_2() false
 #define clear_highlight(...) P99_CALL_DEFARG(clear_highlight, 2, __VA_ARGS__)
-#define clear_highlight_defarg_o() (-1)
+#define clear_highlight_defarg_0() (-1)
 #define clear_highlight_defarg_1() NULL
 
 

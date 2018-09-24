@@ -144,8 +144,10 @@ struct backups {
         } while (0)
 
 #define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
-#define ASSERT(COND, ...)  ((!!(COND)) ? ((void)0) : err(50, __VA_ARGS__))
+#define ASSERT(COND, ...)  ((!!(COND)) ? ((void)0) : err(50,  __VA_ARGS__))
 #define ASSERTX(COND, ...) ((!!(COND)) ? ((void)0) : errx(50, __VA_ARGS__))
+#define DIE_UNLESS(COND)   ((!!(COND)) ? ((void)0) : err(55, "%s", (#COND)))
+#define DIE_UNLESSX(COND)  ((!!(COND)) ? ((void)0) : errx(55, "%s", (#COND)))
 #define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
 #define MODULO(iA, iB)     (((iA) % (iB) + (iB)) % (iB))
 #define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
@@ -345,7 +347,7 @@ xmalloc(const size_t size)
 }
 
 aWUR aMAL aALSZ(1, 2) ALWAYS_INLINE void *
-xcalloc(const int num, const size_t size)
+xcalloc(const size_t num, const size_t size)
 {
         void *tmp = calloc(num, size);
         if (tmp == NULL)

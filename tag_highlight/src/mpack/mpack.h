@@ -35,31 +35,29 @@ enum mpack_expect_types {
         E_MPACK_NIL,
         E_BOOL,
         E_NUM,
-        /* E_UNSIGNED, */
         E_STRING,
         E_STRLIST,
         E_DICT2ARR
 };
 
-#define MPACK_HAS_PACKED	0x80	/* 10000000 */ 
-#define MPACK_ENCODE		0x40	/* 01000000 */ 
-#define MPACK_PHONY		0x20	/* 00100000 */ 
-#define MPACK_SPARE_DATA	0x10	/* 00010000 */ 
-
+#define MPACK_HAS_PACKED  0x80
+#define MPACK_ENCODE      0x40
+#define MPACK_PHONY       0x20
+#define MPACK_SPARE_DATA  0x10
 #define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0F)
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 
 typedef   enum mpack_types        mpack_type_t;
 typedef   enum mpack_expect_types mpack_expect_t;
-typedef struct mpack_item         mpack_obj;
+typedef struct mpack_object       mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
 typedef struct mpack_dictionary   mpack_dict_t;
 
 #pragma pack(push, 1)
 
-struct mpack_item {
+struct mpack_object {
         union mpack_item_data {
                 bool           boolean;
                 int16_t        nil;
@@ -78,14 +76,14 @@ struct mpack_dictionary {
                 mpack_obj *key;
                 mpack_obj *value;
         } **entries;
-        uint16_t qty;
-        uint16_t max;
+        uint32_t qty;
+        uint32_t max;
 };
 
 struct mpack_array {
         mpack_obj **items;
-        uint16_t    qty;
-        uint16_t    max;
+        uint32_t    qty;
+        uint32_t    max;
 };
 
 struct mpack_ext {
@@ -192,6 +190,11 @@ extern FILE *mpack_log;
 #else
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
 #endif
+
+#include "p99/p99_defarg.h"
+#include "p99/p99_map.h"
+#define m_expect(...) P99_CALL_DEFARG(m_expect, 3, __VA_ARGS__)
+#define m_expect_defarg_2() false
 
 
 #ifdef __cplusplus

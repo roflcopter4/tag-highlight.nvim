@@ -7,12 +7,12 @@
 #include "nvim_api/api.h"
 #include <stdarg.h>
 
-static int my_abortQuery(CXClientData data, void *reserved);
-static void my_diagnostic(CXClientData data, CXDiagnosticSet dgset, void *reserved);
-static CXIdxClientFile my_enteredMainFile(CXClientData data, CXFile file, void *reserved);
+/* static int my_abortQuery(CXClientData data, void *reserved); */
+/* static void my_diagnostic(CXClientData data, CXDiagnosticSet dgset, void *reserved); */
+/* static CXIdxClientFile my_enteredMainFile(CXClientData data, CXFile file, void *reserved); */
 static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info);
-static CXIdxClientASTFile my_importedASTFile(CXClientData data, const CXIdxImportedASTFileInfo *info);
-static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved);
+/* static CXIdxClientASTFile my_importedASTFile(CXClientData data, const CXIdxImportedASTFileInfo *info); */
+/* static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved); */
 static void my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info);
 static void my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo *info);
 
@@ -95,6 +95,7 @@ static void
 
 /*======================================================================================*/
 
+#if 0
 static int
 my_abortQuery(UNUSED CXClientData data, UNUSED void *reserved)
 {
@@ -114,6 +115,7 @@ my_enteredMainFile(CXClientData data, UNUSED CXFile file, UNUSED void *reserved)
         LOG("Entered the main file. Good I guess?");
         return NULL;
 }
+#endif
 
 static CXIdxClientFile
 my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info)
@@ -131,6 +133,7 @@ my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info)
         return NULL;
 }
 
+#if 0
 static CXIdxClientASTFile
 my_importedASTFile(CXClientData data, UNUSED const CXIdxImportedASTFileInfo *info)
 {
@@ -144,6 +147,7 @@ my_startedTranslationUnit(CXClientData data, UNUSED void *reserved)
         LOG("We've just started a translation unit.\n");
         return NULL;
 }
+#endif
 
 static void
 my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info)
