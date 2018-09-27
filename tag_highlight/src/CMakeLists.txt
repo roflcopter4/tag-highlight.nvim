@@ -29,16 +29,10 @@ set (tag_highlight_SOURCES
     update_commands.c
     data.h
     highlight.h
+    my_p99_common.h
 
     regex.c
-)
-if (LZMA_SUPPORT)
-   set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
-endif()
 
-add_executable(tag_highlight ${tag_highlight_SOURCES})
-
-add_library(bstring OBJECT
     bstring/additions.c
     bstring/b_list.c
     bstring/bstrlib.c
@@ -46,8 +40,7 @@ add_library(bstring OBJECT
     bstring/bstring.h
     bstring/defines.h
     bstring/private.h
-)
-add_library(mpack OBJECT
+
     mpack/decode.c
     mpack/encode.c
     mpack/mpack.c
@@ -55,8 +48,7 @@ add_library(mpack OBJECT
     mpack/data.c
     mpack/intern.h
     mpack/mpack.h
-)
-add_library(util OBJECT
+
     util/archive_gzip.c
     util/archive_read.c
     util/archive_write.c
@@ -68,15 +60,57 @@ add_library(util OBJECT
     util/find.h
     util/list.h
     util/util.h
-)
-add_library(contrib OBJECT
+
     contrib/contrib.c
     contrib/contrib.h
     contrib/jsmn/jsmn.c
     contrib/jsmn/jsmn.h
 )
+if (LZMA_SUPPORT)
+   set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
+endif()
 
-target_link_libraries(tag_highlight util mpack bstring contrib)
+add_executable(tag_highlight ${tag_highlight_SOURCES})
+
+# add_library(bstring OBJECT
+#     bstring/additions.c
+#     bstring/b_list.c
+#     bstring/bstrlib.c
+#     bstring/additions.h
+#     bstring/bstring.h
+#     bstring/defines.h
+#     bstring/private.h
+# )
+# add_library(mpack OBJECT
+#     mpack/decode.c
+#     mpack/encode.c
+#     mpack/mpack.c
+#     mpack/print.c
+#     mpack/data.c
+#     mpack/intern.h
+#     mpack/mpack.h
+# )
+# add_library(util OBJECT
+#     util/archive_gzip.c
+#     util/archive_read.c
+#     util/archive_write.c
+#     util/find.c
+#     util/generic_list.c
+#     util/linked_list.c
+#     util/util.c
+#     util/archive.h
+#     util/find.h
+#     util/list.h
+#     util/util.h
+# )
+# add_library(contrib OBJECT
+#     contrib/contrib.c
+#     contrib/contrib.h
+#     contrib/jsmn/jsmn.c
+#     contrib/jsmn/jsmn.h
+# )
+
+# target_link_libraries(tag_highlight util mpack bstring contrib)
 
 add_definitions(-D_BUILD_)
 

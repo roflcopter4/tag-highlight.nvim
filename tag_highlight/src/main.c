@@ -13,7 +13,7 @@
 #ifdef HAVE_PAUSE
 #  define PAUSE() pause()
 #else
-#  define PAUSE() do fsleep(1000000.0L); while (1)
+#  define PAUSE() do fsleep(1000000.0); while (1)
 #endif
 
 static const long double WAIT_TIME = 3.0L;
@@ -33,6 +33,8 @@ static void        sig_handler(UNUSED int notused);
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (0)
 
+#include "my_p99_common.h"
+
 /*======================================================================================*/
 
 /* extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, uint32_t flags);
@@ -48,6 +50,9 @@ main(UNUSED int argc, char *argv[])
         launch_event_loop();
         get_settings();
         open_logs();
+        const int nvim_pid = (int)nvim_call_function(,B("getpid"), E_NUM).num;
+
+        int initial_buf = 0;
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
@@ -60,29 +65,31 @@ main(UNUSED int argc, char *argv[])
                         echo("Retrying (attempt number %u)\n", attempts);
                 }
 
-                const int initial_buf = nvim_get_current_buf(0);
-                if (new_buffer(0, initial_buf)) {
-                        struct bufdata *bdata = find_buffer(initial_buf);
-
-                        nvim_buf_attach(BUFFER_ATTACH_FD, initial_buf);
-                        get_initial_lines(bdata);
-                        get_initial_taglist(bdata);
-                        update_highlight(,bdata);
-
-                        TIMER_REPORT(main_timer, "main initialization");
-                }
+                initial_buf = nvim_get_current_buf();
+                if (new_buffer(,initial_buf))
+                        break;
         }
 
-        launch_libclang_waiter();
+        struct bufdata *bdata = find_buffer(initial_buf);
+        nvim_buf_attach(BUFFER_ATTACH_FD, bdata->num);
+        get_initial_lines(bdata);
+        get_initial_taglist(bdata);
+        update_highlight(bdata);
+
+        TIMER_REPORT(main_timer, "main initialization");
+        /* launch_libclang_waiter(); */
 
         /* Normally the main thread sits tight and waits for something to kill
-         * it via signal (usually neovim at its exit, or alternatively via a
-         * segfault...). In those cases, leave quickly. Taking time to clean up
+         * it via signal. In those cases, leave quickly. Taking time to clean up
          * makes the editor freeze until we finish, which is very annoying. */
-        if (setjmp(main_buf) == 0) {
-                PAUSE();
-                _Exit(0);
+        int jmp_ret = setjmp(main_buf);
+        switch (jmp_ret) {
+        case 0: PAUSE();
+        case 1: exit(0);
+        default:;
         }
+
+        echo("Cleaning up");
 
         /* We only get here via a longjmp, which is only possible if the user
          * has called the command to kill this process explicitly from within
@@ -240,7 +247,7 @@ exit_cleanup(void)
 static comp_type_t
 (get_compression_type)(const int fd)
 {
-        bstring    *tmp = nvim_get_var_pkg(fd, "compression_type", E_STRING).ptr;
+        bstring    *tmp = nvim_get_var(fd, B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
         if (b_iseq_lit(tmp, "gzip"))
@@ -271,14 +278,14 @@ noreturn static void
 controlled_exit(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, 1);
-        pthread_exit(NULL);
+                longjmp(main_buf, 2);
+        pthread_exit();
 }
 
 static void
 sig_handler(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
-                return;
-        pthread_exit(NULL);
+                longjmp(main_buf, 1);
+        pthread_exit();
 }

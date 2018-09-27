@@ -7,7 +7,6 @@
 #include "nvim_api/api.h"
 #include "util/find.h"
 #include <spawn.h>
-#include <stddef.h>
 #include <sys/stat.h>
 #include <wait.h>
 
@@ -76,7 +75,7 @@ void
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
         static pthread_mutex_t  mut = PTHREAD_MUTEX_INITIALIZER;
-        struct timer t;
+        /* struct timer t; */
         struct translationunit *stu;
         pthread_mutex_lock(&mut);
 
@@ -107,7 +106,7 @@ void
 
         nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators,
                                          CLD(bdata)->info, first, last);
-        nvim_call_atomic(0, calls);
+        nvim_call_atomic(,calls);
         destroy_call_array(calls);
         destroy_struct_translationunit(stu);
 
@@ -177,7 +176,7 @@ init_compilation_unit(struct bufdata *bdata)
 #endif
 
         bdata->clangdata = xmalloc(sizeof(struct clangdata));
-        CLD(bdata)->idx = clang_createIndex(1, 1);
+        CLD(bdata)->idx = clang_createIndex(0, 0);
         CLD(bdata)->tu  = NULL;
 
         unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
@@ -261,7 +260,6 @@ get_compile_commands(struct bufdata *bdata)
                 bool             fileok  = false;
 
                 for (unsigned x = 0; x < nargs; ++x) {
-                        /* struct stat st; */
                         bool   next_fileok = false;
                         CXString    tmp    = clang_CompileCommand_getArg(command, x);
                         const char *cstr   = CS(tmp);

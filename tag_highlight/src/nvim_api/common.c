@@ -71,7 +71,7 @@ await_package(const int fd, const int count, const enum message_types mtype)
 mpack_obj *
 generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
 {
-        pthread_mutex_lock(&mpack_main_mutex);
+        /* pthread_mutex_lock(&mpack_main_mutex); */
         CHECK_DEF_FD(*fd);
         mpack_obj *pack;
         const int  count = INC_COUNT(*fd);
@@ -94,7 +94,7 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
         /* mpack_obj *result = decode_stream(*fd, MES_RESPONSE); */
         mpack_obj *result = await_package(*fd, count, MES_RESPONSE);
         mpack_print_object(mpack_log, result);
-        pthread_mutex_unlock(&mpack_main_mutex);
+        /* pthread_mutex_unlock(&mpack_main_mutex); */
         return result;
 }
 

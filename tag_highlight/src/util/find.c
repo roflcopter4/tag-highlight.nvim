@@ -75,14 +75,16 @@ run_find(const char *path, const char *search)
         int pipefds[2] = {0, 0};
         int status     = 0;
 
-        /* if (pipe(pipefds) == (-1)) */
-                /* err(1, "Pipe failed"); */
+#ifdef HAVE_PIPE2
         if (pipe2(pipefds, O_NONBLOCK|O_CLOEXEC) == (-1))
                 err(1, "Pipe failed");
-
-        /* const int flgs[2] = {fcntl(pipefds[0], F_GETFD), fcntl(pipefds[1], F_GETFD)};
+#else
+        if (pipe(pipefds) == (-1))
+                err(1, "Pipe failed");
+        const int flgs[2] = {fcntl(pipefds[0], F_GETFD), fcntl(pipefds[1], F_GETFD)};
         fcntl(pipefds[0], F_SETFD, flgs[0]|O_NONBLOCK|O_CLOEXEC);
-        fcntl(pipefds[1], F_SETFD, flgs[1]|O_NONBLOCK|O_CLOEXEC); */
+        fcntl(pipefds[1], F_SETFD, flgs[1]|O_NONBLOCK|O_CLOEXEC);
+#endif
 
         const int pid = fork();
 

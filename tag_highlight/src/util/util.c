@@ -211,7 +211,7 @@ warn_(const bool print_err, const char *const __restrict fmt, ...)
         va_end(ap2);
 }
 
-int
+unsigned
 find_num_cpus(void)
 {
 #if defined(DOSISH)

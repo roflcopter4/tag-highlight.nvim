@@ -11,7 +11,7 @@
 void
 _nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
 {
-        pthread_mutex_lock(&mpack_main_mutex);
+        /* pthread_mutex_lock(&mpack_main_mutex); */
         CHECK_DEF_FD(fd);
         bstring *func;
         switch (type) {
@@ -25,7 +25,7 @@ _nvim_write(int fd, const enum nvim_write_type type, const bstring *mes)
         mpack_obj *pack  = mpack_encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
         write_and_clean(fd, pack, func);
         mpack_obj *tmp = await_package(fd, count, MES_RESPONSE);
-        pthread_mutex_unlock(&mpack_main_mutex);
+        /* pthread_mutex_unlock(&mpack_main_mutex); */
 
         mpack_print_object(mpack_log, tmp);
         mpack_destroy(tmp);
@@ -356,7 +356,7 @@ nvim_call_atomic(int fd, const nvim_call_array *calls)
         }
         b_catlit(fmt, ":]]");
 
-        pthread_mutex_lock(&mpack_main_mutex);
+        /* pthread_mutex_lock(&mpack_main_mutex); */
 #ifdef DEBUG
         FILE *logfp = safe_fopen_fmt("%s/.tag_highlight_log/atomic.log", "ab", HOME);
 #else
@@ -367,7 +367,7 @@ nvim_call_atomic(int fd, const nvim_call_array *calls)
         write_and_clean(fd, pack, &fn, logfp);
         mpack_obj *result = await_package(fd, count, MES_RESPONSE);
 
-        pthread_mutex_unlock(&mpack_main_mutex);
+        /* pthread_mutex_unlock(&mpack_main_mutex); */
         mpack_print_object(logfp, result);
         mpack_destroy(result);
         b_free(fmt);

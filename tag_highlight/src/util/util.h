@@ -226,32 +226,32 @@ extern const char * __ret_func_name(const char *const function, size_t size);
 
 /*===========================================================================*/
 
-WEAK_SYMB const long double USEC2SECOND = 1000000.0L;
-WEAK_SYMB const long double NSEC2SECOND = 1000000000.0L;
+WEAK_SYMB const double USEC2SECOND = 1000000.0;
+WEAK_SYMB const double NSEC2SECOND = 1000000000.0;
 
 #define MKTIMESPEC(FLT) &(struct timespec){ \
           (int64_t)(FLT),                   \
-          (int64_t)(((long double)((FLT) - (long double)((int64_t)(FLT)))) * NSEC2SECOND)}
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)}
 
 #ifdef DOSISH
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
 #  define SLEEP_CONV   (1000.0L)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
-#  define fsleep(VAL)  Sleep((long long)((long double)(VAL) * SLEEP_CONV))
+#  define fsleep(VAL)  Sleep((long long)((double)(VAL) * SLEEP_CONV))
 #  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
 #else
-#  define fsleep(VAL)  nanosleep(MKTIMESPEC((long double)(VAL)), NULL)
+#  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
 #  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
 #endif
 
 #define TDIFF(STV1, STV2)                                                 \
-        (((long double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
-         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
+        (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
+         ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
 #define SPECDIFF(STV1, STV2)                                              \
-        (((long double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
-         ((long double)((STV2).tv_sec - (STV1).tv_sec)))
+        (((double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
+         ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
 /*===========================================================================*/
 
@@ -290,7 +290,7 @@ struct timer {
 #  define TIMER_REPORT(T_, MSG_)                                            \
         do {                                                                \
                 gettimeofday(&(T_).tv2, NULL);                              \
-                SHOUT("Time for \"%s\": % *Lfs", (MSG_),                    \
+                SHOUT("Time for \"%s\": % *fs", (MSG_),                    \
                       (int)(30 - sizeof(MSG_)), TDIFF((T_).tv1, (T_).tv2)); \
         } while (0)
 
@@ -308,7 +308,7 @@ struct timer {
 #  define TIMER_REPORT(T_, MSG_)                                               \
         do {                                                                   \
                 clock_gettime(CLOCK_REALTIME, &(T_).tv2);                      \
-                SHOUT("Time for \"%s\": % *.9Lfs", (MSG_),                     \
+                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                      \
                       (int)(35 - sizeof(MSG_)), SPECDIFF((T_).tv1, (T_).tv2)); \
         } while (0)
 #endif
@@ -321,15 +321,15 @@ struct timer {
 #define s_xatoi(STR_)        __xatoi((STR_), true)
 #define free_all(...)        __free_all(__VA_ARGS__, NULL)
 
-extern void    __free_all    (void *ptr, ...);
-extern int64_t __xatoi       (const char *str, bool strict);
-extern int     find_num_cpus (void);
-extern FILE *  safe_fopen    (const char *filename, const char *mode) aWUR aNNA;
-extern FILE *  safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
-extern int     safe_open     (const char *filename, int flags, int mode) aWUR;
-extern int     safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
-extern void    add_backup    (struct backups *list, void *item) aNNA;
-extern void    free_backups  (struct backups *list);
+extern void     __free_all    (void *ptr, ...);
+extern int64_t  __xatoi       (const char *str, bool strict);
+extern unsigned find_num_cpus (void);
+extern FILE *   safe_fopen    (const char *filename, const char *mode) aWUR aNNA;
+extern FILE *   safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);
+extern int      safe_open     (const char *filename, int flags, int mode) aWUR;
+extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR aFMT(1, 4);
+extern void     add_backup    (struct backups *list, void *item) aNNA;
+extern void     free_backups  (struct backups *list);
 
 /* void *  xrealloc   (void *ptr, size_t size) aWUR aALSZ(2); */
 /* void *  xmalloc    (size_t size)          aWUR aMAL aALSZ(1); */

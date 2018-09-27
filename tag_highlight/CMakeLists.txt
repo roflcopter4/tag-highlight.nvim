@@ -54,6 +54,7 @@ CHECK_SYMBOL_EXISTS (err          "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (gettimeofday "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (posix_spawnp "spawn.h"    HAVE_POSIX_SPAWNP)
 CHECK_SYMBOL_EXISTS (pause        "unistd.h"   HAVE_PAUSE)
+CHECK_SYMBOL_EXISTS (pipe2        "unistd.h"   HAVE_PIPE2)
 
 CHECK_INCLUDE_FILE("complex.h"     HAVE_COMPLEX_H)
 CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)

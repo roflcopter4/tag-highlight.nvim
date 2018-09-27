@@ -30,7 +30,9 @@ extern void destroy_clangdata(struct bufdata *bdata);
 
 
 #define libclang_highlight(...) P99_CALL_DEFARG(libclang_highlight, 4, __VA_ARGS__)
-#define libclang_highlight_defarg_3() false
+#define libclang_highlight_defarg_1() (0)
+#define libclang_highlight_defarg_2() (-1)
+#define libclang_highlight_defarg_3() (false)
 
 
 #ifdef __cplusplus

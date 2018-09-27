@@ -8,6 +8,7 @@
 #cmakedefine HAVE_LIBBSD
 #cmakedefine HAVE_MEMRCHR
 #cmakedefine HAVE_PAUSE
+#cmakedefine HAVE_PIPE2
 #cmakedefine HAVE_POSIX_SPAWNP
 #cmakedefine HAVE_REALLOCARRAY
 #cmakedefine HAVE_STRCHRNUL

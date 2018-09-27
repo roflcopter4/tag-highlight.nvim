@@ -23,7 +23,7 @@ libclang_threaded_highlight(void *vdata)
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
         if (pthread_mutex_trylock(&mut) == EBUSY)
                 pthread_exit(NULL);
-        libclang_highlight((struct bufdata *)vdata, 0, (-1));
+        libclang_highlight((struct bufdata *)vdata);
         pthread_mutex_unlock(&mut);
         pthread_exit(NULL);
 }
@@ -44,16 +44,16 @@ do_launch_libclang_waiter(UNUSED void *notused)
 static noreturn void
 libclang_waiter(void)
 {
-        fsleep(2.0L);
-        int      last_bufnum = nvim_get_current_buf(0);
-        unsigned last_ctick  = nvim_buf_get_changedtick(0, last_bufnum);
+        fsleep(2.0);
+        int      last_bufnum = nvim_get_current_buf();
+        unsigned last_ctick  = nvim_buf_get_changedtick(,last_bufnum);
 
-        for (;;fsleep(0.8L)) {
-                const int       bufnum = nvim_get_current_buf(0);
+        for (;;fsleep(0.8)) {
+                const int       bufnum = nvim_get_current_buf();
                 struct bufdata *bdata  = find_buffer(bufnum);
 
                 if (!bdata || !bdata->ft->is_c) {
-                        fsleep(1.0L);
+                        fsleep(1.0);
                         continue;
                 }
                 if (last_bufnum != bufnum) {
@@ -62,10 +62,10 @@ libclang_waiter(void)
                         continue;
                 }
 
-                unsigned ctick = nvim_buf_get_changedtick(0, bufnum);
+                unsigned ctick = nvim_buf_get_changedtick(,bufnum);
                 if (ctick != last_ctick) {
                         last_ctick = ctick;
-                        libclang_highlight(bdata, 0, (-1));
+                        libclang_highlight(bdata);
                 }
         }
 

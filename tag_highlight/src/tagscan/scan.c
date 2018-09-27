@@ -67,14 +67,14 @@ static int
 tag_cmp(const void *vA, const void *vB)
 {
         int ret;
-        const struct tag *sA = *(struct tag **)(vA);
-        const struct tag *sB = *(struct tag **)(vB);
+        const struct tag *sA = *(struct tag *const*)(vA);
+        const struct tag *sB = *(struct tag *const*)(vB);
 
         if (sA->kind == sB->kind) {
                 if (sA->b->slen == sB->b->slen)
                         ret = memcmp(sA->b->data, sB->b->data, sA->b->slen);
                 else
-                        ret = sA->b->slen - sB->b->slen;
+                        ret = (int)(sA->b->slen - sB->b->slen);
         } else
                 ret = sA->kind - sB->kind;
 
@@ -92,7 +92,7 @@ in_order(const b_list *equiv, const bstring *order, char *kind)
         if (equiv)
                 for (unsigned i = 0; i < equiv->qty && equiv->lst[i]; ++i)
                         if (*kind == equiv->lst[i]->data[0]) {
-                                *kind = equiv->lst[i]->data[1];
+                                *kind = (char)equiv->lst[i]->data[1];
                                 break;
                         }
 
@@ -133,17 +133,15 @@ remove_duplicate_tags(struct taglist **taglist_p)
 #define TAG1 (list->lst[i])
 #define TAG2 (list->lst[i - 1])
         struct taglist *list    = *taglist_p;
-        struct taglist *repl    = xmalloc(sizeof(struct taglist));
-        struct taglist *to_free = alloca(sizeof(struct taglist));
-
-        *repl = (struct taglist){
-                .lst = nmalloc(sizeof(struct tag *), list->qty),
-                .qty  = 0, .mlen = list->qty
-        };
-        *to_free = (struct taglist){
-                .lst = alloca(sizeof(struct tag *) * (size_t)(list->qty)),
-                .qty  = 0, .mlen = list->qty
-        };
+        struct taglist *to_free = &(struct taglist){
+                .lst  = nalloca(list->qty, sizeof(struct tag *)),
+                .qty  = 0,
+                .mlen = list->qty};
+        struct taglist *repl = xmalloc(sizeof(struct taglist));
+        *repl                = (struct taglist){
+                .lst  = nmalloc(sizeof(struct tag *), list->qty),
+                .qty  = 0,
+                .mlen = list->qty};
 
         repl->lst[repl->qty++] = list->lst[0];
 
@@ -174,7 +172,6 @@ remove_duplicate_tags(struct taglist **taglist_p)
 
 
 struct pdata {
-        uint8_t         thnum;
         const b_list   *vim_buf;
         const b_list   *skip;
         const b_list   *equiv;
@@ -183,6 +180,7 @@ struct pdata {
         const bstring  *filename;
         bstring       **lst;
         unsigned        num;
+        unsigned        thnum;
 };
 
 
@@ -212,8 +210,8 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         struct top_dir *topdir = bdata->topdir;
         b_list         *tags   = topdir->tags;
 
-        int num_threads = find_num_cpus();
-        if (num_threads <= 0)
+        unsigned num_threads = find_num_cpus();
+        if (num_threads == 0)
                 num_threads = 4;
 
         pthread_t       *tid = nmalloc(num_threads, sizeof(*tid));
@@ -236,36 +234,36 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 
         /* Launch the actual search in separate threads, with each handling as
          * close to an equal number of tags as the math allows. */
-        for (int i = 0; i < num_threads; ++i) {
+        for (unsigned i = 0; i < num_threads; ++i) {
                 struct pdata *tmp = xmalloc(sizeof(*tmp));
                 unsigned quot = tags->qty / num_threads;
                 unsigned num  = (i == num_threads - 1)
                                    ? (tags->qty - ((num_threads - 1) * quot))
                                    : quot;
 
-                *tmp = (struct pdata){i,
-                                      uniq,
+                *tmp = (struct pdata){uniq,
                                       bdata->ft->ignored_tags,
                                       bdata->ft->equiv,
                                      &bdata->ft->ctags_name,
                                       bdata->ft->order,
                                       bdata->name.full,
                                      &tags->lst[i * quot],
-                                      num};
+                                      num,
+                                      i};
 
                 if (pthread_create(tid + i, NULL, &do_tok_search, tmp) != 0)
                         err(1, "pthread_create failed");
         }
 
         /* Collect the threads. */
-        for (int i = 0; i < num_threads; ++i)
+        for (unsigned i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
         xfree(uniq->lst);
         xfree(uniq);
         unsigned total = 0, offset = 0;
 
-        for (int T = 0; T < num_threads; ++T)
+        for (unsigned T = 0; T < num_threads; ++T)
                 if (out[T])
                         total += out[T]->qty;
         if (total == 0) {
@@ -281,7 +279,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
         struct taglist *ret     = xmalloc(sizeof(*ret));
         *ret = (struct taglist){ alldata, total, total };
 
-        for (int T = 0; T < num_threads; ++T) {
+        for (unsigned T = 0; T < num_threads; ++T) {
                 if (out[T]) {
                         if (out[T]->qty > 0) {
                                 memcpy(alldata + offset, out[T]->lst,
@@ -305,6 +303,7 @@ tok_search(const struct bufdata *bdata, b_list *vimbuf)
 
 #define INIT_VAL ((data->num * 2) / 3)
 #define INIT_MAX ((INIT_VAL >= 32) ? INIT_VAL : 32)
+#define SIZE_LANG (sizeof("language:") - 1)
 
 static void *
 do_tok_search(void *vdata)
@@ -353,10 +352,10 @@ do_tok_search(void *vdata)
                 while (b_memsep(tok, cpy, '\t')) {
                         LOG("Tok is currently '%s'\n", BS(tok));
                         if (tok->slen == 1) {
-                                kind = tok->data[0];
-                        } else if (strncmp(BS(tok), "language:", 9) == 0) {
-                                match_lang[0].data = tok[0].data + 9;
-                                match_lang[0].slen = tok[0].slen - 9;
+                                kind = (char)tok->data[0];
+                        } else if (strncmp(BS(tok), "language:", SIZE_LANG) == 0) {
+                                match_lang[0].data = tok[0].data + SIZE_LANG;
+                                match_lang[0].slen = tok[0].slen - SIZE_LANG;
                         }
                 }
 

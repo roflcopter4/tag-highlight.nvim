@@ -237,7 +237,8 @@ argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
         va_list _ap;
         va_start(_ap, fmt);
 #ifdef HAVE_VASPRINTF
-        vasprintf(&_buf, fmt, _ap);
+        if (vasprintf(&_buf, fmt, _ap) == (-1))
+                err(1, "vasprintf failed");
 #else
         bstring *tmp = b_vformat(fmt, _ap);
         _buf         = BS(tmp);

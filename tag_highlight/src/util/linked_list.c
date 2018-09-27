@@ -6,7 +6,7 @@
 
 #include "util/list.h"
 
-#define V(PTR_) ((void *)(PTR_))
+#define V(PTR) ((void *)(PTR))
 #define MSG1()                                                                                  \
         do {                                                                                    \
                 echo("Start: %d, End: %d, diff: %d => at is %p, head: %p, tail: %p, qty: %d\n", \
@@ -26,10 +26,8 @@
         ASSERTX((unsigned)end <= blist->qty,                                  \
                 "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
 
-#define RESOLVE_NEG(VAL_, BASE_) \
-        ((VAL_) = ((VAL_) >= 0) ? (VAL_) : ((VAL_) + (BASE_) + 1))
-
-static __inline void free_data(ll_node *node) __attribute__((__always_inline__));
+ALWAYS_INLINE void free_data(ll_node *node);
+ALWAYS_INLINE void resolve_negative_index(int *index, int base);
 
 static pthread_mutex_t ll_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -174,9 +172,9 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
 {
         assert(list && blist && blist->lst);
         /* Resolve any negative indices. */
-        RESOLVE_NEG(start, (int)blist->qty);
-        RESOLVE_NEG(end,   (int)blist->qty);
-        ASSERTIONS();
+        resolve_negative_index(&start, (int)blist->qty);
+        resolve_negative_index(&end,   (int)blist->qty);
+        /* ASSERTIONS(); */
 
         const int diff = end - start;
         if (diff == 1) {
@@ -215,9 +213,9 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
 {
         assert(list && blist && blist->lst);
         /* Resolve any negative indices. */
-        RESOLVE_NEG(start, (int)blist->qty);
-        RESOLVE_NEG(end,   (int)blist->qty);
-        ASSERTIONS();
+        resolve_negative_index(&start, (int)blist->qty);
+        resolve_negative_index(&end,   (int)blist->qty);
+        /* ASSERTIONS(); */
 
         const int diff = end - start;
         if (diff == 1) {
@@ -264,8 +262,6 @@ ll_delete_range(linked_list *list, ll_node *at, const int range)
                 ll_delete_node(list, at);
                 return;
         }
-        /* echo("removing: at is %p, head: %p, tail: %p, range: %u, qty: %d\n",
-             V(at), V(list->head), V(list->tail), range, list->qty); */
         pthread_mutex_lock(&ll_mutex);
 
         ll_node *current        = at;
@@ -294,9 +290,6 @@ ll_delete_range(linked_list *list, ll_node *at, const int range)
                 list->tail = prev;
 
         pthread_mutex_unlock(&ll_mutex);
-
-        /* echo("NOW: head: %p, tail: %p, qty: %d\n",
-             V(list->head), V(list->tail), list->qty); */
 }
 
 
@@ -312,7 +305,6 @@ ll_at(linked_list *list, int index)
                 return list->head;
         if (index == (-1) || index == list->qty)
                 return list->tail;
-
         if (index < 0)
                 index += list->qty;
         if (index < 0 || index > list->qty) {
@@ -445,9 +437,7 @@ ll_join(linked_list *list, const int sepchar)
         return joined;
 }
 
-
 /*============================================================================*/
-
 
 ll_node *
 ll_find_bstring(const linked_list *const list, const bstring *const find)
@@ -459,9 +449,14 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
         return NULL;
 }
 
-
-static __inline void
+ALWAYS_INLINE void
 free_data(ll_node *node)
 {
         b_free(node->data);
+}
+
+ALWAYS_INLINE void
+resolve_negative_index(int *index, const int base)
+{
+        *index = ((*index >= 0) ? *index : (*index + base + 1));
 }
