@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 #include <dirent.h>
 #include <sys/stat.h>
 #if defined(DOSISH) || defined(MINGW)
@@ -59,7 +59,6 @@ get_initial_taglist(struct bufdata *bdata)
                      "momentary disconnect on write...");
                 goto force_ctags;
         }
-        errno = 0;
 
         /* Read the compressed tags file if it exists, otherwise we run ctags
          * and read the file it creates. If there is a read error in the saved
@@ -87,7 +86,6 @@ get_initial_taglist(struct bufdata *bdata)
         force_ctags:
                 run_ctags(bdata, false);
                 write_gzfile(bdata->topdir);
-                errno = 0;
 
                 if (stat(BS(bdata->topdir->gzfile), &st) != 0)
                         err(1, "Failed to stat gzfile");

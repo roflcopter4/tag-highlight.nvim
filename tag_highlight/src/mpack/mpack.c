@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 #include <dirent.h>
 
 #include "mpack.h"
@@ -134,9 +134,7 @@ error:
         /* return ret; */
 }
 
-
 /*======================================================================================*/
-
 
 void
 mpack_destroy(mpack_obj *root)
@@ -197,7 +195,6 @@ mpack_destroy(mpack_obj *root)
         xfree(tofree.items);
         pthread_mutex_unlock(&mpack_rw_lock);
 }
-
 
 static void
 collect_items(struct item_free_stack *tofree, mpack_obj *item)
@@ -270,10 +267,8 @@ destroy_call_array(struct atomic_call_array *calls)
         xfree(calls);
 }
 
-
 /*======================================================================================*/
 /* Type conversions */
-
 
 b_list *
 mpack_array_to_blist(mpack_array_t *array, const bool destroy)
@@ -299,7 +294,6 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
         return ret;
 }
 
-
 retval_t
 dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key)
 {
@@ -313,7 +307,6 @@ dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key
         return m_expect(tmp, expect);
 }
 
-
 static mpack_obj *
 find_key_value(mpack_dict_t *dict, const bstring *key)
 {
@@ -323,7 +316,6 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 
         return NULL;
 }
-
 
 /*======================================================================================*/
 
@@ -351,7 +343,6 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 #define STACK_CTR(STACK) (STACK##_ctr)
 
 /*======================================================================================*/
-
 
 enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 
@@ -393,7 +384,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
         } while (0)
 
 #define ENCODE_FMT_ARRSIZE 128
-
 
 /* 
  * Relatively convenient way to encode an mpack object using a format string.
@@ -440,15 +430,14 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         const unsigned              arr_size  = (size_hint)
                                                 ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
                                                 : ENCODE_FMT_ARRSIZE;
-        va_list      args;
-        int          ch;
-        unsigned     sub_lengths_sz = arr_size;
-        unsigned    *sub_lengths    = nalloca(arr_size, sizeof(unsigned));
-        unsigned    *cur_len        = &sub_lengths[0];
-        unsigned     len_ctr        = 1;
-        const char  *ptr            = fmt;
-        va_list     *ref            = NULL;
-        *cur_len                    = 0;
+        va_list     args;
+        int         ch;
+        unsigned   *sub_lengths = nalloca(arr_size, sizeof(unsigned));
+        unsigned   *cur_len     = &sub_lengths[0];
+        unsigned    len_ctr     = 1;
+        const char *ptr         = fmt;
+        va_list    *ref         = NULL;
+        *cur_len                = 0;
 
         NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);

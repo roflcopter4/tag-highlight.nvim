@@ -1,5 +1,5 @@
 
-#include "util/util.h"
+#include "tag_highlight.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

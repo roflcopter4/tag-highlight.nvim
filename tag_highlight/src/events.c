@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "data.h"
 #include "highlight.h"
@@ -25,7 +25,7 @@ static void          notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur
 static void          handle_line_event    (struct bufdata *bdata, mpack_obj **items);
 ALWAYS_INLINE   void replace_line         (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
 ALWAYS_INLINE   void line_event_multi_op  (struct bufdata *bdata, b_list *repl_list, int first, int diff);
-noreturn static void event_loop           (void);
+static noreturn void event_loop           (void);
 static void          interrupt_call       (int val);
 static void         *handle_nvim_event    (void *vdata);
 
@@ -36,7 +36,10 @@ FILE                     *api_buffer_log;
 volatile p99_futex        event_loop_futex        = P99_FUTEX_INITIALIZER(0);
 static pthread_once_t     event_loop_once_control = PTHREAD_ONCE_INIT;
 
-struct line_event_data { mpack_obj *obj; unsigned val; };
+struct line_event_data {
+        mpack_obj *obj;
+        unsigned   val;
+};
 
 static const struct event_id {
         const bstring          name;
@@ -54,7 +57,7 @@ static const struct event_id *id_event(mpack_obj *event);
  * Main Event Loop                                                                      * 
  *======================================================================================*/
 
-noreturn static void *
+static noreturn void *
 do_launch_event_loop(UNUSED void *notused)
 {
         pthread_once(&event_loop_once_control, event_loop);
@@ -66,18 +69,21 @@ launch_event_loop(void)
         START_DETACHED_PTHREAD(do_launch_event_loop, NULL);
 }
 
-noreturn static void
+static noreturn void
 event_loop(void)
 {
         static volatile atomic_uint counter = ATOMIC_VAR_INIT(0);
         const int fd = 1;
 
         for (;;) {
+                /* 
+                 * Constantly wait for messages.
+                 */
                 mpack_obj *obj = decode_stream(fd);
                 if (!obj)
                         errx(1, "Got NULL object from decoder; cannot continue.");
 
-                const enum message_types mtype = m_expect(m_index(obj, 0), E_NUM).num;
+                Auto const mtype = (enum message_types)m_expect(m_index(obj, 0), E_NUM).num;
 
                 switch (mtype) {
                 case MES_NOTIFICATION: {
@@ -101,11 +107,12 @@ event_loop(void)
 static void
 handle_nvim_response(const int fd, mpack_obj *obj, volatile p99_futex *fut)
 {
+        char *blah = "hello" "hi";
         p99_futex_wait(fut);
         for (unsigned i = 0; i < wait_list->qty; ++i) {
                 struct nvim_wait *cur = wait_list->lst[i];
                 if (!cur)
-                        errx(1, "Got an invalid wait list object in %s\n", FUNC_NAME);
+                        errx("Got an invalid wait list object in %s\n", FUNC_NAME);
                 if (cur->fd == fd) {
                         const int count = (int)m_expect(m_index(obj, 1), E_NUM).num;
                         if (cur->count == count) {
@@ -115,7 +122,7 @@ handle_nvim_response(const int fd, mpack_obj *obj, volatile p99_futex *fut)
                 }
         }
 
-        errx(1, "Object not found");
+        Errx("Object not found");
 }
 
 static void
@@ -166,7 +173,7 @@ handle_nvim_event(void *vdata)
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
                 if (!bdata)
-                        errx(1, "Update called on uninitialized buffer.");
+                        errx("Update called on uninitialized buffer.");
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
@@ -225,36 +232,43 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
 
         if (repl_list->qty) {
                 if (last == (-1)) {
-                        /* An "initial" update, recieved only if asked for when attaching
-                         * to a buffer. We never ask for this, so this shouldn't occur. */
+                        /*
+                         * An "initial" update, recieved only if asked for when attaching
+                         * to a buffer. We never ask for this, so this shouldn't occur.
+                         */
                         errx(1, "Got initial update somehow...");
-                } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer */
-                           repl_list->qty == 1 &&                  /* One string */
-                           repl_list->lst[0]->slen == 0            /* Which is emtpy */
+                } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer... */
+                           repl_list->qty == 1 &&                  /* one string...   */
+                           repl_list->lst[0]->slen == 0            /* which is emtpy. */
                            ) {
-                        /* Useless update, one empty string in an empty buffer. */
+                        /*
+                         * Useless update, one empty string in an empty buffer.
+                         */
                         empty = true;
                 } else if (first == 0 && last == 0) {
-                        /* Inserting above the first line in the file. */
+                        /*
+                         * Inserting above the first line in the file.
+                         */
                         ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, -1);
                 } else {
                         /* The most common scenario: we recieved at least one string,
                          * which may be an empty string only if the buffer is not empty.
-                         * Moved to a helper function for clarity.. */
+                         * Moved to a helper function for clarity..
+                         */
                         line_event_multi_op(bdata, repl_list, first, diff);
                 }
         } else if (first != last) {
                 /* If the replacement list is empty then we're just deleting lines. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
-        /* else {
-                * For some reason neovim sometimes sends updates with an empty list in
-                * which both the first and last line are the same. God knows what this is
-                * supposed to indicate. I'll just ignore them.
-        } */
 
-        /* Neovim always considers there to be at least one line in any buffer.
-         * An empty buffer therefore must have one empty line. */
+        /* For some reason neovim sometimes sends updates with an empty list in
+         * which both the first and last line are the same. God knows what this is
+         * supposed to indicate. I'll just ignore them.
+         *
+         * Neovim always considers there to be at least one line in any buffer.
+         * An empty buffer therefore must have one empty line.
+         */
         if (bdata->lines->qty == 0)
                 ll_append(bdata->lines, b_fromlit(""));
 
@@ -292,7 +306,8 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
         const int iters = (int)MAX((unsigned)diff, repl_list->qty);
 
         /* This loop is only meaningful when replacing lines.
-         * All other paths break after the first iteration. */
+         * All other paths break after the first iteration. 
+         */
         for (int i = 0; i < iters; ++i) {
                 if (diff && i < olen) {
                         --diff;
@@ -304,7 +319,8 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
                         }
                 } else {
                         /* If the first line not being replaced (first + i) is at the end
-                         * of the file, then we append. Otherwise the update must be prepended. */
+                         * of the file, then we append. Otherwise the update must be prepended.  
+                         */
                         if ((first + i) >= bdata->lines->qty)
                                 ll_insert_blist_after_at(bdata->lines, first+i, repl_list, i, -1);
                         else

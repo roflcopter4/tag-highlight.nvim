@@ -193,11 +193,16 @@ endfunction
 function! s:Remove_Project(path)
     if file_readable(g:tag_highlight#settings_file)
         let l:lines = readfile(g:tag_highlight#settings_file)
+        
+        for l:ln in l:lines
+            let l:ln = substitute(l:ln, "\n\|\r", '', '')
+        endfor
+
         let l:index = index(l:lines, a:path)
         if l:index !=# (-1)
             echom 'Removing project dir "'.a:path.'"'
             echom string(l:lines)
-            call remove(l:lines, (l:index - 1))
+            call remove(l:lines, l:index)
             echom string(l:lines)
             call writefile(l:lines, g:tag_highlight#settings_file)
         endif

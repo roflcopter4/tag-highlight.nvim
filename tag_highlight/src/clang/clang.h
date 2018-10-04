@@ -1,7 +1,7 @@
 #ifndef SRC_CLANG_CLANG_H
 #define SRC_CLANG_CLANG_H
 
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "data.h"
 #include "p99/p99_defarg.h"

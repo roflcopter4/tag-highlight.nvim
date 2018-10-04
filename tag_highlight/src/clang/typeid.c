@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "intern.h"
 #include "clang.h"
@@ -95,21 +95,44 @@ static void do_typeswitch(struct bufdata           *bdata,
 
         const bstring *group;
         int            ctagskind = 0;
+        CXCursor       cursor    = tok->cursor;
 
         if (lastline != tok->line) {
                 add_clr_call(calls, bdata->num, (-1), tok->line, tok->line + 1);
                 lastline = tok->line;
         }
 
-        switch (tok->cursor.kind) {
+lazy_sonovabitch:
+        switch (cursor.kind) {
         case CXCursor_TypedefDecl:
                 /* An actual typedef */
                 ADD_CALL('t');
                 break;
-        case CXCursor_TypeRef:
-                /* Referance to a typedef. */
-                ADD_CALL('t');
-                break;
+        case CXCursor_TypeRef: {
+                /* Referance to a type. */
+
+                if (bdata->ft->id == FT_C) {
+                        ADD_CALL('t');
+                        break;
+                }
+
+                CXType   curs_type = clang_getCursorType(tok->cursor);
+                /* CXCursor decl      = clang_getTypeDeclaration(curs_type); */
+                cursor = clang_getTypeDeclaration(curs_type);
+                goto lazy_sonovabitch;
+
+#if 0
+                switch (decl.kind) {
+                case CXCursor_ClassDecl:
+                        ADD_CALL('c');
+                        break;
+                case CXCursor_StructDecl:
+                        ADD_CALL('s');
+                }
+#endif
+
+                /* break; */
+        }
         case CXCursor_MemberRef:
                 /* A reference to a member of a struct, union, or class in
                  * non-expression context such as a designated initializer. */

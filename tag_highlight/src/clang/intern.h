@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "data.h"
 

@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 #include <dirent.h>
 
 #include "intern.h"
@@ -26,6 +26,8 @@ extern pthread_rwlock_t event_loop_rwlock;
 mpack_obj *
 await_package(const int fd, const int count, const enum message_types mtype)
 {
+        /* pthread_mutex_lock(&api_mutex); */
+
         struct nvim_wait *wt   = xmalloc(sizeof(struct nvim_wait));
         *wt                    = (struct nvim_wait){mtype, (int16_t)fd, (int32_t)count,
                                                     P99_FUTEX_INITIALIZER(0), NULL};

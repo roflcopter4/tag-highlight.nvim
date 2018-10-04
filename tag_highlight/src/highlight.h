@@ -1,7 +1,7 @@
 #ifndef SRC_HIGHLIGHT_H
 #define SRC_HIGHLIGHT_H
 
-#include "util/util.h"
+#include "tag_highlight.h"
 
 /* #define DEFAULT_FD       (mainchan) */
 /* #define BUFFER_ATTACH_FD (bufchan) */

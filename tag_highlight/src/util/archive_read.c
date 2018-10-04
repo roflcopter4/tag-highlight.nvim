@@ -1,6 +1,6 @@
 #include "archive.h"
 #ifdef HAVE_TOPCONFIG_H
-#  include "util/util.h"
+#  include "tag_highlight.h"
 #else
 #  include "util.h"
 #endif

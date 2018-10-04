@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "data.h"
 #include "highlight.h"
@@ -20,15 +20,15 @@ struct cmd_info {
 };
 
 static nvim_call_array *update_commands(struct bufdata *bdata, struct taglist *tags);
-static void update_from_cache(struct bufdata *bdata);
+static void     update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
-static void add_cmd_call(nvim_call_array **calls, bstring *cmd);
-static void get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
-static void get_ignored_tags(struct bufdata *bdata);
-static void update_c_like(struct bufdata *bdata, bool force);
-static void update_other(struct bufdata *bdata);
-static int  handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
-                        const struct taglist  *tags, const struct cmd_info *info);
+static void     add_cmd_call(nvim_call_array **calls, bstring *cmd);
+static void     get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
+static void     get_ignored_tags(struct bufdata *bdata);
+static void     update_c_like(struct bufdata *bdata, bool force);
+static void     update_other(struct bufdata *bdata);
+static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
+                            const struct taglist  *tags, const struct cmd_info *info);
 
 extern pthread_mutex_t update_mutex;
 #ifdef DEBUG
@@ -196,7 +196,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 #define SYN_MATCH_START   "syntax match %s /%s\\%%(%s"
 #define SYN_MATCH_END     "\\)%s/ display | hi def link %s %s"
 #define SYN_KEYWORD_START " syntax keyword %s %s "
-#define SYN_KEYWORD_END   "display | hi def link %s %s"
+#define SYN_KEYWORD_END   "display containedin=ALLBUT,String | hi def link %s %s"
 
 static int
 handle_kind(bstring *cmd, unsigned i,

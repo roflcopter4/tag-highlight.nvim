@@ -1,7 +1,7 @@
 #ifndef SRC_FIND_H
 #define SRC_FIND_H
 
-/* #include "util/util.h" */
+/* #include "tag_highlight.h" */
 
 #include "bstring/bstring.h"
 

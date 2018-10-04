@@ -49,7 +49,6 @@ struct nvim_wait {
         enum message_types mtype;
         int16_t            fd;
         int32_t            count;
-        /* pthread_cond_t     cond; */
         p99_futex          fut;
         mpack_obj         *obj;
 };
@@ -113,6 +112,9 @@ extern int _nvim_create_socket(int mes_fd);
 /* extern void _nvim_init(enum nvim_connection_type init_type, int init_fd); */
 extern void _nvim_init(void) __attribute__((__constructor__));
 
+/* 
+ * Perl output: default arguments for Neovim functions.
+ */
 #define _nvim_write(...) P99_CALL_DEFARG(_nvim_write, 3, __VA_ARGS__)
 #define _nvim_write_defarg_0() (0)
 #define nvim_vprintf(...) P99_CALL_DEFARG(nvim_vprintf, 3, __VA_ARGS__)

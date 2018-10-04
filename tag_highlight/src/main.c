@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "data.h"
 #include "highlight.h"
@@ -16,19 +16,23 @@
 #  define PAUSE() do fsleep(1000000.0); while (1)
 #endif
 
-static const long double WAIT_TIME = 3.0L;
+#define SIGHANDLER_EXIT_QUICKLY  (1)
+#define SIGHANDLER_EXIT_NORMALLY (2)
+
+static const double      WAIT_TIME = 3.0;
 static jmp_buf           main_buf;
 extern FILE             *cmd_log, *echo_log, *main_log;
 extern pthread_t         top_thread;
 pthread_t                top_thread;
 
-static void        platform_init(char **argv);
-static void        get_settings(void);
-static void        open_logs(void);
-static void        exit_cleanup(void);
-static comp_type_t get_compression_type(int fd);
-static void        controlled_exit(UNUSED int notused);
-static void        sig_handler(UNUSED int notused);
+static void          platform_init(char **argv);
+static void          get_settings(void);
+static void          open_logs(void);
+static void          exit_cleanup(void);
+static void          quick_cleanup(void);
+static comp_type_t   get_compression_type(int fd);
+static noreturn void controlled_exit(UNUSED int notused);
+static noreturn void sig_handler(UNUSED int notused);
 
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (0)
@@ -50,7 +54,6 @@ main(UNUSED int argc, char *argv[])
         launch_event_loop();
         get_settings();
         open_logs();
-        const int nvim_pid = (int)nvim_call_function(,B("getpid"), E_NUM).num;
 
         int initial_buf = 0;
 
@@ -62,7 +65,6 @@ main(UNUSED int argc, char *argv[])
                         if (buffers.bad_bufs.qty)
                                 buffers.bad_bufs.qty = 0;
                         fsleep(WAIT_TIME);
-                        echo("Retrying (attempt number %u)\n", attempts);
                 }
 
                 initial_buf = nvim_get_current_buf();
@@ -79,25 +81,28 @@ main(UNUSED int argc, char *argv[])
         TIMER_REPORT(main_timer, "main initialization");
         /* launch_libclang_waiter(); */
 
+        atexit(exit_cleanup);
+        at_quick_exit(quick_cleanup);
+
         /* Normally the main thread sits tight and waits for something to kill
          * it via signal. In those cases, leave quickly. Taking time to clean up
          * makes the editor freeze until we finish, which is very annoying. */
         int jmp_ret = setjmp(main_buf);
         switch (jmp_ret) {
-        case 0: PAUSE();
-        case 1: exit(0);
-        default:;
+        case 0:
+                PAUSE();
+                break;
+        case SIGHANDLER_EXIT_QUICKLY:
+                /* When the user closes the editor, exit as quickly as possible.
+                 * Any holdup freezes Neovim, which is very annoying. */
+                quick_exit(0);
+        case SIGHANDLER_EXIT_NORMALLY:
+                echo("Cleaning up");
+                /* Don't return from main after longjmp'ing from a signal handler. */
+                exit(0);
+        default:
+                abort();
         }
-
-        echo("Cleaning up");
-
-        /* We only get here via a longjmp, which is only possible if the user
-         * has called the command to kill this process explicitly from within
-         * neovim (via SIGUSR1). In that case, we can clean up properly before
-         * exiting because there is no hurry. */
-        exit_cleanup();
-        /* Don't return from main after calling longjmp from a signal handler. */
-        exit(0);
 }
 
 static void
@@ -195,7 +200,7 @@ exit_cleanup(void)
 {
         extern bool           process_exiting;
         extern struct backups backup_pointers;
-        extern b_list *       seen_files;
+        extern b_list        *seen_files;
 
         process_exiting = true;
 
@@ -244,6 +249,22 @@ exit_cleanup(void)
                 fclose(echo_log);
 }
 
+/* 
+ * Basically just close any logs.
+ */
+static void
+quick_cleanup(void)
+{
+        if (mpack_log)
+                fclose(mpack_log);
+        if (cmd_log)
+                fclose(cmd_log);
+        if (main_log)
+                fclose(main_log);
+        if (echo_log)
+                fclose(echo_log);
+}
+
 static comp_type_t
 (get_compression_type)(const int fd)
 {
@@ -274,18 +295,18 @@ static comp_type_t
 
 /*======================================================================================*/
 
-noreturn static void
+static noreturn void
 controlled_exit(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, 2);
+                longjmp(main_buf, SIGHANDLER_EXIT_NORMALLY);
         pthread_exit();
 }
 
-static void
+static noreturn void
 sig_handler(UNUSED int notused)
 {
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, 1);
+                longjmp(main_buf, SIGHANDLER_EXIT_QUICKLY);
         pthread_exit();
 }

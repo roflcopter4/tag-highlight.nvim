@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 #include <setjmp.h>
 
 #include "data.h"

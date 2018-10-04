@@ -24,7 +24,7 @@ let g:tag_highlight#cpp#q = { 'group': 'cppDunno' }
 let g:tag_highlight#cpp#equivalent = { 'p': 'f',
                                    \   'x': 'v', }
 
-highlight def link cppClassTag		tag_highlight_TypeTag
+highlight def link cppClassTag		tag_highlight_ClassTag
 highlight def link cppEnumTypeTag	tag_highlight_EnumTypeTag
 highlight def link cppStructTag		tag_highlight_StructTag
 highlight def link cppUnionTag		tag_highlight_UnionTag

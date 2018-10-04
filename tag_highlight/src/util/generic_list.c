@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #include "util/list.h"
 
@@ -262,9 +262,13 @@ argv_destroy(struct argument_vector *argv)
 
 
 void
-argv_dump__(FILE *fp, const struct argument_vector *argv, const char *const listname)
+argv_dump__(FILE *                              fp,
+            const struct argument_vector *const restrict argv,
+            const char *const restrict listname,
+            const char *const restrict file,
+            const int line)
 {
-        fprintf(fp, "Dumping list \"%s\"\n", listname);
+        fprintf(fp, "Dumping list \"%s\" (%s at %d)\n", listname, file, line);
         for (unsigned i = 0; i < argv->qty; ++i)
                 fprintf(fp, "%s\n", argv->lst[i]);
         fputc('\n', fp);
@@ -272,9 +276,13 @@ argv_dump__(FILE *fp, const struct argument_vector *argv, const char *const list
 
 
 void
-argv_dump_fd__(const int fd, const struct argument_vector *argv, const char *const listname)
+argv_dump_fd__(const int    fd,
+               const struct argument_vector *const restrict argv,
+               const char *const restrict listname,
+               const char *const restrict file,
+               const int line)
 {
-        dprintf(fd, "Dumping list \"%s\"\n", listname);
+        dprintf(fd, "Dumping list \"%s\" (%s at %d)\n", listname, file, line);
         for (unsigned i = 0; i < argv->qty; ++i)
                 dprintf(fd, "%s\n", argv->lst[i]);
         write(fd, "\n", 1);

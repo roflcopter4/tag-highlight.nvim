@@ -1,8 +1,8 @@
 # /src
 set (tag_highlight_SOURCES
-    tagscan/scan.c
-    tagscan/strip.c
-    tagscan/tok.c
+    scan_tags/scan.c
+    scan_tags/strip.c
+    scan_tags/tok.c
 
     clang/clang.c
     clang/const.c
@@ -30,6 +30,7 @@ set (tag_highlight_SOURCES
     data.h
     highlight.h
     my_p99_common.h
+    tag_highlight.h
 
     regex.c
 
@@ -147,5 +148,5 @@ else()
         target_link_libraries(tag_highlight -lunwind)
     endif()
 
-    target_link_libraries(tag_highlight -lpcre2-8)
+    target_link_libraries(tag_highlight -lpcre2-8 -lrt)
 endif()

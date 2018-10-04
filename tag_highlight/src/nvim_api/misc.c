@@ -1,4 +1,4 @@
-#include "util/util.h"
+#include "tag_highlight.h"
 
 #ifdef DOSISH
 #  include <direct.h>
