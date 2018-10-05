@@ -346,7 +346,7 @@ BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list a
 #define b_dprintf(FD, FMT, ...)     _b_dprintf((FD), B(FMT),    ##__VA_ARGS__)
 #define b_vdprintf(FD, FMT, ...)    _b_vdprintf((FD), B(FMT),   ##__VA_ARGS__)
 #define b_sprintfa(DST, FMT, ...)   _b_sprintfa((DST), B(FMT),  ##__VA_ARGS__)
-#define B_vsprintfa(DST, FMT, ...)  _b_vsprintfa((DST), B(FMT), ##__VA_ARGS__)
+#define b_vsprintfa(DST, FMT, ...)  _b_vsprintfa((DST), B(FMT), ##__VA_ARGS__)
 #define b_vsdprintfa(DST, FMT, ...) _b_vsprintfa((DST), B(FMT), ##__VA_ARGS__)
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)

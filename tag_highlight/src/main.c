@@ -97,8 +97,6 @@ main(UNUSED int argc, char *argv[])
                  * Any holdup freezes Neovim, which is very annoying. */
                 quick_exit(0);
         case SIGHANDLER_EXIT_NORMALLY:
-                echo("Cleaning up");
-                /* Don't return from main after longjmp'ing from a signal handler. */
                 exit(0);
         default:
                 abort();
@@ -271,9 +269,9 @@ static comp_type_t
         bstring    *tmp = nvim_get_var(fd, B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
-        if (b_iseq_lit(tmp, "gzip"))
+        if (b_iseq_lit(tmp, "gzip")) {
                 ret = COMP_GZIP;
-        else if (b_iseq_lit(tmp, "lzma")) {
+        } else if (b_iseq_lit(tmp, "lzma")) {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
@@ -281,13 +279,14 @@ static comp_type_t
                       "supported in this build.");
                 ret = COMP_GZIP;
 #endif
-        } else if (b_iseq_lit(tmp, "none"))
+        } else if (b_iseq_lit(tmp, "none")) {
                 ret = COMP_NONE;
-        else
-                ECHO("Warning: unrecognized compression type \"%s\", "
-                     "defaulting to no compression.", tmp);
+        } else {
+                eprintf("Warning: unrecognized compression type \"%s\", "
+                        "defaulting to no compression.", BS(tmp));
+        }
 
-        ECHO("Comp type is %s", tmp);
+        eprintf("Comp type is %s", BS(tmp));
 
         b_free(tmp);
         return ret;

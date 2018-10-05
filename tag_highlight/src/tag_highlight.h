@@ -74,18 +74,8 @@ extern char * basename(char *path);
 #include <stdlib.h>
 #include <string.h>
 
-#if 0
-#ifdef HAVE_COMPLEX_H
-#  include <complex.h>
-#endif
-#endif
 #ifdef HAVE_STDNORETURN_H
 #  include <stdnoreturn.h>
-#endif
-#if 0
-#ifdef HAVE_TGMATH_H
-#  include <tgmath.h>
-#endif
 #endif
 #ifdef HAVE_THREADS_H
 #  include <threads.h>
@@ -165,9 +155,9 @@ struct backups {
 #  if defined(__clang__) || defined(__cplusplus)
 #    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
 #  else
-extern const char * __ret_func_name(const char *const function, size_t size);
+extern const char * ret_func_name__(const char *const function, size_t size);
 #    define FUNC_NAME \
-        (__extension__(__ret_func_name(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+        (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
 #  define auto_type   __extension__ __auto_type
 #  define Auto        __extension__ __auto_type
@@ -245,42 +235,12 @@ void          warn_(bool print_err, const char *fmt, ...) aFMT(2, 3);
 noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
 
 #define err(EVAL, ...)  err_((EVAL), true, __VA_ARGS__)
-#define errx(...)       err_(1, false, P99_IF_EQ_1(P99_CHS(0, __VA_ARGS__)) (P99_SKP(1, __VA_ARGS__)) (__VA_ARGS__))
+#define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
 #define warn(...)       warn_(true, __VA_ARGS__)
 #define warnx(...)      warn_(false, __VA_ARGS__)
 
 #define Errx(...) \
         err_(1, false, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
-
-#if 0
-#define Errx(...)                                                                      \
-        err_(_Generic(P99_CHS(0, __VA_ARGS__), int: P99_CHS(0, __VA_ARGS__),           \
-                      const int: P99_CHS(0, __VA_ARGS__), char *: 1, const char *: 1), \
-             false,                                                                    \
-             P99_CHS(_Generic(P99_CHS(0, __VA_ARGS__),                                 \
-                     int: 1, const int: 1, char *: 0, const char *: 0), __VA_ARGS__)   \
-             " (%s line %d)",                                                          \
-             P99_CHS(_Generic(P99_CHS(0, __VA_ARGS__),                                 \
-                     int: 1, const int: 1, char *: 0, const char *: 0), __VA_ARGS__)   \
-             P99_IF_EMPTY(P99_SKP(1, __VA_ARGS__))                                     \
-               ()                                                                      \
-               (P99_SKP(1, __VA_ARGS__),)                                              \
-             __FILE__, __LINE__)                                                           
-#endif
-
-#if 0
-#define errx(...)                                                                    \
-        _Generic(P99_CHS(0, __VA_ARGS__),                                            \
-                 const int: err_(P99_CHS(0, __VA_ARGS__), false,                     \
-                                 P99_CHS(1, __VA_ARGS__) " (%s line %d)",            \
-                                 P99_IF_EQ_2(P99_NARG(__VA_ARGS__))()                \
-                                 (P99_SKP(2, __VA_ARGS__),), __LINE__, __FILE__),    \
-                 const char *: err_(1, false,                                        \
-                                    P99_CHS(0, __VA_ARGS__) " (%s line %d)",         \
-                                    P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()             \
-                                    (P99_SKP(1, __VA_ARGS__),), __LINE__, __FILE__), \
-                 )
-#endif
 
 #define echo warnx
 #ifdef DEBUG
@@ -303,7 +263,6 @@ xmalloc(const size_t size)
         void *tmp = malloc(size);
         if (tmp == NULL)
                 err(100, "Malloc call failed - attempted %zu bytes", size);
-                /* FATAL_ERROR("Malloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 
@@ -313,7 +272,6 @@ xcalloc(const size_t num, const size_t size)
         void *tmp = calloc(num, size);
         if (tmp == NULL)
                 err(101, "Calloc call failed - attempted %zu bytes", size);
-                /* FATAL_ERROR("Calloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 #else
@@ -327,7 +285,6 @@ xrealloc(void *ptr, const size_t size)
         void *tmp = realloc(ptr, size);
         if (tmp == NULL)
                 err(102, "Realloc call failed - attempted %zu bytes", size);
-                /* FATAL_ERROR("Realloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 
@@ -338,7 +295,6 @@ xreallocarray(void *ptr, size_t num, size_t size)
         void *tmp = reallocarray(ptr, num, size);
         if (tmp == NULL)
                 err(103, "Realloc call failed - attempted %zu bytes", size);
-                /* FATAL_ERROR("Realloc call failed - attempted %zu bytes", size); */
         return tmp;
 }
 #  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))

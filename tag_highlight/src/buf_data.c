@@ -365,8 +365,8 @@ init_filetype(const int fd, struct filetype *ft)
                         bstring *toadd = equiv->entries[i]->key->data.str;
                         b_concat(toadd, equiv->entries[i]->value->data.str);
                         b_writeprotect(toadd);
-                        mpack_destroy(equiv->entries[i]->key);
-                        mpack_destroy(equiv->entries[i]->value);
+                        mpack_destroy_object(equiv->entries[i]->key);
+                        mpack_destroy_object(equiv->entries[i]->value);
                         xfree(equiv->entries[i]);
                         b_writeallow(toadd);
                         b_list_append(&ft->equiv, toadd);

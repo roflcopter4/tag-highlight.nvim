@@ -139,7 +139,7 @@ file_is_reg(const char *filename)
 }
 
 int64_t
-__xatoi(const char *const str, const bool strict)
+xatoi__(const char *const str, const bool strict)
 {
         char *endptr;
         const long long int val = strtol(str, &endptr, 10);
@@ -202,10 +202,10 @@ warn_(const bool print_err, const char *const __restrict fmt, ...)
 
         nvim_vprintf(0, buf, ap1);
 
-#ifdef DEBUG
+/* #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);
         fflush(echo_log);
-#endif
+#endif */
 
         va_end(ap1);
         va_end(ap2);
@@ -242,7 +242,7 @@ find_num_cpus(void)
 
 #if defined(__GNUC__) && !(defined(__clang__) || defined(__cplusplus))
 const char *
-__ret_func_name(const char *const function, const size_t size)
+ret_func_name__(const char *const function, const size_t size)
 {
         if (size + 2 > 256)
                 return function;
@@ -259,7 +259,7 @@ __ret_func_name(const char *const function, const size_t size)
 /* List operations */
 
 void
-__free_all(void *ptr, ...)
+free_all__(void *ptr, ...)
 {
         va_list ap;
         va_start(ap, ptr);

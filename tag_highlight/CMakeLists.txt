@@ -142,10 +142,13 @@ else()
         # set (SANIT "")
         # set (SANIT "-fsanitize=address -fsanitize=leak -fsanitize-address-use-after-scope")
 
+        string(CONCAT BASE "${BASE}" " -Wno-error=incompatible-pointer-types-discards-qualifiers")
+
         string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Weverything"
-            #   " -Wno-sign-conversion -Wno-documentation-unknown-command"
-            #   " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
-            #   " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
+              " -Wno-sign-conversion -Wno-documentation-unknown-command"
+              " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
+              " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
+              " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu"
                )
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g")
         string (JOIN " " CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE}"

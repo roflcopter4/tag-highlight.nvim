@@ -14,8 +14,10 @@
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
 
+extern genlist *_nvim_wait_list;
+
 genlist *nvim_connections = NULL;
-genlist *wait_list        = NULL;
+genlist *_nvim_wait_list  = NULL;
 
 static void add_nvim_connection(const int fd, const enum nvim_connection_type type);
 static void clean_nvim_connections(void);
@@ -33,7 +35,7 @@ static void free_wait_list(void);
         add_nvim_connection(init_fd, init_type);
         atexit(clean_nvim_connections);
 
-        wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
+        _nvim_wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
         atexit(free_wait_list);
 }
 #endif
@@ -46,7 +48,7 @@ _nvim_init(void)
         add_nvim_connection(1, NVIM_SOCKET);
         atexit(clean_nvim_connections);
 
-        wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
+        _nvim_wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
         atexit(free_wait_list);
 }
 
@@ -100,6 +102,6 @@ clean_nvim_connections(void)
 static void
 free_wait_list(void)
 {
-        if (wait_list && wait_list->lst)
-                genlist_destroy(wait_list);
+        if (_nvim_wait_list && _nvim_wait_list->lst)
+                genlist_destroy(_nvim_wait_list);
 }

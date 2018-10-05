@@ -21,7 +21,7 @@
 
 static bool is_c_or_cpp;
 #ifdef DEBUG
-static FILE *thislog;
+/* static FILE *thislog; */
 #endif
 
 static struct taglist * tok_search   (const struct bufdata *bdata, b_list *vimbuf);

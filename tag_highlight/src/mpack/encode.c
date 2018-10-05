@@ -67,7 +67,7 @@ static void sanity_check(mpack_obj *root, mpack_obj **item, unsigned check, bool
 #define L ((*root->packed)->slen)
 
 mpack_obj *
-mpack_make_new(const unsigned len, const bool encode)
+mpack_make_new(UNUSED const unsigned len, const bool encode)
 {
         mpack_obj *root = xmalloc((offsetof(mpack_obj, packed) +
                                    sizeof(bstring *)));

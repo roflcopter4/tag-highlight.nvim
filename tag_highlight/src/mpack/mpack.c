@@ -127,7 +127,7 @@ retval_t
 error:
         warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
-        mpack_destroy(obj);
+        mpack_destroy_object(obj);
         ret.ptr = NULL;
         /* pthread_mutex_unlock(&mpack_rw_lock); */
         abort();

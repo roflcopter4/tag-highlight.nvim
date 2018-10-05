@@ -3,6 +3,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "util/list.h"
 #include "clang/clang.h"
 #include <signal.h>
 
@@ -19,22 +20,20 @@
 
 /*======================================================================================*/
 
-extern void          update_line          (struct bufdata *, int, int);
-static void          handle_nvim_response (int fd, mpack_obj *obj, volatile p99_futex *fut);
-static void          notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur);
-static void          handle_line_event    (struct bufdata *bdata, mpack_obj **items);
-ALWAYS_INLINE   void replace_line         (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
-ALWAYS_INLINE   void line_event_multi_op  (struct bufdata *bdata, b_list *repl_list, int first, int diff);
-static noreturn void event_loop           (void);
-static void          interrupt_call       (int val);
-static void         *handle_nvim_event    (void *vdata);
+extern void          update_line         (struct bufdata *, int, int);
+static void          handle_line_event   (struct bufdata *bdata, mpack_obj **items);
+ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
+ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
+static noreturn void event_loop          (void);
+static void          interrupt_call      (int val);
+static void         *handle_nvim_event   (void *vdata);
+static void          post_nvim_response  (int fd, mpack_obj *obj);
 
-extern pthread_mutex_t    update_mutex;
-extern volatile p99_futex event_loop_futex;
-extern FILE              *main_log, *api_buffer_log;
-FILE                     *api_buffer_log;
-volatile p99_futex        event_loop_futex        = P99_FUTEX_INITIALIZER(0);
-static pthread_once_t     event_loop_once_control = PTHREAD_ONCE_INIT;
+extern FILE *main_log, *api_buffer_log;
+       FILE *api_buffer_log;
+
+extern pthread_mutex_t update_mutex;
+static pthread_once_t  event_loop_once_control = PTHREAD_ONCE_INIT;
 
 struct line_event_data {
         mpack_obj *obj;
@@ -81,9 +80,10 @@ event_loop(void)
                  */
                 mpack_obj *obj = decode_stream(fd);
                 if (!obj)
-                        errx(1, "Got NULL object from decoder; cannot continue.");
+                        errx(1, "Got NULL object from decoder. This should not ever be "
+                                "possible. Cannot continue; aborting.");
 
-                Auto const mtype = (enum message_types)m_expect(m_index(obj, 0), E_NUM).num;
+                Auto const mtype = (nvim_message_type)m_expect(m_index(obj, 0), E_NUM).num;
 
                 switch (mtype) {
                 case MES_NOTIFICATION: {
@@ -94,7 +94,7 @@ event_loop(void)
                         break;
                 }
                 case MES_RESPONSE:
-                        handle_nvim_response(fd, obj, &event_loop_futex);
+                        post_nvim_response(fd, obj);
                         break;
                 case MES_REQUEST:
                 case MES_ANY:
@@ -105,32 +105,33 @@ event_loop(void)
 }
 
 static void
-handle_nvim_response(const int fd, mpack_obj *obj, volatile p99_futex *fut)
+post_nvim_response(const int fd, mpack_obj *obj)
 {
-        char *blah = "hello" "hi";
-        p99_futex_wait(fut);
-        for (unsigned i = 0; i < wait_list->qty; ++i) {
-                struct nvim_wait *cur = wait_list->lst[i];
-                if (!cur)
-                        errx("Got an invalid wait list object in %s\n", FUNC_NAME);
-                if (cur->fd == fd) {
-                        const int count = (int)m_expect(m_index(obj, 1), E_NUM).num;
-                        if (cur->count == count) {
-                                notify_waiting_thread(obj, cur);
-                                return;
-                        }
-                }
-        }
+        extern          genlist   *_nvim_wait_list;
+        extern volatile p99_futex  _nvim_wait_futex;
+               volatile p99_futex  fut = P99_FUTEX_INITIALIZER(0);
 
-        Errx("Object not found");
-}
+        struct nvim_wait *wt = xmalloc(sizeof *wt);
+        *wt = (struct nvim_wait){
+                .fd    = fd,
+                .count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num,
+                .fut   = &fut,
+                .obj   = obj
+        };
 
-static void
-notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
-{
-        const unsigned fut_expect_ = NVIM_GET_FUTEX_EXPECT(cur->fd, cur->count);
-        cur->obj                   = obj;
-        P99_FUTEX_COMPARE_EXCHANGE(&cur->fut, val, true, fut_expect_, 0, P99_FUTEX_MAX_WAITERS);
+        genlist_append(_nvim_wait_list, wt); /* << genlist contains an integral rw lock */
+
+        P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
+                true, 1u, /* Never lock and set value to 1 */
+                /* Wake at least one waiter (and anyone else waiting too). If nobody is
+                 * waiting at the time, this will cause a "busy" lock which will
+                 * constantly check to see if a waiter is available until one is. */
+                1u, P99_FUTEX_MAX_WAITERS
+        );
+        P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
+                value == 0, /* Lock until value is set back to 0 */
+                value, 0, 0 /* Don't change value or wake anything */
+        );
 }
 
 /*======================================================================================*/
@@ -141,8 +142,8 @@ notify_waiting_thread(mpack_obj *obj, struct nvim_wait *cur)
 __attribute__((__constructor__, __used__)) static void
 openbufferlog(void)
 {
-        api_buffer_log = safe_fopen_fmt("%s/.tag_highlight_log/buf.log", "wb",
-                                        getenv("HOME"));
+        api_buffer_log = safe_fopen_fmt("%s/.tag_highlight_log/buf.log",
+                                        "wb", getenv("HOME"));
 }
 #endif
 
@@ -160,7 +161,11 @@ handle_nvim_event(void *vdata)
         if (!event)
                 pthread_exit();
 
-        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value, value == want, value, 0, 0);
+        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value,
+                value == want, /* Lock until value == want */
+                value,         /* Don't change the value */
+                0, 0           /* Don't wake anyone up */
+        );
         pthread_mutex_lock(&handle_mutex);
 
         mpack_print_object(api_buffer_log, event);
@@ -173,7 +178,7 @@ handle_nvim_event(void *vdata)
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
                 if (!bdata)
-                        errx("Update called on uninitialized buffer.");
+                        errx(1, "Update called on uninitialized buffer.");
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
@@ -193,7 +198,11 @@ handle_nvim_event(void *vdata)
                 }
         }
 
-        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value, true, value + 1, 0, P99_FUTEX_MAX_WAITERS);
+        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value,
+                true,                    /* Never lock */
+                value + 1,               /* Increment value */
+                0, P99_FUTEX_MAX_WAITERS /* Wake up any waiters */
+        );
         pthread_mutex_unlock(&handle_mutex);
         mpack_destroy(event);
         pthread_exit();
@@ -405,8 +414,8 @@ interrupt_call(const int val)
          * User called the kill command.
          */
         case 'C': {
-                clear_highlight();
                 extern pthread_t top_thread;
+                clear_highlight();
                 pthread_kill(top_thread, KILL_SIG);
                 pthread_exit();
         }

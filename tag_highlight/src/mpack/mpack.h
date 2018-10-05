@@ -18,15 +18,15 @@ extern "C" {
 /* Structures, Etc */
 
 enum mpack_types {
-        MPACK_UNINITIALIZED,
-        MPACK_BOOL,
-        MPACK_NIL,
-        MPACK_SIGNED,
-        MPACK_UNSIGNED,
-        MPACK_EXT,
-        MPACK_STRING,
-        MPACK_ARRAY,
-        MPACK_DICT,
+        MPACK_UNINITIALIZED = 0,
+        MPACK_BOOL          = 1,
+        MPACK_NIL           = 2,
+        MPACK_SIGNED        = 3,
+        MPACK_UNSIGNED      = 4,
+        MPACK_EXT           = 5,
+        MPACK_STRING        = 6,
+        MPACK_ARRAY         = 7,
+        MPACK_DICT          = 8,
 };
 enum mpack_expect_types {
         E_MPACK_EXT,
@@ -110,10 +110,11 @@ extern const char *const m_type_names[];
 
 /*============================================================================*/
 /* Decode and Destroy */
-extern void        mpack_print_object (FILE *fp, const mpack_obj *result);
-extern void        mpack_destroy      (mpack_obj *root);
-extern mpack_obj * decode_stream      (int fd);
-extern mpack_obj * decode_obj         (bstring *buf);
+extern void        mpack_print_object  (FILE *fp, const mpack_obj *result);
+extern void        mpack_destroy       (mpack_obj *root);
+static void        mpack_destroy_object(mpack_obj *root) __attribute__((__weakref__("mpack_destroy")));
+extern mpack_obj * decode_stream       (int fd);
+extern mpack_obj * decode_obj          (bstring *buf);
 
 
 /* Encode */

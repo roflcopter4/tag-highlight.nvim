@@ -14,6 +14,8 @@
 #define pthread_exit(...) P99_CALL_DEFARG(pthread_exit, 1, __VA_ARGS__)
 #define pthread_exit_defarg_0() NULL
 
+#define p99_futex_wakeup(...) P99_CALL_DEFARG(p99_futex_wakeup, 3, __VA_ARGS__)
+#define p99_futex_wakeup_defarg_2() (P99_FUTEX_MAX_WAITERS)
 
 #define TRY         P99_TRY
 #define CATCH(NAME) P99_CATCH(int NAME) if (NAME)

@@ -45,7 +45,7 @@ struct filetype {
         bstring      *order;
         const bstring vim_name;
         const bstring ctags_name;
-        const enum filetype_id id;
+        const nvim_filetype_id id;
         bool initialized;
         bool restore_cmds_initialized;
         bool is_c;
@@ -56,7 +56,7 @@ struct top_dir {
         uint16_t index;
         uint16_t refs;
         bool     recurse;
-        enum filetype_id ftid;
+        nvim_filetype_id ftid;
 
         bstring *gzfile;
         bstring *pathname;

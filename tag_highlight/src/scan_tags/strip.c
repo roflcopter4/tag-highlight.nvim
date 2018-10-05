@@ -6,7 +6,7 @@
 
 
 static const struct lang_s {
-        const enum filetype_id id;
+        const nvim_filetype_id id;
         const enum basic_types { C_LIKE, PYTHON } type;
 } lang_comment_groups[] = {
     { FT_C,      C_LIKE, },

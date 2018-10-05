@@ -417,7 +417,8 @@ __b_list_dump_fd(const int fd, const b_list *list, const char *listname)
                 else
                         b_write(fd, list->lst[i], b_tmp("\n"));
         }
-        write(fd, "\n", 1);
+        if (write(fd, "\n", 1) != 1)
+                warn("write error");
 }
 
 

@@ -30,7 +30,6 @@ static bool check_skip(struct bufdata *bdata, struct token *tok);
 
 static struct atomic_call_array *new_call_array(void);
 static const bstring *find_group(struct filetype *ft, const struct cmd_info *info, unsigned num, const int ctags_kind);
-static void clear_nvim_highlights(struct bufdata *bdata);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
 #define ADD_CALL(CH)                                                         \
@@ -53,8 +52,8 @@ type_id(struct bufdata         *bdata,
         struct translationunit *stu,
         const b_list           *enumerators,
         struct cmd_info        *info,
-        const int               line,
-        const int               end)
+        UNUSED const int               line,
+        UNUSED const int               end)
 {
         nvim_call_array *calls = new_call_array();
 
@@ -94,7 +93,7 @@ static void do_typeswitch(struct bufdata           *bdata,
         static thread_local unsigned lastline = UINT_MAX;
 
         const bstring *group;
-        int            ctagskind = 0;
+        /* int            ctagskind = 0; */
         CXCursor       cursor    = tok->cursor;
 
         if (lastline != tok->line) {
@@ -302,18 +301,6 @@ add_clr_call(struct atomic_call_array *calls,
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n", bufnum, hl_id, line, end);
         ++calls->qty;
-}
-
-static void
-clear_nvim_highlights(struct bufdata *bdata)
-{
-        /* struct atomic_call_array *calls = new_call_array(); */
-
-        /* for (unsigned i = 0; i < bdata->hl->qty; ++i) {
-
-        } */
-
-        nvim_buf_clear_highlight(0, bdata->num, (-1), 0, (-1));
 }
 
 static const bstring *

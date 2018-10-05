@@ -53,15 +53,15 @@ struct timer {
 WEAK_SYMB const double USEC2SECOND = 1000000.0;
 WEAK_SYMB const double NSEC2SECOND = 1000000000.0;
 
-#define MKTIMESPEC(FLT) &(struct timespec){ \
-          (int64_t)(FLT),                   \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)}
+#define MKTIMESPEC(FLT) (&(struct timespec){ \
+          (int64_t)(FLT),                    \
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)})
 
-#define TDIFF(STV1, STV2)                                                 \
+#define TDIFF(STV1, STV2)                                            \
         (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
-#define SPECDIFF(STV1, STV2)                                              \
+#define SPECDIFF(STV1, STV2)                                         \
         (((double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
@@ -71,12 +71,12 @@ WEAK_SYMB const double NSEC2SECOND = 1000000000.0;
 /*===========================================================================*/
 /* Generic Utility Functions */
 
-#define xatoi(STR_)          __xatoi((STR_), false)
-#define s_xatoi(STR_)        __xatoi((STR_), true)
-#define free_all(...)        __free_all(__VA_ARGS__, NULL)
+#define xatoi(STR_)          xatoi__((STR_), false)
+#define s_xatoi(STR_)        xatoi__((STR_), true)
+#define free_all(...)        free_all__(__VA_ARGS__, NULL)
 
-extern void     __free_all    (void *ptr, ...);
-extern int64_t  __xatoi       (const char *str, bool strict);
+extern void     free_all__    (void *ptr, ...);
+extern int64_t  xatoi__       (const char *str, bool strict);
 extern unsigned find_num_cpus (void);
 extern FILE *   safe_fopen    (const char *filename, const char *mode) aWUR aNNA;
 extern FILE *   safe_fopen_fmt(const char *fmt, const char *mode, ...) aWUR aFMT(1,3);

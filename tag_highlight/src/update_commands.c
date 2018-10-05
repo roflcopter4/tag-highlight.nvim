@@ -194,9 +194,11 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
 
 
 #define SYN_MATCH_START   "syntax match %s /%s\\%%(%s"
-#define SYN_MATCH_END     "\\)%s/ display | hi def link %s %s"
+#define SYN_MATCH_END     "\\)%s/ containedin=ALLBUT,.*Comment.*,.*String.*,.*Quote.*," \
+                          ".*Here.oc.*,perlMatch.*,perl.*DQ.*,perl.*SQ.*,perlQQ" \
+                          " display | hi def link %s %s"
 #define SYN_KEYWORD_START " syntax keyword %s %s "
-#define SYN_KEYWORD_END   "display containedin=ALLBUT,String | hi def link %s %s"
+#define SYN_KEYWORD_END   "display | hi def link %s %s"
 
 static int
 handle_kind(bstring *cmd, unsigned i,
@@ -208,7 +210,9 @@ handle_kind(bstring *cmd, unsigned i,
                                       &ft->vim_name, info->kind, info->group);
         b_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
 
+#if 0
         if (info->prefix || info->suffix) {
+#endif
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
@@ -216,6 +220,7 @@ handle_kind(bstring *cmd, unsigned i,
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         b_sprintfa(cmd, "\\|%s", tags->lst[i]->b);
                 b_sprintfa(cmd, SYN_MATCH_END, suffix, group_id, info->group);
+#if 0
         }
         else {
                 b_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
@@ -223,6 +228,7 @@ handle_kind(bstring *cmd, unsigned i,
                         b_sprintfa(cmd, "%s ", tags->lst[i]->b);
                 b_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
         }
+#endif
 
         b_free(group_id);
         return i;

@@ -4,84 +4,78 @@
 #include "intern.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
+#include "p99/p99_cm.h"
 #include "p99/p99_futex.h"
 
-#define PTHREAD_MUTEX_ACTION(MUT, ...)     \
-        do {                               \
-                pthread_mutex_lock(MUT);   \
-                __VA_ARGS__                \
-                pthread_mutex_unlock(MUT); \
-        } while (0)
+#define p99_futex_wakeup(...) P99_CALL_DEFARG(p99_futex_wakeup, 3, __VA_ARGS__)
+#define p99_futex_wakeup_defarg_2() (P99_FUTEX_MAX_WAITERS)
 
-pthread_mutex_t mpack_main_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t api_mutex        = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t wait_list_mutex  = PTHREAD_MUTEX_INITIALIZER;
-extern genlist *wait_list;
-extern pthread_cond_t event_loop_cond;
-extern volatile p99_futex event_loop_futex;
-extern pthread_rwlock_t event_loop_rwlock;
+extern          genlist         *_nvim_wait_list;
+extern volatile p99_futex        _nvim_wait_futex;
+       volatile p99_futex        _nvim_wait_futex = P99_FUTEX_INITIALIZER(0);
 
 /*======================================================================================*/
 
-mpack_obj *
-await_package(const int fd, const int count, const enum message_types mtype)
+static mpack_obj *
+check_queue(const int fd, const int count)
 {
-        /* pthread_mutex_lock(&api_mutex); */
+        pthread_rwlock_rdlock(&_nvim_wait_list->lock);
 
-        struct nvim_wait *wt   = xmalloc(sizeof(struct nvim_wait));
-        *wt                    = (struct nvim_wait){mtype, (int16_t)fd, (int32_t)count,
-                                                    P99_FUTEX_INITIALIZER(0), NULL};
-        genlist_append(wait_list, wt);
+        for (unsigned i = 0; i < _nvim_wait_list->qty; ++i) {
+                struct nvim_wait *wt = _nvim_wait_list->lst[i];
+                if (wt->fd == fd && (int)wt->count == count) {
+                        mpack_obj *ret = wt->obj;
+                        pthread_rwlock_unlock(&_nvim_wait_list->lock);
+                        genlist_remove(_nvim_wait_list, wt);
+                        P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
+                                                   true, /* Never lock */
+                                                   0,    /* Set value to 0 */
+                                                   1u,   /* Wake up at least one waiter */
+                                                   P99_FUTEX_MAX_WAITERS);
+                        return ret;
+                }
+        }
 
-        /* pthread_cond_signal(&event_loop_cond); */
-        /* pthread_mutex_lock(&api_mutex);
-        pthread_cond_wait(&wt->cond, &api_mutex); */
+        pthread_rwlock_unlock(&_nvim_wait_list->lock);
+        return NULL;
+}
 
-        /* p99_futex_wakeup(&event_loop_futex, 1u, 1u);
-        p99_futex_wait(&wt->fut); */
+/**
+ * If I tried to explain how many hours and attempts it took to write what
+ * became this function I would probably be locked in a mental instatution. For
+ * reference, at one point this funcion was over 100 lines long.
+ */
+mpack_obj *
+await_package(const int fd, const int count, UNUSED const nvim_message_type mtype)
+{
+        mpack_obj *ret = NULL;
 
-        p99_futex_wakeup(&event_loop_futex, 1u, 1u);
+        for (;;) {
+                if ((ret = check_queue(fd, count)))
+                        break;
 
-        const unsigned expected = NVIM_GET_FUTEX_EXPECT(fd, count);
+                P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
+                                           value == 1u, /* Unlock when the value is 1 */
+                                           value,       /* Don't change the value. */
+                                           0, 0);
+        }
 
-        /* eprintf("Waiting for 0x%08X in await_package\n", expected); */
-        P99_FUTEX_COMPARE_EXCHANGE(&wt->fut,
-                                   val,
-                                   val == expected,
-                                   val,
-                                   0u, 0u);
-        /* p99_futex_wait(&wt->fut); */
-
-        if (!wt->obj)
-                errx(1, "Thread %u signalled with invalid object: aborting.",
-                     (unsigned)pthread_self());
-
-        const enum message_types mestype = m_expect(m_index(wt->obj, 0), E_NUM, false).num;
-
-        if (mestype != MES_RESPONSE)
-                errx(1, "Thread %u signalled object of incorrect type (%s vs %s): aborting.",
-                     (unsigned)pthread_self(), m_message_type_repr[mestype],
-                     m_message_type_repr[MES_RESPONSE]);
-
-        mpack_obj *ret = wt->obj;
-
-        genlist_remove(wait_list, wt);
-        /* pthread_mutex_unlock(&api_mutex); */
         return ret;
 }
 
 mpack_obj *
 generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
 {
-        /* pthread_mutex_lock(&mpack_main_mutex); */
         CHECK_DEF_FD(*fd);
         mpack_obj *pack;
         const int  count = INC_COUNT(*fd);
 
         if (fmt) {
-                va_list        ap;
                 const unsigned size = fmt->slen + 16u;
-                char *         buf  = alloca(size);
+                va_list        ap;
+                /* Skrew it, despite early efforts to the contrary, this will never
+                 * compile with anything but gcc/clang. No reason not to use VLAs. */
+                char           buf[size];
                 snprintf(buf, size, "[d,d,s:[!%s]]", BS(fmt));
 
                 va_start(ap, fmt);
@@ -92,11 +86,8 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
         }
 
         write_and_clean(*fd, pack, fn);
-
-        /* mpack_obj *result = decode_stream(*fd, MES_RESPONSE); */
         mpack_obj *result = await_package(*fd, count, MES_RESPONSE);
         mpack_print_object(mpack_log, result);
-        /* pthread_mutex_unlock(&mpack_main_mutex); */
         return result;
 }
 
@@ -107,7 +98,6 @@ get_notification(int fd)
 {
         /* No mutex to lock here. */
         CHECK_DEF_FD(fd);
-        /* mpack_obj *result = decode_stream(fd, MES_NOTIFICATION); */
         mpack_obj *result = await_package(fd, (-1), MES_NOTIFICATION);
         bstring   *ret    = b_strcpy(result->DAI[1]->data.str);
         PRINT_AND_DESTROY(result);

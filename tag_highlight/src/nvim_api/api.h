@@ -17,17 +17,20 @@
 extern "C" {
 #endif
 
-extern genlist *wait_list;
-
-enum filetype_id {
+enum nvim_filetype_id {
         FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
         FT_JAVASCRIPT, FT_LISP, FT_PERL, FT_PHP, FT_PYTHON,
         FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
 };
-enum message_types   { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
-enum nvim_write_type { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
+enum nvim_message_type    { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
+enum nvim_write_type      { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
 enum nvim_connection_type { NVIM_STDOUT, NVIM_SOCKET, NVIM_FILE };
 
+#ifndef __cplusplus
+typedef enum   nvim_message_type    nvim_message_type;
+typedef enum   nvim_filetype_id     nvim_filetype_id;
+typedef enum   nvim_connection_type nvim_connection_type;
+#endif
 typedef struct atomic_call_array nvim_call_array;
 typedef union  atomic_call_args  nvim_call_arg;
 
@@ -46,11 +49,10 @@ struct atomic_call_array {
 };
 
 struct nvim_wait {
-        enum message_types mtype;
-        int16_t            fd;
-        int32_t            count;
-        p99_futex          fut;
-        mpack_obj         *obj;
+        int32_t             fd;
+        int32_t             count;
+        volatile p99_futex *fut;
+        mpack_obj          *obj;
 };
 
 
