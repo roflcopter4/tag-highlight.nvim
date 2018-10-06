@@ -78,7 +78,6 @@ typedef struct generic_list {
         void **  lst;
         unsigned qty;
         unsigned mlen;
-        /* pthread_mutex_t mut; */
         pthread_rwlock_t lock;
 } genlist;
 

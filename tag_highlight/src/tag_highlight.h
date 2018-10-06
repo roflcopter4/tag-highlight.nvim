@@ -124,13 +124,13 @@ struct backups {
                 pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
         } while (0)
 
-#define START_DETACHED_PTHREAD(FUNC_, DATA_)                                   \
+#define START_DETACHED_PTHREAD(...)                                   \
         do {                                                                   \
                 pthread_t      __th;                                           \
                 pthread_attr_t _attr_;                                         \
                 pthread_attr_init(&_attr_);                                    \
                 pthread_attr_setdetachstate(&_attr_, PTHREAD_CREATE_DETACHED); \
-                pthread_create(&__th, &_attr_, (FUNC_), (DATA_));              \
+                pthread_create(&__th, &_attr_, __VA_ARGS__);              \
         } while (0)
 
 #define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))

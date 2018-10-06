@@ -69,5 +69,5 @@ libclang_waiter(void)
                 }
         }
 
-        pthread_exit(NULL);
+        pthread_exit();
 }

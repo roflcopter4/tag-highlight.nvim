@@ -11,6 +11,9 @@
 /* #include "p99/p99_new.h" */
 /* #include "p99/p99_try.h" */
 
+#define pthread_create(...) P99_CALL_DEFARG(pthread_create, 4, __VA_ARGS__)
+#define pthread_create_defarg_3() NULL
+
 #define pthread_exit(...) P99_CALL_DEFARG(pthread_exit, 1, __VA_ARGS__)
 #define pthread_exit_defarg_0() NULL
 

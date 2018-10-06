@@ -71,6 +71,9 @@ struct bufdata {
         uint8_t  hl_id;
         bool     initialized;
 
+        pthread_mutex_t  mut;
+        pthread_rwlock_t lock;
+
         struct {
                 bstring *full;
                 bstring *base;
@@ -132,11 +135,7 @@ extern const size_t ftdata_len;
 /*===========================================================================*/
 /* Functions */
 
-extern bool have_seen_file(const bstring *filename);
-
-/*---------------------------------------------------------------------------*/
-/* Buffers */
-
+extern bool            have_seen_file   (const bstring *filename);
 extern bool            new_buffer       (int fd, int bufnum);
 extern int             find_buffer_ind  (int bufnum);
 extern bool            is_bad_buffer    (int bufnum);
@@ -150,7 +149,7 @@ extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 
 /*---------------------------------------------------------------------------*/
 /* Events */
-extern void             handle_unexpected_notification(mpack_obj *note);
+extern void handle_unexpected_notification(mpack_obj *note);
 
 /*---------------------------------------------------------------------------*/
 /* Archives */

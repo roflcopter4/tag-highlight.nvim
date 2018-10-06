@@ -18,6 +18,13 @@
 #  define KILL_SIG SIGUSR1
 #endif
 
+#ifdef __clang__
+#  ifdef atomic_fetch_add
+#    undef atomic_fetch_add
+#    define atomic_fetch_add(object, operand) __c11_atomic_fetch_add(object, operand, __ATOMIC_SEQ_CST)
+#  endif
+#endif
+
 /*======================================================================================*/
 
 extern void          update_line         (struct bufdata *, int, int);
@@ -25,7 +32,7 @@ static void          handle_line_event   (struct bufdata *bdata, mpack_obj **ite
 ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
 ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
 static noreturn void event_loop          (void);
-static void          interrupt_call      (int val);
+static void          vimscript_interrupt (int val);
 static void         *handle_nvim_event   (void *vdata);
 static void          post_nvim_response  (int fd, mpack_obj *obj);
 
@@ -65,14 +72,15 @@ do_launch_event_loop(UNUSED void *notused)
 void
 launch_event_loop(void)
 {
-        START_DETACHED_PTHREAD(do_launch_event_loop, NULL);
+        START_DETACHED_PTHREAD(do_launch_event_loop);
 }
 
 static noreturn void
 event_loop(void)
 {
+        /* In theory this function could wait for updates on any file descriptor. */
+        static const    int         fd      = 1;
         static volatile atomic_uint counter = ATOMIC_VAR_INIT(0);
-        const int fd = 1;
 
         for (;;) {
                 /* 
@@ -80,10 +88,11 @@ event_loop(void)
                  */
                 mpack_obj *obj = decode_stream(fd);
                 if (!obj)
-                        errx(1, "Got NULL object from decoder. This should not ever be "
+                        errx(1, "Got NULL object from decoder. This should never be "
                                 "possible. Cannot continue; aborting.");
 
-                Auto const mtype = (nvim_message_type)m_expect(m_index(obj, 0), E_NUM).num;
+                const nvim_message_type mtype = (nvim_message_type)
+                                                m_expect(m_index(obj, 0), E_NUM).num;
 
                 switch (mtype) {
                 case MES_NOTIFICATION: {
@@ -109,29 +118,35 @@ post_nvim_response(const int fd, mpack_obj *obj)
 {
         extern          genlist   *_nvim_wait_list;
         extern volatile p99_futex  _nvim_wait_futex;
-               volatile p99_futex  fut = P99_FUTEX_INITIALIZER(0);
 
-        struct nvim_wait *wt = xmalloc(sizeof *wt);
-        *wt = (struct nvim_wait){
-                .fd    = fd,
-                .count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num,
-                .fut   = &fut,
-                .obj   = obj
-        };
+        const uint32_t    count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
+        struct nvim_wait *wt    = xmalloc(sizeof *wt);
+        *wt                     = (struct nvim_wait){ fd, count, obj };
 
-        genlist_append(_nvim_wait_list, wt); /* << genlist contains an integral rw lock */
+        genlist_append(_nvim_wait_list, wt); /* genlist contains an integral rwlock */
 
         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
-                true, 1u, /* Never lock and set value to 1 */
+                /* Never lock and increment the value */
+                true, value + 1u,
                 /* Wake at least one waiter (and anyone else waiting too). If nobody is
                  * waiting at the time, this will cause a "busy" lock which will
-                 * constantly check to see if a waiter is available until one is. */
+                 * constantly re-check whether a waiter is available (ie 100% CPU usage).
+                 * This should be a problem because we should only get here in the brief
+                 * gap between a thread writing a request and waiting for a response. */
                 1u, P99_FUTEX_MAX_WAITERS
         );
+
+#if 0
+        /* The thread that wrote the request should now look for and find the response, at
+         * which time it will set the value of the futex back to 0. Any other threads
+         * woken earlier will not find their data and won't do anything. We will lock
+         * until this is completed. FIXME This is probably pointless. */
         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
                 value == 0, /* Lock until value is set back to 0 */
                 value, 0, 0 /* Don't change value or wake anything */
         );
+#endif
+
 }
 
 /*======================================================================================*/
@@ -173,7 +188,7 @@ handle_nvim_event(void *vdata)
         const struct event_id *type = id_event(event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                interrupt_call(arr->items[0]->data.str->data[0]);
+                vimscript_interrupt(arr->items[0]->data.str->data[0]);
         } else {
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
@@ -341,13 +356,13 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
 
 /*======================================================================================*/
 
-/* 
+/**
  * Handle an update from the small vimscript plugin. Updates are recieved upon
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
  * response to the user calling the provided clear command.
  */
 static void
-interrupt_call(const int val)
+vimscript_interrupt(const int val)
 {
         struct timer t;
         static int   bufnum = (-1);
@@ -358,7 +373,7 @@ interrupt_call(const int val)
         /*
          * New buffer was opened or current buffer changed.
          */
-        case 'A':  /* FIXME Fix these damn letters, they've gotten totally out of order. */
+        case 'A':  /* FIXME These damn letters have gotten totally out of order. */
         case 'D': {
                 const int prev = bufnum;
                 TIMER_START_BAR(t);

@@ -7,9 +7,6 @@
 #include "p99/p99_cm.h"
 #include "p99/p99_futex.h"
 
-#define p99_futex_wakeup(...) P99_CALL_DEFARG(p99_futex_wakeup, 3, __VA_ARGS__)
-#define p99_futex_wakeup_defarg_2() (P99_FUTEX_MAX_WAITERS)
-
 extern          genlist         *_nvim_wait_list;
 extern volatile p99_futex        _nvim_wait_futex;
        volatile p99_futex        _nvim_wait_futex = P99_FUTEX_INITIALIZER(0);
@@ -28,10 +25,9 @@ check_queue(const int fd, const int count)
                         pthread_rwlock_unlock(&_nvim_wait_list->lock);
                         genlist_remove(_nvim_wait_list, wt);
                         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
-                                                   true, /* Never lock */
-                                                   0,    /* Set value to 0 */
-                                                   1u,   /* Wake up at least one waiter */
-                                                   P99_FUTEX_MAX_WAITERS);
+                                /* Never lock, decrement value, wake nobody */
+                                true, value - 1, 0, 0
+                        );
                         return ret;
                 }
         }
@@ -50,14 +46,13 @@ await_package(const int fd, const int count, UNUSED const nvim_message_type mtyp
 {
         mpack_obj *ret = NULL;
 
-        for (;;) {
-                if ((ret = check_queue(fd, count)))
-                        break;
-
+        while (!ret) {
                 P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
-                                           value == 1u, /* Unlock when the value is 1 */
-                                           value,       /* Don't change the value. */
-                                           0, 0);
+                        value > 0,  /* Unlock when the value is not 0 */
+                        value, 0, 0 /* Don't change the value or wake anyone */
+                );
+
+                ret = check_queue(fd, count);
         }
 
         return ret;
@@ -71,10 +66,10 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
         const int  count = INC_COUNT(*fd);
 
         if (fmt) {
-                const unsigned size = fmt->slen + 16u;
-                va_list        ap;
                 /* Skrew it, despite early efforts to the contrary, this will never
                  * compile with anything but gcc/clang. No reason not to use VLAs. */
+                const unsigned size = fmt->slen + 16u;
+                va_list        ap;
                 char           buf[size];
                 snprintf(buf, size, "[d,d,s:[!%s]]", BS(fmt));
 
@@ -96,7 +91,6 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
 bstring *
 get_notification(int fd)
 {
-        /* No mutex to lock here. */
         CHECK_DEF_FD(fd);
         mpack_obj *result = await_package(fd, (-1), MES_NOTIFICATION);
         bstring   *ret    = b_strcpy(result->DAI[1]->data.str);

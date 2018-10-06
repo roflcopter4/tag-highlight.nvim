@@ -13,36 +13,24 @@
 #  define SEPCHAR ':'
 #endif
 
-/* #define LOG_NEOTAGS */
 #define LOG(...)
 #define REQUIRED_INPUT 9
 #define b_iseql(BSTR, LIT)          (b_iseq((BSTR), b_tmp(LIT)))
 #define b_iseql_caseless(BSTR, LIT) (b_iseq_caseless((BSTR), b_tmp(LIT)))
 
 static bool is_c_or_cpp;
-#ifdef DEBUG
-/* static FILE *thislog; */
-#endif
 
-static struct taglist * tok_search   (const struct bufdata *bdata, b_list *vimbuf);
-static void *           do_tok_search(void *vdata);
+static struct taglist *tok_search   (const struct bufdata *bdata, b_list *vimbuf);
+static void           *do_tok_search(void *vdata);
 
 
 struct taglist *
 process_tags(struct bufdata *bdata, b_list *toks)
 {
-/* #ifdef DEBUG
-        thislog     = safe_fopen_fmt("%s/.tag_highlight_log/rejectlog.log", "wb", HOME);
-#endif */
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
-
         struct taglist *list = tok_search(bdata, toks);
         if (!list)
                 return NULL;
-
-/* #ifdef DEBUG
-        fclose(thislog);
-#endif */
         return list;
 
 }
@@ -122,7 +110,6 @@ skip_tag(const b_list *skip, const bstring *find)
                 for (unsigned i = 0; i < skip->qty; ++i)
                         if (b_iseq(skip->lst[i], find))
                                 return true;
-
         return false;
 }
 
@@ -158,8 +145,6 @@ remove_duplicate_tags(struct taglist **taglist_p)
                 to_free->lst[i] = NULL;
         }
 
-        /* xfree(to_free->lst);
-        xfree(to_free); */
         xfree(list->lst);
         xfree(list);
         *taglist_p = repl;
@@ -187,10 +172,6 @@ struct pdata {
 static struct taglist *
 tok_search(const struct bufdata *bdata, b_list *vimbuf)
 {
-        /* if (!bdata || !bdata->topdir || !vimbuf || vimbuf->qty == 0) {
-                warnx("error");
-                return NULL;
-        } */
         if (!bdata)
                 errx(1, "NEOTAGS ERROR: bdata is null\n");
         if (!bdata->topdir)

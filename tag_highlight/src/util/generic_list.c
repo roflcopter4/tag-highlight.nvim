@@ -34,6 +34,22 @@ snapUpSize(unsigned i)
 
 /* static pthread_mutex_t sl->mut = PTHREAD_MUTEX_INITIALIZER; */
 
+#define RWLOCK_LOCK(GENLIST)                                   \
+        __extension__({                                        \
+                genlist * list_ = (GENLIST);                   \
+                pthread_t self_ = pthread_self();              \
+                if (!pthread_equal(self_, list_->whodunnit)) { \
+                        pthread_rwlock_wrlock(&list_->lock);   \
+                        list_->whodunnit = self_;              \
+                }                                              \
+        })
+#define RWLOCK_UNLOCK(GENLIST)                      \
+        __extension__({                             \
+                genlist *list_ = (GENLIST);         \
+                pthread_rwlock_unlock(&list_->lock); \
+                list_->whodunnit = 0;               \
+        })
+        
 genlist *
 genlist_create(void)
 {
@@ -45,7 +61,10 @@ genlist_create(void)
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&sl->mut, &attr); */
-        pthread_rwlock_init(&sl->lock);
+        pthread_rwlockattr_t attr;
+        pthread_rwlockattr_init(&attr);
+        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
+        pthread_rwlock_init(&sl->lock, &attr);
 
         return sl;
 }
@@ -62,7 +81,10 @@ genlist_create_alloc(const unsigned msz)
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&sl->mut, &attr); */
-        pthread_rwlock_init(&sl->lock);
+        pthread_rwlockattr_t attr;
+        pthread_rwlockattr_init(&attr);
+        pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
+        pthread_rwlock_init(&sl->lock, &attr);
 
         return sl;
 }
@@ -156,18 +178,25 @@ genlist_remove(genlist *list, const void *obj)
 {
         if (!list || !list->lst || !obj)
                 RUNTIME_ERROR();
+        int ret = (-1);
         pthread_rwlock_wrlock(&list->lock);
 
         for (unsigned i = 0; i < list->qty; ++i) {
                 if (list->lst[i] == obj) {
-                        pthread_rwlock_unlock(&list->lock);
-                        genlist_remove_index(list, i);
-                        return 0;
+                        xfree(list->lst[i]);
+                        list->lst[i] = NULL;
+
+                        if (i == list->qty - 1)
+                                --list->qty;
+                        else
+                                list->lst[i] = list->lst[--list->qty];
+                        ret = 0;
+                        break;
                 }
         }
 
         pthread_rwlock_unlock(&list->lock);
-        return (-1);
+        return ret;
 }
 
 int
@@ -185,7 +214,6 @@ genlist_remove_index(genlist *list, const unsigned index)
         else
                 list->lst[index] = list->lst[--list->qty];
 
-        /* memmove(list->lst + index, list->lst + index + 1, --list->qty - index); */
         pthread_rwlock_unlock(&list->lock);
         return 0;
 }

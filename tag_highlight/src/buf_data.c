@@ -84,6 +84,12 @@ bool
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(fd, bdata->ft);
 
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&bdata->mut, &attr);
+        pthread_rwlock_init(&bdata->lock);
+
         buffers.lst[buffers.mkr] = bdata;
         NEXT_MKR(buffers);
 

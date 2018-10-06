@@ -16,8 +16,8 @@
 #  define PAUSE() do fsleep(1000000.0); while (1)
 #endif
 
-#define SIGHANDLER_EXIT_QUICKLY  (1)
-#define SIGHANDLER_EXIT_NORMALLY (2)
+#define SIGHANDLER_QUICK  (1)
+#define SIGHANDLER_NORMAL (2)
 
 static const double      WAIT_TIME = 3.0;
 static jmp_buf           main_buf;
@@ -31,7 +31,7 @@ static void          open_logs(void);
 static void          exit_cleanup(void);
 static void          quick_cleanup(void);
 static comp_type_t   get_compression_type(int fd);
-static noreturn void controlled_exit(UNUSED int notused);
+static void          controlled_exit(UNUSED int notused);
 static noreturn void sig_handler(UNUSED int notused);
 
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
@@ -79,7 +79,7 @@ main(UNUSED int argc, char *argv[])
         update_highlight(bdata);
 
         TIMER_REPORT(main_timer, "main initialization");
-        /* launch_libclang_waiter(); */
+        launch_libclang_waiter();
 
         atexit(exit_cleanup);
         at_quick_exit(quick_cleanup);
@@ -92,15 +92,17 @@ main(UNUSED int argc, char *argv[])
         case 0:
                 PAUSE();
                 break;
-        case SIGHANDLER_EXIT_QUICKLY:
+        case SIGHANDLER_QUICK:
                 /* When the user closes the editor, exit as quickly as possible.
                  * Any holdup freezes Neovim, which is very annoying. */
                 quick_exit(0);
-        case SIGHANDLER_EXIT_NORMALLY:
+        case SIGHANDLER_NORMAL:
                 exit(0);
         default:
                 abort();
         }
+
+        exit(0);
 }
 
 static void
@@ -294,18 +296,22 @@ static comp_type_t
 
 /*======================================================================================*/
 
-static noreturn void
+static void
 controlled_exit(UNUSED int notused)
 {
+        /* if (pthread_equal(top_thread, pthread_self()))
+                longjmp(main_buf, SIGHANDLER_NORMAL); */
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, SIGHANDLER_EXIT_NORMALLY);
+                return;
         pthread_exit();
 }
 
 static noreturn void
 sig_handler(UNUSED int notused)
 {
+        /* if (pthread_equal(top_thread, pthread_self()))
+                longjmp(main_buf, SIGHANDLER_QUICK); */
         if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, SIGHANDLER_EXIT_QUICKLY);
+                quick_exit(0);
         pthread_exit();
 }

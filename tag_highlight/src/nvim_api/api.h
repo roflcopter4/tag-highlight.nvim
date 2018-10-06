@@ -51,7 +51,6 @@ struct atomic_call_array {
 struct nvim_wait {
         int32_t             fd;
         int32_t             count;
-        volatile p99_futex *fut;
         mpack_obj          *obj;
 };
 

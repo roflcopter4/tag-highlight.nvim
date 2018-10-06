@@ -6,9 +6,12 @@
 #include "intern.h"
 #include "nvim_api/api.h"
 #include "util/find.h"
-#include <spawn.h>
 #include <sys/stat.h>
-#include <wait.h>
+
+#if defined(HAVE_POSIX_SPAWNP)
+#  include <spawn.h>
+#  include <wait.h>
+#endif
 
 #if 0
 #define TUFLAGS                                          \
@@ -74,10 +77,10 @@ void
 {
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
-        static pthread_mutex_t  mut = PTHREAD_MUTEX_INITIALIZER;
+        /* static pthread_mutex_t  mut = PTHREAD_MUTEX_INITIALIZER; */
         /* struct timer t; */
         struct translationunit *stu;
-        pthread_mutex_lock(&mut);
+        pthread_mutex_lock(&bdata->mut);
 
         TIMER_START(t);
 
@@ -111,7 +114,7 @@ void
         destroy_struct_translationunit(stu);
 
         TIMER_REPORT(t, "Other clang ops");
-        pthread_mutex_unlock(&mut);
+        pthread_mutex_unlock(&bdata->mut);
 
 }
 
