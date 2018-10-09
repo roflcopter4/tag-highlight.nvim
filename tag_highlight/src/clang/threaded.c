@@ -2,8 +2,10 @@
 
 #include "clang.h"
 #include "data.h"
+#include "highlight.h"
 #include "intern.h"
 #include "mpack/mpack.h"
+#include "my_p99_common.h"
 
 static pthread_once_t libclang_waiter_once = PTHREAD_ONCE_INIT;
 
@@ -65,6 +67,8 @@ libclang_waiter(void)
                 unsigned ctick = nvim_buf_get_changedtick(,bufnum);
                 if (ctick != last_ctick) {
                         last_ctick = ctick;
+                        /* nvim_buf_clear_highlight(,bdata->num); */
+                        /* clear_highlight(bdata); */
                         libclang_highlight(bdata);
                 }
         }

@@ -53,7 +53,8 @@ type_id(struct bufdata         *bdata,
         const b_list           *enumerators,
         struct cmd_info        *info,
         UNUSED const int               line,
-        UNUSED const int               end)
+        UNUSED const int               end,
+        const bool clear_first)
 {
         nvim_call_array *calls = new_call_array();
 
@@ -63,6 +64,8 @@ type_id(struct bufdata         *bdata,
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
+        else
+                add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
         /* add_clr_call(calls, bdata->num, bdata->hl_id, line, end); */
 
@@ -96,10 +99,12 @@ static void do_typeswitch(struct bufdata           *bdata,
         /* int            ctagskind = 0; */
         CXCursor       cursor    = tok->cursor;
 
+#if 0
         if (lastline != tok->line) {
                 add_clr_call(calls, bdata->num, (-1), tok->line, tok->line + 1);
                 lastline = tok->line;
         }
+#endif
 
 lazy_sonovabitch:
         switch (cursor.kind) {

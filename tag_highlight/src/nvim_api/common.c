@@ -26,8 +26,13 @@ check_queue(const int fd, const int count)
                         genlist_remove(_nvim_wait_list, wt);
                         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
                                 /* Never lock, decrement value, wake nobody */
-                                true, value - 1, 0, 0
+                                   true, (value - 1), 0, 0
                         );
+
+                        /* extern pthread_cond_t event_cond; */
+                        /* pthread_cond_signal(&event_cond); */
+                        extern volatile p99_futex event_futex;
+                        p99_futex_wakeup(&event_futex, 1u, 1u);
                         return ret;
                 }
         }

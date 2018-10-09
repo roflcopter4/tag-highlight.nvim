@@ -87,6 +87,7 @@ main(UNUSED int argc, char *argv[])
         /* Normally the main thread sits tight and waits for something to kill
          * it via signal. In those cases, leave quickly. Taking time to clean up
          * makes the editor freeze until we finish, which is very annoying. */
+#if 0
         int jmp_ret = setjmp(main_buf);
         switch (jmp_ret) {
         case 0:
@@ -101,6 +102,8 @@ main(UNUSED int argc, char *argv[])
         default:
                 abort();
         }
+#endif
+        PAUSE();
 
         exit(0);
 }

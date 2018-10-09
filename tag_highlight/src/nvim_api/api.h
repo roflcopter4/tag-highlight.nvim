@@ -130,6 +130,8 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 #define nvim_buf_attach_defarg_0() (0)
 #define nvim_buf_clear_highlight(...) P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
 #define nvim_buf_clear_highlight_defarg_0() (0)
+/* #define nvim_buf_clear_highlight_defarg_1() nvim_get_current_buf()
+#define nvim_buf_clear_highlight_defarg_2() nvim_get_current_buf() */
 #define nvim_buf_get_changedtick(...) P99_CALL_DEFARG(nvim_buf_get_changedtick, 2, __VA_ARGS__)
 #define nvim_buf_get_changedtick_defarg_0() (0)
 #define nvim_buf_get_lines(...) P99_CALL_DEFARG(nvim_buf_get_lines, 4, __VA_ARGS__)

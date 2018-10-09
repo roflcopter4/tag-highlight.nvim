@@ -108,7 +108,7 @@ void
         tokenize_range(stu, &file, startend[0], startend[1]);
 
         nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators,
-                                         CLD(bdata)->info, first, last);
+                                         CLD(bdata)->info, first, last, force);
         nvim_call_atomic(,calls);
         destroy_call_array(calls);
         destroy_struct_translationunit(stu);

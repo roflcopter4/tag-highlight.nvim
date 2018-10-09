@@ -76,7 +76,8 @@ INTERN nvim_call_array *type_id(struct bufdata         *bdata,
                                 const b_list           *enumerators,
                                 struct cmd_info        *info,
                                 const int               line,
-                                const int               end);
+                                const int               end,
+                                const bool              clear_first);
 
 INTERN void              tokvisitor(struct token *tok);
 INTERN IndexerCallbacks *make_cb_struct(void);

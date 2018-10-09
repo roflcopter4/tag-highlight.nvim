@@ -39,8 +39,10 @@ static void          post_nvim_response  (int fd, mpack_obj *obj);
 extern FILE *main_log, *api_buffer_log;
        FILE *api_buffer_log;
 
-extern pthread_mutex_t update_mutex;
-static pthread_once_t  event_loop_once_control = PTHREAD_ONCE_INIT;
+static pthread_once_t     event_loop_once_control = PTHREAD_ONCE_INIT;
+extern pthread_mutex_t    update_mutex;
+extern volatile p99_futex event_futex;
+       volatile p99_futex event_futex = P99_FUTEX_INITIALIZER(0);
 
 struct line_event_data {
         mpack_obj *obj;
@@ -96,7 +98,7 @@ event_loop(void)
 
                 switch (mtype) {
                 case MES_NOTIFICATION: {
-                        struct line_event_data *data = xmalloc(sizeof(*data));
+                        struct line_event_data *data = xmalloc(sizeof *data);
                         data->obj = obj;
                         data->val = atomic_fetch_add(&counter, 1u);
                         START_DETACHED_PTHREAD((void *(*)(void *))handle_nvim_event, data);
@@ -121,46 +123,24 @@ post_nvim_response(const int fd, mpack_obj *obj)
 
         const uint32_t    count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
         struct nvim_wait *wt    = xmalloc(sizeof *wt);
-        *wt                     = (struct nvim_wait){ fd, count, obj };
+        *wt                     = (struct nvim_wait){fd, count, obj};
 
         genlist_append(_nvim_wait_list, wt); /* genlist contains an integral rwlock */
 
         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
                 /* Never lock and increment the value */
-                true, value + 1u,
-                /* Wake at least one waiter (and anyone else waiting too). If nobody is
-                 * waiting at the time, this will cause a "busy" lock which will
-                 * constantly re-check whether a waiter is available (ie 100% CPU usage).
-                 * This should be a problem because we should only get here in the brief
-                 * gap between a thread writing a request and waiting for a response. */
-                1u, P99_FUTEX_MAX_WAITERS
+                true, (value + 1u),
+                /* Wake up anyone currently waiting */
+                0, P99_FUTEX_MAX_WAITERS
         );
 
-#if 0
-        /* The thread that wrote the request should now look for and find the response, at
-         * which time it will set the value of the futex back to 0. Any other threads
-         * woken earlier will not find their data and won't do anything. We will lock
-         * until this is completed. FIXME This is probably pointless. */
-        P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
-                value == 0, /* Lock until value is set back to 0 */
-                value, 0, 0 /* Don't change value or wake anything */
-        );
-#endif
-
+        /* Wait for the receiving thread to acknowledge receipt of the data. */
+        p99_futex_wait(&event_futex);
 }
 
 /*======================================================================================*/
 /* Event Handlers */
 /*======================================================================================*/
-
-#if defined(DEBUG) && !defined(DOSISH)
-__attribute__((__constructor__, __used__)) static void
-openbufferlog(void)
-{
-        api_buffer_log = safe_fopen_fmt("%s/.tag_highlight_log/buf.log",
-                                        "wb", getenv("HOME"));
-}
-#endif
 
 static void *
 handle_nvim_event(void *vdata)
@@ -275,7 +255,8 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
                          */
                         ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, -1);
                 } else {
-                        /* The most common scenario: we recieved at least one string,
+                        /*
+                         * The most common scenario: we recieved at least one string,
                          * which may be an empty string only if the buffer is not empty.
                          * Moved to a helper function for clarity..
                          */
@@ -304,7 +285,8 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
         xfree(repl_list->lst);
         xfree(repl_list);
         pthread_mutex_unlock(&update_mutex);
-        START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
+        if (bdata->ft->is_c)
+                START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
 }
 
 static inline void
