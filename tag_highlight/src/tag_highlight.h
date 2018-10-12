@@ -4,6 +4,7 @@
 extern "C" {
 #endif
 /*===========================================================================*/
+#define NULL ((void *)0)
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -236,8 +237,10 @@ noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 
 #define err(EVAL, ...)  err_((EVAL), true, __VA_ARGS__)
 #define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
-#define warn(...)       warn_(true, __VA_ARGS__)
-#define warnx(...)      warn_(false, __VA_ARGS__)
+/* #define warn(...)       warn_(true, __VA_ARGS__) */
+/* #define warnx(...)      warn_(false, __VA_ARGS__) */
+#define warn  eprintf
+#define warnx eprintf
 
 #define Errx(...) \
         err_(1, false, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
@@ -307,9 +310,9 @@ xreallocarray(void *ptr, size_t num, size_t size)
 #define xfree(PTR) free(PTR)
 
 #define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#define b_list_dump_nvim(LST_) __b_list_dump_nvim((LST_), #LST_)
 
-extern void __b_list_dump_nvim(const b_list *list, const char *listname);
+/* extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, uint32_t flags);
+#define get_pcre2_matches(b1, b2) (get_pcre2_matches)(B(b1), B(b2), 0) */
 
 /*===========================================================================*/
 #ifdef __cplusplus

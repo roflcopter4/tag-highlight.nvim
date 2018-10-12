@@ -356,7 +356,7 @@ handle_cstyle(bstring **vim_bufp)
         *vim_bufp = b_list_join(list, NULL);
 
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
-        b_fputs(fp, *vim_bufp);
+        b_fwrite(fp, *vim_bufp);
         fclose(fp);
 
         b_list_destroy(list);

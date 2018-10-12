@@ -22,11 +22,13 @@ static noreturn void *do_launch_libclang_waiter(UNUSED void *notused);
 void *
 libclang_threaded_highlight(void *vdata)
 {
-        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+        /* static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
         if (pthread_mutex_trylock(&mut) == EBUSY)
-                pthread_exit(NULL);
+                pthread_exit(NULL); */
+        /* pthread_mutex_unlock(&mut); */
+
+        /* update_highlight((struct bufdata *)vdata); */
         libclang_highlight((struct bufdata *)vdata);
-        pthread_mutex_unlock(&mut);
         pthread_exit(NULL);
 }
 
@@ -50,27 +52,29 @@ libclang_waiter(void)
         int      last_bufnum = nvim_get_current_buf();
         unsigned last_ctick  = nvim_buf_get_changedtick(,last_bufnum);
 
-        for (;;fsleep(0.8)) {
+        for (;;fsleep(0.4)) {
                 const int       bufnum = nvim_get_current_buf();
                 struct bufdata *bdata  = find_buffer(bufnum);
 
                 if (!bdata || !bdata->ft->is_c) {
-                        fsleep(1.0);
+                        fsleep(2.0);
                         continue;
                 }
-                if (last_bufnum != bufnum) {
+                /* if (last_bufnum != bufnum) {
                         last_bufnum = bufnum;
                         last_ctick  = 0;
                         continue;
-                }
+                } */
 
-                unsigned ctick = nvim_buf_get_changedtick(,bufnum);
-                if (ctick != last_ctick) {
-                        last_ctick = ctick;
+                /* unsigned ctick = nvim_buf_get_changedtick(,bufnum); */
+                /* unsigned ctick = bdata->ctick; */
+                /* if (ctick != last_ctick) {     */
+                /*         last_ctick = ctick;    */
                         /* nvim_buf_clear_highlight(,bdata->num); */
                         /* clear_highlight(bdata); */
-                        libclang_highlight(bdata);
-                }
+                libclang_highlight(bdata, 0, -1, false);
+                /* } */
+                /* update_highlight(bdata); */
         }
 
         pthread_exit();

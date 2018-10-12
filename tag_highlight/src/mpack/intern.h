@@ -20,18 +20,6 @@ enum m_types {
         M_EXT_F4,
 };
 
-#if 0
-#define MPACK_UNINITIALIZED	/* 0b00000000 */ 0
-#define MPACK_BOOL		/* 0b00000001 */ 1
-#define MPACK_NIL		/* 0b00000010 */ 2
-#define MPACK_NUM		/* 0b00000011 */ 3
-#define MPACK_EXT		/* 0b00000100 */ 4
-#define MPACK_STRING		/* 0b00000101 */ 5
-#define MPACK_ARRAY		/* 0b00000110 */ 6
-#define MPACK_DICT		/* 0b00000111 */ 7
-#endif
-
-
 #define M_MASK_NIL       0xC0u                                                           
 #define M_MASK_TRUE      0xC3u                                                           
 #define M_MASK_FALSE     0xC2u                                                         
@@ -64,17 +52,21 @@ enum m_types {
 
 #define M_ARRAY_F_MAX 15u
 
-struct mpack_masks {
+#ifndef __cplusplus
+typedef struct mpack_mask mpack_mask;
+#endif
+
+struct mpack_mask {
         const enum m_groups group;
-        const enum m_types type;
-        const bool fixed;
-        const uint8_t val;
-        const uint8_t shift;
-        const char *const repr;
+        const enum m_types  type;
+        const bool          fixed;
+        const uint8_t       val;
+        const uint8_t       shift;
+        const char *const   repr;
 };
 
-extern const struct mpack_masks m_masks[];
-extern const size_t m_masks_len;
+extern const mpack_mask m_masks[];
+extern const size_t      m_masks_len;
 
 
 #ifdef __cplusplus

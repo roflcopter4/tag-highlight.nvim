@@ -18,12 +18,12 @@
 
 #define SIGHANDLER_QUICK  (1)
 #define SIGHANDLER_NORMAL (2)
+#define WAIT_TIME         (3.0)
 
-static const double      WAIT_TIME = 3.0;
-static jmp_buf           main_buf;
-extern FILE             *cmd_log, *echo_log, *main_log;
-extern pthread_t         top_thread;
-pthread_t                top_thread;
+extern FILE      *cmd_log, *echo_log, *main_log;
+extern pthread_t  top_thread;
+pthread_t         top_thread;
+char LOGDIR[PATH_MAX+1];
 
 static void          platform_init(char **argv);
 static void          get_settings(void);
@@ -41,8 +41,9 @@ static noreturn void sig_handler(UNUSED int notused);
 
 /*======================================================================================*/
 
-/* extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, uint32_t flags);
-#define get_pcre2_matches(b1, b2) (get_pcre2_matches)(B(b1), B(b2), 0) */
+#if 0
+#include "lang/golang/src/tag_highlight/tag_highlight.h"
+#endif
 
 int
 main(UNUSED int argc, char *argv[])
@@ -79,32 +80,13 @@ main(UNUSED int argc, char *argv[])
         update_highlight(bdata);
 
         TIMER_REPORT(main_timer, "main initialization");
-        launch_libclang_waiter();
-
-        atexit(exit_cleanup);
+        nvim_set_client_info(,B("tag_highlight"), 0, 1, B("alpha"));
         at_quick_exit(quick_cleanup);
+        atexit(exit_cleanup);
+        /* launch_libclang_waiter(); */
 
-        /* Normally the main thread sits tight and waits for something to kill
-         * it via signal. In those cases, leave quickly. Taking time to clean up
-         * makes the editor freeze until we finish, which is very annoying. */
-#if 0
-        int jmp_ret = setjmp(main_buf);
-        switch (jmp_ret) {
-        case 0:
-                PAUSE();
-                break;
-        case SIGHANDLER_QUICK:
-                /* When the user closes the editor, exit as quickly as possible.
-                 * Any holdup freezes Neovim, which is very annoying. */
-                quick_exit(0);
-        case SIGHANDLER_NORMAL:
-                exit(0);
-        default:
-                abort();
-        }
-#endif
         PAUSE();
-
+        /* exit_cleanup(); */
         exit(0);
 }
 
@@ -112,8 +94,6 @@ static void
 platform_init(char **argv)
 {
 #ifdef DOSISH
-        /* HOME = alloca(PATH_MAX+1);
-        snprintf(HOME, PATH_MAX+1, "%s%s", getenv("HOMEDRIVE"), getenv("HOMEPATH")); */
         HOME = getenv("USERPROFILE");
         extern const char *program_invocation_short_name;
         program_invocation_short_name = basename(argv[0]);
@@ -158,7 +138,7 @@ get_settings(void)
         settings.norecurse_dirs = nvim_get_var(,B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
         settings.settings_file  = nvim_get_var(,B(PKG "settings_file"),     E_STRING    ).ptr;
         settings.verbose        = nvim_get_var(,B(PKG "verbose"),           E_BOOL      ).num;
-#ifdef DEBUG
+#ifdef DEBUG /* Verbose output should be forcably enabled in debug mode. */
         settings.verbose = true;
 #endif
 }
@@ -167,7 +147,7 @@ static void
 open_logs(void)
 {
 #ifdef DEBUG
-        char LOGDIR[PATH_MAX+1];
+        extern char LOGDIR[];
         snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);
         mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
@@ -185,6 +165,7 @@ open_logs(void)
 void
 get_initial_lines(struct bufdata *bdata)
 {
+        pthread_mutex_lock(&bdata->lock.total);
         b_list *tmp = nvim_buf_get_lines(,bdata->num);
         if (bdata->lines->qty == 1)
                 ll_delete_node(bdata->lines, bdata->lines->head);
@@ -193,6 +174,7 @@ get_initial_lines(struct bufdata *bdata)
         xfree(tmp->lst);
         xfree(tmp);
         bdata->initialized = true;
+        pthread_mutex_unlock(&bdata->lock.total);
 }
 
 /**
@@ -207,7 +189,7 @@ exit_cleanup(void)
 
         process_exiting = true;
 
-        b_free(settings.settings_file);
+        b_destroy(settings.settings_file);
         b_list_destroy(seen_files);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
@@ -228,13 +210,13 @@ exit_cleanup(void)
                                 b_list *igt = ft->ignored_tags;
                                 for (unsigned x = 0; x < igt->qty; ++x)
                                         if (igt->lst[x]->flags & BSTR_MASK_USR1)
-                                                b_free(igt->lst[x]);
+                                                b_destroy(igt->lst[x]);
                                 xfree(igt->lst);
                                 xfree(igt);
                         }
                         b_list_destroy(ft->equiv);
-                        b_free(ft->order);
-                        b_free(ft->restore_cmds);
+                        b_destroy(ft->order);
+                        b_destroy(ft->restore_cmds);
                 }
         }
 
@@ -292,8 +274,7 @@ static comp_type_t
         }
 
         eprintf("Comp type is %s", BS(tmp));
-
-        b_free(tmp);
+        b_destroy(tmp);
         return ret;
 }
 
@@ -302,8 +283,6 @@ static comp_type_t
 static void
 controlled_exit(UNUSED int notused)
 {
-        /* if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, SIGHANDLER_NORMAL); */
         if (pthread_equal(top_thread, pthread_self()))
                 return;
         pthread_exit();
@@ -312,8 +291,6 @@ controlled_exit(UNUSED int notused)
 static noreturn void
 sig_handler(UNUSED int notused)
 {
-        /* if (pthread_equal(top_thread, pthread_self()))
-                longjmp(main_buf, SIGHANDLER_QUICK); */
         if (pthread_equal(top_thread, pthread_self()))
                 quick_exit(0);
         pthread_exit();

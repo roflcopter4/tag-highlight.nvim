@@ -106,9 +106,9 @@ print_array(const mpack_obj *result)
         pindent();
 
         if (!result->data.arr || result->data.arr->qty == 0) {
-                b_fputs(print_log, B("[]\n"));
+                b_fwrite(print_log, B("[]\n"));
         } else {
-                b_fputs(print_log, B("[\n"));
+                b_fwrite(print_log, B("[\n"));
 
                 ++indent;
                 for (unsigned i = 0; i < result->data.arr->qty; ++i)
@@ -117,7 +117,7 @@ print_array(const mpack_obj *result)
                 --indent;
 
                 pindent();
-                b_fputs(print_log, B("]\n"));
+                b_fwrite(print_log, B("]\n"));
         }
 }
 
@@ -128,7 +128,7 @@ print_dict(const mpack_obj *result)
         if (ferror(print_log))
                 abort();
         pindent();
-        b_fputs(print_log, B("{\n"));
+        b_fwrite(print_log, B("{\n"));
         ++indent;
 
         for (unsigned i = 0; i < result->data.dict->qty; ++i) {
@@ -144,17 +144,17 @@ print_dict(const mpack_obj *result)
                 switch (mpack_type(result->DDE[i]->value)) {
                 case MPACK_ARRAY:
                 case MPACK_DICT:
-                        b_fputs(print_log, B("  => (\n"));
+                        b_fwrite(print_log, B("  => (\n"));
 
                         ++indent;
                         do_mpack_print_object(result->DDE[i]->value);
                         --indent;
 
                         pindent();
-                        b_fputs(print_log, B(")\n"));
+                        b_fwrite(print_log, B(")\n"));
                         break;
                 default:
-                        b_fputs(print_log, B("  =>  "));
+                        b_fwrite(print_log, B("  =>  "));
 
                         indent = 0;
                         do_mpack_print_object(result->DDE[i]->value);
@@ -166,7 +166,7 @@ print_dict(const mpack_obj *result)
 
         --indent;
         pindent();
-        b_fputs(print_log, B("}\n"));
+        b_fwrite(print_log, B("}\n"));
 }
 
 
@@ -199,7 +199,7 @@ print_nil(UNUSED const mpack_obj *result)
                 abort();
         pindent();
 
-        b_fputs(print_log, B("NIL\n"));
+        b_fwrite(print_log, B("NIL\n"));
 }
 
 
@@ -208,9 +208,9 @@ print_bool(const mpack_obj *result)
 {
         pindent();
         if (result->data.boolean)
-                b_fputs(print_log, B("true\n"));
+                b_fwrite(print_log, B("true\n"));
         else
-                b_fputs(print_log, B("false\n"));
+                b_fwrite(print_log, B("false\n"));
 }
 
 

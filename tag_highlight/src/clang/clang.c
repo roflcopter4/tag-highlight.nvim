@@ -13,48 +13,53 @@
 #  include <wait.h>
 #endif
 
+#define TUFLAGS                                          \
+         ( /* clang_defaultEditingTranslationUnitOptions() 
+         | */ CXTranslationUnit_DetailedPreprocessingRecord \
+         /* | CXTranslationUnit_KeepGoing */                   \
+         | CXTranslationUnit_PrecompiledPreamble         \
+         /* | CXTranslationUnit_Incomplete */                     \
+         | CXTranslationUnit_CreatePreambleOnFirstParse\
+         /* | CXTranslationUnit_IncludeAttributedTypes */ )
 #if 0
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \
-         | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
-         | CXTranslationUnit_Incomplete)
+         | CXTranslationUnit_KeepGoing                   \
+         | CXTranslationUnit_CreatePreambleOnFirstParse)
 #endif
-#define TUFLAGS                                                                                  \
-        (/* clang_defaultEditingTranslationUnitOptions()  |  */                                         \
-         CXTranslationUnit_DetailedPreprocessingRecord | CXTranslationUnit_PrecompiledPreamble | \
-         CXTranslationUnit_KeepGoing | CXTranslationUnit_CreatePreambleOnFirstParse)
-#define INIT_ARGV (32)
+#define INIT_ARGV   (32)
 #define DUMPDATASIZ ((int64_t)((double)PATH_MAX * 1.5))
 
-#define DUMPDATA()                                                      \
-        do {                                                            \
-                char dump[DUMPDATASIZ];                                 \
-                snprintf(dump, DUMPDATASIZ, "%s/XXXXXX.log", tmp_path); \
-                const int dumpfd = mkstemps(dump, 4);                   \
-                argv_dump_fd(dumpfd, comp_cmds);                        \
-                b_list_dump_fd(dumpfd, enumlist.enumerators);           \
-                close(dumpfd);                                          \
+#define DUMPDATA()                                                               \
+        do {                                                                     \
+                char dump[DUMPDATASIZ];                                          \
+                snprintf(dump, DUMPDATASIZ, "%s/XXXXXX.log", libclang_tmp_path); \
+                const int dumpfd = mkstemps(dump, 4);                            \
+                argv_dump_fd(dumpfd, comp_cmds);                                 \
+                b_list_dump_fd(dumpfd, enumlist.enumerators);                    \
+                close(dumpfd);                                                   \
         } while (0)
 
 static const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
-static char              tmp_path[PATH_MAX + 1];
+extern char              libclang_tmp_path[PATH_MAX + 1];
+       char              libclang_tmp_path[PATH_MAX + 1];
 
-struct mydata {
+struct enum_data {
         CXTranslationUnit tu;
         b_list *enumerators;
         const bstring *buf;
 };
 
-static struct translationunit *init_compilation_unit(struct bufdata *bdata);
-static struct translationunit *recover_compilation_unit(struct bufdata *bdata);
+static struct translationunit *init_compilation_unit(struct bufdata *bdata, bstring *buf);
+static struct translationunit *recover_compilation_unit(struct bufdata *bdata, bstring *buf);
 static struct cmd_info        *getinfo(struct bufdata *bdata);
 static str_vector             *get_compile_commands(struct bufdata *bdata);
 static str_vector             *get_backup_commands(struct bufdata *bdata);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata);
 static void                    get_tmp_path(void);
 static void                    clean_tmpdir(void);
-static void                    tagfinder(struct mydata *data, CXCursor cursor);
+static void                    tagfinder(struct enum_data *data, CXCursor cursor);
 static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data);
 static void                    destroy_struct_translationunit(struct translationunit *stu);
 static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
@@ -73,49 +78,59 @@ static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *to
 /*======================================================================================*/
 
 void
-(libclang_highlight)(struct bufdata *bdata, const int first, const int last, const bool force)
+(libclang_highlight)(struct bufdata *bdata, const int first, const int last, const int type)
 {
+        if (!bdata || !bdata->initialized)
+                return;
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
-        /* static pthread_mutex_t  mut = PTHREAD_MUTEX_INITIALIZER; */
-        /* struct timer t; */
+
+        pthread_mutex_lock(&bdata->lock.ctick);
+        const unsigned new = atomic_load(&bdata->ctick);
+        const unsigned old = atomic_exchange(&bdata->last_ctick, new);
+
+        if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
+                eprintf("Ctick unchanged (%u vs %u). Returning.", old, new);
+                pthread_mutex_unlock(&bdata->lock.ctick);
+                return;
+        }
+        pthread_mutex_unlock(&bdata->lock.ctick);
+
+        static pthread_mutex_t  lc_mutex = PTHREAD_MUTEX_INITIALIZER;
         struct translationunit *stu;
-        pthread_mutex_lock(&bdata->mut);
+        int64_t                 startend[2];
+        pthread_mutex_lock(&lc_mutex);
+        /* int                     ret = pthread_mutex_trylock(&lc_mutex);
+        if (ret != 0) */
+                /* return; */
 
-        TIMER_START(t);
-
-        if (force) {
-                if (bdata->clangdata)
-                        destroy_clangdata(bdata);
-                stu = init_compilation_unit(bdata);
-        } else
-                stu = (bdata->clangdata) ? recover_compilation_unit(bdata)
-                                         : init_compilation_unit(bdata);
-
-        TIMER_REPORT_RESTART(t, "Parse/reparse");
-
-        int64_t startend[2];
-        CXFile  file = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
-        CLD(bdata)->mainfile = file;
-
+        pthread_mutex_lock(&bdata->lines->lock);
+        bstring *joined = ll_join(bdata->lines, '\n');
         if (last == (-1)) {
                 startend[0] = 0;
-                startend[1] = stu->buf->slen;
-        } else
+                startend[1] = joined->slen;
+        } else {
                 lines2bytes(bdata, startend, first, last);
+        }
+        pthread_mutex_unlock(&bdata->lines->lock);
 
+        if (type == HIGHLIGHT_REDO) {
+                if (bdata->clangdata)
+                        destroy_clangdata(bdata);
+                stu = init_compilation_unit(bdata, joined);
+        } else {
+                stu = (bdata->clangdata) ? recover_compilation_unit(bdata, joined)
+                                         : init_compilation_unit(bdata, joined);
+        }
 
-        tokenize_range(stu, &file, startend[0], startend[1]);
+        CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
-        nvim_call_array *calls = type_id(bdata, stu, CLD(bdata)->enumerators,
-                                         CLD(bdata)->info, first, last, force);
+        tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
+        nvim_call_array *calls = type_id(bdata, stu);
         nvim_call_atomic(,calls);
+        pthread_mutex_unlock(&lc_mutex);
         destroy_call_array(calls);
         destroy_struct_translationunit(stu);
-
-        TIMER_REPORT(t, "Other clang ops");
-        pthread_mutex_unlock(&bdata->mut);
-
 }
 
 static inline void
@@ -140,11 +155,11 @@ lines2bytes(struct bufdata *bdata, int64_t *startend, const int first, const int
 /*======================================================================================*/
 
 static struct translationunit *
-recover_compilation_unit(struct bufdata *bdata)
+recover_compilation_unit(struct bufdata *bdata, bstring *buf)
 {
         struct translationunit *stu = xmalloc(sizeof(struct translationunit));
         stu->tu  = CLD(bdata)->tu;
-        stu->buf = ll_join(bdata->lines, '\n');
+        stu->buf = buf;
 
         const int fd = open(CLD(bdata)->tmp_name, O_WRONLY|O_TRUNC, 0600);
         if (b_write(fd, stu->buf, B("\n")) != 0)
@@ -159,16 +174,15 @@ recover_compilation_unit(struct bufdata *bdata)
 }
 
 static struct translationunit *
-init_compilation_unit(struct bufdata *bdata)
+init_compilation_unit(struct bufdata *bdata, bstring *buf)
 {
-        if (!*tmp_path)
+        if (!*libclang_tmp_path)
                 get_tmp_path();
 
         char         tmp[PATH_MAX];
-        bstring     *buf       = ll_join(bdata->lines, '\n');
         str_vector  *comp_cmds = get_compile_commands(bdata);
-        const int tmplen = snprintf(tmp, PATH_MAX, "%s/XXXXXX%s", tmp_path, BS(bdata->name.base));
-        const int tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
+        const int    tmplen    = snprintf(tmp, PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
+        const int    tmpfd     = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
 
         if (b_write(tmpfd, buf, B("\n")) != 0)
                 err(1, "Write error");
@@ -179,12 +193,11 @@ init_compilation_unit(struct bufdata *bdata)
 #endif
 
         bdata->clangdata = xmalloc(sizeof(struct clangdata));
-        CLD(bdata)->idx = clang_createIndex(0, 0);
-        CLD(bdata)->tu  = NULL;
+        CLD(bdata)->idx  = clang_createIndex(1, 0);
+        CLD(bdata)->tu   = NULL;
 
         unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
                                                        (int)comp_cmds->qty, NULL, 0, TUFLAGS, &CLD(bdata)->tu);
-
         if (!CLD(bdata)->tu || clerror != 0)
                 errx(1, "libclang error: %d", clerror);
 
@@ -194,9 +207,8 @@ init_compilation_unit(struct bufdata *bdata)
 
         /* Get all enumerators in the translation unit separately, because clang
          * doesn't expose them as such, only as normal integers (in C). */
-        struct mydata enumlist = {CLD(bdata)->tu, b_list_create(), buf};
-        clang_visitChildren(clang_getTranslationUnitCursor(CLD(bdata)->tu),
-                            visit_continue, &enumlist);
+        struct enum_data enumlist = {CLD(bdata)->tu, b_list_create(), buf};
+        clang_visitChildren(clang_getTranslationUnitCursor(CLD(bdata)->tu), visit_continue, &enumlist);
         B_LIST_SORT_FAST(enumlist.enumerators);
 
         DUMPDATA();
@@ -218,7 +230,7 @@ getinfo(struct bufdata *bdata)
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
                 mpack_dict_t *dict = nvim_get_var_fmt(
-                        0, E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
+                        E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind  = ch;
                 info[i].group = dict_get_key(dict, E_STRING, B("group")).ptr;
@@ -334,29 +346,36 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *b
 static void
 get_tmp_path(void)
 {
-        memcpy(tmp_path, SLS("/mnt/ramdisk/tag_highlight_XXXXXX"));
+        memcpy(libclang_tmp_path, SLS("/mnt/ramdisk/tag_highlight_XXXXXX"));
         errno = 0;
-        if (!mkdtemp(tmp_path))
+        if (!mkdtemp(libclang_tmp_path))
                 err(1, "mkdtemp failed");
+        at_quick_exit(clean_tmpdir);
         atexit(clean_tmpdir);
 }
 
 static void
 clean_tmpdir(void)
 {
-#ifdef HAVE_POSIX_SPAWNP
-        int status, pid, ret;
-        char *const argv[] = {"rm", "-rf", tmp_path, (char *)0};
-
-        if ((ret = posix_spawnp(&pid, "rm", NULL, NULL, argv, environ)) != 0)
-                err(1, "Posix spawn failed: %d", ret);
-
-        waitpid(pid, &status, 0);
-        if ((status <<= STATUS_SHIFT) != 0)
-                err(1, "rm failed with status %d", status);
-#else
         char cmd[CMD_SIZ];
-        snprintf(cmd, CMD_SIZ, "rm -rf \"%s\"", tmp_path);
+        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", "/mnt/ramdisk");
+
+        int status, pid, ret;
+        char *const argv[] = {"sh", "-c", cmd, (char *)0};
+
+        /* if ((ret = posix_spawnp(&pid, "sh", NULL, NULL, argv, environ)) != 0) */
+                /* err(1, "Posix spawn failed"); */
+
+        posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
+        waitpid(pid, &status, 0);
+
+        /* if ((status <<= STATUS_SHIFT) != 0) */
+                /* err(1, "rm failed with status %d", status); */
+/* #else */
+#if 0
+        char cmd[CMD_SIZ];
+        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", "/mnt/ramdisk");
+        eprintf("Running %s\n", cmd);
         int status = system(cmd) << STATUS_SHIFT;
         if (status != 0)
                 err(1, "rm failed with status %d", status);
@@ -366,7 +385,8 @@ clean_tmpdir(void)
 static void
 destroy_struct_translationunit(struct translationunit *stu)
 {
-        clang_disposeTokens(stu->tu, stu->cxtokens, stu->num);
+        if (stu->cxtokens && stu->num)
+                clang_disposeTokens(stu->tu, stu->cxtokens, stu->num);
         genlist_destroy(stu->tokens);
         b_free(stu->buf);
         xfree(stu->cxcursors);
@@ -401,7 +421,7 @@ destroy_clangdata(struct bufdata *bdata)
 /*======================================================================================*/
 
 static void
-tagfinder(struct mydata *data, CXCursor cursor)
+tagfinder(struct enum_data *data, CXCursor cursor)
 {
         if (cursor.kind != CXCursor_EnumConstantDecl)
                 return;
@@ -448,13 +468,18 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         ret->token        = *tok;
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
-        ret->tokenkind    = clang_getTokenKind(*tok);
+        ret->tokenkind    = tokkind;
         ret->line         = res.line - 1;
         ret->col1         = res.start - 1;
         ret->col2         = res.end - 1;
         ret->len          = res.end - res.start;
 
         memcpy(ret->raw, CS(dispname), len);
+        ret->text.data  = (unsigned char *)ret->raw;
+        ret->text.slen  = len-1;
+        ret->text.mlen  = len;
+        ret->text.flags = 0;
+
         clang_disposeString(dispname);
         return ret;
 }
@@ -482,23 +507,6 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
         for (unsigned i = 0; i < num; ++i)
                 if ((t = get_token_data(&stu->tu, &toks[i], &cursors[i])))
                         genlist_append(stu->tokens, t);
-}
-
-void
-tokvisitor(struct token *tok)
-{
-        static unsigned n = 0;
-
-        CXString typespell      = clang_getTypeSpelling(tok->cursortype);
-        CXString typekindrepr   = clang_getTypeKindSpelling(tok->cursortype.kind);
-        CXString curs_kindspell = clang_getCursorKindSpelling(tok->cursor.kind);
-        FILE    *toklog         = safe_fopen_fmt("%s/toks.log", "ab", tmp_path);
-
-        fprintf(toklog, "%4u: %-50s - %-17s - %-30s - %s\n",
-                n++, tok->raw, P99_SEQ(CS, typekindrepr, curs_kindspell, typespell));
-
-        fclose(toklog);
-        free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
 
 /*======================================================================================*/

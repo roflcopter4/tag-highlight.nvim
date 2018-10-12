@@ -42,17 +42,19 @@ extern genlist *nvim_connections;
 
 static inline int _get_fd_count(const int fd, const bool inc)
 {
-        if (inc)
+        /* if (inc)
                 pthread_rwlock_wrlock(&nvim_connections->lock);
         else
-                pthread_rwlock_rdlock(&nvim_connections->lock);
+                pthread_rwlock_rdlock(&nvim_connections->lock); */
+        pthread_mutex_lock(&nvim_connections->mut);
 
         for (unsigned i = 0; i < nvim_connections->qty; ++i) {
                 if (((struct nvim_connection *)(nvim_connections->lst[i]))->fd == fd) {
                         const int ret = ((struct nvim_connection *)(nvim_connections->lst[i]))->count;
                         if (inc)
                                 ++((struct nvim_connection *)(nvim_connections->lst[i]))->count;
-                        pthread_rwlock_unlock(&nvim_connections->lock);
+                        pthread_mutex_unlock(&nvim_connections->mut);
+                        /* pthread_rwlock_unlock(&nvim_connections->lock); */
                         return ret;
                 }
         }
@@ -61,7 +63,7 @@ static inline int _get_fd_count(const int fd, const bool inc)
 }
 
 INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...);
-INTERN mpack_obj *await_package(int fd, int count, nvim_message_type mtype);
+INTERN mpack_obj *await_package(int fd, unsigned count, nvim_message_type mtype);
 INTERN void write_and_clean(int fd, mpack_obj *pack, const bstring *func, FILE *logfp);
 INTERN retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type);
 

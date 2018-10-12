@@ -11,7 +11,7 @@
 #define APRINTF(a,b) __attribute__((__format__(__printf__, a, b)))
 
 #ifndef __GNUC__
-#  define __attribute__((...))
+#  define __attribute__(...)
 #endif
 #ifdef __cplusplus
 extern "C" {
@@ -79,6 +79,7 @@ extern retval_t       nvim_call_function      (int fd, const bstring *function, 
 extern retval_t       nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
 extern bool           nvim_command            (int fd, const bstring *cmd);
 extern retval_t       nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect);
+extern retval_t       nvim_eval               (int fd, const bstring *eval, mpack_expect_t expect);
 extern void           nvim_get_api_info       (int fd);
 extern int            nvim_get_current_buf    (int fd);
 extern bstring      * nvim_get_current_line   (int fd);
@@ -87,6 +88,9 @@ extern retval_t       nvim_get_var            (int fd, const bstring *varname, m
 extern retval_t       nvim_list_bufs          (int fd);
 extern void           nvim_subscribe          (int fd, const bstring *event);
 extern bool           nvim_set_var            (int fd, const bstring *varname, const bstring *fmt, ...);
+
+extern void nvim_set_client_info(int fd, const bstring *name, unsigned major, unsigned minor, const bstring *dev,
+                                 const bstring *type, const void *methods, const void *attributes);
 
 extern bstring * get_notification  (int fd);
 extern void      destroy_call_array(struct atomic_call_array *calls);
@@ -122,6 +126,11 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 #define nvim_vprintf_defarg_0() (0)
 #define nvim_buf_add_highlight(...) P99_CALL_DEFARG(nvim_buf_add_highlight, 7, __VA_ARGS__)
 #define nvim_buf_add_highlight_defarg_0() (0)
+#define nvim_buf_add_highlight_defarg_2() (0)
+#define nvim_buf_add_highlight_defarg_3() NULL
+#define nvim_buf_add_highlight_defarg_4() (0)
+#define nvim_buf_add_highlight_defarg_5() (0)
+#define nvim_buf_add_highlight_defarg_6() (0)
 #define nvim_get_hl_by_name(...) P99_CALL_DEFARG(nvim_get_hl_by_name, 3, __VA_ARGS__)
 #define nvim_get_hl_by_name_defarg_0() (0)
 #define nvim_get_hl_by_id(...) P99_CALL_DEFARG(nvim_get_hl_by_id, 3, __VA_ARGS__)
@@ -154,6 +163,8 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 #define nvim_command_defarg_0() (0)
 #define nvim_command_output(...) P99_CALL_DEFARG(nvim_command_output, 3, __VA_ARGS__)
 #define nvim_command_output_defarg_0() (0)
+#define nvim_eval(...) P99_CALL_DEFARG(nvim_eval, 3, __VA_ARGS__)
+#define nvim_eval_defarg_0() (0)
 #define nvim_get_api_info(...) P99_CALL_DEFARG(nvim_get_api_info, 1, __VA_ARGS__)
 #define nvim_get_api_info_defarg_0() (0)
 #define nvim_get_current_buf(...) P99_CALL_DEFARG(nvim_get_current_buf, 1, __VA_ARGS__)
@@ -168,6 +179,15 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 #define nvim_list_bufs_defarg_0() (0)
 #define nvim_subscribe(...) P99_CALL_DEFARG(nvim_subscribe, 2, __VA_ARGS__)
 #define nvim_subscribe_defarg_0() (0)
+
+#define nvim_set_client_info(...) P99_CALL_DEFARG(nvim_set_client_info, 8, __VA_ARGS__)
+#define nvim_set_client_info_defarg_0() (0)
+#define nvim_set_client_info_defarg_4() (B(""))
+#define nvim_set_client_info_defarg_5() (B("remote"))
+#define nvim_set_client_info_defarg_6() NULL
+#define nvim_set_client_info_defarg_7() NULL
+
+#define nvim_get_var_fmt(...) (nvim_get_var_fmt)(0, __VA_ARGS__)
 
 
 /*============================================================================*/

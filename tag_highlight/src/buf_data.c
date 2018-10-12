@@ -3,6 +3,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "my_p99_common.h"
 #include <signal.h>
 
 #ifdef _WIN32
@@ -30,8 +31,6 @@
 #  define DOSCHECK(CH_) (false)
 #endif
 
-extern void destroy_clangdata(struct bufdata *bdata);
-
 extern b_list         *seen_files;
 
 static void            log_prev_file(const bstring *filename);
@@ -39,19 +38,21 @@ static struct top_dir *init_topdir(int fd, struct bufdata *bdata);
 static void            init_filetype(int fd, struct filetype *ft);
 static bool            check_norecurse_directories(const bstring *dir);
 static bstring        *check_project_directories  (bstring *dir);
+static void            bufdata_constructor(void) __attribute__((__constructor__));
+
+/* #include "my_p99_common.h" */
 
 /*======================================================================================*/
 
 bool
 (new_buffer)(const int fd, const int bufnum)
 {
-        if (!seen_files)
-                seen_files = b_list_create_alloc(32);
-        if (!top_dirs)
-                top_dirs = genlist_create_alloc(32);
+        bool ret = false;
+        pthread_rwlock_wrlock(&buffers.lock);
+
         for (unsigned short i = 0; i < buffers.bad_bufs.qty; ++i)
                 if (bufnum == buffers.bad_bufs.lst[i])
-                        return false;
+                        goto end;
 
         struct filetype *tmp = NULL;
         bstring         *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING).ptr;
@@ -63,37 +64,40 @@ bool
                         break;
                 }
         }
-
         if (!tmp) {
                 ECHO("Can't identify buffer %d, (ft '%s') bailing!\n", bufnum, ft);
                 buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
-                b_free(ft);
-                return false;
+                b_destroy(ft);
+                goto end;
         }
         for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i) {
                 if (b_iseq(ft, settings.ignored_ftypes->lst[i])) {
                         buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum;
-                        return false;
+                        goto end;
                 }
         }
 
-        b_free(ft);
+        b_destroy(ft);
         struct bufdata *bdata = get_bufdata(fd, bufnum, tmp);
         assert(bdata != NULL);
-
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(fd, bdata->ft);
 
-        pthread_mutexattr_t attr;
-        pthread_mutexattr_init(&attr);
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&bdata->mut, &attr);
-        pthread_rwlock_init(&bdata->lock);
+        {
+                pthread_mutexattr_t attr;
+                pthread_mutexattr_init(&attr);
+                pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+                pthread_mutex_init(&bdata->lock.total, &attr);
+                pthread_mutex_init(&bdata->lock.ctick, &attr);
+                pthread_mutex_init(&bdata->lock.update, &attr);
+        }
 
         buffers.lst[buffers.mkr] = bdata;
         NEXT_MKR(buffers);
-
-        return true;
+        ret = true;
+end:
+        pthread_rwlock_unlock(&buffers.lock);
+        return ret;
 }
 
 struct bufdata *
@@ -104,9 +108,12 @@ get_bufdata(const int fd, const int bufnum, struct filetype *ft)
         bdata->name.base      = b_basename(bdata->name.full);
         bdata->name.path      = b_dirname(bdata->name.full);
         bdata->lines          = ll_make_new();
-        bdata->num            = bufnum;
+        bdata->num            = (uint16_t)bufnum;
         bdata->ft             = ft;
         bdata->topdir         = init_topdir(fd, bdata); /* Topdir init must be the last step. */
+
+        atomic_store(&bdata->ctick, 0);
+        atomic_store(&bdata->last_ctick, 0);
 
         return bdata;
 }
@@ -114,16 +121,24 @@ get_bufdata(const int fd, const int bufnum, struct filetype *ft)
 void
 destroy_bufdata(struct bufdata **bdata)
 {
+        extern void destroy_clangdata(struct bufdata *bdata);
         extern bool process_exiting;
+
         if (!*bdata)
                 return;
-        if (!process_exiting)
+        if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
+                clear_highlight(*bdata);
+        }
         const int index = find_buffer_ind((*bdata)->num);
 
-        b_free((*bdata)->name.full);
-        b_free((*bdata)->name.base);
-        b_free((*bdata)->name.path);
+        pthread_mutex_destroy(&(*bdata)->lock.total);
+        pthread_mutex_destroy(&(*bdata)->lock.ctick);
+        pthread_mutex_destroy(&(*bdata)->lock.update);
+
+        b_destroy((*bdata)->name.full);
+        b_destroy((*bdata)->name.base);
+        b_destroy((*bdata)->name.path);
         ll_destroy((*bdata)->lines);
 
         if ((*bdata)->ft->is_c) {
@@ -141,9 +156,9 @@ destroy_bufdata(struct bufdata **bdata)
                 close(topdir->tmpfd);
                 unlink(BS(topdir->tmpfname));
 
-                b_free(topdir->gzfile);
-                b_free(topdir->pathname);
-                b_free(topdir->tmpfname);
+                b_destroy(topdir->gzfile);
+                b_destroy(topdir->pathname);
+                b_destroy(topdir->tmpfname);
                 b_list_destroy(topdir->tags);
 
                 for (unsigned i = 0; i < top_dirs->qty; ++i)
@@ -153,7 +168,10 @@ destroy_bufdata(struct bufdata **bdata)
 
         xfree(*bdata);
         *bdata = NULL;
+
+        pthread_rwlock_wrlock(&buffers.lock);
         buffers.lst[index] = NULL;
+        pthread_rwlock_unlock(&buffers.lock);
 }
 
 /*======================================================================================*/
@@ -161,19 +179,33 @@ destroy_bufdata(struct bufdata **bdata)
 struct bufdata *
 find_buffer(const int bufnum)
 {
-        for (unsigned i = 0; i < buffers.mlen; ++i)
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum)
-                        return buffers.lst[i];
-        return NULL;
+        struct bufdata *ret = NULL;
+        pthread_rwlock_rdlock(&buffers.lock);
+
+        for (unsigned i = 0; i < buffers.mlen; ++i) {
+                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
+                        ret = buffers.lst[i];
+                        break;
+                }
+        }
+        pthread_rwlock_unlock(&buffers.lock);
+        return ret;
 }
 
 int
 find_buffer_ind(const int bufnum)
 {
-        for (unsigned i = 0; i < buffers.mlen; ++i)
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum)
-                        return (int)i;
-        return (-1);
+        int ret = (-1);
+        pthread_rwlock_rdlock(&buffers.lock);
+
+        for (unsigned i = 0; i < buffers.mlen; ++i) {
+                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
+                        ret = (int)i;
+                        break;
+                }
+        }
+        pthread_rwlock_unlock(&buffers.lock);
+        return ret;
 }
 
 struct bufdata *
@@ -192,10 +224,17 @@ null_find_bufdata(int bufnum, struct bufdata *bdata)
 bool
 is_bad_buffer(const int bufnum)
 {
-        for (unsigned i = 0; i < buffers.bad_bufs.qty; ++i)
-                if (bufnum == buffers.bad_bufs.lst[i])
-                        return true;
-        return false;
+        bool ret = false;
+        pthread_rwlock_rdlock(&buffers.lock);
+
+        for (unsigned i = 0; i < buffers.bad_bufs.qty; ++i) {
+                if (bufnum == buffers.bad_bufs.lst[i]) {
+                        ret = true;
+                        break;
+                }
+        }
+        pthread_rwlock_unlock(&buffers.lock);
+        return ret;
 }
 
 static void
@@ -218,6 +257,11 @@ have_seen_file(const bstring *filename)
 
 /*======================================================================================*/
 
+/**
+ * This struct is primarily for filetypes that use ctags. It is convenient to run the
+ * program once for a project tree and use the results for all files belonging to it, so
+ * we run ctags on the `top_dir' of the tree. This routine populates that structure.
+ */
 static struct top_dir *
 init_topdir(const int fd, struct bufdata *bdata)
 {
@@ -227,23 +271,25 @@ init_topdir(const int fd, struct bufdata *bdata)
         const bool recurse = check_norecurse_directories(dir);
         const bool is_c    = bdata->ft->is_c;
         bstring   *base    = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir;
-        /* bstring   *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir; */
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
         ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
 
+        pthread_mutex_lock(&top_dirs->mut);
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
                 if (!top_dirs->lst[i] || !((struct top_dir *)top_dirs->lst[i])->pathname)
                         continue;
 
                 if (b_iseq(((struct top_dir *)top_dirs->lst[i])->pathname, base)) {
                         ((struct top_dir *)top_dirs->lst[i])->refs++;
-                        b_free(base);
+                        b_destroy(base);
                         echo("returning with topdir %s\n",
                              BS(((struct top_dir *)(top_dirs->lst[i]))->pathname));
+                        pthread_mutex_unlock(&top_dirs->mut);
                         return top_dirs->lst[i];
                 }
         }
+        pthread_mutex_unlock(&top_dirs->mut);
         ECHO("Initializing new topdir \"%s\"\n", dir);
 
         struct top_dir *tdir = xcalloc(1, sizeof(struct top_dir));
@@ -267,16 +313,21 @@ init_topdir(const int fd, struct bufdata *bdata)
                 nvim_command(fd, btp_fromblk(buf, n));
         }
 
+        ECHO("Base is %s", base);
+
         /* Calling b_conchar lots of times is less efficient than just writing
          * to the string, but for an small operation like this it is better to
          * be safe than sorry. */
         for (unsigned i = 0; i < base->slen && i < tdir->gzfile->mlen; ++i) {
                 if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i])) {
-                        b_conchar(tdir->gzfile, '-');
-                        b_conchar(tdir->gzfile, '-');
-                } else
-                        b_conchar(tdir->gzfile, '-');
+                        b_conchar(tdir->gzfile, '_');
+                        b_conchar(tdir->gzfile, '_');
+                } else {
+                        b_conchar(tdir->gzfile, base->data[i]);
+                }
         }
+
+        ECHO("got %s", tdir->gzfile);
 
         if (settings.comp_type == COMP_GZIP)
                 ret = b_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
@@ -288,12 +339,18 @@ init_topdir(const int fd, struct bufdata *bdata)
         assert(ret == BSTR_OK);
         genlist_append(top_dirs, tdir);
         if (!recurse || is_c)
-                b_free(base);
+                b_destroy(base);
 
         return tdir;
 #undef DIRSTR
 }
 
+/**
+ * For filetypes that use ctags to find highlight candidates we normally need to run the
+ * program recursively on a directory. For some directories this is undesirable (eg.
+ * $HOME, root, /usr/include, etc) because it will take a long time. Check the user
+ * provided list of such directories and do not recurse ctags if we find a match.
+ */
 static bool
 check_norecurse_directories(const bstring *const dir)
 {
@@ -304,6 +361,11 @@ check_norecurse_directories(const bstring *const dir)
         return true;
 }
 
+/** 
+ * Check the file `~/.vim_tags/tag_highlight.txt' for any directories the
+ * user has specified to be `project' directories. Anything under them in
+ * the directory tree will use that directory as its base.
+ */
 static bstring *
 check_project_directories(bstring *dir)
 {
@@ -318,17 +380,16 @@ check_project_directories(bstring *dir)
                 if (strstr(BS(dir), BS(tmp)))
                         b_list_append(&candidates, tmp);
                 else
-                        b_free(tmp);
+                        b_destroy(tmp);
         }
-
         fclose(fp);
         if (candidates->qty == 0) {
                 b_list_destroy(candidates);
                 return dir;
         }
 
-        unsigned i = 0, x = 0;
-        for (; i < candidates->qty; ++i)
+        unsigned x, i;
+        for (i = x = 0; i < candidates->qty; ++i)
                 if (candidates->lst[i]->slen > candidates->lst[x]->slen)
                         x = i;
 
@@ -336,34 +397,39 @@ check_project_directories(bstring *dir)
         b_writeprotect(ret);
         b_list_destroy(candidates);
         b_writeallow(ret);
-
-        b_free(dir);
+        b_destroy(dir);
         return ret;
 }
 
 /*======================================================================================*/
 
+/**
+ * Populate the non-static portions of the filetype structure, including a list of special
+ * tags and groups of tags that should be ignored by this program when highlighting.
+ */
 static void
 init_filetype(const int fd, struct filetype *ft)
 {
-        static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
         if (ft->initialized)
                 return;
+        static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_lock(&ftdata_mutex);
+
         ft->initialized = true;
         ECHO("Init filetype called for ft %s\n", &ft->vim_name);
 
-        ft->order           = nvim_get_var_fmt(fd, E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
+        ft->order           = (nvim_get_var_fmt)(fd, E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
         mpack_array_t *tmp  = dict_get_key(settings.ignored_tags, E_MPACK_ARRAY, &ft->vim_name).ptr;
 
         if (tmp) {
                 ft->ignored_tags = mpack_array_to_blist(tmp, false);
                 B_LIST_SORT_FAST(ft->ignored_tags);
-        } else
+        } else {
                 ft->ignored_tags = NULL;
+        }
 
-        mpack_dict_t *equiv = nvim_get_var_fmt(fd, E_MPACK_DICT, PKG "%s#equivalent",
-                                               BTS(ft->vim_name)).ptr;
+        mpack_dict_t *equiv = (nvim_get_var_fmt)(fd, E_MPACK_DICT, PKG "%s#equivalent",
+                                                 BTS(ft->vim_name)).ptr;
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
 
@@ -380,8 +446,16 @@ init_filetype(const int fd, struct filetype *ft)
 
                 xfree(equiv->entries);
                 xfree(equiv);
-        } else
+        } else {
                 ft->equiv = NULL;
+        }
 
         pthread_mutex_unlock(&ftdata_mutex);
+}
+
+static void
+bufdata_constructor(void)
+{
+        seen_files = b_list_create_alloc(32);
+        top_dirs   = genlist_create_alloc(32);
 }

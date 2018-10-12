@@ -111,8 +111,7 @@ extern const char *const m_type_names[];
 /*============================================================================*/
 /* Decode and Destroy */
 extern void        mpack_print_object  (FILE *fp, const mpack_obj *result);
-extern void        mpack_destroy       (mpack_obj *root);
-static void        mpack_destroy_object(mpack_obj *root) __attribute__((__weakref__("mpack_destroy")));
+extern void        mpack_destroy_object(mpack_obj *root);
 extern mpack_obj * decode_stream       (int fd);
 extern mpack_obj * decode_obj          (bstring *buf);
 
@@ -145,7 +144,7 @@ destroy_mpack_dict(mpack_dict_t *dict)
         mpack_obj tmp;
         tmp.flags     = MPACK_DICT | MPACK_ENCODE | MPACK_PHONY;
         tmp.data.dict = dict;
-        mpack_destroy(&tmp);
+        mpack_destroy_object(&tmp);
 }
 
 static inline void
@@ -154,7 +153,7 @@ destroy_mpack_array(mpack_array_t *array)
         mpack_obj tmp;
         tmp.flags    = MPACK_ARRAY | MPACK_ENCODE | MPACK_PHONY;
         tmp.data.arr = array;
-        mpack_destroy(&tmp);
+        mpack_destroy_object(&tmp);
 }
 
 #include <pthread.h>
@@ -186,10 +185,10 @@ extern FILE *mpack_log;
 #  define PRINT_AND_DESTROY(RESULT_)                      \
         do {                                              \
                 mpack_print_object(mpack_log, (RESULT_)); \
-                mpack_destroy(RESULT_);                   \
+                mpack_destroy_object(RESULT_);            \
         } while (0)
 #else
-#  define PRINT_AND_DESTROY(RESULT_) mpack_destroy(RESULT_)
+#  define PRINT_AND_DESTROY(RESULT_) mpack_destroy_object(RESULT_)
 #endif
 
 #include "p99/p99_defarg.h"

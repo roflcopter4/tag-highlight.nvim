@@ -1,6 +1,6 @@
 #include "intern.h"
 
-const struct mpack_masks m_masks[] = {
+const mpack_mask m_masks[] = {
     { G_NIL,    M_NIL,       false, 0xC0u,  0, "M_NIL"       },
     { G_BOOL,   M_TRUE,      false, 0xC3u,  0, "M_TRUE"      },
     { G_BOOL,   M_FALSE,     false, 0xC2u,  0, "M_FALSE"     },
@@ -41,6 +41,11 @@ const char *const m_type_names[] = {
     "MPACK_UNINITIALIZED", "MPACK_BOOL",     "MPACK_NIL",
     "MPACK_SIGNED",        "MPACK_UNSIGNED", "MPACK_EXT",
     "MPACK_STRING",        "MPACK_ARRAY",    "MPACK_DICT",
+};
+
+const char *const m_expect_names[] = {
+    "E_MPACK_EXT", "E_MPACK_ARRAY", "E_MPACK_DICT", "E_MPACK_NIL", "E_BOOL",
+    "E_NUM",       "E_STRING",      "E_STRLIST",    "E_DICT2ARR"
 };
 
 const char *const m_message_type_repr[4] = {"MES_REQUEST", "MES_RESPONSE",

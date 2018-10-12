@@ -76,6 +76,7 @@ struct bstring_list {
         unsigned  qty;
         unsigned  mlen;
         bstring **lst;
+        pthread_rwlock_t lock;
 };
 
 #ifdef __cplusplus

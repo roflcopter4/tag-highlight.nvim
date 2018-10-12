@@ -10,6 +10,8 @@
 #include "my_p99_common.h"
 #include "p99/p99_atomic.h"
 #include "p99/p99_futex.h"
+/* #include "p99/p99_cm.h" */
+/* #include "p99/p99_new.h" */
 
 #define BT bt_init
 #ifdef DOSISH
@@ -18,36 +20,27 @@
 #  define KILL_SIG SIGUSR1
 #endif
 
-#ifdef __clang__
-#  ifdef atomic_fetch_add
-#    undef atomic_fetch_add
-#    define atomic_fetch_add(object, operand) __c11_atomic_fetch_add(object, operand, __ATOMIC_SEQ_CST)
-#  endif
-#endif
+#include "nvim_api/read.h"
 
 /*======================================================================================*/
 
 extern void          update_line         (struct bufdata *, int, int);
 static void          handle_line_event   (struct bufdata *bdata, mpack_obj **items);
-ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
+/* ALWAYS_INLINE   void replace_line        (ll_node *node, b_list *repl_list, int replno); */
 ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
 static noreturn void event_loop          (void);
 static void          vimscript_interrupt (int val);
-static void         *handle_nvim_event   (void *vdata);
-static void          post_nvim_response  (int fd, mpack_obj *obj);
+static void          handle_nvim_event   (void *vdata);
+static void          post_nvim_response  (void *vdata);
+static void          super_debug         (struct bufdata *bdata);
 
-extern FILE *main_log, *api_buffer_log;
-       FILE *api_buffer_log;
-
+extern FILE              *main_log, *api_buffer_log;
+       FILE              *api_buffer_log;
+/* extern vfutex_t           event_futex; */
+       /* vfutex_t           event_futex             = P99_FUTEX_INITIALIZER(0); */
 static pthread_once_t     event_loop_once_control = PTHREAD_ONCE_INIT;
-extern pthread_mutex_t    update_mutex;
-extern volatile p99_futex event_futex;
-       volatile p99_futex event_futex = P99_FUTEX_INITIALIZER(0);
+/* static volatile p99_count vimscript_lock; */
 
-struct line_event_data {
-        mpack_obj *obj;
-        unsigned   val;
-};
 
 static const struct event_id {
         const bstring          name;
@@ -60,6 +53,8 @@ static const struct event_id {
 };
 
 static const struct event_id *id_event(mpack_obj *event);
+
+P99_FIFO(mpack_obj_node_ptr)  handle_fifo_head;
 
 /*======================================================================================* 
  * Main Event Loop                                                                      * 
@@ -77,13 +72,28 @@ launch_event_loop(void)
         START_DETACHED_PTHREAD(do_launch_event_loop);
 }
 
+static void *
+emergency_debug(void *vdata)
+{
+        struct bufdata *bdata = vdata;
+        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
+        const unsigned n     = nvim_buf_line_count(0, bdata->num);
+        pthread_mutex_lock(&bdata->lines->lock);
+        if (atomic_load(&bdata->ctick) == ctick) {
+                if (bdata->lines->qty != (int)n)
+                        errx(1,
+                             "Internal line count (%d) is incorrect. "
+                             "Actual: %u -- %u vs %u. Aborting",
+                             bdata->lines->qty, n, ctick, bdata->ctick);
+        }
+        pthread_mutex_unlock(&bdata->lines->lock);
+        pthread_exit();
+}
+
 static noreturn void
 event_loop(void)
 {
-        /* In theory this function could wait for updates on any file descriptor. */
-        static const    int         fd      = 1;
-        static volatile atomic_uint counter = ATOMIC_VAR_INIT(0);
-
+        const int fd = 1;
         for (;;) {
                 /* 
                  * Constantly wait for messages.
@@ -98,14 +108,11 @@ event_loop(void)
 
                 switch (mtype) {
                 case MES_NOTIFICATION: {
-                        struct line_event_data *data = xmalloc(sizeof *data);
-                        data->obj = obj;
-                        data->val = atomic_fetch_add(&counter, 1u);
-                        START_DETACHED_PTHREAD((void *(*)(void *))handle_nvim_event, data);
+                        handle_nvim_event(obj);
                         break;
                 }
                 case MES_RESPONSE:
-                        post_nvim_response(fd, obj);
+                        post_nvim_response(obj);
                         break;
                 case MES_REQUEST:
                 case MES_ANY:
@@ -116,59 +123,91 @@ event_loop(void)
 }
 
 static void
-post_nvim_response(const int fd, mpack_obj *obj)
+post_nvim_response(void *vdata)
 {
-        extern          genlist   *_nvim_wait_list;
-        extern volatile p99_futex  _nvim_wait_futex;
+        mpack_obj      *obj  = vdata;
+        mpack_obj_node *node = xmalloc(sizeof *node);
+        node->obj            = obj;
+        node->count          = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
+        P99_FIFO_APPEND(&mpack_obj_queue, node);
+        /* pthread_exit(); */
+        /* return NULL; */
+
+        /* P99_FUTEX_COMPARE_EXCHANGE(&event_futex, value,
+                value > 0, value, 0, 0); */
+#if 0
+
+        const uint32_t   count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
+        nvim_wait_queue *node;
+
+        while ((node = P99_FIFO_POP(&nvim_wait_queue_head))) {
+                if (node->count == count) {
+                        node->obj = obj;
+                        p99_futex_wakeup(node->fut, 1u, 1u);
+                        break;
+                }
+                P99_LIFO_PUSH(&wait_queue_stack_head, node);
+        }
+
+        while ((node = P99_LIFO_POP(&wait_queue_stack_head)))
+                P99_FIFO_APPEND(&nvim_wait_queue_head, node);
+
+        atomic_fetch_add(&event_futex, (-1));
+#endif
+
+
+
+#if 0
+        extern genlist  *_nvim_wait_list;
+        extern vfutex_t  _nvim_wait_futex;
 
         const uint32_t    count = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
         struct nvim_wait *wt    = xmalloc(sizeof *wt);
         *wt                     = (struct nvim_wait){fd, count, obj};
 
         genlist_append(_nvim_wait_list, wt); /* genlist contains an integral rwlock */
+        /* mpack_obj_queue *el = xmalloc(sizeof *el); */
+        /* P99_FIFO_APPEND(&_nvim_wait_fifo_head, el); */
 
         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
-                /* Never lock and increment the value */
-                true, (value + 1u),
-                /* Wake up anyone currently waiting */
-                0, P99_FUTEX_MAX_WAITERS
+                true, (value + 1u),      /* Never lock and increment the value */
+                0, P99_FUTEX_MAX_WAITERS /* Wake up anyone currently waiting */
         );
 
         /* Wait for the receiving thread to acknowledge receipt of the data. */
         p99_futex_wait(&event_futex);
+#endif
 }
 
 /*======================================================================================*/
 /* Event Handlers */
 /*======================================================================================*/
 
-static void *
+static void *destroy_bufdata_wrap(void *vdata);
+static void *vimscript_interrupt_wrap(void *vdata);
+
+static void
 handle_nvim_event(void *vdata)
 {
-        static pthread_mutex_t    handle_mutex = PTHREAD_MUTEX_INITIALIZER;
-        static volatile p99_futex event_fut    = P99_FUTEX_INITIALIZER(0);
+        /* static pthread_mutex_t event_mutex = PTHREAD_MUTEX_INITIALIZER; */
+        /* pthread_mutex_lock(&event_mutex); */
 
-        struct line_event_data *data  = vdata;
-        mpack_obj              *event = data->obj;
-        const unsigned          want  = data->val;
-        xfree(vdata);
+        /* mpack_obj_node *p = P99_FIFO_POP(&handle_fifo_head); */
+        /* if (!p || !p->obj) */
+                /* errx(1, "Null object from fifo!"); */
 
-        if (!event)
-                pthread_exit();
-
-        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value,
-                value == want, /* Lock until value == want */
-                value,         /* Don't change the value */
-                0, 0           /* Don't wake anyone up */
-        );
-        pthread_mutex_lock(&handle_mutex);
-
+        /* mpack_obj             *event = p->obj; */
+        mpack_obj *event = vdata;
+        mpack_array_t         *arr   = m_expect(m_index(event, 2), E_MPACK_ARRAY).ptr;
+        const struct event_id *type  = id_event(event);
         mpack_print_object(api_buffer_log, event);
-        mpack_array_t *arr = m_expect(m_index(event, 2), E_MPACK_ARRAY).ptr;
-        const struct event_id *type = id_event(event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                vimscript_interrupt(arr->items[0]->data.str->data[0]);
+                /* p99_count_wait(&vimscript_lock); */
+                /* p99_count_inc(&vimscript_lock); */
+                /* vimscript_interrupt(arr->items[0]->data.str->data[0]); */
+                START_DETACHED_PTHREAD(&vimscript_interrupt_wrap,
+                                       ((void *)((uintptr_t)arr->items[0]->data.str->data[0])));
         } else {
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
@@ -177,44 +216,107 @@ handle_nvim_event(void *vdata)
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
-                        if (arr->qty < 5)
-                                errx(1, "Array is too small (%d, expect >= 5)", arr->qty);
                         handle_line_event(bdata, arr->items);
                         break;
                 case EVENT_BUF_CHANGED_TICK:
-                        bdata->ctick = (unsigned)m_expect(arr->items[1], E_NUM).num;
+
+                        pthread_mutex_lock(&bdata->lock.ctick);
+                        const unsigned new_tick = (uint32_t)m_expect(arr->items[1], E_NUM).num;
+                        const unsigned old_tick = atomic_load(&bdata->ctick);
+                        if (new_tick > old_tick)
+                                atomic_store(&bdata->ctick, new_tick);
+                        pthread_mutex_unlock(&bdata->lock.ctick);
+
+                        /* atomic_store(&bdata->ctick, (uint32_t)m_expect(arr->items[1], E_NUM).num); */
+                        /* if (bdata->ft->is_c && bdata->initialized)
+                                START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata); */
                         break;
                 case EVENT_BUF_DETACH:
-                        destroy_bufdata(&bdata);
-                        echo("Detaching from buffer %d\n", bufnum);
+                        /* destroy_bufdata(&bdata); */
+                        START_DETACHED_PTHREAD(destroy_bufdata_wrap, &bdata);
+                        eprintf("Detaching from buffer %d\n", bufnum);
                         break;
                 default:
                         abort();
                 }
+                /* super_debug(bdata); */
         }
 
-        P99_FUTEX_COMPARE_EXCHANGE(&event_fut, value,
-                true,                    /* Never lock */
-                value + 1,               /* Increment value */
-                0, P99_FUTEX_MAX_WAITERS /* Wake up any waiters */
-        );
-        pthread_mutex_unlock(&handle_mutex);
-        mpack_destroy(event);
+        /* pthread_mutex_unlock(&event_mutex); */
+        mpack_destroy_object(event);
+        /* pthread_exit(); */
+}
+
+static void *destroy_bufdata_wrap(void *vdata)
+{
+        destroy_bufdata(vdata);
         pthread_exit();
 }
 
+static void *vimscript_interrupt_wrap(void *vdata)
+{
+        vimscript_interrupt((int)((uintptr_t)vdata));
+        pthread_exit();
+}
+
+
 /*======================================================================================*/
 
+#define TMP_SPRINTF(FMT, ...)                                     \
+        __extension__({                                           \
+                char tmp_[PATH_MAX + 1];                          \
+                snprintf(tmp_, PATH_MAX + 1, (FMT), __VA_ARGS__); \
+                tmp_;                                             \
+        })
+
+static void
+super_debug(struct bufdata *bdata)
+{
+        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
+        const unsigned n     = nvim_buf_line_count(0, bdata->num);
+        /* if (bdata->ctick != ctick)
+                return; */
+
+        b_list *lines = nvim_buf_get_lines(,bdata->num);
+        bstring *j1 = b_list_join(lines, B("\n"));
+        bstring *j2 = ll_join(bdata->lines, '\n');
+
+        if (strcmp(BS(j1), BS(j2)) != 0) {
+                extern char LOGDIR[];
+                char *ch1 = TMP_SPRINTF("%s/vim_buffer.c", LOGDIR);
+                char *ch2 = TMP_SPRINTF("%s/my_buffer.c", LOGDIR);
+                unlink(ch1);
+                unlink(ch2);
+                FILE *vimbuf = fopen(ch1, "wb");
+                FILE *mybuf  = fopen(ch2, "wb");
+                b_fwrite(vimbuf, j1);
+                b_fwrite(mybuf, j2);
+                fclose(vimbuf);
+                fclose(mybuf);
+
+                eprintf("Internal buffer is not the same %u - %u (%d - %d)",
+                        j1->slen, j2->slen, bdata->ctick, ctick);
+        }
+
+        b_list_destroy(lines);
+        P99_SEQ(b_destroy, j1, j2);
+
+        /* else
+                eprintf("All is well.\n"); */
+}
+
 #ifdef DEBUG
-#  define LINE_EVENT_DEBUG()                                                        \
-        do {                                                                        \
-                const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);     \
-                const unsigned n     = nvim_buf_line_count(0, bdata->num);          \
-                if (bdata->ctick == ctick) {                                        \
-                        if (bdata->lines->qty != (int)n)                            \
-                                errx(1, "Internal line count (%d) is incorrect. "   \
-                                     "Actual: %u. Aborting", bdata->lines->qty, n); \
-                }                                                                   \
+#define LINE_EVENT_DEBUG()                                                       \
+        do {                                                                     \
+                const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);  \
+                const unsigned n     = nvim_buf_line_count(0, bdata->num);       \
+                if (atomic_load(&bdata->ctick) == ctick) {                       \
+                        if (bdata->lines->qty != (int)n)                         \
+                                errx(1,                                          \
+                                     "Internal line count (%d) is incorrect. "   \
+                                     "Actual: %u -- %u vs %u. Aborting",         \
+                                     bdata->lines->qty, n, ctick, bdata->ctick); \
+                }                                                                \
         } while (0)
 #else
 #  define LINE_EVENT_DEBUG()
@@ -224,9 +326,17 @@ static void
 handle_line_event(struct bufdata *bdata, mpack_obj **items)
 {
         assert(!items[5]->data.boolean);
-        pthread_mutex_lock(&update_mutex);
+        static mtx_t handle_mutex;
+        mtx_lock(&handle_mutex);
+        /* pthread_mutex_lock(&bdata->mut); */
 
-        bdata->ctick        = (unsigned)m_expect(items[1], E_NUM).num;
+        pthread_mutex_lock(&bdata->lock.ctick);
+        const unsigned new_tick = (unsigned)m_expect(items[1], E_NUM).num;
+        const unsigned old_tick = atomic_load(&bdata->ctick);
+        if (new_tick > old_tick)
+                atomic_store(&bdata->ctick, new_tick);
+        pthread_mutex_unlock(&bdata->lock.ctick);
+
         const int first     = (int)m_expect(items[2], E_NUM).num;
         const int last      = (int)m_expect(items[3], E_NUM).num;
         const int diff      = last - first;
@@ -234,32 +344,27 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
         bool      empty     = false;
         items[4]->data.arr  = NULL;
 
+        pthread_mutex_lock(&bdata->lines->lock);
+
         if (repl_list->qty) {
                 if (last == (-1)) {
-                        /*
-                         * An "initial" update, recieved only if asked for when attaching
-                         * to a buffer. We never ask for this, so this shouldn't occur.
-                         */
+                        /* An "initial" update, recieved only if asked for when attaching
+                         * to a buffer. We never ask for this, so this shouldn't occur. */
                         errx(1, "Got initial update somehow...");
                 } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer... */
                            repl_list->qty == 1 &&                  /* one string...   */
                            repl_list->lst[0]->slen == 0            /* which is emtpy. */
                            ) {
-                        /*
-                         * Useless update, one empty string in an empty buffer.
-                         */
+                        /* Useless update, one empty string in an empty buffer. */
                         empty = true;
                 } else if (first == 0 && last == 0) {
-                        /*
-                         * Inserting above the first line in the file.
-                         */
+                        /* Inserting above the first line in the file. */
+                        /* ll_insert_blist_before(bdata->lines, bdata->lines->head, repl_list, 0, -1); */
                         ll_insert_blist_before_at(bdata->lines, first, repl_list, 0, -1);
                 } else {
-                        /*
-                         * The most common scenario: we recieved at least one string,
+                        /* The most common scenario: we recieved at least one string,
                          * which may be an empty string only if the buffer is not empty.
-                         * Moved to a helper function for clarity..
-                         */
+                         * Moved to a helper function for clarity.. */
                         line_event_multi_op(bdata, repl_list, first, diff);
                 }
         } else if (first != last) {
@@ -272,22 +377,71 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
          * supposed to indicate. I'll just ignore them.
          *
          * Neovim always considers there to be at least one line in any buffer.
-         * An empty buffer therefore must have one empty line.
-         */
+         * An empty buffer therefore must have one empty line. */
         if (bdata->lines->qty == 0)
                 ll_append(bdata->lines, b_fromlit(""));
 
         if (!bdata->initialized && !empty)
                 bdata->initialized = true;
 
-        LINE_EVENT_DEBUG();
+        /* LINE_EVENT_DEBUG(); */
+#ifdef DEBUG
+        START_DETACHED_PTHREAD(emergency_debug, bdata);
+#endif
 
         xfree(repl_list->lst);
         xfree(repl_list);
-        pthread_mutex_unlock(&update_mutex);
-        if (bdata->ft->is_c)
+        pthread_mutex_unlock(&bdata->lines->lock);
+        mtx_unlock(&handle_mutex);
+        /* pthread_mutex_unlock(&bdata->mut); */
+        if (!empty && bdata->ft->is_c)
                 START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
 }
+
+#if 0
+
+/** 
+ * Hanldes a neovim line update event in which we received at least one string in a buffer
+ * that is not empty. If diff is non-zero, we first delete the lines in the range 
+ * `first + diff`, and then insert the new line(s) after `first` if it is now the last
+ * line in the file, and before it otherwise.
+ */
+static inline void
+line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, int diff)
+{
+        const int olen  = bdata->lines->qty;
+        const int iters = (int)MAX((unsigned)diff, repl_list->qty);
+
+        volatile ll_node *volatile node = ll_at(bdata->lines, first);
+
+        /* This loop is only meaningful when replacing lines.
+         * All other paths break after the first iteration. */
+        for (int i = 0; i < iters; ++i) {
+                if (diff && i < olen) {
+                        --diff;
+                        if (i < (int)repl_list->qty) {
+                                b_free(node->data);
+                                node->data        = repl_list->lst[i];
+                                repl_list->lst[i] = NULL;
+                                if (node)
+                                        node = node->next;
+                        } else {
+                                ll_delete_range(bdata->lines, node, diff+1);
+                                break;
+                        }
+                } else {
+                        /* If the first line not being replaced (first + i) is at the end
+                         * of the file, then we append. Otherwise the update must be prepended.  */
+                        if ((first + i) >= bdata->lines->qty)
+                                ll_insert_blist_after(bdata->lines, node, repl_list, i, -1);
+                        else
+                                ll_insert_blist_before(bdata->lines, node, repl_list, i, -1);
+                        break;
+                }
+        }
+}
+
+#else /* Pointless garbage */
 
 static inline void
 replace_line(struct bufdata *bdata, b_list *repl_list,
@@ -335,6 +489,7 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
                 }
         }
 }
+#endif
 
 /*======================================================================================*/
 
@@ -346,8 +501,13 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
 static void
 vimscript_interrupt(const int val)
 {
-        struct timer t;
-        static int   bufnum = (-1);
+        static mtx_t      vs_mutex;
+        static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
+        struct timer      t;
+        int               num = 0;
+
+        mtx_lock(&vs_mutex);
+
         if (val != 'H')
                 echo("Recieved \"%c\"; waking up!", val);
 
@@ -357,24 +517,24 @@ vimscript_interrupt(const int val)
          */
         case 'A':  /* FIXME These damn letters have gotten totally out of order. */
         case 'D': {
-                const int prev = bufnum;
+                num            = nvim_get_current_buf();
+                const int prev = atomic_exchange(&bufnum, num);
                 TIMER_START_BAR(t);
-                bufnum                = nvim_get_current_buf();
-                struct bufdata *bdata = find_buffer(bufnum);
+                struct bufdata *bdata = find_buffer(num);
 
                 if (!bdata) {
                 try_attach:
-                        if (new_buffer(,bufnum)) {
-                                nvim_buf_attach(BUFFER_ATTACH_FD, bufnum);
-                                bdata = find_buffer(bufnum);
+                        if (new_buffer(,num)) {
+                                nvim_buf_attach(BUFFER_ATTACH_FD, num);
+                                bdata = find_buffer(num);
 
                                 get_initial_lines(bdata);
                                 get_initial_taglist(bdata);
-                                update_highlight(bdata);
+                                update_highlight(bdata, HIGHLIGHT_UPDATE);
 
                                 TIMER_REPORT(t, "initialization");
                         }
-                } else if (prev != bufnum) {
+                } else if (prev != num) {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
 
@@ -387,21 +547,21 @@ vimscript_interrupt(const int val)
         /*
          * Buffer was written, or filetype/syntax was changed.
          */
-        case 'B':
-        case 'F': {
+        case 'B': {
                 TIMER_START_BAR(t);
-                bufnum                 = nvim_get_current_buf();
-                struct bufdata *bdata  = find_buffer(bufnum);
+                num = nvim_get_current_buf();
+                atomic_store(&bufnum, num);
+                struct bufdata *bdata = find_buffer(num);
 
                 if (!bdata) {
                         echo("Failed to find buffer! %d -> p: %p\n",
-                             bufnum, (void *)bdata);
+                             num, (void *)bdata);
                         goto try_attach;
                 }
 
                 if (update_taglist(bdata, (val == 'F'))) {
                         clear_highlight(bdata);
-                        update_highlight(bdata);
+                        update_highlight(bdata, HIGHLIGHT_UPDATE);
                         TIMER_REPORT(t, "update");
                 }
 
@@ -413,6 +573,8 @@ vimscript_interrupt(const int val)
         case 'C': {
                 extern pthread_t top_thread;
                 clear_highlight();
+                /* p99_count_dec(&vimscript_lock); */
+                mtx_unlock(&vs_mutex);
                 pthread_kill(top_thread, KILL_SIG);
                 pthread_exit();
         }
@@ -430,15 +592,20 @@ vimscript_interrupt(const int val)
         /* 
          * Force an update.
          */
-        case 'I': {
-                bufnum = nvim_get_current_buf();
-                update_highlight(bufnum, true);
+        case 'F': {
+                bufnum                = nvim_get_current_buf();
+                struct bufdata *bdata = find_buffer(bufnum);
+                update_taglist(bdata, UPDATE_TAGLIST_FORCE);
+                update_highlight(bdata, HIGHLIGHT_UPDATE);
                 break;
         }
         default:
-                ECHO("Hmm, nothing to do...");
+                echo("Hmm, nothing to do...");
                 break;
         }
+
+        /* p99_count_dec(&vimscript_lock); */
+        mtx_unlock(&vs_mutex);
 }
 
 /*======================================================================================*/
@@ -460,4 +627,12 @@ id_event(mpack_obj *event)
                 errx(1, "Failed to identify event type.\n");
 
         return type;
+}
+
+void
+_b_list_dump_nvim(const b_list *list, const char *const listname)
+{
+        echo("Dumping list \"%s\"\n", listname);
+        for (unsigned i = 0; i < list->qty; ++i)
+                echo("%s\n", BS(list->lst[i]));
 }

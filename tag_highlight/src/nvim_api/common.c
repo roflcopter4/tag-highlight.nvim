@@ -4,42 +4,67 @@
 #include "intern.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include "p99/p99_cm.h"
+#include "p99/p99_fifo.h"
 #include "p99/p99_futex.h"
 
-extern          genlist         *_nvim_wait_list;
-extern volatile p99_futex        _nvim_wait_futex;
-       volatile p99_futex        _nvim_wait_futex = P99_FUTEX_INITIALIZER(0);
+#include "my_p99_common.h"
+#include "read.h"
+
+extern genlist  *_nvim_wait_list;
+extern vfutex_t  _nvim_wait_futex;
+       vfutex_t  _nvim_wait_futex = P99_FUTEX_INITIALIZER(0);
+static vfutex_t  once_futex       = P99_FUTEX_INITIALIZER(0);
+extern vfutex_t event_futex;
+
+#if 0
+P44_DECLARE_FIFO(nvim_wait_queue);
+struct nvim_wait_queue {
+        volatile p99_futex *volatile fut;
+        mpack_obj        *obj;
+        nvim_wait_queue *p99_lifo;
+        unsigned    count;
+};
+extern P99_FIFO(nvim_wait_queue_ptr) nvim_wait_queue_head;
+#endif
+
+volatile p99_count _nvim_count;
+P99_FIFO(mpack_obj_node_ptr) mpack_obj_queue;
+P99_LIFO(mpack_obj_node_ptr) mpack_obj_stack;
 
 /*======================================================================================*/
 
+#if 0
 static mpack_obj *
 check_queue(const int fd, const int count)
 {
-        pthread_rwlock_rdlock(&_nvim_wait_list->lock);
+        /* pthread_mutex_lock(&_nvim_wait_list->mut); */
+
+        /* unsigned bla = 0;
+        atomic_compare_exchange_strong(&once_futex, &bla, 1); */
 
         for (unsigned i = 0; i < _nvim_wait_list->qty; ++i) {
                 struct nvim_wait *wt = _nvim_wait_list->lst[i];
                 if (wt->fd == fd && (int)wt->count == count) {
                         mpack_obj *ret = wt->obj;
-                        pthread_rwlock_unlock(&_nvim_wait_list->lock);
+                        /* pthread_mutex_unlock(&_nvim_wait_list->mut); */
                         genlist_remove(_nvim_wait_list, wt);
                         P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
                                 /* Never lock, decrement value, wake nobody */
                                    true, (value - 1), 0, 0
                         );
 
-                        /* extern pthread_cond_t event_cond; */
-                        /* pthread_cond_signal(&event_cond); */
-                        extern volatile p99_futex event_futex;
                         p99_futex_wakeup(&event_futex, 1u, 1u);
+
+                        P99_FUTEX_COMPARE_EXCHANGE(&once_futex, value,
+                                true, 0, 0, P99_FUTEX_MAX_WAITERS);
                         return ret;
                 }
         }
 
-        pthread_rwlock_unlock(&_nvim_wait_list->lock);
+        /* pthread_mutex_unlock(&_nvim_wait_list->mut); */
         return NULL;
 }
+#endif
 
 /**
  * If I tried to explain how many hours and attempts it took to write what
@@ -47,11 +72,17 @@ check_queue(const int fd, const int count)
  * reference, at one point this funcion was over 100 lines long.
  */
 mpack_obj *
-await_package(const int fd, const int count, UNUSED const nvim_message_type mtype)
+await_package(const int fd, const unsigned count, UNUSED const nvim_message_type mtype)
 {
+#if 0
         mpack_obj *ret = NULL;
 
         while (!ret) {
+                /* P99_FUTEX_COMPARE_EXCHANGE(&once_futex, value,
+                        value == 0,  [>Unlock when the value is not 0<]
+                        value, 0, 0  [>Don't change the value or wake anyone<]
+                ); */
+
                 P99_FUTEX_COMPARE_EXCHANGE(&_nvim_wait_futex, value,
                         value > 0,  /* Unlock when the value is not 0 */
                         value, 0, 0 /* Don't change the value or wake anyone */
@@ -61,6 +92,52 @@ await_package(const int fd, const int count, UNUSED const nvim_message_type mtyp
         }
 
         return ret;
+#endif
+        /* *node = (nvim_wait_queue){&(volatile p99_futex){0}, NULL, NULL, count}; */
+
+        static mtx_t await_mutex;
+        mpack_obj   *obj = NULL;
+
+        for (;;) {
+                p99_count_inc(&_nvim_count);
+                mtx_lock(&await_mutex);
+
+                mpack_obj_node *node;
+                while ((node = P99_FIFO_POP(&mpack_obj_queue))) {
+                        if (count == node->count) {
+                                obj = node->obj;
+                                xfree(node);
+                                break;
+                        }
+                        P99_LIFO_PUSH(&mpack_obj_stack, node);
+                }
+
+                while ((node = P99_LIFO_POP(&mpack_obj_stack)))
+                        P99_FIFO_APPEND(&mpack_obj_queue, node);
+
+                mtx_unlock(&await_mutex);
+                p99_count_dec(&_nvim_count);
+                if (obj)
+                        break;
+                p99_count_wait(&_nvim_count);
+        }
+
+        return obj;
+
+#if 0
+        vfutex_t         fut  = P99_FUTEX_INITIALIZER(0);
+        nvim_wait_queue *node = &(nvim_wait_queue){&fut, NULL, NULL, NULL, count};
+
+        P99_FIFO_APPEND(&nvim_wait_queue_head, node);
+        /* p99_futex_wakeup(&event_futex, 1u, 1u); */
+        
+        P99_FUTEX_COMPARE_EXCHANGE(&event_futex, value,
+                true, value + 1, 0, P99_FUTEX_MAX_WAITERS);
+
+        p99_futex_wait(node->fut);
+
+        return node->obj;
+#endif
 }
 
 mpack_obj *
@@ -121,7 +198,7 @@ void
         mpack_print_object(logfp, pack);
 #endif
         b_write(fd, *pack->packed);
-        mpack_destroy(pack);
+        mpack_destroy_object(pack);
 }
 
 retval_t
@@ -143,6 +220,6 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
                 root->DAI[3] = NULL;
         }
 
-        mpack_destroy(root);
+        mpack_destroy_object(root);
         return ret;
 }

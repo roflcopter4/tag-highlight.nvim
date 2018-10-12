@@ -83,7 +83,7 @@ lazy_write_lzma(struct top_dir *topdir)
         fsync(topdir->tmpfd);
         unlink(BS(topdir->gzfile));
         bstring *cmd = b_format("7z a '%s' -mmt='%d' '%s'", BS(topdir->gzfile), find_num_cpus(), BS(topdir->tmpfname));
-        b_fputs(stderr, cmd, B("\n"));
+        b_fwrite(stderr, cmd, B("\n"));
         assert(system(BS(cmd)) == 0);
         b_destroy(cmd);
 }

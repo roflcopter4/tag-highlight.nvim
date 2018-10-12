@@ -152,6 +152,8 @@ call s:InitVar('ft_conv', {
                 \   'Sh': 'zsh',
                 \ })
 
+call s:InitVar('allbut', '.*Comment.*,.*String.*,.*Quote.*')
+
 if !isdirectory(g:tag_highlight#directory)
     call mkdir(g:tag_highlight#directory)
 endif

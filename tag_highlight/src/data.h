@@ -39,16 +39,16 @@ struct settings_s {
 };
 
 struct filetype {
-        b_list       *equiv;
-        b_list       *ignored_tags;
-        bstring      *restore_cmds;
-        bstring      *order;
-        const bstring vim_name;
-        const bstring ctags_name;
+        b_list        *equiv;
+        b_list        *ignored_tags;
+        bstring       *restore_cmds;
+        bstring       *order;
+        const bstring  vim_name;
+        const bstring  ctags_name;
         const nvim_filetype_id id;
-        bool initialized;
-        bool restore_cmds_initialized;
-        bool is_c;
+        bool           initialized;
+        bool           restore_cmds_initialized;
+        bool           is_c;
 };
 
 struct top_dir {
@@ -65,14 +65,17 @@ struct top_dir {
 };
 
 struct bufdata {
-        uint32_t ctick;
-        uint32_t last_ctick;
-        uint16_t num;
-        uint8_t  hl_id;
-        bool     initialized;
+        _Atomic(uint32_t) ctick;
+        _Atomic(uint32_t) last_ctick;
+        uint16_t          num;
+        uint8_t           hl_id;
+        bool              initialized; /* exactly 8 bytes. yay. */
 
-        pthread_mutex_t  mut;
-        pthread_rwlock_t lock;
+        struct {
+                pthread_mutex_t total;
+                pthread_mutex_t ctick;
+                pthread_mutex_t update;
+        } lock;
 
         struct {
                 bstring *full;
@@ -107,8 +110,9 @@ struct buffer_list {
                 uint16_t mlen;
         } bad_bufs;
 
-        uint16_t mkr;
-        uint16_t mlen;
+        uint16_t         mkr;
+        uint16_t         mlen;
+        pthread_rwlock_t lock;
 };
 
 struct top_dir_list {

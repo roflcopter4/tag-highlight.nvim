@@ -16,6 +16,8 @@ FILE  *mpack_log;
 #  define restrict __restrict
 #endif
 pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#include "my_p99_common.h"
+#include "execinfo.h"
 
 /*======================================================================================*/
 
@@ -116,7 +118,7 @@ retval_t
         }
 
         if (destroy) {
-                mpack_destroy(obj);
+                mpack_destroy_object(obj);
                 if (type == E_STRING)
                         b_writeallow((bstring *)ret.ptr);
         }
@@ -125,19 +127,37 @@ retval_t
         return ret;
 
 error:
-        warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
+        /* warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         mpack_destroy_object(obj);
-        ret.ptr = NULL;
+        ret.ptr = NULL; */
         /* pthread_mutex_unlock(&mpack_rw_lock); */
-        abort();
+
+        {
+                extern char LOGDIR[];
+                extern const char *const m_expect_names[];
+                eprintf("WARNING: Got mpack of type %s, expected type %s, possible error.",
+                        m_type_names[mpack_type(obj)], m_expect_names[err_expect]);
+
+                FILE *tmp = safe_fopen_fmt("%s/.log", "wb", LOGDIR);
+                mpack_print_object(tmp, obj);
+                fclose(tmp);
+                
+                void * arr[128];
+                size_t num = backtrace(arr, 128);
+                eprintf("Fatal error in func %s in bstrlib.c, line %d\nSTACKTRACE: \n", FUNC_NAME, __LINE__);
+                backtrace_symbols_fd(arr, num, 2);
+                abort();
+        }
+
+
         /* return ret; */
 }
 
 /*======================================================================================*/
 
 void
-mpack_destroy(mpack_obj *root)
+mpack_destroy_object(mpack_obj *root)
 {
         pthread_mutex_lock(&mpack_rw_lock);
         if (!(root->flags & MPACK_ENCODE)) {
@@ -470,7 +490,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         break;
 
                 /* Legal values that do not increment the current size. */
-                case ':': case '.': case ' ': case ',':
+                case ';': case ':': case '.': case ' ': case ',':
                 case '!': case '@': case '*':
                         break;
 
@@ -571,7 +591,6 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 #ifdef DEBUG
                         PUSH(obj_stack, *cur_obj);
 #endif
-
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
                         *cur_ctr = 0;
@@ -585,7 +604,6 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 #ifdef DEBUG
                         PUSH(obj_stack, *cur_obj);
 #endif
-
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
                         *cur_ctr = 0;
@@ -600,6 +618,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 #endif
                         break;
 
+                /* The following use `continue' to skip incrementing the counter */
                 case '!':
                         NEXT_NO_ATOMIC(ref, va_list *);
                         next_type = OTHER_VALIST;
@@ -619,7 +638,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         a_arg_subctr = 0;
                         continue;
 
-                case ':': case '.': case ' ': case ',':
+                case ';': case ':': case '.': case ' ': case ',':
                         continue;
 
                 default:

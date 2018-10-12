@@ -19,6 +19,7 @@ static void my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo 
 /*======================================================================================*/
 
 struct idx_data {
+        genlist          *tok_list;
         struct bufdata   *bdata;
         struct clangdata *cdata;
         FILE             *fp;
@@ -30,10 +31,10 @@ struct idx_data {
 #define DAT(D)      ((struct idx_data *)(D))
 
 void
-lc_index_file(struct bufdata *bdata)
+lc_index_file(struct bufdata *bdata, struct translationunit *stu)
 {
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/idx.log", "wb", HOME);
-        struct idx_data  data = {bdata, CLD(bdata), fp, 0};
+        struct idx_data  data = {genlist_create(), bdata, CLD(bdata), fp, 0};
         CXIndexAction    iact = clang_IndexAction_create(CLD(bdata)->idx);
         IndexerCallbacks cb   = {/* .abortQuery             = &my_abortQuery, */
                                  /* .diagnostic             = &my_diagnostic, */
@@ -53,6 +54,12 @@ lc_index_file(struct bufdata *bdata)
         if (r != 0)
                 errx(1, "Clang failed with error %d", r);
 
+        stu->tokens = data.tok_list;
+
+        nvim_call_array *calls = type_id(bdata, stu);
+        nvim_call_atomic(,calls);
+        destroy_call_array(calls);
+
         if (bdata->headers->qty > 0)
                 b_list_remove_dups(&bdata->headers);
         fclose(fp);
@@ -61,36 +68,62 @@ lc_index_file(struct bufdata *bdata)
 
 /*======================================================================================*/
 
-#define log_idx_location(...) P99_CALL_DEFARG(log_idx_location, 3, __VA_ARGS__)
-#define log_idx_location_defarg_2() data
-
-static void
-(log_idx_location)(const CXCursor cursor, const CXIdxEntityInfo *ref, struct idx_data *data)
+static struct token *
+mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_range *rng)
 {
+        size_t        len = strlen(CS(*dispname)) + 1llu;
+        struct token *ret = xmalloc(offsetof(struct token, raw) + len);
+        ret->cursor       = *cursor;
+        ret->cursortype   = clang_getCursorType(*cursor);
+        ret->line         = rng->line - 1;
+        ret->col1         = rng->start - 1;
+        ret->col2         = rng->end - 1;
+        ret->len          = rng->end - rng->start;
+
+        memcpy(ret->raw, CS(*dispname), len);
+
+        return ret;
+}
+
+#define log_idx_location(...) P99_CALL_DEFARG(log_idx_location, 4, __VA_ARGS__)
+#define log_idx_location_defarg_3() data
+
+static void(log_idx_location)(const CXCursor         cursor,
+                              const CXIdxEntityInfo *ref,
+                              const CXIdxLoc         loc,
+                              struct idx_data       *data)
+{
+        struct { CXFile file; unsigned line, column, offset; } linfo;
+        clang_indexLoc_getFileLocation(loc, NULL, &linfo.file, &linfo.line,
+                                       &linfo.column, &linfo.offset);
+        if (!clang_File_isEqual(linfo.file, CLD(data->bdata)->mainfile))
+                return;
+
         CXType   curstype       = clang_getCursorType(cursor);
         CXString dispname       = clang_getCursorDisplayName(cursor);
         CXString curstype_spell = clang_getTypeSpelling(curstype);
         CXString typekind_spell = clang_getTypeKindSpelling(curstype.kind);
+        CXString fname          = clang_getFileName(linfo.file);
 
         LOG("The cursor dispname is \"%s\" - and it is of type \"%s\" - typekind \"%s\"\n"
             "Entity info: kind=(%s), name=(%s), USR=(%s)\n",
             CS(dispname), CS(curstype_spell), CS(typekind_spell),
             idx_entity_kind_repr[ref->kind], ref->name, ref->USR);
-        free_cxstrings(dispname, curstype_spell, typekind_spell);
 
         struct resolved_range *rng = &(struct resolved_range){0, 0, 0, 0, 0};
         resolve_range(clang_getCursorExtent(cursor), rng);
+        genlist_append(data->tok_list, mktok(&cursor, &dispname, rng));
 
         if (clang_File_isEqual(data->cdata->mainfile, rng->file)) {
-                LOG("Also the above is on line %u, from col %u to %u - offset %u.\n"
-                    /* "Real extent: \"%s\"\n" */
+                LOG("Also the above is on line: %u, column: %u to %u - offset %u.\n"
+                    "That is ,      %s -- line: %u, column: %u       - offset %u.\n"
                     "---------------------------------------------\n",
-                    rng->line, rng->start, rng->end, rng->offset/* , BS(tmp) */);
-
-                /* nvim_buf_add_highlight(0, data->bdata->num, -1, B("Keyword"), rng->line-1, rng->start-1, rng->end-1); */
+                    rng->line, rng->start, rng->end, rng->offset/* , BS(tmp) */,
+                    CS(fname), linfo.line, linfo.column, linfo.offset);
         }
 
         LOG("---------------------------------------------\n");
+        free_cxstrings(dispname, curstype_spell, typekind_spell, fname);
 }
 
 /*======================================================================================*/
@@ -153,12 +186,14 @@ static void
 my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info)
 {
         LOG("This node is an \033[1;32mINDEX DECLARATION\033[0m.\n");
-        log_idx_location(info->cursor, info->entityInfo);
+        log_idx_location(info->cursor, info->entityInfo, info->loc);
+
+
 }
 
 static void
 my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo *info)
 {
-        LOG("This node is an \x1B[1;36mENTITY REFERENCE\x1B[0m.\n");
-        log_idx_location(info->cursor, info->referencedEntity);
+        LOG("This node is an \033[1;36mENTITY REFERENCE\033[0m.\n");
+        log_idx_location(info->cursor, info->referencedEntity, info->loc);
 }

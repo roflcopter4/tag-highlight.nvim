@@ -1,5 +1,5 @@
-/* #ifndef SRC_CLANG_INTERN_H */
-/* #define SRC_CLANG_INTERN_H */
+#ifndef SRC_CLANG_INTERN_H
+#define SRC_CLANG_INTERN_H
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,7 +16,7 @@ extern "C" {
 #include <clang-c/CXString.h>
 #include <clang-c/Index.h>
 
-#define TMPSIZ    (512)
+#define TMPSIZ (PATH_MAX + 1)
 #define CLD(s) \
         _Generic(s, struct bufdata *: (struct clangdata *)((s)->clangdata), \
                     const struct bufdata *: (struct clangdata *)((s)->clangdata))
@@ -53,6 +53,7 @@ struct token {
         CXToken     token;
         CXTokenKind tokenkind;
         unsigned    line, col1, col2, len;
+        bstring     text;
         char        raw[];
 };
 
@@ -71,17 +72,16 @@ extern const size_t      idx_entity_kind_num;
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
+#if 0
 INTERN nvim_call_array *type_id(struct bufdata         *bdata,
                                 struct translationunit *stu,
                                 const b_list           *enumerators,
-                                struct cmd_info        *info,
-                                const int               line,
-                                const int               end,
-                                const bool              clear_first);
+                                struct cmd_info        *info);
+#endif
+INTERN nvim_call_array *type_id(struct bufdata *bdata, struct translationunit *stu);
 
-INTERN void              tokvisitor(struct token *tok);
 INTERN IndexerCallbacks *make_cb_struct(void);
-INTERN void              lc_index_file(struct bufdata *bdata);
+INTERN void              lc_index_file(struct bufdata *bdata, struct translationunit *stu);
 
 INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
 /* INTERN void locate_extent(bstring *dest, struct bufdata *bdata, const struct resolved_range *res); */
@@ -98,4 +98,4 @@ INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
 #ifdef __cplusplus
 }
 #endif
-/* #endif [> intern.h <] */
+#endif /* intern.h */

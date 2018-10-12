@@ -17,12 +17,13 @@
 #define pthread_exit(...) P99_CALL_DEFARG(pthread_exit, 1, __VA_ARGS__)
 #define pthread_exit_defarg_0() NULL
 
-#define p99_futex_wakeup(...) P99_CALL_DEFARG(p99_futex_wakeup, 3, __VA_ARGS__)
-#define p99_futex_wakeup_defarg_2() (P99_FUTEX_MAX_WAITERS)
+/* #define p99_futex_wakeup(...) P99_CALL_DEFARG(p99_futex_wakeup, 3, __VA_ARGS__) */
+/* #define p99_futex_wakeup_defarg_2() (P99_FUTEX_MAX_WAITERS) */
 
-#define TRY         P99_TRY
-#define CATCH(NAME) P99_CATCH(int NAME) if (NAME)
-#define CATCH_FINALLY(NAME) P99_CATCH(int NAME)
+#define TRY                P99_TRY
+#define CATCH(NAME)        P99_CATCH(int NAME) if (NAME)
+#define CATCH_FINALLY(...) P99_CATCH(P99_IF_EMPTY(__VA_ARGS__)()(int __VA_ARGS__))
+#define FINALLY            P99_FINALLY
 
 #define THROW(...)                                                              \
         p00_jmp_throw((((P99_NARG(__VA_ARGS__) == 1 &&                          \
@@ -82,5 +83,15 @@
 
 #define P04_STREQ(WHAT, X, I) (strcmp((WHAT), (X)) == 0)
 #define P44_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_STREQ, __VA_ARGS__)
+
+#define P44_DECLARE_FIFO(NAME)   \
+        P99_DECLARE_STRUCT(NAME); \
+        P99_POINTER_TYPE(NAME);   \
+        P99_FIFO_DECLARE(NAME##_ptr)
+
+#define P44_DECLARE_LIFO(NAME)   \
+        P99_DECLARE_STRUCT(NAME); \
+        P99_POINTER_TYPE(NAME);   \
+        P99_LIFO_DECLARE(NAME##_ptr)
 
 #endif /* p99_common.h */

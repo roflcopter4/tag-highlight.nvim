@@ -9,6 +9,8 @@ let g:tag_highlight#perl#s = {
             \   'prefix': '\%(\<sub\s\*\)\@<!\%(>\|\s\|&\|^\)\@<=\<',
             \ }
 
+let g:tag_highlight#perl#allbut = '.*Here.oc.*,perlMatch.*,perl.*DQ.*,perl.*SQ.*,perlQQ'
+
 highlight def link perlConstantTag	tag_highlight_ConstantTag
 highlight def link perlFunctionTag	tag_highlight_FunctionTag
 highlight def link perlPackageTag	tag_highlight_TypeTag

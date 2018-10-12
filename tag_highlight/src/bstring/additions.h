@@ -226,46 +226,46 @@ BSTR_PUBLIC bstring *b_quickread(const char *__restrict fmt, ...);
 /**
  * Concatenate a series of bstrings.
  */
-BSTR_PUBLIC bstring *__b_concat_all(const bstring *join, int join_end, ...);
-BSTR_PUBLIC int      __b_append_all(bstring *dest, const bstring *join, int join_end, ...);
+BSTR_PUBLIC bstring *_b_concat_all(const bstring *join, int join_end, ...);
+BSTR_PUBLIC int      _b_append_all(bstring *dest, const bstring *join, int join_end, ...);
 #define b_concat_all(...) \
-        __b_concat_all(NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
+        _b_concat_all(NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
 #define b_append_all(BDEST, ...) \
-        __b_append_all((BDEST), NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
+        _b_append_all((BDEST), NULL, 0, __VA_ARGS__, B_LIST_END_MARK)
 #define b_join_all(JOIN, END, ...) \
-        __b_concat_all((JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
+        _b_concat_all((JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
 #define b_join_append_all(BDEST, JOIN, END, ...) \
-        __b_append_all((BDEST), (JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
+        _b_append_all((BDEST), (JOIN), (END), __VA_ARGS__, B_LIST_END_MARK)
 
 /*--------------------------------------------------------------------------------------*/
 
 /**
  * Safely free several bstrings.
  */
-BSTR_PUBLIC void __b_free_all(bstring **bstr, ...);
+BSTR_PUBLIC void _b_free_all(bstring **bstr, ...);
 
 /**
  * Write bstrings to files/stdout/stderr without the calls to strlen that the
  * standard c library would make. These call fwrite on the supplied stream,
  * passing the slen of the bstring as the length.
  */
-BSTR_PUBLIC void __b_fputs(FILE *fp, bstring *bstr, ...);
+BSTR_PUBLIC void _b_fwrite(FILE *fp, bstring *bstr, ...);
 
 /**
- * Same as __b_fputs but writes to a file descriptor using the write(2) function
+ * Same as _b_fputs but writes to a file descriptor using the write(2) function
  * rather than a FILE * object and fwrite(3);
  */
-BSTR_PUBLIC int  __b_write(int fd, bstring *bstr, ...);
-BSTR_PUBLIC void __b_list_dump(FILE *fp, const b_list *list, const char *listname);
-BSTR_PUBLIC void __b_list_dump_fd(int fd, const b_list *list, const char *listname);
+BSTR_PUBLIC int  _b_write(int fd, bstring *bstr, ...);
+BSTR_PUBLIC void _b_list_dump(FILE *fp, const b_list *list, const char *listname);
+BSTR_PUBLIC void _b_list_dump_fd(int fd, const b_list *list, const char *listname);
 
-#define b_free_all(...)        __b_free_all(__VA_ARGS__, B_LIST_END_MARK)
-#define b_puts(...)            __b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
-#define b_warn(...)            __b_fputs(stderr, __VA_ARGS__, B_LIST_END_MARK)
-#define b_fputs(__FP, ...)     __b_fputs(__FP, __VA_ARGS__,   B_LIST_END_MARK)
-#define b_write(__FD, ...)     __b_write(__FD, __VA_ARGS__,   B_LIST_END_MARK)
-#define b_list_dump(FP_, LST_) __b_list_dump((FP_), (LST_), #LST_)
-#define b_list_dump_fd(FD_, LST_) __b_list_dump_fd((FD_), (LST_), #LST_)
+#define b_free_all(...)         _b_free_all(__VA_ARGS__, B_LIST_END_MARK)
+#define b_puts(...)             _b_fputs(stdout, __VA_ARGS__, B_LIST_END_MARK)
+#define b_warn(...)             _b_fputs(stderr, __VA_ARGS__, B_LIST_END_MARK)
+#define b_fwrite(FP, ...)       _b_fwrite(FP, __VA_ARGS__,   B_LIST_END_MARK)
+#define b_write(FD, ...)        _b_write(FD, __VA_ARGS__,   B_LIST_END_MARK)
+#define b_list_dump(FP, LST)    _b_list_dump((FP), (LST), #LST)
+#define b_list_dump_fd(FD, LST) _b_list_dump_fd((FD), (LST), #LST)
 
 
 #define B_LIST_FOREACH(BLIST, VAR, CTR)                                    \

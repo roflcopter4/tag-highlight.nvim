@@ -1,19 +1,19 @@
 #include "tag_highlight.h"
-
 #include "intern.h"
-#include "clang.h"
-#include "util/list.h"
 
-#include "nvim_api/api.h"
+#include "clang.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
+#include "util/list.h"
 
 static void do_typeswitch(struct bufdata           *bdata,
                           struct atomic_call_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          const b_list             *enumerators);
+                          const b_list             *enumerators,
+                          enum CXCursorKind *const  last_kind);
 static void add_hl_call(struct atomic_call_array *calls,
                         const int                 bufnum,
                         const int                 hl_id,
@@ -26,61 +26,86 @@ add_clr_call(struct atomic_call_array *calls,
              const int line,
              const int end);
 
-static bool check_skip(struct bufdata *bdata, struct token *tok);
+static bool tok_in_skip_list(struct bufdata *bdata, struct token *tok);
+static void tokvisitor(struct token *tok);
 
 static struct atomic_call_array *new_call_array(void);
 static const bstring *find_group(struct filetype *ft, const struct cmd_info *info, unsigned num, const int ctags_kind);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
-#define ADD_CALL(CH)                                                         \
-        do {                                                                 \
-                if (!(group = find_group(bdata->ft, info, info->num, (CH)))) \
-                        goto done;                                           \
-                add_hl_call(calls, bdata->num, bdata->hl_id, group, tok);    \
+#define ADD_CALL(CH)                                                              \
+        do {                                                                      \
+                if ((group = find_group(bdata->ft, info, info->num, (CH))))       \
+                        add_hl_call(calls, bdata->num, bdata->hl_id, group, tok); \
         } while (0)
+#define STRDUP(STR)                                                     \
+        __extension__({                                                 \
+                static const char strng_[]   = ("" STR "");             \
+                char *            strng_cpy_ = xmalloc(sizeof(strng_)); \
+                memcpy(strng_cpy_, strng_, sizeof(strng_));             \
+                strng_cpy_;                                             \
+        })
+
+#if 0
+enum equiv_ctags_type {
+        CTAGS_CLASS     = 'c',
+        CTAGS_ENUM      = 'g',
+        CTAGS_ENUMCONST = 'e',
+        CTAGS_FUNCTION  = 'f',
+        CTAGS_GLOBALVAR = 'v',
+        CTAGS_MEMBER    = 'm',
+        CTAGS_NAMESPACE = 'n',
+        CTAGS_PREPROC   = 'd',
+        CTAGS_STRUCT    = 's',
+        CTAGS_TYPE      = 't',
+        CTAGS_UNION     = 'u',
+};
+#endif
+#define CTAGS_CLASS     'c'
+#define CTAGS_ENUM      'g'
+#define CTAGS_ENUMCONST 'e'
+#define CTAGS_FUNCTION  'f'
+#define CTAGS_GLOBALVAR 'v'
+#define CTAGS_MEMBER    'm'
+#define CTAGS_NAMESPACE 'n'
+#define CTAGS_PREPROC   'd'
+#define CTAGS_STRUCT    's'
+#define CTAGS_TYPE      't'
+#define CTAGS_UNION     'u'
 
 /*======================================================================================*/
 
-#define B_QUICK_DUMP(LST, FNAME) P99_BLOCK(                                             \
-        FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/%s.log", "wb", HOME, (FNAME)); \
-        b_list_dump(fp, LST);                                                           \
-        fclose(fp);                                                                     \
-)
+#define B_QUICK_DUMP(LST, FNAME)                                                                \
+        do {                                                                                    \
+                FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/%s.log", "wb", HOME, (FNAME)); \
+                b_list_dump(fp, LST);                                                           \
+                fclose(fp);                                                                     \
+        } while (0)
 
 nvim_call_array *
-type_id(struct bufdata         *bdata,
-        struct translationunit *stu,
-        const b_list           *enumerators,
-        struct cmd_info        *info,
-        UNUSED const int               line,
-        UNUSED const int               end,
-        const bool clear_first)
+type_id(struct bufdata *bdata, struct translationunit *stu)
 {
-        nvim_call_array *calls = new_call_array();
+        enum CXCursorKind last  = 1;
+        nvim_call_array  *calls = new_call_array();
 
-        if (!info)
+        if (!CLD(bdata)->info)
                 errx(1, "Invalid");
-                /* *info = getinfo(bdata); */
 
         if (bdata->hl_id == 0)
-                bdata->hl_id = nvim_buf_add_highlight(0, bdata->num, 0, NULL, 0, 0, 0);
+                bdata->hl_id = nvim_buf_add_highlight(,bdata->num);
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
-
-        /* add_clr_call(calls, bdata->num, bdata->hl_id, line, end); */
 
         B_QUICK_DUMP(bdata->ft->ignored_tags, "ignored");
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
-                if (check_skip(bdata, tok))
+                if (((int)(tok->line)) == (-1) || tok_in_skip_list(bdata, tok))
                         continue;
                 tokvisitor(tok);
-                do_typeswitch(bdata, calls, tok, info, enumerators);
+                do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last);
         }
 
-        /* nvim_call_atomic(0, calls);
-        destroy_call_array(calls); */
         return calls;
 }
 
@@ -91,148 +116,175 @@ static void do_typeswitch(struct bufdata           *bdata,
                           struct atomic_call_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          const b_list             *enumerators)
+                          const b_list             *enumerators,
+                          enum CXCursorKind *const  last_kind)
 {
-        static thread_local unsigned lastline = UINT_MAX;
-
+        CXCursor       cursor = tok->cursor;
         const bstring *group;
-        /* int            ctagskind = 0; */
-        CXCursor       cursor    = tok->cursor;
 
-#if 0
-        if (lastline != tok->line) {
-                add_clr_call(calls, bdata->num, (-1), tok->line, tok->line + 1);
-                lastline = tok->line;
-        }
-#endif
-
-lazy_sonovabitch:
+retry:
         switch (cursor.kind) {
         case CXCursor_TypedefDecl:
                 /* An actual typedef */
-                ADD_CALL('t');
+                ADD_CALL(CTAGS_TYPE);
                 break;
         case CXCursor_TypeRef: {
-                /* Referance to a type. */
+                /* Some object that is a reference or instantiation of a type. */
 
-                if (bdata->ft->id == FT_C) {
-                        ADD_CALL('t');
-                        break;
+                /* In C++, classes and structs both appear under TypeRef. To
+                 * differentiate them from other types we need to find the
+                 * declaration cursor and identify its type. The easiest way to do
+                 * this is to change the value of `cursor' and jump back to the top. */
+                if (bdata->ft->id == FT_CPP) {
+                        CXType curs_type = clang_getCursorType(tok->cursor);
+                        cursor           = clang_getTypeDeclaration(curs_type);
+                        if (cursor.kind != CXCursor_NoDeclFound)
+                                goto retry;
                 }
-
-                CXType   curs_type = clang_getCursorType(tok->cursor);
-                /* CXCursor decl      = clang_getTypeDeclaration(curs_type); */
-                cursor = clang_getTypeDeclaration(curs_type);
-                goto lazy_sonovabitch;
-
-#if 0
-                switch (decl.kind) {
-                case CXCursor_ClassDecl:
-                        ADD_CALL('c');
-                        break;
-                case CXCursor_StructDecl:
-                        ADD_CALL('s');
-                }
-#endif
-
-                /* break; */
-        }
+                ADD_CALL(CTAGS_TYPE);
+        } break;
         case CXCursor_MemberRef:
                 /* A reference to a member of a struct, union, or class in
                  * non-expression context such as a designated initializer. */
-                ADD_CALL('m');
+                ADD_CALL(CTAGS_MEMBER);
                 break;
         case CXCursor_MemberRefExpr:
                 /* Ordinary reference to a struct/class member. */
-                ADD_CALL('m');
+                ADD_CALL(CTAGS_MEMBER);
                 break;
         case CXCursor_Namespace:
-                ADD_CALL('n');
-                break;
         case CXCursor_NamespaceRef:
-                ADD_CALL('n');
+                ADD_CALL(CTAGS_NAMESPACE);
                 break;
         case CXCursor_StructDecl:
-                ADD_CALL('s');
+                ADD_CALL(CTAGS_STRUCT);
                 break;
         case CXCursor_UnionDecl:
-                ADD_CALL('u');
+                ADD_CALL(CTAGS_UNION);
                 break;
         case CXCursor_ClassDecl:
-                ADD_CALL('c');
+                ADD_CALL(CTAGS_CLASS);
                 break;
         case CXCursor_EnumDecl:
                 /* An enumeration. */
-                ADD_CALL('g');
+                ADD_CALL(CTAGS_ENUM);
                 break;
         case CXCursor_EnumConstantDecl:
                 /** An enumerator constant. */
-                ADD_CALL('e');
+                ADD_CALL(CTAGS_ENUMCONST);
                 break;
         case CXCursor_FieldDecl:
                 /* A field or non-static data member (C++) in a struct, union, or class. */
-                ADD_CALL('m');
+                ADD_CALL(CTAGS_MEMBER);
                 break;
         case CXCursor_FunctionDecl:
-                ADD_CALL('f');
-                break;
         case CXCursor_CXXMethod:
         case CXCursor_CallExpr:
                 /* An expression that calls a function. */
-                ADD_CALL('f');
+                ADD_CALL(CTAGS_FUNCTION);
                 break;
 
+        /* --- Mainly C++ Stuff --- */
         case CXCursor_Constructor:
-        case CXCursor_ConversionFunction:
+                ADD_CALL(CTAGS_CLASS);
+                break;
         case CXCursor_TemplateTypeParameter:
+                ADD_CALL(CTAGS_TYPE);
         case CXCursor_NonTypeTemplateParameter:
+                break;
+        case CXCursor_ConversionFunction:
         case CXCursor_FunctionTemplate:
+                ADD_CALL(CTAGS_FUNCTION);
+                break;
         case CXCursor_ClassTemplate:
-                ADD_CALL('q');
+                ADD_CALL(CTAGS_CLASS);
                 break;
-#if 0
+        case CXCursor_TemplateRef:
+                ADD_CALL(CTAGS_GLOBALVAR);
+                break;
+        /* ------------------------ */
+
+        /* Macros are trouble */
         case CXCursor_MacroDefinition:
-                if (!(group = find_group(bdata->ft, info, num, 'd')))
-                        break;
-                add_hl_call(calls, bdata->num, bdata->hl_id, group, tok);
-                break;
+#if 0
+        P99_AVOID {
+                /* CXCursor tmp = clang_getCursorReferenced(cursor); */
+                /* CXString str = clang_getTypeSpelling(clang_getCursorType(tmp)); */
+
+                CXType   curs_type = clang_getCursorType(cursor);
+                CXType   can_type  = clang_getCanonicalType(curs_type);
+                CXString str       = clang_getTypeSpelling(can_type);
+                echo("Got cursor of kind \"%s\" in the macro", CS(str));
+                clang_disposeString(str);
+        }
 #endif
-        case CXCursor_MacroExpansion:
-                ADD_CALL('d');
+                if (*last_kind == CXCursor_PreprocessingDirective)
+                        ADD_CALL(CTAGS_PREPROC);
                 break;
+
+        case CXCursor_MacroExpansion:
+                ADD_CALL(CTAGS_PREPROC);
+                break;
+
         case CXCursor_DeclRefExpr:
                 /* Possibly the most generic kind, this could refer to many things. */
                 switch (tok->cursortype.kind) {
                 case CXType_Enum:
-                        ADD_CALL('e');
-                        goto done;
+                        ADD_CALL(CTAGS_ENUMCONST);
+                        break;
                 case CXType_FunctionProto:
-                        ADD_CALL('f');
-                        goto done;
+                        ADD_CALL(CTAGS_FUNCTION);
+                        break;
                 case CXType_Int: {
-                        bstring *tmp = btp_fromcstr(tok->raw);
+                        bstring *tmp = &tok->text;
+                        unsigned i;
+                        /* B_LIST_FOREACH(enumerators, cur, i)
+                                if (b_iseq(cur, tmp)) {
+                                        ADD_CALL(CTAGS_ENUMCONST);
+                                        break;
+                                } */
+
                         if (B_LIST_BSEARCH_FAST(enumerators, tmp))
-                                ADD_CALL('e');
-                        goto done;
-                }
+                                ADD_CALL(CTAGS_ENUMCONST);
+                } break;
                 default:
                         break;
                 }
-
+                break;
         default:
                 break;
         }
-done:;
+
+        *last_kind = cursor.kind;
 }
 
 
 /*======================================================================================*/
 
 static bool
-check_skip(struct bufdata *bdata, struct token *tok)
+tok_in_skip_list(struct bufdata *bdata, struct token *tok)
 {
         bstring *tmp = btp_fromcstr(tok->raw);
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tmp);
+}
+
+static void
+tokvisitor(struct token *tok)
+{
+        extern char     libclang_tmp_path[PATH_MAX + 1];
+        static unsigned n = 0;
+
+        CXString typespell      = clang_getTypeSpelling(tok->cursortype);
+        CXString typekindrepr   = clang_getTypeKindSpelling(tok->cursortype.kind);
+        CXString curs_kindspell = clang_getCursorKindSpelling(tok->cursor.kind);
+        FILE    *toklog         = safe_fopen_fmt("%s/toks.log", "ab", libclang_tmp_path);
+
+        fprintf(toklog, "%4u: %4u => %-50s - %-17s - %-30s - %s\n",
+                n++, tok->line, tok->raw,
+                CS(typekindrepr), CS(curs_kindspell), CS(typespell));
+
+        fclose(toklog);
+        free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
 
 /*======================================================================================*/
@@ -265,7 +317,7 @@ add_hl_call(struct atomic_call_array *calls,
                 calls->args = nrealloc(calls->args, calls->mlen, sizeof(union atomic_call_args *));
         }
 
-        calls->fmt[calls->qty]         = strdup("s[dd,s,ddd]");
+        calls->fmt[calls->qty]         = STRDUP("s[dd,s,ddd]");
         calls->args[calls->qty]        = nmalloc(7, sizeof(union atomic_call_args));
         calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_add_highlight");
         calls->args[calls->qty][1].num = bufnum;
@@ -295,7 +347,7 @@ add_clr_call(struct atomic_call_array *calls,
                 calls->args = nrealloc(calls->args, calls->mlen, sizeof(union atomic_call_args *));
         }
 
-        calls->fmt[calls->qty]         = strdup("s[dddd]");
+        calls->fmt[calls->qty]         = STRDUP("s[dddd]");
         calls->args[calls->qty]        = nmalloc(5, sizeof(union atomic_call_args));
         calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_clear_highlight");
         calls->args[calls->qty][1].num = bufnum;
@@ -304,7 +356,8 @@ add_clr_call(struct atomic_call_array *calls,
         calls->args[calls->qty][4].num = end;
 
         if (cmd_log)
-                fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n", bufnum, hl_id, line, end);
+                fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n",
+                        bufnum, hl_id, line, end);
         ++calls->qty;
 }
 

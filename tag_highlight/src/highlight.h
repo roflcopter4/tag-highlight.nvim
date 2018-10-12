@@ -29,11 +29,13 @@ enum update_taglist_opts {
         UPDATE_TAGLIST_FORCE_LANGUAGE,
 };
 
+enum { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
+
 extern bool    run_ctags          (struct bufdata *bdata, enum update_taglist_opts opts);
 extern int     get_initial_taglist(struct bufdata *bdata);
 extern int     update_taglist     (struct bufdata *bdata, enum update_taglist_opts opts);
 extern b_list *find_header_files  (struct bufdata *bdata);
-extern void    update_highlight   (int bufnum, struct bufdata *bdata, bool force);
+extern void    update_highlight   (int bufnum, struct bufdata *bdata, int type);
 extern void    clear_highlight    (int bufnum, struct bufdata *bdata);
 
 
@@ -69,6 +71,8 @@ extern void get_initial_lines(struct bufdata *bdata);
 #define clear_highlight_defarg_0() (-1)
 #define clear_highlight_defarg_1() NULL */
 
+#define b_list_dump_nvim(LST_) _b_list_dump_nvim((LST_), #LST_)
+extern void _b_list_dump_nvim(const b_list *list, const char *listname);
 
 #ifdef __cplusplus
 }

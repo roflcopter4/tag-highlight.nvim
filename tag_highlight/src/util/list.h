@@ -19,6 +19,8 @@ struct linked_list_s {
         ll_node *head;
         ll_node *tail;
         int qty;
+        /* pthread_rwlock_t lock; */
+        pthread_mutex_t lock;
 };
 
 struct ll_node_s {
@@ -78,7 +80,8 @@ typedef struct generic_list {
         void **  lst;
         unsigned qty;
         unsigned mlen;
-        pthread_rwlock_t lock;
+        /* pthread_rwlock_t lock; */
+        pthread_mutex_t mut;
 } genlist;
 
 typedef int (*genlist_copy_func)(void **dest, void *item);
@@ -87,12 +90,21 @@ extern genlist *genlist_create(void);
 extern int      genlist_destroy(genlist *sl);
 extern genlist *genlist_create_alloc(const unsigned msz);
 extern int      genlist_alloc(genlist *sl, const unsigned msz);
-extern int      genlist_append(genlist *listp, void *item);
+extern int      genlist_append(genlist *listp, void *item, bool copy, size_t size);
 extern int      genlist_remove_index(genlist *list, const unsigned index);
 extern int      genlist_remove(genlist *listp, const void *obj);
 extern genlist *genlist_copy(genlist *list, const genlist_copy_func cpy);
+
+extern void    *genlist_pop(genlist *list);
+extern void    *genlist_dequeue(genlist *list);
 /* genlist *genlist_copy(const genlist *list); */
 
+#define genlist_append(...) P99_CALL_DEFARG(genlist_append, 4, __VA_ARGS__)
+#define genlist_append_defarg_2() (false)
+#define genlist_append_defarg_3() (0llu)
+
+/*======================================================================================================*/
+/* Simple char * list. */
 
 typedef struct argument_vector {
         char   **lst;

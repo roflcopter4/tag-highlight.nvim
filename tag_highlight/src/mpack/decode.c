@@ -8,7 +8,7 @@
 extern int decode_log_raw;
 extern FILE *decodelog;
 
-static genlist *       mpack_mutex_list = NULL;
+/* static genlist *       mpack_mutex_list = NULL; */
 static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
@@ -19,18 +19,18 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
 static mpack_obj * do_decode        (read_fn READ, void *src);
-static mpack_obj * decode_array     (read_fn READ, void *src, uint8_t byte, const struct mpack_masks *mask);
-static mpack_obj * decode_string    (read_fn READ, void *src, uint8_t byte, const struct mpack_masks *mask);
-static mpack_obj * decode_dictionary(read_fn READ, void *src, uint8_t byte, const struct mpack_masks *mask);
-static mpack_obj * decode_integer   (read_fn READ, void *src, uint8_t byte, const struct mpack_masks *mask);
-static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t byte, const struct mpack_masks *mask);
-static mpack_obj * decode_ext       (read_fn READ, void *src, const struct mpack_masks *mask);
+static mpack_obj * decode_array     (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_string    (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_dictionary(read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_integer   (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_ext       (read_fn READ, void *src, const mpack_mask *mask);
 static mpack_obj * decode_nil       (void);
-static mpack_obj * decode_bool      (const struct mpack_masks *mask);
+static mpack_obj * decode_bool      (const mpack_mask *mask);
 static void        stream_read      (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void        obj_read         (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void        free_mutexes     (void);
-static const struct mpack_masks *id_pack_type(uint8_t byte);
+static const mpack_mask *id_pack_type(uint8_t byte);
 
 
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
@@ -50,10 +50,13 @@ static const struct mpack_masks *id_pack_type(uint8_t byte);
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
+#define NUM_MUTEXES (128)
 struct mpack_mutex {
         int             fd;
+        bool            init;
         pthread_mutex_t mut;
 };
+static struct mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 
 
 /*============================================================================*/
@@ -62,16 +65,11 @@ struct mpack_mutex {
 mpack_obj *
 decode_stream(int32_t fd)
 {
-        pthread_mutex_lock(&mpack_search_mutex);
-        pthread_mutex_t *mut = NULL;
+#if 0
         if (!mpack_mutex_list || !mpack_mutex_list->lst) {
                 mpack_mutex_list = genlist_create_alloc(INIT_MUTEXES);
                 atexit(free_mutexes);
         }
-
-        if (fd == 1)
-                fd = 0;
-
         for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
                 struct mpack_mutex *cur = mpack_mutex_list->lst[i];
                 if (cur->fd == fd) {
@@ -82,10 +80,33 @@ decode_stream(int32_t fd)
         if (!mut) {
                 struct mpack_mutex *tmp = xmalloc(sizeof(struct mpack_mutex));
                 tmp->fd  = fd;
-                /* tmp->mut = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER; */
                 pthread_mutex_init(&tmp->mut, NULL);
                 genlist_append(mpack_mutex_list, tmp);
                 mut = &tmp->mut;
+        }
+#endif
+        pthread_mutex_lock(&mpack_search_mutex);
+        pthread_mutex_t *mut = NULL;
+        if (fd == 1)
+                fd = 0;
+
+        for (unsigned i = 0; i < NUM_MUTEXES; ++i) {
+                struct mpack_mutex *cur = &mpack_mutex_list[i];
+                if (cur->init && cur->fd == fd) {
+                        mut = &cur->mut;
+                        break;
+                }
+        }
+        if (!mut) {
+                unsigned i = 0;
+                while (i < NUM_MUTEXES && mpack_mutex_list[i].init)
+                        ++i;
+                if (i == NUM_MUTEXES)
+                        errx(1, "Too many open file descriptors.");
+                mpack_mutex_list[i].init = true;
+                mpack_mutex_list[i].fd   = fd;
+                mut = &mpack_mutex_list[i].mut;
+                pthread_mutex_init(mut, NULL);
         }
         pthread_mutex_unlock(&mpack_search_mutex);
 
@@ -125,40 +146,6 @@ decode_obj(bstring *buf)
                         mpack_type(ret));
                 abort();
         }
-#if 0
-        mpack_obj *ret = do_decode(&obj_read, buf);
-
-        if (!ret)
-                errx(1, "Failed to decode stream.");
-        if (mpack_type(ret) != MPACK_ARRAY) {
-                eprintf("For some incomprehensible reason the pack's type is %d.\n",
-                        mpack_type(ret));
-                if (mpack_log) {
-                        mpack_print_object(mpack_log, ret);
-                        fflush(mpack_log);
-                }
-                abort();
-        }
-
-        if (expected_type != MES_ANY &&
-            expected_type != ((uint32_t)ret->DAI[0]->data.num + 1u))
-        {
-                if (buf != 0) {
-                        eprintf("Expected %d but got %"PRId64"\n", expected_type,
-                                ret->DAI[0]->data.num);
-                }
-
-                switch (ret->DAI[0]->data.num + 1) {
-                default:               abort();
-                case MES_REQUEST:      errx(1, "This will NEVER happen.");
-                case MES_RESPONSE:     mpack_destroy(ret); return NULL;
-                case MES_NOTIFICATION: handle_unexpected_notification(ret);
-                }
-
-                return decode_obj(buf, expected_type);
-        }
-#endif
-
         return ret;
 }
 
@@ -171,7 +158,7 @@ do_decode(const read_fn READ, void *src)
 {
         uint8_t byte = 0;
         READ(src, &byte, 1);
-        const struct mpack_masks *mask = id_pack_type(byte);
+        const mpack_mask *mask = id_pack_type(byte);
 
         switch (mask->group) {
         case G_ARRAY:  return decode_array(READ, src, byte, mask);
@@ -193,7 +180,7 @@ do_decode(const read_fn READ, void *src)
 
 
 static mpack_obj *
-decode_array(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_array(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -232,7 +219,7 @@ decode_array(const read_fn READ, void *src, const uint8_t byte, const struct mpa
 
 
 static mpack_obj *
-decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -272,7 +259,7 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const struc
 
 
 static mpack_obj *
-decode_string(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_string(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
@@ -313,7 +300,7 @@ decode_string(const read_fn READ, void *src, const uint8_t byte, const struct mp
 
 
 static mpack_obj *
-decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_integer(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         int64_t    value   = 0;
@@ -356,7 +343,7 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const struct m
 
 
 static mpack_obj *
-decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct mpack_masks *mask)
+decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint64_t   value   = 0;
@@ -395,7 +382,7 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const struct 
 
 
 static mpack_obj *
-decode_ext(const read_fn READ, void *src, const struct mpack_masks *mask)
+decode_ext(const read_fn READ, void *src, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   value   = 0;
@@ -432,7 +419,7 @@ decode_ext(const read_fn READ, void *src, const struct mpack_masks *mask)
 
 
 static mpack_obj *
-decode_bool(const struct mpack_masks *mask)
+decode_bool(const mpack_mask *mask)
 {
         mpack_obj *item = xmalloc(sizeof *item);
         item->flags     = MPACK_BOOL | MPACK_ENCODE;
@@ -461,13 +448,13 @@ decode_nil(void)
 /*============================================================================*/
 
 
-static const struct mpack_masks *
+static const mpack_mask *
 id_pack_type(const uint8_t byte)
 {
-        const struct mpack_masks *mask = NULL;
+        const mpack_mask *mask = NULL;
 
         for (unsigned i = 0; i < m_masks_len; ++i) {
-                const struct mpack_masks *m = &m_masks[i];
+                const mpack_mask *m = &m_masks[i];
 
                 if (m->fixed) {
                         if ((byte >> m->shift) == (m->val >> m->shift)) {
@@ -518,9 +505,11 @@ obj_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 }
 
 
+#if 0
 static void
 free_mutexes(void)
 {
         if (mpack_mutex_list)
                 genlist_destroy(mpack_mutex_list);
 }
+#endif

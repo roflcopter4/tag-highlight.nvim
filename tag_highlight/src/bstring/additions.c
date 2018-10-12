@@ -127,7 +127,7 @@ b_split_char(bstring *tosplit, const int delim, const bool destroy)
 
 
 void
-__b_fputs(FILE *fp, bstring *bstr, ...)
+_b_fwrite(FILE *fp, bstring *bstr, ...)
 {
         va_list va;
         va_start(va, bstr);
@@ -144,7 +144,7 @@ __b_fputs(FILE *fp, bstring *bstr, ...)
 
 
 int
-__b_write(const int fd, bstring *bstr, ...)
+_b_write(const int fd, bstring *bstr, ...)
 {
         va_list ap;
         va_start(ap, bstr);
@@ -172,7 +172,7 @@ __b_write(const int fd, bstring *bstr, ...)
 
 
 void
-__b_free_all(bstring **bstr, ...)
+_b_free_all(bstring **bstr, ...)
 {
         va_list va;
         va_start(va, bstr);
@@ -191,7 +191,7 @@ __b_free_all(bstring **bstr, ...)
 
 
 bstring *
-__b_concat_all(const bstring *join, const int join_end, ...)
+_b_concat_all(const bstring *join, const int join_end, ...)
 {
         unsigned       size   = 0;
         const unsigned j_size = (join && join->data) ? join->slen : 0;
@@ -248,7 +248,7 @@ __b_concat_all(const bstring *join, const int join_end, ...)
 
 
 int
-__b_append_all(bstring *dest, const bstring *join, const int join_end, ...)
+_b_append_all(bstring *dest, const bstring *join, const int join_end, ...)
 {
         unsigned       size   = dest->slen;
         const unsigned j_size = (join && join->data) ? join->slen : 0;
@@ -398,17 +398,17 @@ b_clone_swap(bstring *src)
 
 
 void
-__b_list_dump(FILE *fp, const b_list *list, const char *listname)
+_b_list_dump(FILE *fp, const b_list *list, const char *listname)
 {
         fprintf(fp, "Dumping list \"%s\"\n", listname);
         for (unsigned i = 0; i < list->qty; ++i)
-                b_fputs(fp, list->lst[i], b_tmp("\n"));
+                b_fwrite(fp, list->lst[i], b_tmp("\n"));
         fputc('\n', fp);
 }
 
 
 void
-__b_list_dump_fd(const int fd, const b_list *list, const char *listname)
+_b_list_dump_fd(const int fd, const b_list *list, const char *listname)
 {
         dprintf(fd, "Dumping list \"%s\"\n", listname);
         for (unsigned i = 0; i < list->qty; ++i) {

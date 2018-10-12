@@ -468,7 +468,7 @@ analyze_line(const bstring *line)
                                                                 ret = tmp;
                                                         }
                                                         ret->flags |= B_SYS_OK;
-                                                        b_fputs(stderr, ret, B("\n"));
+                                                        b_fwrite(stderr, ret, B("\n"));
                                                 }
                                                 else if ((n = b_strstr(line, B("/* TAG: "), i)) > 0) {
                                                         eprintf("Found %s!\n", &line->data[n]);

@@ -84,7 +84,7 @@ get_initial_taglist(struct bufdata *bdata)
                 else
                         warn("Unexpected io error");
         force_ctags:
-                run_ctags(bdata, false);
+                run_ctags(bdata, UPDATE_TAGLIST_FORCE);
                 write_gzfile(bdata->topdir);
 
                 if (stat(BS(bdata->topdir->gzfile), &st) != 0)
@@ -103,8 +103,8 @@ update_taglist(struct bufdata *bdata, const enum update_taglist_opts opts)
 {
         /* if (bdata->ft->is_c && opts != UPDATE_TAGLIST_FORCE)
                 return 1; */
-        if (bdata->ft->is_c)
-                return 1;
+        /* if (bdata->ft->is_c) */
+                /* return 1; */
         if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
                 return false;
@@ -170,7 +170,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
                 b_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
                            bdata->topdir->tmpfname, bdata->name.full, tmp);
 
-                b_free(tmp);
+                b_destroy(tmp);
                 b_list_destroy(headers);
         }
         else if (bdata->topdir->recurse && !bdata->ft->is_c) {
@@ -239,7 +239,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
                         b_sprintfa(cmd, "\"%n\", ", *tmp);
                 cmd->data[cmd->slen -= 2] = '\0';
                 ECHO("Running command 'ctags' with args [%s]\n", cmd);
-                b_free(cmd);
+                b_destroy(cmd);
 
                 FILE *fp = safe_fopen_fmt(
                     "%s/.tag_highlight_log/ctags_arguments.log", "wb", HOME);

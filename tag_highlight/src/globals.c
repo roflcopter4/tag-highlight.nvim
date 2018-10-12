@@ -42,32 +42,18 @@ extern FILE            *cmd_log, *echo_log, *main_log;
 extern const char      *program_name;
 extern pthread_mutex_t  update_mutex;
 
-genlist *top_dirs = NULL;
-
 struct settings_s   settings        = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE};
-struct backups      backup_pointers = { NULL, 0, 0 };
+struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE, PTHREAD_RWLOCK_INITIALIZER};
+struct backups      backup_pointers = {NULL, 0, 0};
 
-const size_t    ftdata_len  = ARRSIZ(ftdata);
-/* int             mainchan    = (-1);
-int             bufchan     = (-1); */
-const char *    program_name;
-char *          HOME;
-FILE *          cmd_log;
-FILE *          echo_log;
-FILE *          main_log;
+pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
+const size_t    ftdata_len   = ARRSIZ(ftdata);
+const char     *program_name;
+genlist        *top_dirs;
+char           *HOME;
+FILE           *cmd_log;
+FILE           *echo_log;
+FILE           *main_log;
+b_list         *seen_files;
 jmp_buf         exit_buf;
-pthread_mutex_t update_mutex    = PTHREAD_MUTEX_INITIALIZER;
-b_list *        seen_files      = NULL;
-bool            process_exiting = false;
-
-#if 0
-/* Some constants. */
-const long double USEC2SECOND = 1000000.0L;
-const long double NSEC2SECOND = 1000000000.0L;
-#ifdef DOSISH
-const long double SLEEP_CONV = 1000.0L;
-#else
-const long double SLEEP_CONV = NSEC2SECOND;
-#endif
-#endif
+bool            process_exiting;

@@ -18,6 +18,7 @@ set (tag_highlight_SOURCES
     nvim_api/misc.c
     nvim_api/api.h
     nvim_api/intern.h
+    nvim_api/read.h
 
     buf_data.c
     ctags.c
@@ -149,4 +150,6 @@ else()
     endif()
 
     target_link_libraries(tag_highlight -lpcre2-8 -lrt)
+    set(THL_GO_DIR "${PROJECT_SOURCE_DIR}/src/lang/golang/pkg/gccgo_linux_amd64_fPIC")
+    # target_link_libraries(tag_highlight "-Wl,-rpath=${THL_GO_DIR} -L${THL_GO_DIR} -ltag_highlight")
 endif()

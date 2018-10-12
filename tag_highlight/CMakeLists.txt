@@ -151,7 +151,7 @@ else()
               " -Wno-sign-conversion -Wno-documentation-unknown-command"
               " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
               " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
-              " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu"
+              " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" "-Wno-format-nonliteral"
                )
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
         string (JOIN " " CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE}"
