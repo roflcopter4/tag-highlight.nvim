@@ -1,7 +1,7 @@
 #include "tag_highlight.h"
 
 #ifdef DOSISH
-#  include <direct.h>
+//#  include <direct.h>
 #  undef mkdir
 #  define mkdir(PATH, MODE) _mkdir(PATH)
 #else
@@ -83,6 +83,20 @@ _nvim_create_socket(const int mes_fd)
 
         b_free(name);
         return fd;
+}
+
+int
+(_nvim_get_tmpfile)(const int fd, bstring **name, const bstring *suffix)
+{
+        bstring *tmp = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
+        if (suffix)
+                b_concat(tmp, suffix);
+        int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY, 0600);
+        if (name)
+                *name = tmp;
+        else
+                b_free(tmp);
+        return ret;
 }
 
 static void

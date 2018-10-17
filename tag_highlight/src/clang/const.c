@@ -5,7 +5,8 @@
 #  define ARRSIZ(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
 #endif
 
-const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
+//const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
+const char *const gcc_sys_dirs[] = {"D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/include", "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/include-fixed"};
 const size_t      n_gcc_sys_dirs = ARRSIZ(gcc_sys_dirs);
 
 const char *const idx_entity_kind_repr[] = {

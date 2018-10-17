@@ -40,11 +40,11 @@ enum mpack_expect_types {
         E_DICT2ARR
 };
 
-#define MPACK_HAS_PACKED  0x80
-#define MPACK_ENCODE      0x40
-#define MPACK_PHONY       0x20
-#define MPACK_SPARE_DATA  0x10
-#define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0F)
+#define MPACK_HAS_PACKED  0x80u
+#define MPACK_ENCODE      0x40u
+#define MPACK_PHONY       0x20u
+#define MPACK_SPARE_DATA  0x10u
+#define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0Fu)
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 

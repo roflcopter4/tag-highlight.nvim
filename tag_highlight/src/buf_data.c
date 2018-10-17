@@ -6,10 +6,12 @@
 #include "my_p99_common.h"
 #include <signal.h>
 
-#ifdef _WIN32
+#ifdef DOSISH
 #  define SEPCHAR '\\'
 #  define SEPSTR  "\\"
+#  define FUTEX_INITIALIZER(VAL) (p99_futex)P99_FUTEX_INITIALIZER(VAL)
 #else
+#  define FUTEX_INITIALIZER(VAL) P99_FUTEX_INITIALIZER(VAL)
 #  define SEPCHAR '/'
 #  define SEPSTR  "/"
 #endif
@@ -90,6 +92,9 @@ bool
                 pthread_mutex_init(&bdata->lock.total, &attr);
                 pthread_mutex_init(&bdata->lock.ctick, &attr);
                 pthread_mutex_init(&bdata->lock.update, &attr);
+                bdata->lock.clang_count = FUTEX_INITIALIZER(0);
+                /* pthread_mutex_init(&bdata->lock.clang, &attr); */
+                /* bdata->lock.clang_flg = (atomic_flag)ATOMIC_FLAG_INIT; */
         }
 
         buffers.lst[buffers.mkr] = bdata;
@@ -112,6 +117,11 @@ get_bufdata(const int fd, const int bufnum, struct filetype *ft)
         bdata->ft             = ft;
         bdata->topdir         = init_topdir(fd, bdata); /* Topdir init must be the last step. */
 
+        int64_t loc = b_strrchr(bdata->name.base, '.');
+        if (loc > 0)
+                for (unsigned i = loc, b = 0; i < bdata->name.base->slen && b < 8; ++i, ++b)
+                        bdata->name.suffix[b] = bdata->name.base->data[i];
+        
         atomic_store(&bdata->ctick, 0);
         atomic_store(&bdata->last_ctick, 0);
 
@@ -123,9 +133,12 @@ destroy_bufdata(struct bufdata **bdata)
 {
         extern void destroy_clangdata(struct bufdata *bdata);
         extern bool process_exiting;
+        static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
 
         if (!*bdata)
                 return;
+        pthread_mutex_lock(&destruction_mutex);
+
         if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
                 clear_highlight(*bdata);
@@ -148,7 +161,7 @@ destroy_bufdata(struct bufdata **bdata)
                         b_list_destroy((*bdata)->headers);
         } else {
                 if ((*bdata)->calls)
-                        destroy_call_array((*bdata)->calls);
+                        _nvim_destroy_arg_array((*bdata)->calls);
         }
 
         if (--((*bdata)->topdir->refs) == 0) {
@@ -172,6 +185,7 @@ destroy_bufdata(struct bufdata **bdata)
         pthread_rwlock_wrlock(&buffers.lock);
         buffers.lst[index] = NULL;
         pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&destruction_mutex);
 }
 
 /*======================================================================================*/
@@ -375,9 +389,10 @@ check_project_directories(bstring *dir)
 
         b_list  *candidates = b_list_create();
         bstring *tmp;
+        b_regularize_path(dir);
 
         while ((tmp = B_GETS(fp, '\n', false))) {
-                if (strstr(BS(dir), BS(tmp)))
+                if (strstr(BS(dir), BS(b_regularize_path(tmp))))
                         b_list_append(&candidates, tmp);
                 else
                         b_destroy(tmp);

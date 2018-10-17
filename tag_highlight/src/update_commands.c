@@ -19,10 +19,10 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static nvim_call_array *update_commands(struct bufdata *bdata, struct taglist *tags);
+static nvim_arg_array *update_commands(struct bufdata *bdata, struct taglist *tags);
 static void     update_from_cache(struct bufdata *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
-static void     add_cmd_call(nvim_call_array **calls, bstring *cmd);
+static void     add_cmd_call(nvim_arg_array **calls, bstring *cmd);
 static void     get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
 static void     get_ignored_tags(struct bufdata *bdata);
 static void     update_c_like(struct bufdata *bdata, int force);
@@ -111,7 +111,7 @@ retry:
                 retry = false;
                 ECHO("Got %u total tags\n", tags->qty);
                 if (bdata->calls)
-                        destroy_call_array(bdata->calls);
+                        _nvim_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
                 nvim_call_atomic(0, bdata->calls);
 
@@ -142,7 +142,7 @@ retry:
 
 /*======================================================================================*/
 
-static nvim_call_array *
+static nvim_arg_array *
 update_commands(struct bufdata *bdata, struct taglist *tags)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
@@ -167,7 +167,7 @@ update_commands(struct bufdata *bdata, struct taglist *tags)
                 b_writeallow(info[i].suffix);
         }
 
-        nvim_call_array *calls = NULL;
+        nvim_arg_array *calls = NULL;
         add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
 
         for (unsigned i = 0; i < ngroups; ++i) {
@@ -262,31 +262,33 @@ update_line(struct bufdata *bdata, const int first, const int last)
 void
 (clear_highlight)(const int bufnum, struct bufdata *bdata)
 {
-        bstring *cmd = b_alloc_null(8192);
-        bdata        = null_find_bufdata(bufnum, bdata);
+        bdata = null_find_bufdata(bufnum, bdata);
 
-        for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
-                const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(
-                        E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
-                bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
+        if (bdata->ft->order && !bdata->ft->is_c) {
+                bstring *cmd = b_alloc_null(8192);
 
-                b_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
-                           &bdata->ft->vim_name, ch, group);
+                for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
+                        const int     ch   = bdata->ft->order->data[i];
+                        mpack_dict_t *dict = nvim_get_var_fmt(
+                                E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
+                        bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
 
-                if (i < (bdata->ft->order->slen - 1))
-                        b_catlit(cmd, " | ");
+                        b_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
+                                   &bdata->ft->vim_name, ch, group);
 
-                destroy_mpack_dict(dict);
+                        if (i < (bdata->ft->order->slen - 1))
+                                b_catlit(cmd, " | ");
+
+                        destroy_mpack_dict(dict);
+                }
+
+                nvim_command(0, cmd);
+                b_destroy(cmd);
         }
-
-        nvim_command(0, cmd);
 
         if (bdata->hl_id > 0) {
                 nvim_buf_clear_highlight(0, bdata->num, bdata->hl_id, 0, (-1));
         }
-
-        b_destroy(cmd);
 }
 
 /*======================================================================================*/
@@ -435,22 +437,22 @@ get_ignored_tags(struct bufdata *bdata)
 /*======================================================================================*/
 
 static void
-add_cmd_call(nvim_call_array **calls, bstring *cmd)
+add_cmd_call(nvim_arg_array **calls, bstring *cmd)
 {
         assert(calls);
         if (!*calls) {
                 (*calls)        = xmalloc(sizeof **calls);
                 (*calls)->mlen  = 16;
                 (*calls)->fmt   = xcalloc((*calls)->mlen, sizeof(char *));
-                (*calls)->args  = xcalloc((*calls)->mlen, sizeof(union atomic_call_args *));
+                (*calls)->args  = xcalloc((*calls)->mlen, sizeof(nvim_argument *));
                 (*calls)->qty   = 0;
         } else if ((*calls)->qty >= (*calls)->mlen-1) {
                 (*calls)->mlen *= 2;
                 (*calls)->fmt   = nrealloc((*calls)->fmt,  (*calls)->mlen, sizeof(char *));
-                (*calls)->args  = nrealloc((*calls)->args, (*calls)->mlen, sizeof(union atomic_call_args *));
+                (*calls)->args  = nrealloc((*calls)->args, (*calls)->mlen, sizeof(nvim_argument *));
         }
 
-        (*calls)->args[(*calls)->qty]        = nmalloc(2, sizeof(union atomic_call_args));
+        (*calls)->args[(*calls)->qty]        = nmalloc(2, sizeof(nvim_argument));
         (*calls)->fmt[(*calls)->qty]         = strdup("s[s]");
         (*calls)->args[(*calls)->qty][0].str = b_lit2bstr("nvim_command");
         (*calls)->args[(*calls)->qty][1].str = cmd;

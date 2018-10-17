@@ -16,7 +16,7 @@ extern "C" {
 #include <clang-c/CXString.h>
 #include <clang-c/Index.h>
 
-#define TMPSIZ (PATH_MAX + 1)
+#define TMPSIZ (SAFE_PATH_MAX + 1)
 #define CLD(s) \
         _Generic(s, struct bufdata *: (struct clangdata *)((s)->clangdata), \
                     const struct bufdata *: (struct clangdata *)((s)->clangdata))
@@ -73,12 +73,12 @@ extern const size_t      idx_entity_kind_num;
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
 #if 0
-INTERN nvim_call_array *type_id(struct bufdata         *bdata,
+INTERN nvim_arg_array *type_id(struct bufdata         *bdata,
                                 struct translationunit *stu,
                                 const b_list           *enumerators,
                                 struct cmd_info        *info);
 #endif
-INTERN nvim_call_array *type_id(struct bufdata *bdata, struct translationunit *stu);
+INTERN nvim_arg_array *type_id(struct bufdata *bdata, struct translationunit *stu);
 
 INTERN IndexerCallbacks *make_cb_struct(void);
 INTERN void              lc_index_file(struct bufdata *bdata, struct translationunit *stu);

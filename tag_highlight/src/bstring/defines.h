@@ -19,7 +19,11 @@
 #endif
 
 #if (__GNUC__ > 2) || (__GNUC__ == 2 && __GNUC_MINOR__ > 4)
-#  define BSTR_PRINTF(format, argument) __attribute__((__format__(__printf__, format, argument)))
+#  ifdef __clang__
+#    define BSTR_PRINTF(format, argument) __attribute__((__format__(__printf__, format, argument)))
+#  else
+#    define BSTR_PRINTF(format, argument) __attribute__((__format__(__gnu_printf__, format, argument)))
+#  endif
 #  define BSTR_UNUSED __attribute__((__unused__))
 #else
 #  define BSTR_PRINTF(format, argument)
@@ -44,6 +48,13 @@ typedef unsigned char uchar;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(WIN32) || defined (__MINGW32__) || defined(__MINGW64__)
+//#  include <pthread_win32.h>
+#include <pthread.h>
+#else
+#  include <pthread.h>
+#endif
 
 #define BSTR_ERR (-1)
 #define BSTR_OK (0)

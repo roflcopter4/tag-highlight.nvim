@@ -9,6 +9,9 @@
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
+        const char *program_invocation_short_name;
+#  define at_quick_exit(a)
+#  define quick_exit(a) _Exit(a)
 #endif
 #ifdef HAVE_PAUSE
 #  define PAUSE() pause()
@@ -20,10 +23,10 @@
 #define SIGHANDLER_NORMAL (2)
 #define WAIT_TIME         (3.0)
 
-extern FILE      *cmd_log, *echo_log, *main_log;
+extern FILE      *cmd_log, *echo_log, *main_log, *mpack_raw;
 extern pthread_t  top_thread;
 pthread_t         top_thread;
-char LOGDIR[PATH_MAX+1];
+char              LOGDIR[PATH_MAX+1];
 
 static void          platform_init(char **argv);
 static void          get_settings(void);
@@ -52,9 +55,10 @@ main(UNUSED int argc, char *argv[])
         TIMER_START(main_timer);
         top_thread = pthread_self();
         platform_init(argv);
+        open_logs();
+        
         launch_event_loop();
         get_settings();
-        open_logs();
 
         int initial_buf = 0;
 
@@ -100,11 +104,11 @@ platform_init(char **argv)
 
         /* Set the standard streams to binary mode in Windows. Don't bother with
          * signals, it's not worth the effort. */
-        if (_setmode(0, O_BINARY) == (-1))
+        if (_setmode(0, O_BINARY) == (-1) || errno)
                 WIN_BIN_FAIL("stdin");
-        if (_setmode(1, O_BINARY) == (-1))
+        if (_setmode(1, O_BINARY) == (-1) || errno)
                 WIN_BIN_FAIL("stdout");
-        if (_setmode(2, O_BINARY) == (-1))
+        if (_setmode(2, O_BINARY) == (-1) || errno)
                 WIN_BIN_FAIL("stderr");
 #else
         (void)argv;
@@ -138,7 +142,7 @@ get_settings(void)
         settings.norecurse_dirs = nvim_get_var(,B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
         settings.settings_file  = nvim_get_var(,B(PKG "settings_file"),     E_STRING    ).ptr;
         settings.verbose        = nvim_get_var(,B(PKG "verbose"),           E_BOOL      ).num;
-#ifdef DEBUG /* Verbose output should be forcably enabled in debug mode. */
+#ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
 }
@@ -151,6 +155,8 @@ open_logs(void)
         snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);
         mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
+        mpack_raw      = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
+        setvbuf(mpack_raw, NULL, 0, _IONBF);
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
         main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
@@ -224,14 +230,7 @@ exit_cleanup(void)
         free_backups(&backup_pointers);
         xfree(backup_pointers.lst);
 
-        if (mpack_log)
-                fclose(mpack_log);
-        if (cmd_log)
-                fclose(cmd_log);
-        if (main_log)
-                fclose(main_log);
-        if (echo_log)
-                fclose(echo_log);
+        quick_cleanup();
 }
 
 /* 
@@ -248,6 +247,7 @@ quick_cleanup(void)
                 fclose(main_log);
         if (echo_log)
                 fclose(echo_log);
+        fcloseall();
 }
 
 static comp_type_t

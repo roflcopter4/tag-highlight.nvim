@@ -56,9 +56,9 @@ lc_index_file(struct bufdata *bdata, struct translationunit *stu)
 
         stu->tokens = data.tok_list;
 
-        nvim_call_array *calls = type_id(bdata, stu);
+        nvim_arg_array *calls = type_id(bdata, stu);
         nvim_call_atomic(,calls);
-        destroy_call_array(calls);
+        _nvim_destroy_arg_array(calls);
 
         if (bdata->headers->qty > 0)
                 b_list_remove_dups(&bdata->headers);

@@ -1,14 +1,16 @@
 #include "tag_highlight.h"
 #include <stddef.h>
-#include <sys/socket.h>
+//#ifdef DOSISH
+//#  include <WinSock2.h>
+//#else
+//#  include <socket.h>
+//#endif
 
 #include "intern.h"
 #include "mpack.h"
 
-extern int decode_log_raw;
-extern FILE *decodelog;
-
-/* static genlist *       mpack_mutex_list = NULL; */
+extern FILE *mpack_raw;
+FILE *mpack_raw;
 static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 #ifdef _MSC_VER
@@ -16,6 +18,7 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #define INIT_MUTEXES (16)
 
+//typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
 static mpack_obj * do_decode        (read_fn READ, void *src);
@@ -35,28 +38,29 @@ static const mpack_mask *id_pack_type(uint8_t byte);
 
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
-#define decode_int16(NUM)                                \
-        ((((NUM)[0]) << 010) | ((NUM)[1]))
-#define decode_int32(NUM)                                \
-        ((((NUM)[0]) << 030) | (((NUM)[1]) << 020) |     \
-         (((NUM)[2]) << 010) | (((NUM)[3])))
-#define decode_int64(NUM)                                \
-        ((IAT(NUM, 0) << 070) | (IAT(NUM, 1) << 060) |   \
-         (IAT(NUM, 2) << 050) | (IAT(NUM, 3) << 040) |   \
-         (IAT(NUM, 4) << 030) | (IAT(NUM, 5) << 020) |   \
-         (IAT(NUM, 6) << 010) | (IAT(NUM, 7)))
+#define decode_int16(NUM)                                  \
+        ((((NUM)[0]) << 010u) | ((NUM)[1]))
+#define decode_int32(NUM)                                  \
+        ((((NUM)[0]) << 030u) | (((NUM)[1]) << 020u) |     \
+         (((NUM)[2]) << 010u) | (((NUM)[3])))
+#define decode_int64(NUM)                                  \
+        ((IAT(NUM, 0) << 070u) | (IAT(NUM, 1) << 060u) |   \
+         (IAT(NUM, 2) << 050u) | (IAT(NUM, 3) << 040u) |   \
+         (IAT(NUM, 4) << 030u) | (IAT(NUM, 5) << 020u) |   \
+         (IAT(NUM, 6) << 010u) | (IAT(NUM, 7)))
 
 #define ERRMSG()                                                                         \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
              mask->type, mask->repr, __LINE__, __FILE__, FUNC_NAME)
 
 #define NUM_MUTEXES (128)
+P99_DECLARE_STRUCT(mpack_mutex);
 struct mpack_mutex {
         int             fd;
         bool            init;
         pthread_mutex_t mut;
 };
-static struct mpack_mutex mpack_mutex_list[NUM_MUTEXES];
+static mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 
 
 /*============================================================================*/
@@ -71,14 +75,14 @@ decode_stream(int32_t fd)
                 atexit(free_mutexes);
         }
         for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
-                struct mpack_mutex *cur = mpack_mutex_list->lst[i];
+                mpack_mutex *cur = mpack_mutex_list->lst[i];
                 if (cur->fd == fd) {
                         mut = &cur->mut;
                         break;
                 }
         }
         if (!mut) {
-                struct mpack_mutex *tmp = xmalloc(sizeof(struct mpack_mutex));
+                mpack_mutex *tmp = xmalloc(sizeof(mpack_mutex));
                 tmp->fd  = fd;
                 pthread_mutex_init(&tmp->mut, NULL);
                 genlist_append(mpack_mutex_list, tmp);
@@ -91,7 +95,7 @@ decode_stream(int32_t fd)
                 fd = 0;
 
         for (unsigned i = 0; i < NUM_MUTEXES; ++i) {
-                struct mpack_mutex *cur = &mpack_mutex_list[i];
+                mpack_mutex *cur = &mpack_mutex_list[i];
                 if (cur->init && cur->fd == fd) {
                         mut = &cur->mut;
                         break;
@@ -120,8 +124,8 @@ decode_stream(int32_t fd)
                         mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
                 }
-                eprintf("For some incomprehensible reason the pack's type is %d.\n",
-                        mpack_type(ret));
+                eprintf("For some incomprehensible reason the pack's type is \"%s\" (%d).\n",
+                        m_type_names[mpack_type(ret)], mpack_type(ret));
                 abort();
         }
         pthread_mutex_unlock(mut);
@@ -156,7 +160,7 @@ decode_obj(bstring *buf)
 static mpack_obj *
 do_decode(const read_fn READ, void *src)
 {
-        uint8_t byte = 0;
+        uint8_t byte;
         READ(src, &byte, 1);
         const mpack_mask *mask = id_pack_type(byte);
 
@@ -244,7 +248,7 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const mpack
         }
 
         item->flags              = MPACK_DICT | MPACK_ENCODE;
-        item->data.dict          = xmalloc(sizeof(struct mpack_dictionary));
+        item->data.dict          = xmalloc(sizeof(mpack_dict_t));
         item->data.dict->entries = nmalloc(size, sizeof(struct dict_ent *));
         item->data.dict->qty     = item->data.dict->max = size;
 
@@ -478,19 +482,21 @@ static void
 stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
         const int fd = *((int *)src);
-#ifdef DOSISH
+
+#if defined(DOSISH)
         size_t nread = 0;
-        while (nread > nbytes) {
-                size_t n = read(fd, dest, (nbytes - nread));
-                nread   += n?n:0;
+        while (nread < nbytes) {
+                int n = read(fd, dest, nbytes - nread);
+                nread += (n>0)?n:0;
         }
 #else
-        const ssize_t n = recv(fd, dest, nbytes, MSG_WAITALL);
+        const int n = recv(fd, dest, nbytes, MSG_WAITALL);
         assert((size_t)n == nbytes);
 #endif
 
-#ifdef MPACK_RAW
-        UNUSED ssize_t m = write(decode_log_raw, dest, nbytes);
+#ifdef DEBUG
+        if (mpack_raw)
+                fwrite(dest, 1, nbytes, mpack_raw);
 #endif
 }
 

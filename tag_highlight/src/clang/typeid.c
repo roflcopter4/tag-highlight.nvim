@@ -9,18 +9,18 @@
 #include "util/list.h"
 
 static void do_typeswitch(struct bufdata           *bdata,
-                          struct atomic_call_array *calls,
+                          struct nvim_arg_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,
                           enum CXCursorKind *const  last_kind);
-static void add_hl_call(struct atomic_call_array *calls,
+static void add_hl_call(struct nvim_arg_array *calls,
                         const int                 bufnum,
                         const int                 hl_id,
                         const bstring            *group,
                         const struct token       *tok);
 static void
-add_clr_call(struct atomic_call_array *calls,
+add_clr_call(struct nvim_arg_array *calls,
              const int bufnum,
              const int hl_id,
              const int line,
@@ -29,7 +29,7 @@ add_clr_call(struct atomic_call_array *calls,
 static bool tok_in_skip_list(struct bufdata *bdata, struct token *tok);
 static void tokvisitor(struct token *tok);
 
-static struct atomic_call_array *new_call_array(void);
+static struct nvim_arg_array *new_arg_array(void);
 static const bstring *find_group(struct filetype *ft, const struct cmd_info *info, unsigned num, const int ctags_kind);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
@@ -82,11 +82,11 @@ enum equiv_ctags_type {
                 fclose(fp);                                                                     \
         } while (0)
 
-nvim_call_array *
+nvim_arg_array *
 type_id(struct bufdata *bdata, struct translationunit *stu)
 {
         enum CXCursorKind last  = 1;
-        nvim_call_array  *calls = new_call_array();
+        nvim_arg_array  *calls = new_arg_array();
 
         if (!CLD(bdata)->info)
                 errx(1, "Invalid");
@@ -113,7 +113,7 @@ type_id(struct bufdata *bdata, struct translationunit *stu)
 
 
 static void do_typeswitch(struct bufdata           *bdata,
-                          struct atomic_call_array *calls,
+                          struct nvim_arg_array *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,
@@ -271,7 +271,7 @@ tok_in_skip_list(struct bufdata *bdata, struct token *tok)
 static void
 tokvisitor(struct token *tok)
 {
-        extern char     libclang_tmp_path[PATH_MAX + 1];
+        extern char     libclang_tmp_path[SAFE_PATH_MAX + 1];
         static unsigned n = 0;
 
         CXString typespell      = clang_getTypeSpelling(tok->cursortype);
@@ -292,19 +292,19 @@ tokvisitor(struct token *tok)
 #define INIT_ACALL_SIZE (128)
 extern FILE *cmd_log;
 
-static struct atomic_call_array *
-new_call_array(void)
+static struct nvim_arg_array *
+new_arg_array(void)
 {
-        struct atomic_call_array *calls = xmalloc(sizeof(struct atomic_call_array));
+        struct nvim_arg_array *calls = xmalloc(sizeof(struct nvim_arg_array));
         calls->mlen = INIT_ACALL_SIZE;
         calls->fmt  = nmalloc(calls->mlen, sizeof(char *));
-        calls->args = nmalloc(calls->mlen, sizeof(union atomic_call_args *));
+        calls->args = nmalloc(calls->mlen, sizeof(nvim_argument *));
         calls->qty  = 0;
         return calls;
 }
 
 static void
-add_hl_call(struct atomic_call_array *calls,
+add_hl_call(struct nvim_arg_array *calls,
             const int                 bufnum,
             const int                 hl_id,
             const bstring            *group,
@@ -314,11 +314,11 @@ add_hl_call(struct atomic_call_array *calls,
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
                 calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(union atomic_call_args *));
+                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
         }
 
         calls->fmt[calls->qty]         = STRDUP("s[dd,s,ddd]");
-        calls->args[calls->qty]        = nmalloc(7, sizeof(union atomic_call_args));
+        calls->args[calls->qty]        = nmalloc(7, sizeof(nvim_argument));
         calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_add_highlight");
         calls->args[calls->qty][1].num = bufnum;
         calls->args[calls->qty][2].num = hl_id;
@@ -334,7 +334,7 @@ add_hl_call(struct atomic_call_array *calls,
 }
 
 static void
-add_clr_call(struct atomic_call_array *calls,
+add_clr_call(struct nvim_arg_array *calls,
              const int bufnum,
              const int hl_id,
              const int line,
@@ -344,11 +344,11 @@ add_clr_call(struct atomic_call_array *calls,
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
                 calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(union atomic_call_args *));
+                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
         }
 
         calls->fmt[calls->qty]         = STRDUP("s[dddd]");
-        calls->args[calls->qty]        = nmalloc(5, sizeof(union atomic_call_args));
+        calls->args[calls->qty]        = nmalloc(5, sizeof(nvim_argument));
         calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_clear_highlight");
         calls->args[calls->qty][1].num = bufnum;
         calls->args[calls->qty][2].num = hl_id;

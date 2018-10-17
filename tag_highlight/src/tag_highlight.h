@@ -4,7 +4,15 @@
 extern "C" {
 #endif
 /*===========================================================================*/
-#define NULL ((void *)0)
+#ifdef __clang__
+#  define __gnu_printf__ __printf__
+#endif
+#if defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
+#    ifndef __MINGW__
+#      define __MINGW__
+#    endif
+#  include "mingw_config.h"
+#endif
 #ifdef _MSC_VER /* Microsoft sure likes to complain... */
 #  pragma warning(disable : 4668) // undefined macros in ifdefs
 #  pragma warning(disable : 4820) // padding
@@ -24,49 +32,44 @@ extern "C" {
 #ifdef USE_JEMALLOC
 #  include <jemalloc/jemalloc.h>
 #endif
-#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) && \
-     !defined(__MINGW64__) && !defined(__MINGW32__)
+#if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
-#  include <io.h>
-#  include <Windows.h>
-#  include <direct.h>
-#  undef BUFSIZ
-#  define BUFSIZ 8192
-#  define PATHSEP '\\'
-#  define __CLEANUP_C
-#  undef mkdir
-#  define mkdir(PATH, MODE) _mkdir(PATH)
-extern char * basename(char *path);
-#  ifdef __MINGW32__
-#    include <unistd.h>
-#    include <sys/time.h>
+#  if defined(__MINGW32__) || defined(__MINGW64__)
 #    include <dirent.h>
-#    define __NO_INLINE__
+#    include <sys/time.h>
+#    include <unistd.h>
 #  else
      typedef signed long long int ssize_t;
 #  endif
+#  include <WinSock2.h>
+#  include <Windows.h>
+#  include <io.h>
+#  include <direct.h>
+#  include <pthread.h>
+#  define PATHSEP '\\'
+#  define __CLEANUP_C
+#  undef mkdir
+#  define mkdir(PATH, MODE) mkdir(PATH)
+extern char * basename(char *path);
 #else
+#  include <pthread.h>
+#  include <sys/socket.h>
 #  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
 #endif
-#if defined(__MINGW32__) || defined(__MINGW64__)
-#  define DOSISH
-#  define MINGW
-#  include <unistd.h>
-#  include <sys/time.h>
-#  include <dirent.h>
-extern char * basename(char *path);
+#if (defined(__MINGW32__) || defined(__MINGW64__)) && (!defined(__MINGW__) || !defined(DOSISH))
+#  error "Something really messed up here."
 #endif
+#define SAFE_PATH_MAX (4096)
 
 #include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -98,12 +101,13 @@ extern char * basename(char *path);
 #include "contrib/contrib.h"
 #include "data.h"
 
+//#include "p99/p99_clib.h"
+
 extern char *HOME;
 
 struct backups {
-        char **lst;
-        unsigned qty;
-        unsigned max;
+        char   **lst;
+        unsigned qty, max;
 };
 
 /*===========================================================================*/
@@ -148,7 +152,7 @@ struct backups {
 #define ALWAYS_INLINE __attribute__((__always_inline__)) static inline
 #define aMAL          __attribute__((__malloc__))
 #define aALSZ(...)    __attribute__((__alloc_size__(__VA_ARGS__)))
-#define aFMT(A1, A2)  __attribute__((__format__(__printf__, A1, A2)))
+#define aFMT(A1, A2)  __attribute__((__format__(__gnu_printf__, A1, A2)))
 #define aNNA          __attribute__((__nonnull__))
 #define aNN(...)      __attribute__((__nonnull__(__VA_ARGS__)))
 
@@ -210,7 +214,11 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  define aWUR      _Check_return_
 #elif defined(__GNUC__)
 #  define UNUSED    __attribute__((__unused__))
-#  define WEAK_SYMB __attribute__((__weak__))
+#  if defined(__MINGW__)
+#    define WEAK_SYMB __declspec(selectany)
+#  else
+#    define WEAK_SYMB __attribute__((__weak__))
+#  endif
 #  define aWUR      __attribute__((__warn_unused_result__))
 #else
 #  define WEAK_SYMB static
@@ -218,17 +226,23 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 
 /*===========================================================================*/
 
+#ifdef realpath
+#  undef realpath
+#endif
 #ifdef DOSISH
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
-#  define SLEEP_CONV   (1000.0L)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
-#  define fsleep(VAL)  Sleep((long long)((double)(VAL) * SLEEP_CONV))
 #  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
 #else
-#  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
 #  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
 #endif
+#if defined(__MINGW__) || !defined(DOSISH)
+#  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
+#else
+#  define fsleep(VAL)  Sleep((long long)((double)(VAL) * (1000.0L)))
+#endif
+
 
 /*===========================================================================*/
 
@@ -242,6 +256,8 @@ noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #define warn  eprintf
 #define warnx eprintf
 
+#define Err(...) \
+        err_(1, true, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
 #define Errx(...) \
         err_(1, false, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
 

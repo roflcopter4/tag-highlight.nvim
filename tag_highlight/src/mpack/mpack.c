@@ -15,9 +15,25 @@ FILE  *mpack_log;
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
+
+#if 0
+#ifdef DOSISH
+pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+#else
 pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#endif
+#endif
+
+pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
+static void _mpack_mutex_constructor(void) __attribute__((__constructor__));
+static void _mpack_mutex_constructor(void) { 
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&mpack_rw_lock, &attr);
+}
+
 #include "my_p99_common.h"
-#include "execinfo.h"
+//#include "execinfo.h"
 
 /*======================================================================================*/
 
@@ -127,28 +143,29 @@ retval_t
         return ret;
 
 error:
-        /* warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
+        warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         mpack_destroy_object(obj);
-        ret.ptr = NULL; */
+        ret.ptr = NULL;
+        abort();
         /* pthread_mutex_unlock(&mpack_rw_lock); */
 
-        {
-                extern char LOGDIR[];
-                extern const char *const m_expect_names[];
-                eprintf("WARNING: Got mpack of type %s, expected type %s, possible error.",
-                        m_type_names[mpack_type(obj)], m_expect_names[err_expect]);
+        //{
+        //        extern char LOGDIR[];
+        //        extern const char *const m_expect_names[];
+        //        eprintf("WARNING: Got mpack of type %s, expected type %s, possible error.",
+        //                m_type_names[mpack_type(obj)], m_expect_names[err_expect]);
 
-                FILE *tmp = safe_fopen_fmt("%s/.log", "wb", LOGDIR);
-                mpack_print_object(tmp, obj);
-                fclose(tmp);
-                
-                void * arr[128];
-                size_t num = backtrace(arr, 128);
-                eprintf("Fatal error in func %s in bstrlib.c, line %d\nSTACKTRACE: \n", FUNC_NAME, __LINE__);
-                backtrace_symbols_fd(arr, num, 2);
-                abort();
-        }
+        //        FILE *tmp = safe_fopen_fmt("%s/.log", "wb", LOGDIR);
+        //        mpack_print_object(tmp, obj);
+        //        fclose(tmp);
+        //        
+        //        void * arr[128];
+        //        size_t num = backtrace(arr, 128);
+        //        eprintf("Fatal error in func %s in bstrlib.c, line %d\nSTACKTRACE: \n", FUNC_NAME, __LINE__);
+        //        backtrace_symbols_fd(arr, num, 2);
+        //        abort();
+        //}
 
 
         /* return ret; */
@@ -262,7 +279,7 @@ free_stack_push(struct item_free_stack *list, void *item)
 }
 
 void
-destroy_call_array(struct atomic_call_array *calls)
+_nvim_destroy_arg_array(struct nvim_arg_array *calls)
 {
         if (!calls)
                 return;
@@ -364,7 +381,7 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
 
 /*======================================================================================*/
 
-enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
+enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 
 #define NEXT(VAR_, TYPE_NAME_, MEMBER_)                                       \
         do {                                                                  \
@@ -376,7 +393,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
                         assert(ref != NULL);                                  \
                         (VAR_) = va_arg(*ref, TYPE_NAME_);                    \
                         break;                                                \
-                case ATOMIC_UNION:                                            \
+                case ARG_ARRAY:                                               \
                         assert(a_args);                                       \
                         assert(a_args[a_arg_ctr]);                            \
                         (VAR_) = ((a_args[a_arg_ctr][a_arg_subctr]).MEMBER_); \
@@ -387,7 +404,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
                 }                                                             \
         } while (0)
 
-#define NEXT_NO_ATOMIC(VAR_, TYPE_NAME_)                    \
+#define NEXT_VALIST_ONLY(VAR_, TYPE_NAME_)                  \
         do {                                                \
                 switch (next_type) {                        \
                 case OWN_VALIST:                            \
@@ -397,7 +414,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
                         assert(ref != NULL);                \
                         (VAR_) = va_arg(*ref, TYPE_NAME_);  \
                         break;                              \
-                case ATOMIC_UNION:                          \
+                case ARG_ARRAY:                             \
                 default:                                    \
                         abort();                            \
                 }                                           \
@@ -427,13 +444,13 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
  * Three additional special values are recognized:
  *     !: Denotes a pointer to an initialized va_list, from which all arguments
  *        thereafter will be taken, until either another '!' or '@' is encountered.
- *     @: Denotes an argument of type "union atomic_call_args **", that is to
- *        say an array of arrays of union atomic_call_args objects. When '@'
+ *     @: Denotes an argument of type "nvim_argument **", that is to
+ *        say an array of arrays of nvim_argument objects. When '@'
  *        is encountered, this double pointer is taken from the current argument
  *        source and used thereafter as such. The first sub array is used until
  *        a '*' is encountered in the format string, at which point the next
  *        array is used, and so on.
- *     *: Increments the current sub array of the atomic_call_args ** object.
+ *     *: Increments the current sub array of the nvim_argument ** object.
  *
  * All of the following characters are ignored in the format string, and may be
  * used to make it clearer or more visually pleasing: ':'  ';'  ','  ' '
@@ -443,21 +460,20 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ATOMIC_UNION };
 mpack_obj *
 mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
-        /* eprintf("Fmt is \"%s\"\n", fmt); */
         assert(fmt != NULL && *fmt != '\0');
-        union atomic_call_args    **a_args    = NULL;
-        enum encode_fmt_next_type   next_type = OWN_VALIST;
-        const unsigned              arr_size  = (size_hint)
-                                                ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
-                                                : ENCODE_FMT_ARRSIZE;
-        va_list     args;
-        int         ch;
-        unsigned   *sub_lengths = nalloca(arr_size, sizeof(unsigned));
-        unsigned   *cur_len     = &sub_lengths[0];
-        unsigned    len_ctr     = 1;
-        const char *ptr         = fmt;
-        va_list    *ref         = NULL;
-        *cur_len                = 0;
+        const unsigned arr_size = (size_hint)
+                                ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
+                                : ENCODE_FMT_ARRSIZE;
+        int             ch;
+        va_list         args;
+        va_list        *ref         = NULL;
+        nvim_argument **a_args      = NULL;
+        unsigned       *sub_lengths = nalloca(arr_size, sizeof(unsigned));
+        const char     *ptr         = fmt;
+        unsigned       *cur_len     = &sub_lengths[0];
+        unsigned        len_ctr     = 1;
+        int             next_type   = OWN_VALIST;
+        *cur_len                    = 0;
 
         NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);
@@ -620,20 +636,20 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
                 /* The following use `continue' to skip incrementing the counter */
                 case '!':
-                        NEXT_NO_ATOMIC(ref, va_list *);
+                        NEXT_VALIST_ONLY(ref, va_list *);
                         next_type = OTHER_VALIST;
                         continue;
 
                 case '@':
-                        NEXT_NO_ATOMIC(a_args, union atomic_call_args **);
+                        NEXT_VALIST_ONLY(a_args, nvim_argument **);
                         a_arg_ctr    = 0;
                         a_arg_subctr = 0;
                         assert(a_args[a_arg_ctr]);
-                        next_type = ATOMIC_UNION;
+                        next_type = ARG_ARRAY;
                         continue;
 
                 case '*':
-                        assert(next_type == ATOMIC_UNION);
+                        assert(next_type == ARG_ARRAY);
                         ++a_arg_ctr;
                         a_arg_subctr = 0;
                         continue;
@@ -647,15 +663,12 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 
 #ifdef DEBUG
                 if (PEEK(dict_stack)) {
-                        if (PEEK(obj_stack)->data.dict->max > (*cur_ctr / 2)) {
-                                if ((*cur_ctr & 1) == 0)
-                                        cur_obj = &PEEK(obj_stack)->DDE[*cur_ctr / 2]->key;
-                                else
-                                        cur_obj = &PEEK(obj_stack)->DDE[*cur_ctr / 2]->value;
-                        }
-                } else {
-                        if (PEEK(obj_stack)->data.arr->max > *cur_ctr)
-                                cur_obj = &PEEK(obj_stack)->DAI[*cur_ctr];
+                        if (PEEK(obj_stack)->data.dict->max > (*cur_ctr / 2))
+                                cur_obj = (*cur_ctr & 1) == 0
+                                        ? &PEEK(obj_stack)->DDE[*cur_ctr / 2]->key
+                                        : &PEEK(obj_stack)->DDE[*cur_ctr / 2]->value;
+                } else if (PEEK(obj_stack)->data.arr->max > *cur_ctr) {
+                        cur_obj = &PEEK(obj_stack)->DAI[*cur_ctr];
                 }
 #endif
 

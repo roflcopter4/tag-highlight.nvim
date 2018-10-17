@@ -8,7 +8,7 @@
 #include "p99/p99_futex.h"
 #include "util/list.h"
 
-#define APRINTF(a,b) __attribute__((__format__(__printf__, a, b)))
+#define APRINTF(a,b) __attribute__((__format__(__gnu_printf__, a, b)))
 
 #ifndef __GNUC__
 #  define __attribute__(...)
@@ -31,12 +31,12 @@ typedef enum   nvim_message_type    nvim_message_type;
 typedef enum   nvim_filetype_id     nvim_filetype_id;
 typedef enum   nvim_connection_type nvim_connection_type;
 #endif
-typedef struct atomic_call_array nvim_call_array;
-typedef union  atomic_call_args  nvim_call_arg;
+typedef struct nvim_arg_array nvim_arg_array;
+typedef union  nvim_argument  nvim_argument;
 
-struct atomic_call_array {
+struct nvim_arg_array {
         char    **fmt;
-        union atomic_call_args {
+        union nvim_argument {
                 bool     boolean;
                 int64_t  num;
                 uint64_t uint;
@@ -74,7 +74,7 @@ extern bstring      * nvim_buf_get_name       (int fd, int bufnum);
 extern retval_t       nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect);
 extern retval_t       nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect);
 extern unsigned       nvim_buf_line_count     (int fd, int bufnum);
-extern void           nvim_call_atomic        (int fd, const struct atomic_call_array *calls);
+extern void           nvim_call_atomic        (int fd, const struct nvim_arg_array *calls);
 extern retval_t       nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect);
 extern retval_t       nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
 extern bool           nvim_command            (int fd, const bstring *cmd);
@@ -92,8 +92,8 @@ extern bool           nvim_set_var            (int fd, const bstring *varname, c
 extern void nvim_set_client_info(int fd, const bstring *name, unsigned major, unsigned minor, const bstring *dev,
                                  const bstring *type, const void *methods, const void *attributes);
 
-extern bstring * get_notification  (int fd);
-extern void      destroy_call_array(struct atomic_call_array *calls);
+extern bstring * _nvim_get_notification(int fd);
+extern void      _nvim_destroy_arg_array(struct nvim_arg_array *calls);
 
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) _nvim_write((FD), NW_STANDARD, (MES))
@@ -116,6 +116,8 @@ extern void      destroy_call_array(struct atomic_call_array *calls);
 extern int _nvim_create_socket(int mes_fd);
 /* extern void _nvim_init(enum nvim_connection_type init_type, int init_fd); */
 extern void _nvim_init(void) __attribute__((__constructor__));
+
+extern int _nvim_get_tmpfile(const int fd, bstring **name, const bstring *suffix);
 
 /* 
  * Perl output: default arguments for Neovim functions.
@@ -188,6 +190,10 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 #define nvim_set_client_info_defarg_7() NULL
 
 #define nvim_get_var_fmt(...) (nvim_get_var_fmt)(0, __VA_ARGS__)
+#define _nvim_get_tmpfile(...) P99_CALL_DEFARG(_nvim_get_tmpfile, 3, __VA_ARGS__)
+#define _nvim_get_tmpfile_defarg_0() (0)
+#define _nvim_get_tmpfile_defarg_1() NULL
+#define _nvim_get_tmpfile_defarg_2() NULL
 
 
 /*============================================================================*/

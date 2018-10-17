@@ -85,5 +85,9 @@ extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) aWUR a
 extern void     add_backup    (struct backups *list, void *item) aNNA;
 extern void     free_backups  (struct backups *list);
 
+#ifdef __WIN32__
+#include <WinSock2.h>
+extern int dprintf(SOCKET fd, char *fmt, ...);
+#endif
 
 #endif /* util.h */

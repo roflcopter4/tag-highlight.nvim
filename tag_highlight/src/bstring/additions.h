@@ -43,7 +43,12 @@ extern "C" {
                 (char *)((BSTR_).data);                            \
         })
 #endif
-#  define BS(BSTR)  _Generic((BSTR), const bstring *: ((char *)((BSTR)->data)), bstring *: ((char *)((BSTR)->data)))
+#  define BS(BSTR) \
+        ((BSTR) ? _Generic((BSTR), \
+                            const bstring *: ((char *)((BSTR)->data)), \
+                                  bstring *: ((char *)((BSTR)->data))) \
+                : "(null)")
+
 #  define BTS(BSTR) _Generic((BSTR), bstring: ((char *)((BSTR).data)))
 #else
 #  define BS(BSTR_)  ((char *)((BSTR_)->data))
@@ -311,10 +316,10 @@ BSTR_PUBLIC int b_list_writeallow(b_list *list);
 
 BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
 
-BSTR_PUBLIC int64_t b_strstr(const bstring *const haystack, const bstring *needle, const unsigned pos);
-BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, const char delim);
-BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *const delim, const int refonly);
-BSTR_PUBLIC b_list *b_split_char(bstring *split, const int delim, const bool destroy);
+BSTR_PUBLIC int64_t b_strstr(const bstring *haystack, const bstring *needle, unsigned pos);
+BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, char delim);
+BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *delim, int refonly);
+BSTR_PUBLIC b_list *b_split_char(bstring *split, int delim, bool destroy);
 
 /*--------------------------------------------------------------------------------------*/
 
@@ -325,6 +330,7 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 
 BSTR_PUBLIC bstring *  b_dirname(const bstring *path);
 BSTR_PUBLIC bstring *  b_basename(const bstring *path);
+BSTR_PUBLIC bstring *  b_regularize_path(bstring *path);
 
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
@@ -334,8 +340,8 @@ BSTR_PUBLIC bstring *  _b_sprintf  (const bstring *fmt, ...);
 BSTR_PUBLIC bstring *  _b_vsprintf (const bstring *fmt, va_list args);
 BSTR_PUBLIC int        _b_fprintf  (FILE *out_fp, const bstring *fmt, ...);
 BSTR_PUBLIC int        _b_vfprintf (FILE *out_fp, const bstring *fmt, va_list args);
-BSTR_PUBLIC int        _b_dprintf  (const int out_fd, const bstring *fmt, ...);
-BSTR_PUBLIC int        _b_vdprintf (const int out_fd, const bstring *fmt, va_list args);
+BSTR_PUBLIC int        _b_dprintf  (int out_fd, const bstring *fmt, ...);
+BSTR_PUBLIC int        _b_vdprintf (int out_fd, const bstring *fmt, va_list args);
 BSTR_PUBLIC int        _b_sprintfa (bstring *dest, const bstring *fmt, ...);
 BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list args);
 

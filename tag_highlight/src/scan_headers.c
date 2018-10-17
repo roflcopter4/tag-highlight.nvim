@@ -18,7 +18,7 @@
         } while (0)
 
 #define MAX_HEADER_SEARCH_LEVEL 8
-#define PATH_STR                (PATH_MAX + 1u)
+#define PATH_STR                (SAFE_PATH_MAX + 1u)
 #define LIT_STRLEN(STR_)        (sizeof(STR_) - 1llu)
 #define CHAR_AT(UCHAR_, CTR_)   ((char *)(&((UCHAR_)[CTR_])))
 #define B_SYS_OK                (BSTR_MASK_USR1)
@@ -454,6 +454,7 @@ analyze_line(const bstring *line)
                         if (ch == '"' || ch == '<') {
                                 ++i;
                                 ch = (ch == '<') ? '>' : ch;
+#if 0
                                 uchar *end = memchr(&str[i], ch, len - i);
 
                                 if (end) {
@@ -486,7 +487,9 @@ analyze_line(const bstring *line)
                                                 }
                                         }
                                 }
+#endif
                         }
+
                 }
         }
 

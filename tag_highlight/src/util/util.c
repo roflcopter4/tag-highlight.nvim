@@ -11,6 +11,7 @@
 
 #ifdef DOSISH
 #  define restrict __restrict
+   extern const char *program_invocation_short_name;
 #endif
 
 #define SAFE_STAT(PATH, ST)                                     \
@@ -74,8 +75,8 @@ safe_fopen_fmt(const char *const restrict fmt,
 {
         va_list va;
         va_start(va, mode);
-        char buf[PATH_MAX + 1];
-        vsnprintf(buf, PATH_MAX + 1, fmt, va);
+        char buf[SAFE_PATH_MAX + 1];
+        vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
         FILE *fp = fopen(buf, mode);
@@ -110,8 +111,8 @@ safe_open_fmt(const char *const restrict fmt,
 {
         va_list va;
         va_start(va, mode);
-        char buf[PATH_MAX + 1];
-        vsnprintf(buf, PATH_MAX + 1, fmt, va);
+        char buf[SAFE_PATH_MAX + 1];
+        vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
         errno = 0;
@@ -131,8 +132,6 @@ safe_open_fmt(const char *const restrict fmt,
 bool
 file_is_reg(const char *filename)
 {
-        //struct stat st = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        //                  {0}, {0}, {0}, {0, 0, 0}};
         struct stat st;
         SAFE_STAT(filename, &st);
         return S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode);
@@ -240,7 +239,7 @@ find_num_cpus(void)
 }
 
 
-#if defined(__GNUC__) && !(defined(__clang__) || defined(__cplusplus))
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__cplusplus)
 const char *
 ret_func_name__(const char *const function, const size_t size)
 {
@@ -290,3 +289,20 @@ free_backups(struct backups *list)
                 xfree(list->lst[i]);
         list->qty = 0;
 }
+
+#ifdef DOSISH
+int dprintf(SOCKET fd, char *fmt, ...)
+{
+	int fdx = _open_osfhandle(fd, 0);
+	register int ret;
+	FILE *fds;
+	va_list ap;
+	va_start(ap, fmt);
+	fdx = dup(fdx);
+	if((fds = fdopen(fdx, "w")) == NULL) return(-1);
+	ret = vfprintf(fds, fmt, ap);
+	fclose(fds);
+	va_end(ap);
+	return(ret);
+}
+#endif /* __WIN32__ */

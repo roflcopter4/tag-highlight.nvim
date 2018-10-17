@@ -12,6 +12,7 @@
 #include "data.h"
 #include "nvim_api/api.h"
 #include "p99/p99_defarg.h"
+#include "highlight.h"
 
 #ifdef __cplusplus
 extern "C" {

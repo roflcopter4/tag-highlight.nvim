@@ -2,7 +2,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #if defined(DOSISH) || defined(MINGW)
-#  include <direct.h>
+//#  include <direct.h>
 #else
 #  include <spawn.h>
 #  include <sys/wait.h>
@@ -30,7 +30,7 @@ run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
 
         /* Wipe any cached commands if they exist. */
         if (!bdata->ft->is_c && bdata->calls) {
-                destroy_call_array(bdata->calls);
+                _nvim_destroy_arg_array(bdata->calls);
                 bdata->calls = NULL;
         }
 
@@ -157,7 +157,8 @@ write_gzfile(struct top_dir *topdir)
 
 #ifdef DOSISH
 static int
-exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
+//exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
+exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opts opts)
 {
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 

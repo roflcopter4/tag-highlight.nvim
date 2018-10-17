@@ -176,8 +176,8 @@ static noreturn void *vimscript_interrupt_wrap(void *vdata)
 
 #define TMP_SPRINTF(FMT, ...)                                     \
         __extension__({                                           \
-                char tmp_[PATH_MAX + 1];                          \
-                snprintf(tmp_, PATH_MAX + 1, (FMT), __VA_ARGS__); \
+                char tmp_[SAFE_PATH_MAX + 1];                          \
+                snprintf(tmp_, SAFE_PATH_MAX + 1, (FMT), __VA_ARGS__); \
                 tmp_;                                             \
         })
 
@@ -232,9 +232,8 @@ static void
 handle_line_event(struct bufdata *bdata, mpack_obj **items)
 {
         assert(!items[5]->data.boolean);
-        static mtx_t handle_mutex;
-        mtx_lock(&handle_mutex);
-        /* pthread_mutex_lock(&bdata->mut); */
+        static pthread_mutex_t handle_mutex = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_lock(&handle_mutex);
 
         pthread_mutex_lock(&bdata->lock.ctick);
         const unsigned new_tick = (unsigned)m_expect(items[1], E_NUM).num;
@@ -297,8 +296,7 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
         xfree(repl_list->lst);
         xfree(repl_list);
         pthread_mutex_unlock(&bdata->lines->lock);
-        mtx_unlock(&handle_mutex);
-        /* pthread_mutex_unlock(&bdata->mut); */
+        pthread_mutex_unlock(&handle_mutex);
         if (!empty && bdata->ft->is_c)
                 START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
 }
@@ -314,7 +312,7 @@ replace_line(struct bufdata *bdata, b_list *repl_list,
 }
 
 /** 
- * Hanldes a neovim line update event in which we received at least one string in a buffer
+ * Handles a neovim line update event in which we received at least one string in a buffer
  * that is not empty. If diff is non-zero, we first delete the lines in the range 
  * `first + diff`, and then insert the new line(s) after `first` if it is now the last
  * line in the file, and before it otherwise.
@@ -360,12 +358,12 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
 static void
 vimscript_interrupt(const int val)
 {
-        static mtx_t      vs_mutex;
+        static pthread_mutex_t vs_mutex = PTHREAD_MUTEX_INITIALIZER;
         static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
         struct timer      t;
         int               num = 0;
 
-        mtx_lock(&vs_mutex);
+        pthread_mutex_lock(&vs_mutex);
 
         if (val != 'H')
                 echo("Recieved \"%c\"; waking up!", val);
@@ -432,7 +430,7 @@ vimscript_interrupt(const int val)
         case 'C': {
                 extern pthread_t top_thread;
                 clear_highlight();
-                mtx_unlock(&vs_mutex);
+                pthread_mutex_unlock(&vs_mutex);
                 pthread_kill(top_thread, KILL_SIG);
                 pthread_exit();
         }
@@ -463,7 +461,7 @@ vimscript_interrupt(const int val)
                 break;
         }
 
-        mtx_unlock(&vs_mutex);
+        pthread_mutex_unlock(&vs_mutex);
 }
 
 /*======================================================================================*/

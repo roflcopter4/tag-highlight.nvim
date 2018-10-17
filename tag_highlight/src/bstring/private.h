@@ -1,8 +1,13 @@
 #ifndef BSTRLIB_PRIVATE_H
 #define BSTRLIB_PRIVATE_H
 
+#include "mingw_config.h"
+
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
+#endif
+#ifdef __clang__
+#  define __gnu_printf__ __printf__
 #endif
 #if defined(HAVE_CONFIG_H)
 #  include "config.h"
@@ -83,7 +88,7 @@ typedef unsigned int uint;
 #ifdef HAVE_ERR
 #  include <err.h>
 #else
-    __attribute__((__format__(printf, 2, 3)))
+    __attribute__((__format__(gnu_printf, 2, 3)))
     static void _warn(bool print_err, const char *fmt, ...)
     {
             va_list ap;
@@ -111,6 +116,24 @@ typedef unsigned int uint;
 #  define errx(EVAL, ...) _warn(false, __VA_ARGS__), exit(EVAL)
 #endif
 
+#ifdef _WIN32
+__attribute__((__format__(__gnu_printf__, 2, 3)))
+static inline int dprintf(int fd, char *fmt, ...)
+{
+	int fdx = _open_osfhandle(fd, 0);
+	register int ret;
+	FILE *fds;
+	va_list ap;
+	va_start(ap, fmt);
+	fdx = dup(fdx);
+	if((fds = fdopen(fdx, "w")) == NULL) return(-1);
+	ret = vfprintf(fds, fmt, ap);
+	fclose(fds);
+	va_end(ap);
+	return(ret);
+}
+#endif /* _WIN32 */
+
 
 /* 
  * Because I'm that lazy.
@@ -137,6 +160,7 @@ typedef unsigned int uint;
 /* 
  * Debugging aids
  */
+#ifdef HAVE_EXECINFO_H
 #define FATAL_ERROR(...)                                                                   \
         do {                                                                               \
                 void * arr[128];                                                           \
@@ -150,6 +174,9 @@ typedef unsigned int uint;
                 backtrace_symbols_fd(arr, num, 2);                                         \
                 abort();                                                                   \
         } while (0)
+#else
+#define FATAL_ERROR(...) errx(1, __VA_ARGS__)
+#endif
 
 #define RUNTIME_ERROR() return BSTR_ERR
 #define RETURN_NULL()   return NULL
@@ -202,7 +229,7 @@ xrealloc(void *ptr, size_t size)
 
 #ifdef HAVE_VASPRINTF
 #  ifdef USE_XMALLOC
-__attribute__((__format__(__printf__, 2, 0), __always_inline__))
+__attribute__((__format__(__gnu_printf__, 2, 0), __always_inline__))
 static inline int
 xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 {

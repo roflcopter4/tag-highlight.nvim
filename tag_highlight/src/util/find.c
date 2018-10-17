@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 
 #if defined(DOSISH) || defined(MINGW)
-#  include <direct.h>
+//#  include <direct.h>
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
 #  define SEPSTR "\\"
 #else
@@ -59,7 +59,7 @@ find_file(const char *path, const char *search, const enum find_flags flags)
 
                 return tmp;
         }
-        case FIND_SPLIT:
+        case FIND_SPLIT: // b_list *
                 return b_split_char(result, '\n', true);
         default:
         case FIND_LITERAL:
@@ -75,16 +75,18 @@ run_find(const char *path, const char *search)
         int pipefds[2] = {0, 0};
         int status     = 0;
 
-#ifdef HAVE_PIPE2
+#ifdef HAVE_FORK
+#  ifdef HAVE_PIPE2
         if (pipe2(pipefds, O_NONBLOCK|O_CLOEXEC) == (-1))
                 err(1, "Pipe failed");
-#else
+#  elif !defined(DOSISH)
         if (pipe(pipefds) == (-1))
                 err(1, "Pipe failed");
+#  endif
         const int flgs[2] = {fcntl(pipefds[0], F_GETFD), fcntl(pipefds[1], F_GETFD)};
         fcntl(pipefds[0], F_SETFD, flgs[0]|O_NONBLOCK|O_CLOEXEC);
         fcntl(pipefds[1], F_SETFD, flgs[1]|O_NONBLOCK|O_CLOEXEC);
-#endif
+
 
         const int pid = fork();
 
@@ -111,6 +113,15 @@ run_find(const char *path, const char *search)
 
         if (ret->slen == 0)
                 b_destroy(ret);
+#else
+        char buf[8192];
+        snprintf(buf, 8192, "find %s -regex %s > .find_tmp", path, search);
+        status = system(buf);
+        if ((status >>= 8) != 0)
+                errx(status, "Command failed with status %d", status);
+        bstring *ret = b_quickread(".find_tmp");
+        unlink(".find_tmp");
+#endif
 
         return ret;
 }

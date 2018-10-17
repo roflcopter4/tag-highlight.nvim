@@ -8,7 +8,9 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
-            call vimproc#write('/home/bml/fuck.log', l:str . "\n", 'a')
+	    try
+                call writefile([l:str], expand('~/.tag_highlight_log/stderr.log'), 'a')
+            endtry
         endif
     endfor
 endfunction
@@ -98,6 +100,21 @@ endfunction
 
 "===============================================================================
 
+function! s:getchan(job_id, data, event) dict
+    echo a:data
+    let l:pnam = ''
+    for l:str in a:data
+        if len(l:str) && l:str !=# ' '
+            let l:pnam .= l:str
+        endif
+    endfor
+    if l:pnam ==# '' || l:pnam ==# ' '
+        return
+    endif
+    echom 'Connecting to ' . l:pnam
+    let g:tag_highlight#pid = sockconnect('pipe', l:pnam, {'rpc': v:true})
+endfunction
+
 let g:tag_highlight#pid = 0
 let s:job1 = 0
 let s:pipe = 0
@@ -121,30 +138,31 @@ function! s:InitTagHighlight()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
 
-    call system('rm /home/bml/fuck.log')
+    call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
 
-    if filereadable(expand('~/.vim_tags/bin/tag_highlight'))
-        let l:binary = expand('~/.vim_tags/bin/tag_highlight')
-    elseif filereadable(expand('~/.vim_tags/bin/tag_highlight.exe'))
-        let l:binary = expand('~/.vim_tags/bin/tag_highlight.exe')
-    else
-        echom 'Failed to find binary'
-        return
-    endif
+    "if filereadable(expand('~/.vim_tags/bin/tag_highlight'))
+    "    let l:binary = expand('~/.vim_tags/bin/tag_highlight')
+    "elseif filereadable(expand('~/.vim_tags/bin/tag_highlight.exe'))
+    "    let l:binary = expand('~/.vim_tags/bin/tag_highlight.exe')
+    "else
+    "    echom 'Failed to find binary'
+    "    return
+    "endif
+    "let l:binary = 'D:/msys64/mingw64/bin/tag_highlight.exe'
+    " let l:binary = 'D:\ass\c\thl\tag_highlight\mingw\src\tag_highlight.exe'
+
+    let l:binary = expand('~/.vim_tags/bin/tag_highlight')
+
     echom 'Opening ' . l:binary . ' with pipe ' . s:pipe
     
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     let s:job1 = g:tag_highlight#pid
-
+    
     sleep 500m " Don't do anything until we're sure everything's finished initializing
     let s:init = 1
 endfunction
 
 "===============================================================================
-
-" function! s:FirstInit()
-"     call s:InitTagHighlight()
-" endfunction
 
 command! THLInit call s:InitTagHighlight()
 command! THLStop call s:StopTagHighlight()
@@ -164,7 +182,7 @@ augroup TagHighlightAu
     autocmd BufWritePost * call s:UpdateTags()
     autocmd BufEnter * call s:BufChanged()
     autocmd VimLeavePre * call s:ExitKill()
-    autocmd CursorHold,CursorHoldI *.{c,cc,cpp,cxx,h,hh,hpp} call s:CursorHold()
+    " autocmd CursorHold,CursorHoldI *.{c,cc,cpp,cxx,h,hh,hpp} call s:CursorHold()
     " autocmd InsertEnter,InsertLeave *.{c,cc,cpp,cxx,h,hh,hpp} call s:ModeChange()
 augroup END
 

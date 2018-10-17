@@ -4,6 +4,7 @@
 
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_ERR
+#cmakedefine HAVE_FORK
 #cmakedefine HAVE_GETTIMEOFDAY
 #cmakedefine HAVE_LIBBSD
 #cmakedefine HAVE_MEMRCHR
@@ -26,7 +27,7 @@
 #cmakedefine HAVE_TGMATH_H
 #cmakedefine HAVE_THREADS_H
 
-#define GCC_ALL_INCLUDE_DIRECTORIES {${MY_GCC_LIST_3}}
+#define GCC_ALL_INCLUDE_DIRECTORIES ${COMPILER_INCLUDE_DIRECTORIES}
 
 #define VERSION "0.0.2"
 #define PACKAGE_STRING "tag_highlight " VERSION

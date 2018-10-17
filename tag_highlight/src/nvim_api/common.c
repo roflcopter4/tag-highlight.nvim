@@ -10,11 +10,13 @@
 #include "my_p99_common.h"
 #include "read.h"
 
+//s#define LOG_RAW_MPACK
+
+extern vfutex_t  event_futex;
 extern genlist  *_nvim_wait_list;
 extern vfutex_t  _nvim_wait_futex;
        vfutex_t  _nvim_wait_futex = P99_FUTEX_INITIALIZER(0);
 static vfutex_t  once_futex       = P99_FUTEX_INITIALIZER(0);
-extern vfutex_t event_futex;
 
 #if 0
 P44_DECLARE_FIFO(nvim_wait_queue);
@@ -31,7 +33,17 @@ volatile p99_count _nvim_count;
 P99_FIFO(mpack_obj_node_ptr) mpack_obj_queue;
 P99_LIFO(mpack_obj_node_ptr) mpack_obj_stack;
 
+static void futex_initializer(void) __attribute__((__constructor__, __used__));
+
 /*======================================================================================*/
+
+static void
+futex_initializer(void)
+{
+        p99_futex_init(&once_futex, 0);
+        p99_futex_init(&_nvim_wait_futex, 0);
+        p99_count_init(&_nvim_count, 0);
+}
 
 #if 0
 static mpack_obj *
@@ -95,12 +107,12 @@ await_package(const int fd, const unsigned count, UNUSED const nvim_message_type
 #endif
         /* *node = (nvim_wait_queue){&(volatile p99_futex){0}, NULL, NULL, count}; */
 
-        static mtx_t await_mutex;
-        mpack_obj   *obj = NULL;
+        static pthread_mutex_t await_mutex = PTHREAD_MUTEX_INITIALIZER;
+        mpack_obj             *obj         = NULL;
 
         for (;;) {
                 p99_count_inc(&_nvim_count);
-                mtx_lock(&await_mutex);
+                pthread_mutex_lock(&await_mutex);
 
                 mpack_obj_node *node;
                 while ((node = P99_FIFO_POP(&mpack_obj_queue))) {
@@ -115,7 +127,7 @@ await_package(const int fd, const unsigned count, UNUSED const nvim_message_type
                 while ((node = P99_LIFO_POP(&mpack_obj_stack)))
                         P99_FIFO_APPEND(&mpack_obj_queue, node);
 
-                mtx_unlock(&await_mutex);
+                pthread_mutex_unlock(&await_mutex);
                 p99_count_dec(&_nvim_count);
                 if (obj)
                         break;
@@ -171,7 +183,7 @@ generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
 /*======================================================================================*/
 
 bstring *
-get_notification(int fd)
+_nvim_get_notification(int fd)
 {
         CHECK_DEF_FD(fd);
         mpack_obj *result = await_package(fd, (-1), MES_NOTIFICATION);
@@ -185,10 +197,20 @@ void
 {
 #ifdef DEBUG
 #  ifdef LOG_RAW_MPACK
-        char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", HOME);
-        const int rawlog = safe_open(tmp, O_CREAT|O_APPEND|O_WRONLY|O_DSYNC|O_BINARY, 0644);
-        b_write(rawlog, B("\n"), *pack->packed, B("\n"));
-        close(rawlog);
+        {
+        extern char LOGDIR[];
+        eprintf("Writing to log... %zu\n", (size_t)(*pack->packed)->slen);
+        char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", LOGDIR);
+        FILE *fp = fopen(tmp, "wb");
+        if (!fp)
+                THROW("Well, we lose");
+        size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, fp);
+        if (n <= 0 || ferror(fp))
+                errx(1, "All is lost");
+        fflush(fp); fclose(fp);
+        fprintf(stderr, "Wrote %zu chars\n", n); fflush(stderr);
+        assert((unsigned)n == (*pack->packed)->slen);
+        }
 #  endif
         if (func && logfp)
                 fprintf(logfp, "=================================\n"

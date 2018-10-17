@@ -1,10 +1,13 @@
 #ifndef SRC_DATA_H
 #define SRC_DATA_H
 
-#include "nvim_api/api.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
+#include "p99/p99_futex.h"
 #include "util/list.h"
 #include <pthread.h>
+
+typedef volatile p99_futex vfutex_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,12 +78,16 @@ struct bufdata {
                 pthread_mutex_t total;
                 pthread_mutex_t ctick;
                 pthread_mutex_t update;
+                vfutex_t        clang_count;
+                /* pthread_mutex_t clang; */
+                /* atomic_flag     clang_flg; */
         } lock;
 
         struct {
                 bstring *full;
                 bstring *base;
                 bstring *path;
+                char     suffix[8];
         } name;
 
         linked_list     *lines;
@@ -96,7 +103,7 @@ struct bufdata {
                 };
                 /* Everything else */
                 struct {
-                        nvim_call_array *calls;
+                        nvim_arg_array *calls;
                         b_list          *cmd_cache;
                 };
         };

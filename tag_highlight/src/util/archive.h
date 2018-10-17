@@ -1,8 +1,7 @@
 #ifndef SRC_ARCHIVE_ARCHIVE_UTIL_H
 #define SRC_ARCHIVE_ARCHIVE_UTIL_H
 
-
-#include <stddef.h>
+#include "tag_highlight.h"
 #include "data.h"
 
 #ifdef __cplusplus

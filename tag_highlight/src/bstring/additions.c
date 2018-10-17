@@ -767,6 +767,22 @@ b_basename(const bstring *path)
 
 
 bstring *
+b_regularize_path(bstring *path)
+{
+        if (INVALID(path) || NO_WRITE(path))
+                RETURN_NULL();
+        
+#if defined(_WIN32) || defined(_WIN64)
+        for (unsigned i = 0; i < path->slen; ++i)
+                if (path->data[i] == '/')
+                        path->data[i] = '\\';
+#endif
+
+        return path;
+}
+
+
+bstring *
 b_quickread(const char *const __restrict fmt, ...)
 {
         if (!fmt)

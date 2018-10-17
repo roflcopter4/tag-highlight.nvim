@@ -8,14 +8,18 @@
 #include "util/find.h"
 #include <sys/stat.h>
 
+#ifdef DOSISH
+#  define at_quick_exit(a)
+#  define quick_exit(a) _Exit(a)
+#endif
 #if defined(HAVE_POSIX_SPAWNP)
 #  include <spawn.h>
 #  include <wait.h>
 #endif
 
 #define TUFLAGS                                          \
-         ( /* clang_defaultEditingTranslationUnitOptions() 
-         | */ CXTranslationUnit_DetailedPreprocessingRecord \
+         ( /* clang_defaultEditingTranslationUnitOptions() */  \
+         /* | */ CXTranslationUnit_DetailedPreprocessingRecord \
          /* | CXTranslationUnit_KeepGoing */                   \
          | CXTranslationUnit_PrecompiledPreamble         \
          /* | CXTranslationUnit_Incomplete */                     \
@@ -29,9 +33,12 @@
          | CXTranslationUnit_CreatePreambleOnFirstParse)
 #endif
 #define INIT_ARGV   (32)
-#define DUMPDATASIZ ((int64_t)((double)PATH_MAX * 1.5))
+#define DUMPDATASIZ ((int64_t)((double)SAFE_PATH_MAX * 1.5))
 
-#define DUMPDATA()                                                               \
+#ifdef DOSISH
+#  define DUMPDATA()
+#else
+#  define DUMPDATA()                                                             \
         do {                                                                     \
                 char dump[DUMPDATASIZ];                                          \
                 snprintf(dump, DUMPDATASIZ, "%s/XXXXXX.log", libclang_tmp_path); \
@@ -40,10 +47,12 @@
                 b_list_dump_fd(dumpfd, enumlist.enumerators);                    \
                 close(dumpfd);                                                   \
         } while (0)
+#endif
 
-static const char *const gcc_sys_dirs[] = GCC_ALL_INCLUDE_DIRECTORIES;
-extern char              libclang_tmp_path[PATH_MAX + 1];
-       char              libclang_tmp_path[PATH_MAX + 1];
+static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
+
+extern char libclang_tmp_path[SAFE_PATH_MAX];
+       char libclang_tmp_path[SAFE_PATH_MAX];
 
 struct enum_data {
         CXTranslationUnit tu;
@@ -99,10 +108,19 @@ void
         static pthread_mutex_t  lc_mutex = PTHREAD_MUTEX_INITIALIZER;
         struct translationunit *stu;
         int64_t                 startend[2];
+        /* int ret = pthread_mutex_trylock(&lc_mutex);
+        if (ret != 0)
+                return; */
+
+        unsigned cnt_val = 0;;
+        P99_FUTEX_COMPARE_EXCHANGE(&bdata->lock.clang_count, value,
+                true, (value < 2 ? value + 1 : value),
+                ((cnt_val = value), 0), 0
+        );
+        if (cnt_val == 2)
+                return;
+
         pthread_mutex_lock(&lc_mutex);
-        /* int                     ret = pthread_mutex_trylock(&lc_mutex);
-        if (ret != 0) */
-                /* return; */
 
         pthread_mutex_lock(&bdata->lines->lock);
         bstring *joined = ll_join(bdata->lines, '\n');
@@ -126,10 +144,12 @@ void
         CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
-        nvim_call_array *calls = type_id(bdata, stu);
+        nvim_arg_array *calls = type_id(bdata, stu);
         nvim_call_atomic(,calls);
+
+        p99_futex_add(&bdata->lock.clang_count, (-1), 0, 0, 0, 0);
         pthread_mutex_unlock(&lc_mutex);
-        destroy_call_array(calls);
+        _nvim_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
 }
 
@@ -179,13 +199,21 @@ init_compilation_unit(struct bufdata *bdata, bstring *buf)
         if (!*libclang_tmp_path)
                 get_tmp_path();
 
-        char         tmp[PATH_MAX];
+        int tmpfd, tmplen;
+        char         tmp[SAFE_PATH_MAX];
         str_vector  *comp_cmds = get_compile_commands(bdata);
-        const int    tmplen    = snprintf(tmp, PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
-        const int    tmpfd     = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
-
+#ifdef DOSISH
+        bstring *tmp_file;
+        tmpfd = _nvim_get_tmpfile(,&tmp_file, btp_fromcstr(bdata->name.suffix));
+        memcpy(tmp, tmp_file->data, (tmplen = (int)tmp_file->slen) + 1);
+        b_destroy(tmp_file);
+#else
+        tmplen = snprintf(tmp, SAFE_PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
+        tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
+#endif
+        
         if (b_write(tmpfd, buf, B("\n")) != 0)
-                err(1, "Write error");
+                Err("Write error");
         close(tmpfd);
 
 #ifdef DEBUG
@@ -246,6 +274,30 @@ getinfo(struct bufdata *bdata)
 
 /*======================================================================================*/
 
+#ifdef DOSISH
+static char *
+stupid_windows_bullshit(const char *const path)
+{
+        size_t len = strlen(path);
+        if (len < 5 || path[4] != '/')
+                return NULL;
+
+        char *ret = xmalloc(len + 8);
+        char *ptr = ret;
+        *ptr++    = '-';
+        *ptr++    = 'I';
+        *ptr++    = path[3];
+        *ptr++    = ':';
+        *ptr++    = '\\';
+        *ptr++    = '\\';
+        for (const char *sptr = path+5; *sptr; ++sptr)
+                *ptr++ = (*sptr == '/') ? '\\' : *sptr;
+        *ptr      = '\0';
+
+        return ret;
+}
+#endif
+
 static str_vector *
 get_compile_commands(struct bufdata *bdata)
 {
@@ -254,7 +306,7 @@ get_compile_commands(struct bufdata *bdata)
                 clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
         if (cberr != 0) {
                 clang_CompilationDatabase_dispose(db);
-                warn("Couldn't locate compilation database.");
+                warn("Couldn't locate compilation database in \"%s\".", BS(bdata->topdir->pathname));
                 return get_backup_commands(bdata);
         }
 
@@ -284,10 +336,47 @@ get_compile_commands(struct bufdata *bdata)
                         else if (cstr[0] == '-') {
                                 if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include", "x"))
                                         next_fileok = true;
+#ifdef DOSISH
+                                if (cstr[2] == '/') {
+                                        char *fixed_path = stupid_windows_bullshit(cstr);
+                                        if (fixed_path)
+                                                argv_append(ret, fixed_path, false);
+                                } else {
+                                        argv_append(ret, cstr, true);
+                                }
+#else
                                 argv_append(ret, cstr, true);
-                        } else if (fileok)
+#endif
+                        } else if (fileok) {
                                 argv_append(ret, cstr, true);
-
+#ifdef DOSISH
+                        } else if (cstr[0] == '@') {
+                                char searchbuf[2048];
+                                char *sptr = searchbuf, *optr = cstr+1, ch;
+                                *sptr++ = '.'; *sptr++ = '*';
+                                while ((ch = *optr++))
+                                        *sptr++ = (char)((ch == '\\') ? '/' : ch);
+                                *sptr = '\0';
+                                bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST);
+                                eprintf("In searching for \"%s\", got \"%s\"\n", searchbuf, BS(file));
+                                if (file) {
+                                        bstring *contents = b_quickread("%s", BS(b_regularize_path(file)));
+                                        eprintf("Read %s\n", BS(contents));
+                                        assert(contents);
+                                        optr = (char *)contents->data;
+                                        while ((sptr = strsep(&optr, " \n\t")))
+                                                if (sptr[0] == '-') {
+                                                        if (sptr[2] == '/')
+                                                                argv_append(ret, stupid_windows_bullshit(sptr), false);
+                                                        else
+                                                                argv_append(ret, sptr, true);
+                                                }
+                                        b_free(contents);
+                                        b_free(file);
+                                }
+#endif
+                        }
+                                
                         clang_disposeString(tmp);
                         fileok = next_fileok;
                 }
@@ -346,39 +435,32 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *b
 static void
 get_tmp_path(void)
 {
+#ifdef DOSISH
+        bstring *name = nvim_call_function(,B("tempname"), E_STRING).ptr;
+        memcpy(libclang_tmp_path, name->data, name->slen+1);
+        b_destroy(name);
+        mkdir(libclang_tmp_path, 0700);
+#else
         memcpy(libclang_tmp_path, SLS("/mnt/ramdisk/tag_highlight_XXXXXX"));
         errno = 0;
         if (!mkdtemp(libclang_tmp_path))
                 err(1, "mkdtemp failed");
         at_quick_exit(clean_tmpdir);
         atexit(clean_tmpdir);
+#endif
 }
 
 static void
 clean_tmpdir(void)
 {
+#ifndef DOSISH
+        int  status, pid, ret;
         char cmd[CMD_SIZ];
         snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", "/mnt/ramdisk");
-
-        int status, pid, ret;
         char *const argv[] = {"sh", "-c", cmd, (char *)0};
-
-        /* if ((ret = posix_spawnp(&pid, "sh", NULL, NULL, argv, environ)) != 0) */
-                /* err(1, "Posix spawn failed"); */
 
         posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
         waitpid(pid, &status, 0);
-
-        /* if ((status <<= STATUS_SHIFT) != 0) */
-                /* err(1, "rm failed with status %d", status); */
-/* #else */
-#if 0
-        char cmd[CMD_SIZ];
-        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", "/mnt/ramdisk");
-        eprintf("Running %s\n", cmd);
-        int status = system(cmd) << STATUS_SHIFT;
-        if (status != 0)
-                err(1, "rm failed with status %d", status);
 #endif
 }
 

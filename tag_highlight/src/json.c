@@ -6,7 +6,7 @@
 #include "mpack/mpack.h"
 
 #ifdef DOSISH
-#  include <direct.h>
+//#  include <direct.h>
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
 #else
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq((FILE1_), (FILE2_)))
@@ -83,7 +83,7 @@ parse_json(const bstring *json_path, const bstring *filename, b_list *includes)
         bstring *base = b_fromblk(json_path->data, pos);
 
         {
-                char path_buf[PATH_MAX + 1];
+                char path_buf[SAFE_PATH_MAX + 1];
                 char *path = realpath(BS(base), path_buf);
                 b_assign_cstr(base, path);
         }
@@ -143,7 +143,7 @@ extract_info(const jsmntok_t *toks,
                         bstring *value = b_fromblk(b_at(js, toks[i].start),
                                                    toks[i].end - toks[i].start);
                         bstring *tmp;
-                        char     buf[PATH_MAX + 1];
+                        char     buf[SAFE_PATH_MAX + 1];
                         /* ECHO("Value is %s", BS(value)); */
 
                         if (value->data[0] == '.') {
@@ -214,7 +214,7 @@ extract_info(const jsmntok_t *toks,
                                 *btok = bt_fromblk(tok, (unsigned)PSUB(end, tok));
 
                                 //bstring *btok = b_refblk(tok, PSUB(end, tok));
-                                char           buf[PATH_MAX + 1], *newtok;
+                                char           buf[SAFE_PATH_MAX + 1], *newtok;
                                 unsigned       newsize;
 
                                 if (*tok == '.') {
@@ -248,7 +248,7 @@ extract_info(const jsmntok_t *toks,
 
                                 if (arg->data[0] == '-' && arg->data[1] == 'I') {
                                         /* ECHO("Found '%s'", BS(arg)); */
-                                        char     buf[PATH_MAX + 1], *newtok;
+                                        char     buf[SAFE_PATH_MAX + 1], *newtok;
                                         unsigned size;
 
                                         if (arg->data[2] == '.') {
@@ -328,7 +328,7 @@ cannon_dotpath(char *const restrict          buf,
         if (chdir(BS(path)) == (-1))
                 err(1, "Failed to chdir to path \"%s\"", BS(path));
 
-        char newbuf[PATH_MAX + 1];
+        char newbuf[SAFE_PATH_MAX + 1];
         const char *ptr = BS(file) + file_offset;
         unsigned i = 0;
 
