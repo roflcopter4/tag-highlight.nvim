@@ -20,11 +20,11 @@
 #define TUFLAGS                                          \
          ( /* clang_defaultEditingTranslationUnitOptions() */  \
          /* | */ CXTranslationUnit_DetailedPreprocessingRecord \
-         /* | CXTranslationUnit_KeepGoing */                   \
+         | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
-         /* | CXTranslationUnit_Incomplete */                     \
+         | CXTranslationUnit_Incomplete                     \
          | CXTranslationUnit_CreatePreambleOnFirstParse\
-         /* | CXTranslationUnit_IncludeAttributedTypes */ )
+         | CXTranslationUnit_IncludeAttributedTypes )
 #if 0
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \

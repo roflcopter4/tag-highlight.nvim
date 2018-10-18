@@ -174,11 +174,11 @@ static noreturn void *vimscript_interrupt_wrap(void *vdata)
 
 /*======================================================================================*/
 
-#define TMP_SPRINTF(FMT, ...)                                     \
-        __extension__({                                           \
+#define TMP_SPRINTF(FMT, ...)                                          \
+        __extension__({                                                \
                 char tmp_[SAFE_PATH_MAX + 1];                          \
                 snprintf(tmp_, SAFE_PATH_MAX + 1, (FMT), __VA_ARGS__); \
-                tmp_;                                             \
+                tmp_;                                                  \
         })
 
 static void
@@ -289,7 +289,7 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
                 bdata->initialized = true;
 
         /* LINE_EVENT_DEBUG(); */
-#ifdef DEBUG
+#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
         START_DETACHED_PTHREAD(emergency_debug, bdata);
 #endif
 

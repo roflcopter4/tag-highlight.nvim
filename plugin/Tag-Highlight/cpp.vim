@@ -1,7 +1,8 @@
 if !exists('g:tag_highlight#cpp#order')
-        let g:tag_highlight#cpp#order = 'ncgstuedfm'
+        let g:tag_highlight#cpp#order = 'Tncgstuedfm'
 endif
 
+let g:tag_highlight#cpp#T = { 'group': 'cppTemplateTag' }
 let g:tag_highlight#cpp#c = { 'group': 'cppClassTag' }
 let g:tag_highlight#cpp#g = { 'group': 'cppEnumTypeTag' }
 let g:tag_highlight#cpp#s = { 'group': 'cppStructTag' }
@@ -28,6 +29,7 @@ highlight def link cppClassTag		tag_highlight_ClassTag
 highlight def link cppEnumTypeTag	tag_highlight_EnumTypeTag
 highlight def link cppStructTag		tag_highlight_StructTag
 highlight def link cppUnionTag		tag_highlight_UnionTag
+highlight def link cppTemplateTag	tag_highlight_TemplateTag
 
 highlight def link cppGlobalVar		tag_highlight_GlobalVarTag
 highlight def link cppEnumTag		tag_highlight_EnumTag

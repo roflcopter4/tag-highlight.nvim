@@ -247,7 +247,6 @@ quick_cleanup(void)
                 fclose(main_log);
         if (echo_log)
                 fclose(echo_log);
-        fcloseall();
 }
 
 static comp_type_t

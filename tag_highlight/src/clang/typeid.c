@@ -72,6 +72,7 @@ enum equiv_ctags_type {
 #define CTAGS_STRUCT    's'
 #define CTAGS_TYPE      't'
 #define CTAGS_UNION     'u'
+#define EXTENSION_TEMPLATE 'T'
 
 /*======================================================================================*/
 
@@ -100,9 +101,9 @@ type_id(struct bufdata *bdata, struct translationunit *stu)
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
-                if (((int)(tok->line)) == (-1) || tok_in_skip_list(bdata, tok))
+                if ((int)tok->line == (-1) || tok_in_skip_list(bdata, tok))
                         continue;
-                tokvisitor(tok);
+                /* tokvisitor(tok); */
                 do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last);
         }
 
@@ -136,11 +137,25 @@ retry:
                  * declaration cursor and identify its type. The easiest way to do
                  * this is to change the value of `cursor' and jump back to the top. */
                 if (bdata->ft->id == FT_CPP) {
-                        CXType curs_type = clang_getCursorType(tok->cursor);
-                        cursor           = clang_getTypeDeclaration(curs_type);
-                        if (cursor.kind != CXCursor_NoDeclFound)
+                        /* CXType curs_type = clang_getCursorType(tok->cursor); */
+                        CXCursor newcurs = clang_getTypeDeclaration(tok->cursortype);
+
+                        if (clang_isCursorDefinition(cursor)) {
+                                ADD_CALL(CTAGS_CLASS);
+                                break;
+                        }
+#if 0
+                        if (clang_equalCursors(newcurs, cursor) && newcurs.kind == CXCursor_ClassDecl) {
+                                ADD_CALL(CTAGS_CLASS);
+                                break;
+                        }
+#endif
+                        if (newcurs.kind != CXCursor_NoDeclFound) {
+                                cursor = newcurs;
                                 goto retry;
+                        }
                 }
+
                 ADD_CALL(CTAGS_TYPE);
         } break;
         case CXCursor_MemberRef:
@@ -148,11 +163,23 @@ retry:
                  * non-expression context such as a designated initializer. */
                 ADD_CALL(CTAGS_MEMBER);
                 break;
-        case CXCursor_MemberRefExpr:
+        case CXCursor_MemberRefExpr: {
                 /* Ordinary reference to a struct/class member. */
-                ADD_CALL(CTAGS_MEMBER);
-                break;
-        case CXCursor_Namespace:
+                CXType deftype = clang_getCanonicalType(tok->cursortype);
+                /* CXCursor def = clang_getCursorDefinition(cursor); */
+                /* CXType   deftype = clang_getCursorType(def); */
+                /* CXString curskind = clang_getCursorKindSpelling(def.kind); */
+                /* echo("Got curs_kind %s... for %s\n", CS(curskind), tok->raw); */
+                /* CXString type = clang_getTypeSpelling(deftype);
+                CXString typekind = clang_getTypeKindSpelling(deftype.kind);
+                echo("And %s - %s - %d for %s\n", CS(type), CS(typekind), deftype.kind, tok->raw); */
+                /* free_cxstrings(curskind, type); */
+                if (deftype.kind == CXType_Unexposed)
+                        ADD_CALL(CTAGS_FUNCTION);
+                else
+                        ADD_CALL(CTAGS_MEMBER);
+        } break;
+        /* case CXCursor_Namespace: */
         case CXCursor_NamespaceRef:
                 ADD_CALL(CTAGS_NAMESPACE);
                 break;
@@ -163,7 +190,8 @@ retry:
                 ADD_CALL(CTAGS_UNION);
                 break;
         case CXCursor_ClassDecl:
-                ADD_CALL(CTAGS_CLASS);
+                /* ADD_CALL(CTAGS_CLASS); */
+                ADD_CALL(CTAGS_TYPE);
                 break;
         case CXCursor_EnumDecl:
                 /* An enumeration. */
@@ -186,6 +214,7 @@ retry:
 
         /* --- Mainly C++ Stuff --- */
         case CXCursor_Constructor:
+        case CXCursor_Destructor:
                 ADD_CALL(CTAGS_CLASS);
                 break;
         case CXCursor_TemplateTypeParameter:
@@ -200,7 +229,7 @@ retry:
                 ADD_CALL(CTAGS_CLASS);
                 break;
         case CXCursor_TemplateRef:
-                ADD_CALL(CTAGS_GLOBALVAR);
+                ADD_CALL(EXTENSION_TEMPLATE);
                 break;
         /* ------------------------ */
 
@@ -269,6 +298,21 @@ tok_in_skip_list(struct bufdata *bdata, struct token *tok)
 }
 
 static void
+report_parent(CXCursor cursor, FILE *fp)
+{
+        CXCursor parent         = clang_getCursorSemanticParent(cursor);
+        CXType   parent_type    = clang_getCursorType(parent);
+        CXString typespell      = clang_getTypeSpelling(parent_type);
+        CXString typekindrepr   = clang_getTypeKindSpelling(parent_type.kind);
+        CXString curs_kindspell = clang_getCursorKindSpelling(parent.kind);
+
+        fprintf(fp, "  parent: %-17s - %-30s - %s\n",
+                CS(typekindrepr), CS(curs_kindspell), CS(typespell));
+
+        free_cxstrings(typespell, typekindrepr, curs_kindspell);
+}
+
+static void
 tokvisitor(struct token *tok)
 {
         extern char     libclang_tmp_path[SAFE_PATH_MAX + 1];
@@ -283,6 +327,7 @@ tokvisitor(struct token *tok)
                 n++, tok->line, tok->raw,
                 CS(typekindrepr), CS(curs_kindspell), CS(typespell));
 
+        report_parent(tok->cursor, toklog);
         fclose(toklog);
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }

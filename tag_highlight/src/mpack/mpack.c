@@ -32,7 +32,7 @@ static void _mpack_mutex_constructor(void) {
         pthread_mutex_init(&mpack_rw_lock, &attr);
 }
 
-#include "my_p99_common.h"
+/* #include "my_p99_common.h" */
 //#include "execinfo.h"
 
 /*======================================================================================*/
@@ -257,7 +257,7 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
 
                 for (unsigned i = 0; i < item->data.dict->qty; ++i) {
                         if (item->DDE[i]->key)
-                                free_stack_push(tofree, item->DDE[i]->key);
+                                collect_items(tofree, item->DDE[i]->key);
                         if (item->DDE[i]->value)
                                 collect_items(tofree, item->DDE[i]->value);
                 }
@@ -341,7 +341,7 @@ dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key
         if (!tmp)
                 return (retval_t){ .ptr = NULL };
 
-        return m_expect(tmp, expect);
+        return m_expect(tmp, expect, false);
 }
 
 static mpack_obj *

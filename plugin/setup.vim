@@ -224,6 +224,7 @@ runtime! plugin/Tag_Highlight/*.vim
 " nmap <silent> <leader>tag <Plug>tag_highlightToggle
 
 "============================================================================= 
+highlight def link tag_highlight_TemplateTag		tag_highlight_ClassTag
 highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
 highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
 highlight def link tag_highlight_StructTag		tag_highlight_TypeTag

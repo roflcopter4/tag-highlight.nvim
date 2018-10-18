@@ -191,10 +191,12 @@ extern FILE *mpack_log;
 #  define PRINT_AND_DESTROY(RESULT_) mpack_destroy_object(RESULT_)
 #endif
 
-#include "p99/p99_defarg.h"
-#include "p99/p99_map.h"
-#define m_expect(...) P99_CALL_DEFARG(m_expect, 3, __VA_ARGS__)
-#define m_expect_defarg_2() false
+#ifdef MPACK_USE_P99
+#  include "p99/p99_defarg.h"
+#  include "p99/p99_map.h"
+#  define m_expect(...) P99_CALL_DEFARG(m_expect, 3, __VA_ARGS__)
+#  define m_expect_defarg_2() false
+#endif
 
 
 #ifdef __cplusplus
