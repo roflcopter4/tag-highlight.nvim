@@ -18,20 +18,12 @@
 #endif
 
 #define TUFLAGS                                          \
-         ( /* clang_defaultEditingTranslationUnitOptions() */  \
-         /* | */ CXTranslationUnit_DetailedPreprocessingRecord \
+         ( CXTranslationUnit_DetailedPreprocessingRecord \
          | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
-         | CXTranslationUnit_Incomplete                     \
-         | CXTranslationUnit_CreatePreambleOnFirstParse\
+         | CXTranslationUnit_Incomplete                  \
+         | CXTranslationUnit_CreatePreambleOnFirstParse  \
          | CXTranslationUnit_IncludeAttributedTypes )
-#if 0
-#define TUFLAGS                                          \
-        (  CXTranslationUnit_DetailedPreprocessingRecord \
-         | CXTranslationUnit_PrecompiledPreamble         \
-         | CXTranslationUnit_KeepGoing                   \
-         | CXTranslationUnit_CreatePreambleOnFirstParse)
-#endif
 #define INIT_ARGV   (32)
 #define DUMPDATASIZ ((int64_t)((double)SAFE_PATH_MAX * 1.5))
 
@@ -278,7 +270,7 @@ getinfo(struct bufdata *bdata)
 static char *
 stupid_windows_bullshit(const char *const path)
 {
-        size_t len = strlen(path);
+        const size_t len = strlen(path);
         if (len < 5 || path[4] != '/')
                 return NULL;
 
@@ -306,7 +298,8 @@ get_compile_commands(struct bufdata *bdata)
                 clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
         if (cberr != 0) {
                 clang_CompilationDatabase_dispose(db);
-                warn("Couldn't locate compilation database in \"%s\".", BS(bdata->topdir->pathname));
+                warn("Couldn't locate compilation database in \"%s\".",
+                     BS(bdata->topdir->pathname));
                 return get_backup_commands(bdata);
         }
 

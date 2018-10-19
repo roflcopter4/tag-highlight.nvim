@@ -27,7 +27,7 @@ pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
 static void _mpack_mutex_constructor(void) __attribute__((__constructor__));
 static void _mpack_mutex_constructor(void) { 
-        pthread_mutexattr_t attr;
+        pthread_mutexattr_t attr = { 0 };
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&mpack_rw_lock, &attr);
 }

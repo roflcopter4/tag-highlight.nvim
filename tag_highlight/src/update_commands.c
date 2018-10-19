@@ -42,14 +42,12 @@ extern FILE *cmd_log;
 #define BBS(BSTR) ((char *)((BSTR)->data))
 
 void
-(update_highlight)(const int bufnum, struct bufdata *bdata, const int type)
+(update_highlight)(struct bufdata *bdata, const int type)
 {
         struct timer t;
-        /* pthread_mutex_lock(&update_mutex); */
         TIMER_START(t);
 
-        bdata = null_find_bufdata(bufnum, bdata);
-        if (!bdata->topdir || !bdata->lines || bdata->lines->qty <= 1) {
+        if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1) {
                 /* pthread_mutex_unlock(&update_mutex); */
                 return;
         }
@@ -260,9 +258,11 @@ update_line(struct bufdata *bdata, const int first, const int last)
 }
 
 void
-(clear_highlight)(const int bufnum, struct bufdata *bdata)
+(clear_highlight)(struct bufdata *bdata)
 {
-        bdata = null_find_bufdata(bufnum, bdata);
+        eprintf("??\n");
+        if (!bdata)
+                return;
 
         if (bdata->ft->order && !bdata->ft->is_c) {
                 bstring *cmd = b_alloc_null(8192);

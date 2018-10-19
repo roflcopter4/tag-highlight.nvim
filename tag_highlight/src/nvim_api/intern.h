@@ -62,17 +62,17 @@ static inline int _get_fd_count(const int fd, const bool inc)
         errx(1, "Couldn't find fd %d in nvim_connections.", fd);
 }
 
-INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...);
-INTERN mpack_obj *await_package(int fd, unsigned count, nvim_message_type mtype);
-INTERN void write_and_clean(int fd, mpack_obj *pack, const bstring *func, FILE *logfp);
-INTERN retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type);
+INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) aWUR;
+INTERN mpack_obj *await_package(int fd) aWUR;
+INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) aWUR;
+INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) aWUR;
 
-#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
+#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 5, __VA_ARGS__)
 #define write_and_clean_defarg_0() (0)
 #ifdef DEBUG
-#  define write_and_clean_defarg_3() (mpack_log)
+#  define write_and_clean_defarg_4() (mpack_log)
 #else
-#  define write_and_clean_defarg_3() (NULL)
+#  define write_and_clean_defarg_4() (NULL)
 #endif
 
 extern pthread_mutex_t mpack_main_mutex;

@@ -112,8 +112,8 @@ extern const char *const m_type_names[];
 /* Decode and Destroy */
 extern void        mpack_print_object  (FILE *fp, const mpack_obj *result);
 extern void        mpack_destroy_object(mpack_obj *root);
-extern mpack_obj * decode_stream       (int fd);
-extern mpack_obj * decode_obj          (bstring *buf);
+extern mpack_obj * mpack_decode_stream (int fd);
+extern mpack_obj * mpack_decode_obj    (bstring *buf);
 
 
 /* Encode */

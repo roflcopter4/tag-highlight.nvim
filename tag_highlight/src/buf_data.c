@@ -42,6 +42,13 @@ static bool            check_norecurse_directories(const bstring *dir);
 static bstring        *check_project_directories  (bstring *dir);
 static void            bufdata_constructor(void) __attribute__((__constructor__));
 
+static pthread_once_t  ftdata_mutex_once = PTHREAD_ONCE_INIT;
+static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
+static void ftdata_mutex_init(void) { pthread_mutex_init(&ftdata_mutex); }
+static pthread_once_t  destruction_mutex_once = PTHREAD_ONCE_INIT;
+static pthread_mutex_t destruction_mutex      = PTHREAD_MUTEX_INITIALIZER;
+static void destruction_mutex_init(void) { pthread_mutex_init(&destruction_mutex); }
+
 /* #include "my_p99_common.h" */
 
 /*======================================================================================*/
@@ -133,15 +140,15 @@ destroy_bufdata(struct bufdata **bdata)
 {
         extern void destroy_clangdata(struct bufdata *bdata);
         extern bool process_exiting;
-        static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
 
         if (!*bdata)
                 return;
+        pthread_once(&destruction_mutex_once, destruction_mutex_init);
         pthread_mutex_lock(&destruction_mutex);
 
         if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
-                clear_highlight(*bdata);
+                eprintf("??1\n");
         }
         const int index = find_buffer_ind((*bdata)->num);
 
@@ -220,19 +227,6 @@ find_buffer_ind(const int bufnum)
         }
         pthread_rwlock_unlock(&buffers.lock);
         return ret;
-}
-
-struct bufdata *
-null_find_bufdata(int bufnum, struct bufdata *bdata)
-{
-        if (!bdata) {
-                if (bufnum == (-1))
-                        bufnum = nvim_get_current_buf();
-                bdata = find_buffer(bufnum);
-        }
-        assert(bdata != NULL && !is_bad_buffer(bufnum));
-
-        return bdata;
 }
 
 bool
@@ -427,7 +421,7 @@ init_filetype(const int fd, struct filetype *ft)
 {
         if (ft->initialized)
                 return;
-        static pthread_mutex_t ftdata_mutex = PTHREAD_MUTEX_INITIALIZER;
+        pthread_once(&ftdata_mutex_once, ftdata_mutex_init);
         pthread_mutex_lock(&ftdata_mutex);
 
         ft->initialized = true;

@@ -20,7 +20,7 @@
 #  define KILL_SIG SIGUSR1
 #endif
 
-#include "nvim_api/read.h"
+typedef volatile p99_futex vfutex_t;
 
 /*======================================================================================*/
 
@@ -32,13 +32,19 @@ ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_li
 static void          vimscript_interrupt (int val);
 static void          handle_nvim_event   (void *vdata);
 static void          post_nvim_response  (void *vdata);
+#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
 static void          super_debug         (struct bufdata *bdata);
 static void         *emergency_debug     (void *vdata);
+#endif
 
-extern FILE           *main_log, *api_buffer_log;
-       FILE           *api_buffer_log;
-static pthread_once_t  event_loop_once_control = PTHREAD_ONCE_INIT;
-
+extern vfutex_t             _nvim_wait_futex;
+extern FILE                *main_log;
+static pthread_once_t       event_loop_once_control = PTHREAD_ONCE_INIT;
+static pthread_mutex_t      handle_mutex            = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t      vs_mutex                = PTHREAD_MUTEX_INITIALIZER;
+       _Atomic(mpack_obj *) event_loop_mpack_obj    = ATOMIC_VAR_INIT(NULL);
+       vfutex_t             event_loop_futex        = P99_FUTEX_INITIALIZER(0);
+       FILE                *api_buffer_log;
 
 static const struct event_id {
         const bstring          name;
@@ -52,7 +58,11 @@ static const struct event_id {
 
 static const struct event_id *id_event(mpack_obj *event);
 
-P99_FIFO(mpack_obj_node_ptr)  handle_fifo_head;
+__attribute__((__constructor__))
+static void events_mutex_initializer(void) {
+        pthread_mutex_init(&handle_mutex);
+        pthread_mutex_init(&vs_mutex);
+}
 
 /*======================================================================================* 
  * Main Event Loop                                                                      * 
@@ -78,7 +88,7 @@ event_loop(void)
                 /* 
                  * Constantly wait for messages.
                  */
-                mpack_obj *obj = decode_stream(fd);
+                mpack_obj *obj = mpack_decode_stream(fd);
                 if (!obj)
                         errx(1, "Got NULL object from decoder. This should never be "
                                 "possible. Cannot continue; aborting.");
@@ -105,18 +115,16 @@ event_loop(void)
 static void
 post_nvim_response(void *vdata)
 {
-        mpack_obj      *obj  = vdata;
-        mpack_obj_node *node = xmalloc(sizeof *node);
-        node->obj            = obj;
-        node->count          = (uint32_t)m_expect(m_index(obj, 1), E_NUM).num;
-        P99_FIFO_APPEND(&mpack_obj_queue, node);
+        atomic_store(&event_loop_mpack_obj, (mpack_obj *)vdata);
+        p99_futex_wakeup(&_nvim_wait_futex, 1u, 1u);
+        p99_futex_wait(&event_loop_futex);
 }
 
 /*======================================================================================*/
 /* Event Handlers */
 /*======================================================================================*/
 
-static noreturn void *destroy_bufdata_wrap(void *vdata);
+static noreturn void *destroy_bufdata_wrap(struct bufdata **vdata);
 static noreturn void *vimscript_interrupt_wrap(void *vdata);
 
 static void
@@ -149,7 +157,9 @@ handle_nvim_event(void *vdata)
                         pthread_mutex_unlock(&bdata->lock.ctick);
                         break;
                 case EVENT_BUF_DETACH:
-                        START_DETACHED_PTHREAD(destroy_bufdata_wrap, &bdata);
+                        /* pthread_rwlock_wrlock(&buffers.lock); */
+                        /* START_DETACHED_PTHREAD((void *(*)(void *))destroy_bufdata_wrap, &bdata); */
+                        destroy_bufdata(&bdata);
                         eprintf("Detaching from buffer %d\n", bufnum);
                         break;
                 default:
@@ -160,9 +170,10 @@ handle_nvim_event(void *vdata)
         mpack_destroy_object(event);
 }
 
-static noreturn void *destroy_bufdata_wrap(void *vdata)
+static noreturn void *destroy_bufdata_wrap(struct bufdata **bdata)
 {
-        destroy_bufdata(vdata);
+        assert(bdata && *bdata && sizeof(**bdata) == sizeof(struct bufdata));
+        destroy_bufdata(bdata);
         pthread_exit();
 }
 
@@ -181,6 +192,7 @@ static noreturn void *vimscript_interrupt_wrap(void *vdata)
                 tmp_;                                                  \
         })
 
+#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
 static void
 super_debug(struct bufdata *bdata)
 {
@@ -210,6 +222,7 @@ super_debug(struct bufdata *bdata)
         b_list_destroy(lines);
         P99_SEQ(b_destroy, j1, j2);
 }
+#endif
 
 #ifdef DEBUG
 #define LINE_EVENT_DEBUG()                                                       \
@@ -232,7 +245,6 @@ static void
 handle_line_event(struct bufdata *bdata, mpack_obj **items)
 {
         assert(!items[5]->data.boolean);
-        static pthread_mutex_t handle_mutex = PTHREAD_MUTEX_INITIALIZER;
         pthread_mutex_lock(&handle_mutex);
 
         pthread_mutex_lock(&bdata->lock.ctick);
@@ -358,7 +370,6 @@ line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, i
 static void
 vimscript_interrupt(const int val)
 {
-        static pthread_mutex_t vs_mutex = PTHREAD_MUTEX_INITIALIZER;
         static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
         struct timer      t;
         int               num = 0;
@@ -485,6 +496,7 @@ id_event(mpack_obj *event)
         return type;
 }
 
+#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
 static void *
 emergency_debug(void *vdata)
 {
@@ -502,6 +514,7 @@ emergency_debug(void *vdata)
         pthread_mutex_unlock(&bdata->lines->lock);
         pthread_exit();
 }
+#endif
 
 void
 _b_list_dump_nvim(const b_list *list, const char *const listname)

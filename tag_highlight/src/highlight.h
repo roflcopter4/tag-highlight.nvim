@@ -10,9 +10,9 @@
 
 #include "bstring/bstring.h"
 #include "data.h"
+#include "highlight.h"
 #include "nvim_api/api.h"
 #include "p99/p99_defarg.h"
-#include "highlight.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,8 +36,8 @@ extern bool    run_ctags          (struct bufdata *bdata, enum update_taglist_op
 extern int     get_initial_taglist(struct bufdata *bdata);
 extern int     update_taglist     (struct bufdata *bdata, enum update_taglist_opts opts);
 extern b_list *find_header_files  (struct bufdata *bdata);
-extern void    update_highlight   (int bufnum, struct bufdata *bdata, int type);
-extern void    clear_highlight    (int bufnum, struct bufdata *bdata);
+extern void    update_highlight   (struct bufdata *bdata, int type);
+extern void    clear_highlight    (struct bufdata *bdata);
 
 
 /* FROM NEOTAGS */
@@ -64,13 +64,15 @@ extern void my_parser   (int bufnum, struct bufdata *bdata);
 extern void launch_event_loop(void);
 extern void get_initial_lines(struct bufdata *bdata);
 
-/* #define update_highlight(...) P99_CALL_DEFARG(update_highlight, 3, __VA_ARGS__)
-#define update_highlight_defarg_0() (-1)
-#define update_highlight_defarg_1() NULL
-#define update_highlight_defarg_2() false */
-/* #define clear_highlight(...) P99_CALL_DEFARG(clear_highlight, 2, __VA_ARGS__)
-#define clear_highlight_defarg_0() (-1)
-#define clear_highlight_defarg_1() NULL */
+static inline struct bufdata *find_current_buffer(void) {
+        return find_buffer(nvim_get_current_buf());
+}
+
+#define update_highlight(...) P99_CALL_DEFARG(update_highlight, 2, __VA_ARGS__)
+#define update_highlight_defarg_0() (find_current_buffer())
+#define update_highlight_defarg_1() (UPDATE_TAGLIST_NORMAL)
+#define clear_highlight(...) P99_CALL_DEFARG(clear_highlight, 1, __VA_ARGS__)
+#define clear_highlight_defarg_0() (find_current_buffer())
 
 #define b_list_dump_nvim(LST_) _b_list_dump_nvim((LST_), #LST_)
 extern void _b_list_dump_nvim(const b_list *list, const char *listname);

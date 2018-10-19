@@ -35,7 +35,7 @@ extern "C" {
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
 #  define DOSISH
 #  define WIN32_LEAN_AND_MEAN
-#  if defined(__MINGW32__) || defined(__MINGW64__)
+#  ifdef __MINGW__
 #    include <dirent.h>
 #    include <sys/time.h>
 #    include <unistd.h>

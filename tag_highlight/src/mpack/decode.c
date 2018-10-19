@@ -67,7 +67,7 @@ static mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 
 
 mpack_obj *
-decode_stream(int32_t fd)
+mpack_decode_stream(int32_t fd)
 {
 #if 0
         if (!mpack_mutex_list || !mpack_mutex_list->lst) {
@@ -135,7 +135,7 @@ decode_stream(int32_t fd)
 
 
 mpack_obj *
-decode_obj(bstring *buf)
+mpack_decode_obj(bstring *buf)
 {
         bstring *cpy = &(bstring){
             .data = buf->data, .slen = buf->slen, .mlen = 0, .flags = 0

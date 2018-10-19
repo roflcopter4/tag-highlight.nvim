@@ -3,7 +3,6 @@
 #include "intern.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include <dirent.h>
 
 /*======================================================================================*/
 /* Echo output functions (wrappers for nvim_out_write) */
@@ -22,8 +21,7 @@ void
 
         const int  count = INC_COUNT(fd);
         mpack_obj *pack  = mpack_encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
-        write_and_clean(fd, pack, func);
-        mpack_obj *tmp = await_package(fd, count, MES_RESPONSE);
+        mpack_obj *tmp   = write_and_clean(fd, pack, count, func);
 
         mpack_print_object(mpack_log, tmp);
         mpack_destroy_object(tmp);
@@ -381,10 +379,9 @@ void
 #else
         FILE *logfp = NULL;
 #endif
-        const int  count = INC_COUNT(fd);
-        mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST, count, &fn, args);
-        write_and_clean(fd, pack, &fn, logfp);
-        mpack_obj *result = await_package(fd, count, MES_RESPONSE);
+        const int  count  = INC_COUNT(fd);
+        mpack_obj *pack   = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST, count, &fn, args);
+        mpack_obj *result = write_and_clean(fd, pack, count, &fn, logfp);
 
         mpack_print_object(logfp, result);
         mpack_destroy_object(result);

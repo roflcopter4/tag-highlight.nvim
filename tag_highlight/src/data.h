@@ -79,8 +79,6 @@ struct bufdata {
                 pthread_mutex_t ctick;
                 pthread_mutex_t update;
                 vfutex_t        clang_count;
-                /* pthread_mutex_t clang; */
-                /* atomic_flag     clang_flg; */
         } lock;
 
         struct {
@@ -128,11 +126,6 @@ struct top_dir_list {
         uint16_t        mlen;
 };
 
-struct int_pdata {
-        int       val;
-        pthread_t parent_tid;
-};
-
 
 extern struct settings_s   settings;
 extern struct buffer_list  buffers;
@@ -153,7 +146,6 @@ extern bool            is_bad_buffer    (int bufnum);
 extern void            destroy_bufdata  (struct bufdata **bdata);
 extern struct bufdata *find_buffer      (int bufnum);
 extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft);
-extern struct bufdata *null_find_bufdata(int bufnum, struct bufdata *bdata);
 
 #define new_buffer(...) P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__)
 #define new_buffer_defarg_0() (0)

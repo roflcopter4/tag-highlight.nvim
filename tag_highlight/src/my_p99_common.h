@@ -55,6 +55,7 @@
                   volatile TYPE : (VAL),        \
                   default : (ELSE)))
 
+#if 0
 #define update_highlight(...)                                                                                  \
         (update_highlight)(P99_IF_EQ_3(P99_NARG(__VA_ARGS__))                                                  \
                 (__VA_ARGS__)                                                                                  \
@@ -73,6 +74,7 @@
                    ((P44_IF_TYPE_ELSE(P99_CHS(0, __VA_ARGS__), struct bufdata *, (-1), P99_CHS(0, __VA_ARGS__))),  \
                     (P44_IF_TYPE_ELSE(P99_CHS(0, __VA_ARGS__), struct bufdata *, P99_CHS(0, __VA_ARGS__), NULL)))) \
         )
+#endif
 
 
 #define P44_ANDALL(MACRO, ...) P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (&&), __VA_ARGS__)
