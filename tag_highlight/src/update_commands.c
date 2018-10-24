@@ -25,7 +25,7 @@ static bstring *get_restore_cmds(b_list *restored_groups);
 static void     add_cmd_call(nvim_arg_array **calls, bstring *cmd);
 static void     get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
 static void     get_ignored_tags(struct bufdata *bdata);
-static void     update_c_like(struct bufdata *bdata, int force);
+static void     update_c_like(struct bufdata *bdata, int type);
 static void     update_other(struct bufdata *bdata);
 static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                             const struct taglist  *tags, const struct cmd_info *info);
@@ -47,13 +47,10 @@ void
         struct timer *t = TIMER_INITIALIZER;
         TIMER_START(t);
 
-        if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1) {
-                /* pthread_mutex_unlock(&update_mutex); */
+        if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1)
                 return;
-        }
-        ECHO("Updating commands for bufnum %d", bdata->num);
 
-        /* pthread_rwlock_wrlock(&bdata->lock); */
+        ECHO("Updating commands for bufnum %d", bdata->num);
         pthread_mutex_lock(&bdata->lock.update);
 
         if (!bdata->ft->restore_cmds_initialized) 
@@ -66,18 +63,14 @@ void
         else
                 update_other(bdata);
 
-        /* pthread_rwlock_unlock(&bdata->lock); */
         pthread_mutex_unlock(&bdata->lock.update);
         TIMER_REPORT(t, "update highlight");
-
-        /* pthread_mutex_unlock(&update_mutex); */
 }
 
 static void
 update_c_like(struct bufdata *bdata, const int type)
 {
-        /* echo("File is c, not doing things."); */
-        libclang_highlight(bdata, 0, (-1), type);
+        libclang_highlight(bdata,,,type);
         if (!bdata->topdir->tags && !bdata->initialized) {
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
                 bdata->initialized = true;
@@ -250,10 +243,6 @@ handle_kind(bstring *cmd, unsigned i,
 void
 update_line(struct bufdata *bdata, const int first, const int last)
 {
-        /* libclang_update_line(bdata, first+1, last+1); */
-        /* echo("first: %d, last: %d\n", first, last); */
-        /* libclang_update_line(bdata, first, last); */
-        /* libclang_get_hl_commands(bdata); */
         libclang_highlight(bdata, first, last);
 }
 

@@ -26,18 +26,21 @@ typedef volatile p99_futex vfutex_t;
 
 /*======================================================================================*/
 
-/* static noreturn void event_loop          (void); */
 extern void          update_line         (struct bufdata *, int, int);
 static void          handle_line_event   (struct bufdata *bdata, mpack_obj **items);
 ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
 ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
 static void          vimscript_interrupt (int val);
 static void          handle_nvim_event   (void *vdata);
-/* static void          post_nvim_response  (void *vdata); */
 #if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
 static void          super_debug         (struct bufdata *bdata);
 static void         *emergency_debug     (void *vdata);
 #endif
+static void           post_nvim_response(mpack_obj *obj);
+static noreturn void *nvim_event_handler(void *unused);
+static void           event_loop_io_callback(UEVP_, ev_io *w, int revents);
+static void           sig_cb(UEVP_, ev_signal *w, int revents);
+static void           graceful_sig_cb(struct ev_loop *loop, ev_signal *w, int revents);
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
@@ -48,6 +51,16 @@ static pthread_mutex_t      nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER
        vfutex_t             event_loop_futex         = P99_FUTEX_INITIALIZER(0);
        _Atomic(mpack_obj *) event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
        FILE                *api_buffer_log;
+
+P44_DECLARE_FIFO(event_node);
+struct event_node {
+        mpack_obj  *obj;
+        event_node *p99_fifo;
+};
+P99_FIFO(event_node_ptr) nvim_event_queue;
+
+struct ev_io     input_watcher;
+struct ev_signal signal_watcher[4];
 
 static const struct event_id {
         const bstring          name;
@@ -72,16 +85,6 @@ static void events_mutex_initializer(void) {
 /*======================================================================================* 
  * Main Event Loop                                                                      * 
  *======================================================================================*/
-
-P44_DECLARE_FIFO(event_node);
-struct event_node {
-        mpack_obj  *obj;
-        event_node *p99_fifo;
-};
-P99_FIFO(event_node_ptr) nvim_event_queue;
-
-struct ev_io     input_watcher;
-struct ev_signal signal_watcher[4];
 
 static void
 post_nvim_response(mpack_obj *obj)
@@ -168,7 +171,6 @@ event_loop_init(const int fd)
         ev_signal_init(&signal_watcher[1], sig_cb, SIGPIPE);
         ev_signal_init(&signal_watcher[2], sig_cb, SIGINT);
         ev_signal_init(&signal_watcher[3], graceful_sig_cb, SIGUSR1);
-
         ev_signal_start(loop, &signal_watcher[0]);
         ev_signal_start(loop, &signal_watcher[1]);
         ev_signal_start(loop, &signal_watcher[2]);
@@ -190,12 +192,11 @@ handle_nvim_event(void *vdata)
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                /* START_DETACHED_PTHREAD(&vimscript_interrupt_wrap,
-                                       ((void *)((uintptr_t)arr->items[0]->data.str->data[0]))); */
                 vimscript_interrupt((int)arr->items[0]->data.str->data[0]);
         } else {
                 const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 struct bufdata *bdata  = find_buffer(bufnum);
+
                 if (!bdata)
                         errx(1, "Update called on uninitialized buffer.");
 
@@ -203,21 +204,22 @@ handle_nvim_event(void *vdata)
                 case EVENT_BUF_LINES:
                         handle_line_event(bdata, arr->items);
                         break;
-                case EVENT_BUF_CHANGED_TICK:
+
+                case EVENT_BUF_CHANGED_TICK: {
                         pthread_mutex_lock(&bdata->lock.ctick);
                         const uint32_t new_tick = (uint32_t)m_expect(arr->items[1], E_NUM).num;
                         const uint32_t old_tick = atomic_load(&bdata->ctick);
                         if (new_tick > old_tick)
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
-                        break;
+                } break;
+
                 case EVENT_BUF_DETACH:
-                        /* pthread_rwlock_wrlock(&buffers.lock); */
-                        /* START_DETACHED_PTHREAD((void *(*)(void *))destroy_bufdata_wrap, &bdata); */
                         clear_highlight(bdata);
                         destroy_bufdata(&bdata);
                         eprintf("Detaching from buffer %d\n", bufnum);
                         break;
+
                 default:
                         abort();
                 }
@@ -313,8 +315,8 @@ handle_line_event(struct bufdata *bdata, mpack_obj **items)
                         errx(1, "Got initial update somehow...");
                 } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer... */
                            repl_list->qty == 1 &&                  /* one string...   */
-                           repl_list->lst[0]->slen == 0            /* which is emtpy. */
-                           ) {
+                           repl_list->lst[0]->slen == 0            /* which is emtpy. */)
+                {
                         /* Useless update, one empty string in an empty buffer. */
                         empty = true;
                 } else if (first == 0 && last == 0) {

@@ -74,7 +74,7 @@ get_initial_taglist(struct bufdata *bdata)
                         warnx("Could not read file. Running ctags.");
                         if (!bdata->initialized)
                                 return 0;
-                        ECHO("linecount -> %d", bdata->lines->qty);
+                        echo("linecount -> %d", bdata->lines->qty);
                         goto force_ctags;
                 }
         } else {
@@ -101,10 +101,6 @@ get_initial_taglist(struct bufdata *bdata)
 int
 update_taglist(struct bufdata *bdata, const enum update_taglist_opts opts)
 {
-        /* if (bdata->ft->is_c && opts != UPDATE_TAGLIST_FORCE)
-                return 1; */
-        /* if (bdata->ft->is_c) */
-                /* return 1; */
         if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
                 return false;
@@ -157,7 +153,6 @@ write_gzfile(struct top_dir *topdir)
 
 #ifdef DOSISH
 static int
-//exec_ctags(struct bufdata *bdata, b_list *headers, const int force)
 exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opts opts)
 {
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
@@ -262,8 +257,9 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
 #endif
 
         waitpid(pid, &status, 0);
+        status <<= 8;
         argv_destroy(argv);
-        ECHO("Status is %d", (status <<= 8));
+        echo("Status is %d", status);
         return status;
 }
 #endif

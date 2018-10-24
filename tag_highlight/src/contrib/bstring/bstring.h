@@ -262,7 +262,7 @@ BSTR_PUBLIC int b_alloc(bstring *bstr, unsigned olen);
 BSTR_PUBLIC int b_allocmin(bstring *bstr, unsigned len);
 
 
-INLINE int b_growby(bstring *bstr, unsigned len)
+__always_inline int b_growby(bstring *bstr, unsigned len)
 {
         return b_alloc(bstr, bstr->mlen + len);
 }
@@ -836,8 +836,20 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
  *
  * Note: bstrings which are write protected cannot be destroyed via bdestroy.
  */
+#ifdef __GNUC__
+#define b_writeprotect(BSTR_)                                               \
+        __extension__({                                                     \
+                _Pragma("GCC diagnostic push");                             \
+                _Pragma("GCC diagnostic ignored \"-Waddress\"");            \
+                if (BSTR_)                                                  \
+                        (BSTR_)->flags &= (~((uint8_t)BSTR_WRITE_ALLOWED)); \
+                _Pragma("GCC diagnostic pop");                              \
+                (BSTR_)->flags;                                             \
+        })
+#else
 #define b_writeprotect(BSTR_) \
         ((BSTR_) ? ((BSTR_)->flags &= (~((uint8_t)BSTR_WRITE_ALLOWED))) : 0)
+#endif
 
 /**
  * Allow bstring to be written to via the bstrlib API.
@@ -851,8 +863,20 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
  * by one more than necessary for every call to bwriteallow interleaved with any
  * bstring API which writes to this bstring.
  */
-#define b_writeallow(BSTR_) \
+#ifdef __GNUC__
+#define b_writeallow(BSTR_)                                      \
+        __extension__({                                          \
+                _Pragma("GCC diagnostic push");                  \
+                _Pragma("GCC diagnostic ignored \"-Waddress\""); \
+                if (BSTR_)                                       \
+                        (BSTR_)->flags |= BSTR_WRITE_ALLOWED;    \
+                _Pragma("GCC diagnostic pop");                   \
+                (BSTR_)->flags;                                  \
+        })
+#else
+#  define b_writeallow(BSTR_) \
         ((BSTR_) ? ((BSTR_)->flags |= BSTR_WRITE_ALLOWED) : 0)
+#endif
 
 /**
  * Returns 1 if the bstring is write protected, otherwise 0 is returned.

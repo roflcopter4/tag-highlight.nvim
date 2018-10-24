@@ -84,43 +84,43 @@ void
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
 
-        pthread_mutex_lock(&bdata->lock.ctick);
-        const unsigned new = atomic_load(&bdata->ctick);
-        const unsigned old = atomic_exchange(&bdata->last_ctick, new);
+        TRY {
+                pthread_mutex_lock(&bdata->lock.ctick);
+                const unsigned new = atomic_load(&bdata->ctick);
+                const unsigned old = atomic_exchange(&bdata->last_ctick, new);
 
-        if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
-                eprintf("Ctick unchanged (%u vs %u). Returning.", old, new);
+                if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
+                        eprintf("Ctick unchanged (%u vs %u). Returning.", old, new);
+                        TRY_RETURN;
+                }
+        } FINALLY {
                 pthread_mutex_unlock(&bdata->lock.ctick);
-                return;
         }
-        pthread_mutex_unlock(&bdata->lock.ctick);
 
-        static pthread_mutex_t  lc_mutex = PTHREAD_MUTEX_INITIALIZER;
         struct translationunit *stu;
         int64_t                 startend[2];
-        /* int ret = pthread_mutex_trylock(&lc_mutex);
-        if (ret != 0)
-                return; */
+        static pthread_mutex_t  lc_mutex = PTHREAD_MUTEX_INITIALIZER;
+        bstring                *joined   = NULL;
+        unsigned                cnt_val  = p99_futex_add(&bdata->lock.clang_count, (1u));
 
-        unsigned cnt_val = 0;;
-        P99_FUTEX_COMPARE_EXCHANGE(&bdata->lock.clang_count, value,
-                true, (value < 2 ? value + 1 : value),
-                ((cnt_val = value), 0), 0
-        );
-        if (cnt_val == 2)
+        if (cnt_val >= 2) {
+                p99_futex_add(&bdata->lock.clang_count, (-1u));
+                eprintf("Too many waiters, returning!\n");
                 return;
+        }
 
         pthread_mutex_lock(&lc_mutex);
-
-        pthread_mutex_lock(&bdata->lines->lock);
-        bstring *joined = ll_join(bdata->lines, '\n');
-        if (last == (-1)) {
-                startend[0] = 0;
-                startend[1] = joined->slen;
-        } else {
-                lines2bytes(bdata, startend, first, last);
+        {
+                pthread_mutex_lock(&bdata->lines->lock);
+                joined = ll_join(bdata->lines, '\n');
+                if (last == (-1)) {
+                        startend[0] = 0;
+                        startend[1] = joined->slen;
+                } else {
+                        lines2bytes(bdata, startend, first, last);
+                }
+                pthread_mutex_unlock(&bdata->lines->lock);
         }
-        pthread_mutex_unlock(&bdata->lines->lock);
 
         if (type == HIGHLIGHT_REDO) {
                 if (bdata->clangdata)
@@ -136,11 +136,11 @@ void
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
         nvim_arg_array *calls = type_id(bdata, stu);
         nvim_call_atomic(,calls);
-
-        p99_futex_add(&bdata->lock.clang_count, (-1), 0, 0, 0, 0);
-        pthread_mutex_unlock(&lc_mutex);
         _nvim_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
+
+        p99_futex_add(&bdata->lock.clang_count, (-1));
+        pthread_mutex_unlock(&lc_mutex);
 }
 
 static inline void

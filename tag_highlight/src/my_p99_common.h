@@ -23,8 +23,17 @@
 #define TRY                P99_TRY
 #define CATCH(NAME)        P99_CATCH(int NAME) if (NAME)
 #define CATCH_FINALLY(...) P99_CATCH(P99_IF_EMPTY(__VA_ARGS__)()(int __VA_ARGS__))
-#define FINALLY            P99_FINALLY
+#define TRY_RETURN         P99_UNWIND_RETURN
 
+#define FINALLY                                                         \
+        P00_FINALLY                                                     \
+        P00_BLK_BEFORE(p00_unw = 0)                                     \
+        P00_BLK_AFTER(!p00_code || p00_code == -(INT_MAX)               \
+            ? (void)((P00_JMP_BUF_FILE = 0), (P00_JMP_BUF_CONTEXT = 0)) \
+            : P99_RETHROW)
+
+/* Probably best that the arguments to this macro not have side effects, given
+ * that they are expanded no fewer than 10 times. */
 #define THROW(...)                                                              \
         p00_jmp_throw((((P99_NARG(__VA_ARGS__) == 1 &&                          \
                          _Generic(P99_CHS(0, __VA_ARGS__),                      \
