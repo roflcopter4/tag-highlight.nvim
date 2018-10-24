@@ -25,9 +25,7 @@ set (tag_highlight_SOURCES
     ctags.c
     events.c
     globals.c
-    json.c
     main.c
-    scan_headers.c
     update_commands.c
     data.h
     highlight.h
@@ -66,8 +64,6 @@ set (tag_highlight_SOURCES
 
     contrib/contrib.c
     contrib/contrib.h
-    contrib/jsmn/jsmn.c
-    contrib/jsmn/jsmn.h
     
     p99/p99.h
     p99/p99_args.h
