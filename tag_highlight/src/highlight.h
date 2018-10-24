@@ -12,7 +12,7 @@
 #include "data.h"
 #include "highlight.h"
 #include "nvim_api/api.h"
-#include "p99/p99_defarg.h"
+#include "contrib/p99/p99_defarg.h"
 
 __BEGIN_DECLS
 

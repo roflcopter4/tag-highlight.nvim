@@ -3,7 +3,7 @@
 
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include "p99/p99_futex.h"
+#include "contrib/p99/p99_futex.h"
 #include "util/list.h"
 #include <pthread.h>
 

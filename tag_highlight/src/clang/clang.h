@@ -4,7 +4,7 @@
 #include "tag_highlight.h"
 
 #include "data.h"
-#include "p99/p99_defarg.h"
+#include "contrib/p99/p99_defarg.h"
 #include <pthread.h>
 
 #ifdef __cplusplus

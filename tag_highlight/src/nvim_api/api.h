@@ -5,8 +5,8 @@
 
 #include "data.h"
 #include "mpack/mpack.h"
-#include "p99/p99_defarg.h"
-#include "p99/p99_futex.h"
+#include "contrib/p99/p99_defarg.h"
+#include "contrib/p99/p99_futex.h"
 #include "util/list.h"
 
 __BEGIN_DECLS

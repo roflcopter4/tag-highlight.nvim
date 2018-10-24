@@ -4,9 +4,9 @@
 /* #include "p99/p99.h" */
 /* #include "p99/p99_args.h" */
 /* #include "p99/p99_c99_throw.h" */
-#include "p99/p99_block.h"
-#include "p99/p99_defarg.h"
-#include "p99/p99_for.h"
+#include "contrib/p99/p99_block.h"
+#include "contrib/p99/p99_defarg.h"
+#include "contrib/p99/p99_for.h"
 /* #include "p99/p99_posix_default.h" */
 /* #include "p99/p99_new.h" */
 /* #include "p99/p99_try.h" */

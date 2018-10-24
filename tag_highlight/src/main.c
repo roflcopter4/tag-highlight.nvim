@@ -1,9 +1,9 @@
 #include "tag_highlight.h"
 
+#include "contrib/p99/p99_defarg.h"
 #include "data.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include "p99/p99_defarg.h"
 #include "clang/clang.h"
 
 #ifdef DOSISH

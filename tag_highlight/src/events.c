@@ -7,9 +7,10 @@
 #include "clang/clang.h"
 #include <signal.h>
 
+#include "contrib/p99/p99_atomic.h"
+#include "contrib/p99/p99_fifo.h"
+#include "contrib/p99/p99_futex.h"
 #include "my_p99_common.h"
-#include "p99/p99_atomic.h"
-#include "p99/p99_futex.h"
 /* #include "p99/p99_cm.h" */
 /* #include "p99/p99_new.h" */
 
@@ -71,8 +72,6 @@ static void events_mutex_initializer(void) {
 /*======================================================================================* 
  * Main Event Loop                                                                      * 
  *======================================================================================*/
-
-#include "p99/p99_fifo.h"
 
 P44_DECLARE_FIFO(event_node);
 struct event_node {

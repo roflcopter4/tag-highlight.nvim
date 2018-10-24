@@ -1,18 +1,6 @@
-[submodule "mpack_ct/src/contrib/jsmn"]
-	path = mpack_ct/src/contrib/jsmn
-	url = https://github.com/zserge/jsmn
-[submodule "mpack_ct/win32_libs"]
-	path = mpack_ct/win32_libs
-	url = https://github.com/roflcopter4/win32_libs
-[submodule "tag_highlight/tag_highlight/win32_libs"]
-	path = tag_highlight/tag_highlight/win32_libs
-	url = https://github.com/roflcopter4/win32_libs
 [submodule "tag_highlight/win32_libs"]
 	path = tag_highlight/win32_libs
 	url = https://github.com/roflcopter4/win32_libs
-[submodule "tag_highlight/src/contrib/jsmn"]
-	path = tag_highlight/src/contrib/jsmn
-	url = https://github.com/zserge/jsmn
-[submodule "tag_highlight/src/p99"]
-	path = tag_highlight/src/p99
+[submodule "tag_highlight/src/contrib/p99"]
+	path = tag_highlight/src/contrib/p99
 	url = https://github.com/roflcopter4/P99
