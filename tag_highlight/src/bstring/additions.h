@@ -335,6 +335,7 @@ BSTR_PUBLIC bstring *  b_regularize_path(bstring *path);
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
+BSTR_PUBLIC _Bool      b_starts_with(const bstring *b0, const bstring *b1);
 
 BSTR_PUBLIC bstring *  _b_sprintf  (const bstring *fmt, ...);
 BSTR_PUBLIC bstring *  _b_vsprintf (const bstring *fmt, va_list args);

@@ -86,6 +86,12 @@
 #define P04_STREQ(WHAT, X, I) (strcmp((WHAT), (X)) == 0)
 #define P44_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_STREQ, __VA_ARGS__)
 
+#define P04_B_ISEQ(WHAT, X, I) b_iseq((WHAT), (X))
+#define P44_B_ISEQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_B_ISEQ, __VA_ARGS__)
+
+#define P04_B_ISEQ_LIT(WHAT, X, I) (b_iseq((WHAT), (&(bstring){(sizeof(X) - 1), 0, (uchar *)("" X), 0})))
+#define P44_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_B_ISEQ_LIT, __VA_ARGS__)
+
 #define P44_DECLARE_FIFO(NAME)   \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \

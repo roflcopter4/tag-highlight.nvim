@@ -30,12 +30,19 @@ static pthread_mutex_t mpack_print_mutex = PTHREAD_MUTEX_INITIALIZER;
 static FILE *          print_log         = NULL;
 static int             indent            = 0;
 static int             recursion         = 0;
+static bool            skip_indent       = false;
 
+#define DAI data.arr->items
+#define DDE data.dict->entries
 
 __attribute__((always_inline))
 static inline void
 pindent(void)
 {
+        if (skip_indent) {
+                skip_indent = false;
+                return;
+        }
         if (indent <= 0)
                 return;
         for (int i = 0; i < (indent * 4); ++i)
@@ -46,25 +53,47 @@ pindent(void)
 void
 mpack_print_object(FILE *fp, const mpack_obj *result)
 {
-#ifndef DEBUG
-        return;
-#endif
-        //eprintf("Printing an object.....\n");
-        /* assert(result != NULL);
-        assert(fp != NULL); */
         if (!fp || !result)
                 return;
-
         if (!(result->flags & MPACK_ENCODE))
                 return;
-
         pthread_mutex_lock(&mpack_print_mutex);
-        recursion = 0;
-        print_log = fp;
+
+#ifdef HAVE_OPEN_MEMSTREAM
+        char   *buf;
+        size_t  stream_size;
+        int     is_stdstream;
+
+        if (fp == stdout) 
+                is_stdstream = 1;
+        else if (fp == stderr)
+                is_stdstream = 2;
+        else
+                is_stdstream = 0;
+
+        if (is_stdstream)
+                fp = open_memstream(&buf, &stream_size);
+#endif
+
+        skip_indent = false;
+        recursion   = 0;
+        print_log   = fp;
         do_mpack_print_object(result);
-        print_log = NULL;
+        print_log   = NULL;
+
+#ifdef HAVE_OPEN_MEMSTREAM
+        if (is_stdstream) {
+                fclose(fp);
+                if (is_stdstream == 1)
+                        fwrite(buf, 1, stream_size, stdout);
+                else if (is_stdstream == 2)
+                        fwrite(buf, 1, stream_size, stderr);
+                else
+                        errx(1, "Invalid stream somehow specified");
+                free(buf);
+        }
+#endif
         pthread_mutex_unlock(&mpack_print_mutex);
-        //eprintf("DONE!\n");
 }
 
 
@@ -128,45 +157,49 @@ print_dict(const mpack_obj *result)
         if (ferror(print_log))
                 abort();
         pindent();
-        b_fwrite(print_log, B("{\n"));
-        ++indent;
 
-        for (unsigned i = 0; i < result->data.dict->qty; ++i) {
-                pindent();
-                if (mpack_type(result->DDE[i]->key) == MPACK_STRING)
-                        print_string(result->DDE[i]->key, 0);
-                else
+        if (!result->data.dict || result->data.dict->qty == 0) {
+                b_fwrite(print_log, B("{}\n"));
+        } else {
+                b_fwrite(print_log, B("{\n"));
+                ++indent;
+                for (unsigned i = 0; i < result->data.dict->qty; ++i) {
+#if 0
+                        if (mpack_type(result->DDE[i]->key) == MPACK_STRING)
+                                print_string(result->DDE[i]->key, 0);
+                        else
+#endif
                         do_mpack_print_object(result->DDE[i]->key);
+                        fseek(print_log, -1, SEEK_CUR);
 
-                fseek(print_log, -1, SEEK_CUR);
-                const int tmp = indent;
+#if 0
+                        switch (mpack_type(result->DDE[i]->value)) {
+                        case MPACK_ARRAY:
+                        case MPACK_DICT:
+                                b_fwrite(print_log, B("  =>  (\n"));
 
-                switch (mpack_type(result->DDE[i]->value)) {
-                case MPACK_ARRAY:
-                case MPACK_DICT:
-                        b_fwrite(print_log, B("  => (\n"));
+                                ++indent;
+                                do_mpack_print_object(result->DDE[i]->value);
+                                --indent;
 
-                        ++indent;
-                        do_mpack_print_object(result->DDE[i]->value);
-                        --indent;
-
-                        pindent();
-                        b_fwrite(print_log, B(")\n"));
-                        break;
-                default:
-                        b_fwrite(print_log, B("  =>  "));
-
-                        indent = 0;
-                        do_mpack_print_object(result->DDE[i]->value);
-                        indent = tmp;
-                        break;
+                                pindent();
+                                b_fwrite(print_log, B(")\n"));
+                                break;
+                        default:
+#endif
+                                b_fwrite(print_log, B("  =>  "));
+                                skip_indent = true;
+                                do_mpack_print_object(result->DDE[i]->value);
+#if 0
+                                break;
+                        }
+#endif
                 }
-
+                --indent;
+                pindent();
+                b_fwrite(print_log, B("}\n"));
         }
 
-        --indent;
-        pindent();
-        b_fwrite(print_log, B("}\n"));
 }
 
 

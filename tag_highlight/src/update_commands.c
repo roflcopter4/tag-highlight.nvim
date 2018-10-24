@@ -44,7 +44,7 @@ extern FILE *cmd_log;
 void
 (update_highlight)(struct bufdata *bdata, const int type)
 {
-        struct timer t;
+        struct timer *t = TIMER_INITIALIZER;
         TIMER_START(t);
 
         if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1) {

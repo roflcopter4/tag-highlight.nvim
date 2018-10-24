@@ -2,8 +2,9 @@
 #include <sys/stat.h>
 
 #include "contrib/jsmn/jsmn.h"
-#include "nvim_api/api.h"
+#include "data.h"
 #include "mpack/mpack.h"
+#include "nvim_api/api.h"
 
 #ifdef DOSISH
 //#  include <direct.h>

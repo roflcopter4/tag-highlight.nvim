@@ -266,7 +266,6 @@ retry:
                         break;
                 case CXType_Int: {
                         bstring *tmp = &tok->text;
-                        unsigned i;
                         /* B_LIST_FOREACH(enumerators, cur, i)
                                 if (b_iseq(cur, tmp)) {
                                         ADD_CALL(CTAGS_ENUMCONST);

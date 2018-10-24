@@ -1,21 +1,15 @@
 #ifndef SRC_API_H
 #define SRC_API_H
 
-#include "bstring/bstring.h"
+#include "tag_highlight.h"
+
 #include "data.h"
 #include "mpack/mpack.h"
 #include "p99/p99_defarg.h"
 #include "p99/p99_futex.h"
 #include "util/list.h"
 
-#define APRINTF(a,b) __attribute__((__format__(__gnu_printf__, a, b)))
-
-#ifndef __GNUC__
-#  define __attribute__(...)
-#endif
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 enum nvim_filetype_id {
         FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
@@ -59,33 +53,33 @@ struct nvim_wait {
 /* API Wrappers */
 
 extern void           _nvim_write             (int fd, enum nvim_write_type type, const bstring *mes);
-extern void           nvim_printf             (int fd, const char *__restrict fmt, ...) APRINTF(2, 3);
-extern void           nvim_vprintf            (int fd, const char *__restrict fmt, va_list args) APRINTF(2, 0);
+extern void           nvim_printf             (int fd, const char *__restrict fmt, ...) __aFMT(2, 3);
+extern void           nvim_vprintf            (int fd, const char *__restrict fmt, va_list args) __aFMT(2, 0);
 extern void           nvim_b_printf           (int fd, const bstring *fmt, ...);
-extern retval_t       nvim_get_var_fmt        (int fd, mpack_expect_t expect, const char *fmt, ...) APRINTF(3, 4);
+extern retval_t       nvim_get_var_fmt        (int fd, mpack_expect_t expect, const char *fmt, ...) __aFMT(3, 4) __aWUR;
 extern int            nvim_buf_add_highlight  (int fd, unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-extern mpack_dict_t * nvim_get_hl_by_name     (int fd, const bstring *name, bool rgb);
-extern mpack_dict_t * nvim_get_hl_by_id       (int fd, int hlid, bool rgb);
+extern mpack_dict_t * nvim_get_hl_by_name     (int fd, const bstring *name, bool rgb) __aWUR;
+extern mpack_dict_t * nvim_get_hl_by_id       (int fd, int hlid, bool rgb) __aWUR;
 extern b_list       * nvim_buf_attach         (int fd, int bufnum);
 extern void           nvim_buf_clear_highlight(int fd, unsigned bufnum, int hl_id, unsigned start, int end);
 extern unsigned       nvim_buf_get_changedtick(int fd, int bufnum);
-extern b_list       * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end);
-extern bstring      * nvim_buf_get_name       (int fd, int bufnum);
-extern retval_t       nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect);
-extern retval_t       nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect);
+extern b_list       * nvim_buf_get_lines      (int fd, unsigned bufnum, int start, int end) __aWUR;
+extern bstring      * nvim_buf_get_name       (int fd, int bufnum) __aWUR;
+extern retval_t       nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect) __aWUR;
+extern retval_t       nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect) __aWUR;
 extern unsigned       nvim_buf_line_count     (int fd, int bufnum);
 extern void           nvim_call_atomic        (int fd, const struct nvim_arg_array *calls);
-extern retval_t       nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect);
-extern retval_t       nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...);
+extern retval_t       nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect) __aWUR;
+extern retval_t       nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...) __aWUR;
 extern bool           nvim_command            (int fd, const bstring *cmd);
-extern retval_t       nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect);
-extern retval_t       nvim_eval               (int fd, const bstring *eval, mpack_expect_t expect);
+extern retval_t       nvim_command_output     (int fd, const bstring *cmd, mpack_expect_t expect) __aWUR;
+extern retval_t       nvim_eval               (int fd, const bstring *eval, mpack_expect_t expect) __aWUR;
 extern void           nvim_get_api_info       (int fd);
 extern int            nvim_get_current_buf    (int fd);
-extern bstring      * nvim_get_current_line   (int fd);
-extern retval_t       nvim_get_option         (int fd, const bstring *optname, mpack_expect_t expect);
-extern retval_t       nvim_get_var            (int fd, const bstring *varname, mpack_expect_t expect);
-extern retval_t       nvim_list_bufs          (int fd);
+extern bstring      * nvim_get_current_line   (int fd) __aWUR;
+extern retval_t       nvim_get_option         (int fd, const bstring *optname, mpack_expect_t expect) __aWUR;
+extern retval_t       nvim_get_var            (int fd, const bstring *varname, mpack_expect_t expect) __aWUR;
+extern retval_t       nvim_list_bufs          (int fd) __aWUR;
 extern void           nvim_subscribe          (int fd, const bstring *event);
 extern bool           nvim_set_var            (int fd, const bstring *varname, const bstring *fmt, ...);
 
@@ -197,7 +191,5 @@ extern int _nvim_get_tmpfile(const int fd, bstring **name, const bstring *suffix
 
 
 /*============================================================================*/
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 #endif /* api.h */

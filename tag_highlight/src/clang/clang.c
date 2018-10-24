@@ -42,9 +42,7 @@
 #endif
 
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
-
-extern char libclang_tmp_path[SAFE_PATH_MAX];
-       char libclang_tmp_path[SAFE_PATH_MAX];
+char libclang_tmp_path[SAFE_PATH_MAX];
 
 struct enum_data {
         CXTranslationUnit tu;
@@ -52,20 +50,20 @@ struct enum_data {
         const bstring *buf;
 };
 
-static struct translationunit *init_compilation_unit(struct bufdata *bdata, bstring *buf);
-static struct translationunit *recover_compilation_unit(struct bufdata *bdata, bstring *buf);
-static struct cmd_info        *getinfo(struct bufdata *bdata);
-static str_vector             *get_compile_commands(struct bufdata *bdata);
-static str_vector             *get_backup_commands(struct bufdata *bdata);
+static void                    clean_tmpdir(void);
+static void                    destroy_struct_translationunit(struct translationunit *stu);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata);
 static void                    get_tmp_path(void);
-static void                    clean_tmpdir(void);
-static void                    tagfinder(struct enum_data *data, CXCursor cursor);
-static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data);
-static void                    destroy_struct_translationunit(struct translationunit *stu);
-static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
-static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
+static str_vector             *get_backup_commands(struct bufdata *bdata);
+static str_vector             *get_compile_commands(struct bufdata *bdata);
 static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
+static struct cmd_info        *getinfo(struct bufdata *bdata);
+static struct translationunit *init_compilation_unit(struct bufdata *bdata, bstring *buf);
+static struct translationunit *recover_compilation_unit(struct bufdata *bdata, bstring *buf);
+static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
+static void                    tagfinder(struct enum_data *data, CXCursor cursor);
+static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
+static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data);
 
 #ifndef TIME_CLANG
 #  undef TIMER_START
@@ -536,7 +534,7 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         if (tokkind != CXToken_Identifier ||
             !resolve_range(clang_getTokenExtent(*tu, *tok), &res))
                 return NULL;
-
+        PRIu64;
         CXString dispname = clang_getCursorDisplayName(*cursor);
         size_t   len      = strlen(CS(dispname)) + 1llu;
         ret               = xmalloc(offsetof(struct token, raw) + len);
@@ -544,10 +542,10 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
         ret->tokenkind    = tokkind;
-        ret->line         = res.line - 1;
+        ret->line         = res.line  - 1;
         ret->col1         = res.start - 1;
-        ret->col2         = res.end - 1;
-        ret->len          = res.end - res.start;
+        ret->col2         = res.end   - 1;
+        ret->len          = res.end   - res.start;
 
         memcpy(ret->raw, CS(dispname), len);
         ret->text.data  = (unsigned char *)ret->raw;

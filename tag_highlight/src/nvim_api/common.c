@@ -17,6 +17,9 @@ static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void _nvim_api_wrapper_init(void) __attribute__((__constructor__, __used__));
 
+/* extern struct ev_async await_package_watcher; */
+/* extern struct ev_loop *await_package_loop; */
+
 /*======================================================================================*/
 
 static void
@@ -33,7 +36,7 @@ _nvim_api_wrapper_init(void)
  * reference, at one point this funcion was over 100 lines long.
  */
 mpack_obj *
-await_package(const int fd)
+await_package(UNUSED const int fd)
 {
         mpack_obj *obj;
         p99_futex_wait(&_nvim_wait_futex);
@@ -47,8 +50,16 @@ await_package(const int fd)
         return obj;
 }
 
+#if 0
 mpack_obj *
-generic_call(int *fd, const bstring *fn, const bstring *fmt, ...)
+await_package(const int fd)
+{
+
+}
+#endif
+
+mpack_obj *
+generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
 {
         CHECK_DEF_FD(*fd);
         mpack_obj *pack;

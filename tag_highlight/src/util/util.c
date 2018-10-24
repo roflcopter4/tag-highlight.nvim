@@ -1,8 +1,7 @@
 #include "util.h"
-#include <dirent.h>
-#include <inttypes.h>
 #include <sys/stat.h>
 
+#include "data.h"
 #include "mpack/mpack.h"
 
 #define STARTSIZE 1024
@@ -291,18 +290,23 @@ free_backups(struct backups *list)
 }
 
 #ifdef DOSISH
-int dprintf(SOCKET fd, char *fmt, ...)
+int dprintf(const SOCKET fd, const char *const __restrict fmt, ...)
 {
-	int fdx = _open_osfhandle(fd, 0);
-	register int ret;
-	FILE *fds;
-	va_list ap;
-	va_start(ap, fmt);
-	fdx = dup(fdx);
-	if((fds = fdopen(fdx, "w")) == NULL) return(-1);
-	ret = vfprintf(fds, fmt, ap);
-	fclose(fds);
-	va_end(ap);
-	return(ret);
+        int          fdx = _open_osfhandle(fd, 0);
+        int          ret;
+        FILE        *fds;
+        va_list      ap;
+        va_start(ap, fmt);
+        fdx = dup(fdx);
+
+        if ((fds = fdopen(fdx, "w")) == NULL) {
+                ret = (-1);
+        } else {
+                ret = vfprintf(fds, fmt, ap);
+                fclose(fds);
+        }
+
+        va_end(ap);
+        return (ret);
 }
 #endif /* __WIN32__ */

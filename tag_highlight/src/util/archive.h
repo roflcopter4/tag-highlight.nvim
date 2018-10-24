@@ -4,9 +4,7 @@
 #include "tag_highlight.h"
 #include "data.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 struct archive_size {
         size_t archive;
@@ -24,8 +22,5 @@ extern void write_gzip(struct top_dir *topdir);
 extern void write_lzma(struct top_dir *topdir);
 extern void lazy_write_lzma(struct top_dir *topdir);
 
-
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 #endif /* archive_util.h */

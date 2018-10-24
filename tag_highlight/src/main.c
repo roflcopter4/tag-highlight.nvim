@@ -28,19 +28,27 @@ extern pthread_t  top_thread;
 pthread_t         top_thread;
 char              LOGDIR[PATH_MAX+1];
 
-static void          platform_init(char **argv);
-static void          get_settings(void);
-static void          open_logs(void);
-static void          exit_cleanup(void);
-static void          quick_cleanup(void);
-static comp_type_t   get_compression_type(int fd);
-static void          controlled_exit(UNUSED int notused);
-static noreturn void sig_handler(UNUSED int notused);
+static void        platform_init(char **argv);
+static void        get_settings(void);
+static void        open_logs(void);
+static void        exit_cleanup(void);
+static void        quick_cleanup(void);
+static comp_type_t get_compression_type(int fd);
 
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (0)
+#define exit(...) P99_CALL_DEFARG(exit, 1, __VA_ARGS__)
+#define exit_defarg_0() (EXIT_SUCCESS)
+#define ev_run(...) P99_CALL_DEFARG(ev_run, 2, __VA_ARGS__)
+#define ev_run_defarg_1() (0)
+#define event_loop_init(...) P99_CALL_DEFARG(event_loop_init, 1, __VA_ARGS__)
+#define event_loop_init_defarg_0() (0)
 
 #include "my_p99_common.h"
+
+extern struct ev_loop *event_loop_init(int fd);
+jmp_buf main_jmp_buf;
+p99_futex first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 
 /*======================================================================================*/
 
@@ -48,17 +56,56 @@ static noreturn void sig_handler(UNUSED int notused);
 #include "lang/golang/src/tag_highlight/tag_highlight.h"
 #endif
 
+#include "nvim_api/apiv2.h"
+static noreturn void *main_initialization(void *arg);
+
 int
 main(UNUSED int argc, char *argv[])
 {
-        struct timer main_timer;
+        struct timer *main_timer = TIMER_INITIALIZER;
+        top_thread               = pthread_self();
         TIMER_START(main_timer);
-        top_thread = pthread_self();
         platform_init(argv);
         open_logs();
+        p99_futex_init(&first_buffer_initialized, false);
+        at_quick_exit(quick_cleanup);
         
-        launch_event_loop();
+        struct ev_loop *mainloop = event_loop_init();
+        START_DETACHED_PTHREAD(main_initialization, main_timer);
+        ev_run(mainloop);
+
+        eprintf("Right, cleaning up!\n");
+        exit_cleanup();
+        exit();
+}
+
+static void
+platform_init(char **argv)
+{
+#ifdef DOSISH
+        HOME = getenv("USERPROFILE");
+        extern const char *program_invocation_short_name;
+        program_invocation_short_name = basename(argv[0]);
+
+        /* Set the standard streams to binary mode on Windows */
+        if (_setmode(0, O_BINARY) == (-1) || errno)
+                WIN_BIN_FAIL("stdin");
+        if (_setmode(1, O_BINARY) == (-1) || errno)
+                WIN_BIN_FAIL("stdout");
+        if (_setmode(2, O_BINARY) == (-1) || errno)
+                WIN_BIN_FAIL("stderr");
+#else
+        (void)argv;
+        HOME = getenv("HOME");
+#endif
+}
+
+static noreturn void *
+main_initialization(void *arg)
+{
+        struct timer *main_timer = arg;
         get_settings();
+        (void)_nvim_get_api_context(0);
 
         int initial_buf = 0;
 
@@ -85,43 +132,10 @@ main(UNUSED int argc, char *argv[])
 
         TIMER_REPORT(main_timer, "main initialization");
         nvim_set_client_info(,B("tag_highlight"), 0, 1, B("alpha"));
-        at_quick_exit(quick_cleanup);
-        atexit(exit_cleanup);
-        /* launch_libclang_waiter(); */
 
-        PAUSE();
-        /* exit_cleanup(); */
-        exit(0);
-}
-
-static void
-platform_init(char **argv)
-{
-#ifdef DOSISH
-        HOME = getenv("USERPROFILE");
-        extern const char *program_invocation_short_name;
-        program_invocation_short_name = basename(argv[0]);
-
-        /* Set the standard streams to binary mode in Windows. Don't bother with
-         * signals, it's not worth the effort. */
-        if (_setmode(0, O_BINARY) == (-1) || errno)
-                WIN_BIN_FAIL("stdin");
-        if (_setmode(1, O_BINARY) == (-1) || errno)
-                WIN_BIN_FAIL("stdout");
-        if (_setmode(2, O_BINARY) == (-1) || errno)
-                WIN_BIN_FAIL("stderr");
-#else
-        (void)argv;
-        HOME = getenv("HOME");
-        struct sigaction temp;
-        memset(&temp, 0, sizeof(temp));
-        temp.sa_handler = controlled_exit;
-        sigaction(SIGUSR1, &temp, NULL);
-        temp.sa_handler = sig_handler;
-        sigaction(SIGINT,  &temp, NULL); // Sigint, sigterm and sigpipe
-        sigaction(SIGPIPE, &temp, NULL); // are all possible signals when
-        sigaction(SIGTERM, &temp, NULL); // nvim exits.
-#endif
+        P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
+            true, 1u, 0u, P99_FUTEX_MAX_WAITERS);
+        pthread_exit();
 }
 
 /**
@@ -275,22 +289,4 @@ static comp_type_t
         eprintf("Comp type is %s", BS(tmp));
         b_destroy(tmp);
         return ret;
-}
-
-/*======================================================================================*/
-
-static void
-controlled_exit(UNUSED int notused)
-{
-        if (pthread_equal(top_thread, pthread_self()))
-                return;
-        pthread_exit();
-}
-
-static noreturn void
-sig_handler(UNUSED int notused)
-{
-        if (pthread_equal(top_thread, pthread_self()))
-                quick_exit(0);
-        pthread_exit();
 }

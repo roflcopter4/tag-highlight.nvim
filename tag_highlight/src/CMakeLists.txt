@@ -16,6 +16,7 @@ set (tag_highlight_SOURCES
     nvim_api/api.c
     nvim_api/common.c
     nvim_api/misc.c
+    nvim_api/mark2.c
     nvim_api/api.h
     nvim_api/intern.h
     nvim_api/read.h
@@ -164,6 +165,7 @@ else()
         ${ZLIB_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         ${PCRE2_LIBRARIES}
+        ${LIBEV_LIBRARIES}
     )
     if (LZMA_SUPPORT)
         target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})

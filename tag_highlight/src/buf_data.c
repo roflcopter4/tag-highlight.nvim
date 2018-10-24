@@ -42,12 +42,13 @@ static bool            check_norecurse_directories(const bstring *dir);
 static bstring        *check_project_directories  (bstring *dir);
 static void            bufdata_constructor(void) __attribute__((__constructor__));
 
-static pthread_once_t  ftdata_mutex_once = PTHREAD_ONCE_INIT;
 static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
-static void ftdata_mutex_init(void) { pthread_mutex_init(&ftdata_mutex); }
-static pthread_once_t  destruction_mutex_once = PTHREAD_ONCE_INIT;
-static pthread_mutex_t destruction_mutex      = PTHREAD_MUTEX_INITIALIZER;
-static void destruction_mutex_init(void) { pthread_mutex_init(&destruction_mutex); }
+static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((__constructor__)) static void mutex_constructor(void) {
+        pthread_mutex_init(&ftdata_mutex);
+        pthread_mutex_init(&destruction_mutex);
+}
 
 /* #include "my_p99_common.h" */
 
@@ -57,7 +58,7 @@ bool
 (new_buffer)(const int fd, const int bufnum)
 {
         bool ret = false;
-        pthread_rwlock_wrlock(&buffers.lock);
+        pthread_mutex_lock(&buffers.lock);
 
         for (unsigned short i = 0; i < buffers.bad_bufs.qty; ++i)
                 if (bufnum == buffers.bad_bufs.lst[i])
@@ -108,7 +109,7 @@ bool
         NEXT_MKR(buffers);
         ret = true;
 end:
-        pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
 
@@ -143,7 +144,6 @@ destroy_bufdata(struct bufdata **bdata)
 
         if (!*bdata)
                 return;
-        pthread_once(&destruction_mutex_once, destruction_mutex_init);
         pthread_mutex_lock(&destruction_mutex);
 
         if (!process_exiting) {
@@ -181,17 +181,20 @@ destroy_bufdata(struct bufdata **bdata)
                 b_destroy(topdir->tmpfname);
                 b_list_destroy(topdir->tags);
 
-                for (unsigned i = 0; i < top_dirs->qty; ++i)
-                        if (top_dirs->lst[i] == topdir)
+                for (unsigned i = 0; i < top_dirs->qty; ++i) {
+                        if (top_dirs->lst[i] == topdir) {
                                 genlist_remove_index(top_dirs, i);
+                                top_dirs->lst[i] = NULL;
+                        }
+                }
         }
 
         xfree(*bdata);
         *bdata = NULL;
 
-        pthread_rwlock_wrlock(&buffers.lock);
+        pthread_mutex_lock(&buffers.lock);
         buffers.lst[index] = NULL;
-        pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&buffers.lock);
         pthread_mutex_unlock(&destruction_mutex);
 }
 
@@ -201,7 +204,7 @@ struct bufdata *
 find_buffer(const int bufnum)
 {
         struct bufdata *ret = NULL;
-        pthread_rwlock_rdlock(&buffers.lock);
+        pthread_mutex_lock(&buffers.lock);
 
         for (unsigned i = 0; i < buffers.mlen; ++i) {
                 if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
@@ -209,7 +212,7 @@ find_buffer(const int bufnum)
                         break;
                 }
         }
-        pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
 
@@ -217,7 +220,7 @@ int
 find_buffer_ind(const int bufnum)
 {
         int ret = (-1);
-        pthread_rwlock_rdlock(&buffers.lock);
+        pthread_mutex_lock(&buffers.lock);
 
         for (unsigned i = 0; i < buffers.mlen; ++i) {
                 if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
@@ -225,7 +228,7 @@ find_buffer_ind(const int bufnum)
                         break;
                 }
         }
-        pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
 
@@ -233,7 +236,7 @@ bool
 is_bad_buffer(const int bufnum)
 {
         bool ret = false;
-        pthread_rwlock_rdlock(&buffers.lock);
+        pthread_mutex_lock(&buffers.lock);
 
         for (unsigned i = 0; i < buffers.bad_bufs.qty; ++i) {
                 if (bufnum == buffers.bad_bufs.lst[i]) {
@@ -241,7 +244,7 @@ is_bad_buffer(const int bufnum)
                         break;
                 }
         }
-        pthread_rwlock_unlock(&buffers.lock);
+        pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
 
@@ -421,7 +424,6 @@ init_filetype(const int fd, struct filetype *ft)
 {
         if (ft->initialized)
                 return;
-        pthread_once(&ftdata_mutex_once, ftdata_mutex_init);
         pthread_mutex_lock(&ftdata_mutex);
 
         ft->initialized = true;

@@ -32,7 +32,7 @@ snapUpSize(unsigned i)
         return i;
 }
 
-/* static pthread_mutex_t sl->mut = PTHREAD_MUTEX_INITIALIZER; */
+/* static pthread_mutex_t list->mut = PTHREAD_MUTEX_INITIALIZER; */
 
 #define RWLOCK_LOCK(GENLIST)                                   \
         __extension__({                                        \
@@ -53,107 +53,107 @@ snapUpSize(unsigned i)
 genlist *
 genlist_create(void)
 {
-        genlist *sl = xmalloc(sizeof(genlist));
-        sl->lst     = xmalloc(2 * sizeof(void *));
-        sl->qty     = 0;
-        sl->mlen    = 2;
+        genlist *list = xmalloc(sizeof(genlist));
+        list->lst     = xmalloc(2 * sizeof(void *));
+        list->qty     = 0;
+        list->mlen    = 2;
         pthread_mutexattr_t attr;
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&sl->mut, &attr);
+        pthread_mutex_init(&list->mut, &attr);
         /* pthread_rwlockattr_t attr;
         pthread_rwlockattr_init(&attr);
         pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
-        pthread_rwlock_init(&sl->lock, &attr); */
+        pthread_rwlock_init(&list->lock, &attr); */
 
-        return sl;
+        return list;
 }
 
 genlist *
 genlist_create_alloc(const unsigned msz)
 {
         const unsigned size = (msz <= 2) ? 2 : msz;
-        genlist *sl = xmalloc(sizeof(genlist));
-        sl->lst     = xmalloc(size * sizeof(void *));
-        sl->qty     = 0;
-        sl->mlen    = size;
+        genlist *list = xmalloc(sizeof(genlist));
+        list->lst     = xmalloc(size * sizeof(void *));
+        list->qty     = 0;
+        list->mlen    = size;
         pthread_mutexattr_t attr;
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&sl->mut, &attr);
+        pthread_mutex_init(&list->mut, &attr);
         /* pthread_rwlockattr_t attr;
         pthread_rwlockattr_init(&attr);
         pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
-        pthread_rwlock_init(&sl->lock, &attr); */
+        pthread_rwlock_init(&list->lock, &attr); */
 
-        return sl;
+        return list;
 }
 
 
 int
-genlist_destroy(genlist *sl)
+genlist_destroy(genlist *list)
 {
-        if (!sl)
+        if (!list)
                 return (-1);
-        /* pthread_mutex_lock(&sl->lock); */
+        /* pthread_mutex_lock(&list->lock); */
 
-        for (unsigned i = 0; i < sl->qty; ++i)
-                if (sl->lst[i])
-                        xfree(sl->lst[i]);
+        for (unsigned i = 0; i < list->qty; ++i)
+                if (list->lst[i])
+                        xfree(list->lst[i]);
 
-        sl->qty  = 0;
-        sl->mlen = 0;
-        xfree(sl->lst);
-        sl->lst = NULL;
-        xfree(sl);
+        list->qty  = 0;
+        list->mlen = 0;
+        xfree(list->lst);
+        list->lst = NULL;
+        xfree(list);
 
-        /* pthread_mutex_unlock(&sl->lock); */
+        /* pthread_mutex_unlock(&list->lock); */
         return 0;
 }
 
 
 int
-genlist_alloc(genlist *sl, const unsigned msz)
+genlist_alloc(genlist *list, const unsigned msz)
 {
         void **  ptr;
         unsigned smsz;
         size_t   nsz;
 
-        if (!sl || msz == 0 || !sl->lst || sl->mlen == 0 || sl->qty > sl->mlen)
+        if (!list || msz == 0 || !list->lst || list->mlen == 0 || list->qty > list->mlen)
                 RUNTIME_ERROR();
-        if (sl->mlen >= msz)
+        if (list->mlen >= msz)
                 return 0;
 
-        pthread_mutex_lock(&sl->mut);
+        pthread_mutex_lock(&list->mut);
 
         smsz = snapUpSize(msz);
         nsz  = ((size_t)smsz) * sizeof(void *);
 
         if (nsz < (size_t)smsz) {
-                pthread_mutex_unlock(&sl->mut);
+                pthread_mutex_unlock(&list->mut);
                 RUNTIME_ERROR();
         }
 
-        ptr = xrealloc(sl->lst, nsz);
+        ptr = xrealloc(list->lst, nsz);
 
-        sl->mlen = smsz;
-        sl->lst  = ptr;
+        list->mlen = smsz;
+        list->lst  = ptr;
 
-        pthread_mutex_unlock(&sl->mut);
+        pthread_mutex_unlock(&list->mut);
         return 0;
 }
 
 
 /* int                                                                               */
-/* genlist_append(genlist **listp, void *item)                                       */
+/* genlist_append(genlist **list, void *item)                                       */
 /* {                                                                                 */
-/*         if (!listp || !*listp || !(*listp)->lst)                                  */
+/*         if (!list || !*list || !(*list)->lst)                                  */
 /*                 RUNTIME_ERROR();                                                  */
 /*                                                                                   */
-/*         if ((*listp)->qty == ((*listp)->mlen - 1))                                */
-/*                 (*listp)->lst = xrealloc((*listp)->lst, ((*listp)->mlen *= 2) *   */
-/*                                                          sizeof(*(*listp)->lst)); */
-/*         (*listp)->lst[(*listp)->qty++] = item;                                    */
+/*         if ((*list)->qty == ((*list)->mlen - 1))                                */
+/*                 (*list)->lst = xrealloc((*list)->lst, ((*list)->mlen *= 2) *   */
+/*                                                          sizeof(*(*list)->lst)); */
+/*         (*list)->lst[(*list)->qty++] = item;                                    */
 /*                                                                                   */
 /*         return 0;                                                                 */
 /* }                                                                                 */

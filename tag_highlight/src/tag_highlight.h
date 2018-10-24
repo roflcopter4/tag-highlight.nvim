@@ -4,9 +4,6 @@
 extern "C" {
 #endif
 /*===========================================================================*/
-#ifdef __clang__
-#  define __gnu_printf__ __printf__
-#endif
 #if defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
 #    ifndef __MINGW__
 #      define __MINGW__
@@ -100,7 +97,7 @@ extern char * basename(char *path);
 
 #include "bstring/bstring.h"
 #include "contrib/contrib.h"
-#include "data.h"
+#include <ev.h>
 
 //#include "p99/p99_clib.h"
 
@@ -150,12 +147,17 @@ struct backups {
 #define SLS(STR)           ("" STR ""), LSLEN(STR)
 #define STRINGIFY(VAR)     #VAR
 
-#define ALWAYS_INLINE __attribute__((__always_inline__)) static inline
-#define aMAL          __attribute__((__malloc__))
-#define aALSZ(...)    __attribute__((__alloc_size__(__VA_ARGS__)))
-#define aFMT(A1, A2)  __attribute__((__format__(__gnu_printf__, A1, A2)))
-#define aNNA          __attribute__((__nonnull__))
-#define aNN(...)      __attribute__((__nonnull__(__VA_ARGS__)))
+#define ALWAYS_INLINE  __attribute__((__always_inline__)) static inline
+#define __aMAL         __attribute__((__malloc__))
+#define __aALSZ(...)   __attribute__((__alloc_size__(__VA_ARGS__)))
+#define __aNNA         __attribute__((__nonnull__))
+#define __aNN(...)     __attribute__((__nonnull__(__VA_ARGS__)))
+
+#ifdef __clang__
+#  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
+#else
+#  define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
+#endif
 
 #if defined(__GNUC__)
 #  if defined(__clang__) || defined(__cplusplus)
@@ -212,7 +214,7 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #if defined(_MSC_VER)
 #  define UNUSED    __pragma(warning(suppress: 4100 4101))
 #  define WEAK_SYMB __declspec(selectany)
-#  define aWUR      _Check_return_
+#  define __aWUR    _Check_return_
 #elif defined(__GNUC__)
 #  define UNUSED    __attribute__((__unused__))
 #  if defined(__MINGW__)
@@ -220,9 +222,24 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  else
 #    define WEAK_SYMB __attribute__((__weak__))
 #  endif
-#  define aWUR      __attribute__((__warn_unused_result__))
+#  define __aWUR      __attribute__((__warn_unused_result__))
 #else
 #  define WEAK_SYMB static
+#endif
+
+#ifndef __BEGIN_DECLS
+#  ifdef __cplusplus
+#    define __BEGIN_DECLS extern "C" {
+#  else
+#    define __BEGIN_DECLS
+#  endif
+#endif
+#ifndef __END_DECLS
+#  ifdef __cplusplus
+#    define __END_DECLS }
+#  else
+#    define __END_DECLS
+#  endif
 #endif
 
 /*===========================================================================*/
@@ -244,11 +261,10 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  define fsleep(VAL)  Sleep((long long)((double)(VAL) * (1000.0L)))
 #endif
 
-
 /*===========================================================================*/
 
-void          warn_(bool print_err, const char *fmt, ...) aFMT(2, 3);
-noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4);
+void          warn_(bool print_err, const char *fmt, ...) __aFMT(2, 3);
+noreturn void err_ (int status, bool print_err, const char *fmt, ...) __aFMT(3, 4);
 
 #define err(EVAL, ...)  err_((EVAL), true, __VA_ARGS__)
 #define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
@@ -277,7 +293,7 @@ noreturn void err_ (int status, bool print_err, const char *fmt, ...) aFMT(3, 4)
 #include "util/util.h"
 
 #ifdef USE_XMALLOC
-aWUR aMAL aALSZ(1) ALWAYS_INLINE  void *
+__aWUR __aMAL __aALSZ(1) __always_inline void *
 xmalloc(const size_t size)
 {
         void *tmp = malloc(size);
@@ -286,7 +302,7 @@ xmalloc(const size_t size)
         return tmp;
 }
 
-aWUR aMAL aALSZ(1, 2) ALWAYS_INLINE void *
+__aWUR __aMAL __aALSZ(1, 2) __always_inline void *
 xcalloc(const size_t num, const size_t size)
 {
         void *tmp = calloc(num, size);
@@ -299,7 +315,7 @@ xcalloc(const size_t num, const size_t size)
 #  define xcalloc calloc
 #endif
 
-aWUR aALSZ(2) ALWAYS_INLINE void *
+__aWUR __aALSZ(2) __always_inline void *
 xrealloc(void *ptr, const size_t size)
 {
         void *tmp = realloc(ptr, size);
@@ -309,7 +325,7 @@ xrealloc(void *ptr, const size_t size)
 }
 
 #if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-aWUR aALSZ(2, 3) ALWAYS_INLINE void *
+__aWUR __aALSZ(2, 3) __always_inline void *
 xreallocarray(void *ptr, size_t num, size_t size)
 {
         void *tmp = reallocarray(ptr, num, size);

@@ -957,6 +957,16 @@ b_catblk_nonul(bstring *bstr, void *blk, const unsigned len)
         return BSTR_OK;
 }
 
+bool
+b_starts_with(const bstring *b0, const bstring *b1)
+{
+        if (INVALID(b0) || INVALID(b1))
+                RUNTIME_ERROR();
+        if (b0->slen < b1->slen)
+                return false;
+        return b_strncmp(b0, b1, b1->slen) == 0;
+}
+
 
 /*============================================================================*/
 /* Simple printf analogues. */

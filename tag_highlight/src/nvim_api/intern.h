@@ -1,16 +1,14 @@
 #ifndef SRC_NVIM_API_INTERN_H
 #define SRC_NVIM_API_INTERN_H
 
-#include "bstring/bstring.h"
+#include "tag_highlight.h"
+
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-
 #include "p99/p99_defarg.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 /*======================================================================================*/
 
 struct nvim_connection {
@@ -38,7 +36,7 @@ extern genlist *nvim_connections;
 
 #define BS_FROMARR(ARRAY_) {(sizeof(ARRAY_) - 1), 0, (unsigned char *)(ARRAY_), 0}
 #define INIT_WAIT_LISTSZ   (64)
-#define INTERN __attribute__((visibility("hidden"))) extern
+#define INTERN __attribute__((__visibility__("hidden"))) extern
 
 static inline int _get_fd_count(const int fd, const bool inc)
 {
@@ -62,10 +60,10 @@ static inline int _get_fd_count(const int fd, const bool inc)
         errx(1, "Couldn't find fd %d in nvim_connections.", fd);
 }
 
-INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) aWUR;
-INTERN mpack_obj *await_package(int fd) aWUR;
-INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) aWUR;
-INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) aWUR;
+INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) __aWUR;
+INTERN mpack_obj *await_package(int fd) __aWUR;
+INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) __aWUR;
+INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) __aWUR;
 
 #define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 5, __VA_ARGS__)
 #define write_and_clean_defarg_0() (0)
@@ -81,7 +79,5 @@ extern pthread_mutex_t api_mutex;
 #undef INTERN
 
 /*======================================================================================*/
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 #endif /* intern.h */

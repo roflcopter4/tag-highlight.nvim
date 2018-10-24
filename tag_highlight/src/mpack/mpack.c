@@ -1,6 +1,6 @@
 #include "tag_highlight.h"
-#include <dirent.h>
 
+#include "data.h"
 #include "mpack.h"
 
 /* static mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...); */

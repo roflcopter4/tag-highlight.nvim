@@ -117,7 +117,8 @@ struct buffer_list {
 
         uint16_t         mkr;
         uint16_t         mlen;
-        pthread_rwlock_t lock;
+        /* pthread_rwlock_t lock; */
+        pthread_mutex_t  lock;
 };
 
 struct top_dir_list {

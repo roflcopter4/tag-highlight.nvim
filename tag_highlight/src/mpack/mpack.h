@@ -54,6 +54,7 @@ typedef struct mpack_object       mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
 typedef struct mpack_dictionary   mpack_dict_t;
+typedef struct dict_ent           mpack_dict_ent_t;
 
 #pragma pack(push, 1)
 
@@ -156,7 +157,6 @@ destroy_mpack_array(mpack_array_t *array)
         mpack_destroy_object(&tmp);
 }
 
-#include <pthread.h>
 extern pthread_mutex_t mpack_rw_lock;
 static inline mpack_obj *
 m_index(mpack_obj *obj, const unsigned index)

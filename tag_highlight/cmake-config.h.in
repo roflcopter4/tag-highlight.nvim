@@ -6,8 +6,8 @@
 #cmakedefine HAVE_ERR
 #cmakedefine HAVE_FORK
 #cmakedefine HAVE_GETTIMEOFDAY
-#cmakedefine HAVE_LIBBSD
 #cmakedefine HAVE_MEMRCHR
+#cmakedefine HAVE_OPEN_MEMSTREAM
 #cmakedefine HAVE_PAUSE
 #cmakedefine HAVE_PIPE2
 #cmakedefine HAVE_POSIX_SPAWNP
