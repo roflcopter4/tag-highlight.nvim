@@ -2,9 +2,9 @@
 
 #include "data.h"
 #include "highlight.h"
+#include "lang/clang/clang.h"
 #include "mpack/mpack.h"
 #include "util/list.h"
-#include "clang/clang.h"
 #include <signal.h>
 
 #include "contrib/p99/p99_atomic.h"

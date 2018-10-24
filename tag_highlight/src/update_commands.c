@@ -2,9 +2,9 @@
 
 #include "data.h"
 #include "highlight.h"
+#include "lang/clang/clang.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include "clang/clang.h"
 
 #include <lzma.h>
 

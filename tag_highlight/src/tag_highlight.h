@@ -95,7 +95,7 @@ extern char * basename(char *path);
 #define USE_XMALLOC
 #define MPACK_USE_P99
 
-#include "bstring/bstring.h"
+#include "contrib/bstring/bstring.h"
 #include "contrib/contrib.h"
 #include <ev.h>
 

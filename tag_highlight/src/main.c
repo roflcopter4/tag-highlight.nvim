@@ -3,8 +3,8 @@
 #include "contrib/p99/p99_defarg.h"
 #include "data.h"
 #include "highlight.h"
+#include "lang/clang/clang.h"
 #include "mpack/mpack.h"
-#include "clang/clang.h"
 
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \

@@ -5,7 +5,8 @@
 #  define __attribute__(...)
 #endif
 
-#include "bstring/bstring.h"
+#include "contrib/bstring/bstring.h"
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

@@ -4,14 +4,14 @@ set (tag_highlight_SOURCES
     scan_tags/strip.c
     scan_tags/tok.c
 
-    clang/clang.c
-    clang/const.c
-    clang/typeid.c
-    clang/threaded.c
-    clang/index.c
-    clang/util.c
-    clang/clang.h
-    clang/intern.h
+    lang/clang/clang.c
+    lang/clang/const.c
+    lang/clang/typeid.c
+    lang/clang/threaded.c
+    lang/clang/index.c
+    lang/clang/util.c
+    lang/clang/clang.h
+    lang/clang/intern.h
 
     nvim_api/api.c
     nvim_api/common.c
@@ -34,13 +34,13 @@ set (tag_highlight_SOURCES
 
     regex.c
 
-    bstring/additions.c
-    bstring/b_list.c
-    bstring/bstrlib.c
-    bstring/additions.h
-    bstring/bstring.h
-    bstring/defines.h
-    bstring/private.h
+    contrib/bstring/additions.c
+    contrib/bstring/b_list.c
+    contrib/bstring/bstrlib.c
+    contrib/bstring/additions.h
+    contrib/bstring/bstring.h
+    contrib/bstring/defines.h
+    contrib/bstring/private.h
 
     mpack/decode.c
     mpack/encode.c
