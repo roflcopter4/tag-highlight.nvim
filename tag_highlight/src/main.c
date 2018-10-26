@@ -5,6 +5,11 @@
 #include "highlight.h"
 #include "lang/clang/clang.h"
 #include "mpack/mpack.h"
+#include "my_p99_common.h"
+#include <wait.h>
+
+/* #include "lang/golang/pkg/gccgo_linux_amd64_fPIC/tag_highlight_go.h" */
+/* #include "lang/golang/pkg/linux_amd64_shared/tag_highlight_go.h" */
 
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
@@ -28,12 +33,13 @@ extern pthread_t  top_thread;
 pthread_t         top_thread;
 char              LOGDIR[PATH_MAX+1];
 
-static void        platform_init(char **argv);
-static void        get_settings(void);
-static void        open_logs(void);
-static void        exit_cleanup(void);
-static void        quick_cleanup(void);
-static comp_type_t get_compression_type(int fd);
+static void           platform_init(char **argv);
+static void           get_settings(void);
+static void           open_logs(void);
+static void           exit_cleanup(void);
+static void           quick_cleanup(void);
+static comp_type_t    get_compression_type(int fd);
+static noreturn void *main_initialization(void *arg);
 
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (0)
@@ -45,19 +51,14 @@ static comp_type_t get_compression_type(int fd);
 #define event_loop_init_defarg_0() (0)
 
 #include "my_p99_common.h"
+#include "nvim_api/apiv2.h"
+extern void try_go_crap(struct bufdata *bdata);
 
 extern struct ev_loop *event_loop_init(int fd);
 jmp_buf main_jmp_buf;
 p99_futex first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 
 /*======================================================================================*/
-
-#if 0
-#include "lang/golang/src/tag_highlight/tag_highlight.h"
-#endif
-
-#include "nvim_api/apiv2.h"
-static noreturn void *main_initialization(void *arg);
 
 int
 main(UNUSED int argc, char *argv[])
@@ -67,7 +68,7 @@ main(UNUSED int argc, char *argv[])
         TIMER_START(main_timer);
         platform_init(argv);
         open_logs();
-        p99_futex_init(&first_buffer_initialized, false);
+        p99_futex_init(&first_buffer_initialized, 0);
         at_quick_exit(quick_cleanup);
         
         struct ev_loop *mainloop = event_loop_init();
@@ -88,11 +89,11 @@ platform_init(char **argv)
         program_invocation_short_name = basename(argv[0]);
 
         /* Set the standard streams to binary mode on Windows */
-        if (_setmode(0, O_BINARY) == (-1) || errno)
+        if (_setmode(0, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stdin");
-        if (_setmode(1, O_BINARY) == (-1) || errno)
+        if (_setmode(1, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stdout");
-        if (_setmode(2, O_BINARY) == (-1) || errno)
+        if (_setmode(2, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stderr");
 #else
         (void)argv;
@@ -132,9 +133,12 @@ main_initialization(void *arg)
 
         TIMER_REPORT(main_timer, "main initialization");
         nvim_set_client_info(,B("tag_highlight"), 0, 1, B("alpha"));
-
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1u, 0u, P99_FUTEX_MAX_WAITERS);
+
+        /* if (bdata->ft->id == FT_GO)
+                try_go_crap(bdata); */
+
         pthread_exit();
 }
 

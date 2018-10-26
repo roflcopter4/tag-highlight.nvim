@@ -844,7 +844,6 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
                 if (BSTR_)                                                  \
                         (BSTR_)->flags &= (~((uint8_t)BSTR_WRITE_ALLOWED)); \
                 _Pragma("GCC diagnostic pop");                              \
-                (BSTR_)->flags;                                             \
         })
 #else
 #define b_writeprotect(BSTR_) \
@@ -871,7 +870,6 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
                 if (BSTR_)                                       \
                         (BSTR_)->flags |= BSTR_WRITE_ALLOWED;    \
                 _Pragma("GCC diagnostic pop");                   \
-                (BSTR_)->flags;                                  \
         })
 #else
 #  define b_writeallow(BSTR_) \

@@ -213,10 +213,11 @@ b_fread(void *buf, const size_t size, const size_t nelem, void *param)
 }
 
 #define B_GETS(PARAM, TERM, END_) b_gets(&b_fgetc, (PARAM), (TERM), (END_))
-#define B_READ(PARAM, END_)       b_read(&b_fread, (PARAM), (END_))
+#define B_READ(PARAM, END_)       b_fread(&b_fread, (PARAM), (END_))
 
 __attribute__((__format__(__printf__, 1, 2)))
 BSTR_PUBLIC bstring *b_quickread(const char *__restrict fmt, ...);
+BSTR_PUBLIC bstring *b_read_fd(const int fd);
 
 
 /*--------------------------------------------------------------------------------------*/

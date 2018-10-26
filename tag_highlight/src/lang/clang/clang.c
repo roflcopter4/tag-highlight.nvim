@@ -57,7 +57,6 @@ static void                    get_tmp_path(void);
 static str_vector             *get_backup_commands(struct bufdata *bdata);
 static str_vector             *get_compile_commands(struct bufdata *bdata);
 static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
-static struct cmd_info        *getinfo(struct bufdata *bdata);
 static struct translationunit *init_compilation_unit(struct bufdata *bdata, bstring *buf);
 static struct translationunit *recover_compilation_unit(struct bufdata *bdata, bstring *buf);
 static inline void             lines2bytes(struct bufdata *bdata, int64_t *startend, int first, int last);
@@ -237,29 +236,6 @@ init_compilation_unit(struct bufdata *bdata, bstring *buf)
         memcpy(CLD(bdata)->tmp_name, tmp, (size_t)tmplen + 1llu);
 
         return stu;
-}
-
-static struct cmd_info *
-getinfo(struct bufdata *bdata)
-{
-        const unsigned   ngroups = bdata->ft->order->slen;
-        struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
-
-        for (unsigned i = 0; i < ngroups; ++i) {
-                const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(
-                        E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
-
-                info[i].kind  = ch;
-                info[i].group = dict_get_key(dict, E_STRING, B("group")).ptr;
-                info[i].num   = ngroups;
-
-                b_writeprotect(info[i].group);
-                destroy_mpack_dict(dict);
-                b_writeallow(info[i].group);
-        }
-
-        return info;
 }
 
 /*======================================================================================*/
@@ -581,6 +557,3 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
                 if ((t = get_token_data(&stu->tu, &toks[i], &cursors[i])))
                         genlist_append(stu->tokens, t);
 }
-
-/*======================================================================================*/
-// vim: tw=90 sts=8 sw=8 expandtab

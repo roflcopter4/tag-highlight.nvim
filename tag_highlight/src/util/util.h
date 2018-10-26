@@ -84,10 +84,7 @@ extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR
 extern void     add_backup    (struct backups *list, void *item) __aNNA;
 extern void     free_backups  (struct backups *list);
 
-#ifdef DOSISH
-#  include <WinSock2.h>
-extern int dprintf(const SOCKET fd, const char *__restrict fmt, ...) __aFMT(2, 3);
-#endif
+extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input);
 
 __END_DECLS
 #endif /* util.h */

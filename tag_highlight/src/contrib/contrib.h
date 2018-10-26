@@ -33,6 +33,12 @@
 #ifndef HAVE_STRCHRNUL
    extern char *strchrnul(const char *ptr, int ch);
 #endif
+
+#ifdef DOSISH
+#  include <WinSock2.h>
+extern int dprintf(const SOCKET fd, const char *__restrict fmt, ...) __aFMT(2, 3);
+#endif
+
 #ifndef HAVE_GETTIMEOFDAY
 #  if 0 && defined(_WIN32) || defined(__MINGW32__)
 #    define WIN32_LEAN_AND_MEAN

@@ -816,6 +816,113 @@ b_quickread(const char *const __restrict fmt, ...)
         return ret;
 }
 
+#if 0
+#define INIT_READ ((size_t)(1 << 20))
+
+static size_t
+getstdin(char **dest, FILE *fp)
+{
+        size_t  total = 0;
+        char   *buf   = xmalloc(INIT_READ+1llu);
+        
+        for (;;) {
+                size_t nread = fread(buf + total, 1, INIT_READ, fp);
+                if (nread > 0) {
+                        total += nread;
+                        if (feof(fp))
+                                break;
+                        char *tmp = realloc(buf, total + INIT_READ);
+                        buf       = tmp;
+                } else {
+                        break;
+                }
+        }
+
+        buf[total] = '\0';
+        *dest      = buf;
+        return total;
+}
+
+bstring *
+b_read_fd(const int fd)
+{
+        FILE *fp = fdopen(fd, "rb");
+        char *buf;
+        size_t total = getstdin(&buf, fp);
+        fclose(fp);
+
+        bstring *ret = xmalloc(sizeof *ret);
+        *ret = (bstring){total, total+1, (uchar *)buf, BSTR_STANDARD};
+        return ret;
+}
+#endif
+
+#define INIT_READ ((size_t)(8192llu))
+#ifdef DOSISH
+#  define SSIZE_T size_t
+#else
+#  define SSIZE_T ssize_t
+#endif
+
+bstring *
+b_read_fd(const int fd)
+{
+        bstring *ret = b_alloc_null(INIT_READ + 1u);
+
+        for (;;) {
+                SSIZE_T nread = read(fd, (ret->data + ret->slen), INIT_READ);
+                if (nread > 0) {
+                        ret->slen += nread;
+                        if ((size_t)nread < INIT_READ) {
+                                /* eprintf("breaking\n"); */
+                                break;
+                        }
+                        b_growby(ret, INIT_READ);
+                } else {
+                        break;
+                }
+        }
+
+        ret->data[ret->slen] = '\0';
+        return ret;
+}
+
+
+
+#if 0
+bstring *
+b_read_fd(const int fd)
+{
+        /* size_t   total = 0; */
+        bstring *ret   = b_alloc_null(INIT_READ+1llu);
+        /* FILE    *fp    = fdopen(fd, "rb"); */
+        /* bstring *ret   = xmalloc(sizeof *ret); */
+        /* *ret = (bstring){0, INIT_READ+1llu, xcalloc(1, INIT_READ+1llu), BSTR_STANDARD}; */
+
+        int ch = 0;
+        while (read(fd, &ch, 1) != EOF)
+                b_conchar(ret, ch);
+#if 0
+        for (;;) {
+                size_t nread = fread(ret->data + total, 1, INIT_READ, fp);
+                /* ssize_t nread = read(fd, ret->data + total, INIT_READ); */
+                /* if (nread >= 0) { */
+                total += nread;
+                if (feof(fp))
+                        break;
+                /* b_alloc(ret, total + INIT_READ); */
+                b_growby(ret, INIT_READ);
+                /* } else { */
+                        /* break; */
+                /* } */
+        }
+#endif
+
+        /* fclose(fp); */
+        /* ret->slen        = total; */
+        return ret;
+}
+#endif
 
 /*============================================================================*/
 /* Minor helper functions */

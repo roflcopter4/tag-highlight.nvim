@@ -399,3 +399,28 @@ gettimeofday(struct timeval *tp, struct timezone *tzp)
         return 0;
 }
 #endif
+
+
+/*============================================================================*/
+/*============================================================================*/
+#ifdef DOSISH
+int dprintf(const SOCKET fd, const char *const __restrict fmt, ...)
+{
+        int          fdx = _open_osfhandle(fd, 0);
+        int          ret;
+        FILE        *fds;
+        va_list      ap;
+        va_start(ap, fmt);
+        fdx = dup(fdx);
+
+        if ((fds = fdopen(fdx, "w")) == NULL) {
+                ret = (-1);
+        } else {
+                ret = vfprintf(fds, fmt, ap);
+                fclose(fds);
+        }
+
+        va_end(ap);
+        return (ret);
+}
+#endif /* __WIN32__ */

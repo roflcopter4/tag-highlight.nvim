@@ -111,4 +111,8 @@
         P99_POINTER_TYPE(NAME);   \
         P99_LIFO_DECLARE(NAME##_ptr)
 
+#define pipe2_throw(...) P99_THROW_CALL_NEG(pipe2, EINVAL, __VA_ARGS__)
+#define dup2_throw(...)  P99_THROW_CALL_NEG(dup2, EINVAL, __VA_ARGS__)
+#define execl_throw(...) P99_THROW_CALL_NEG(execl, EINVAL, __VA_ARGS__)
+
 #endif /* p99_common.h */

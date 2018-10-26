@@ -289,24 +289,33 @@ free_backups(struct backups *list)
         list->qty = 0;
 }
 
-#ifdef DOSISH
-int dprintf(const SOCKET fd, const char *const __restrict fmt, ...)
-{
-        int          fdx = _open_osfhandle(fd, 0);
-        int          ret;
-        FILE        *fds;
-        va_list      ap;
-        va_start(ap, fmt);
-        fdx = dup(fdx);
+#define READ_FD  (0)
+#define WRITE_FD (1)
+#include <wait.h>
 
-        if ((fds = fdopen(fdx, "w")) == NULL) {
-                ret = (-1);
-        } else {
-                ret = vfprintf(fds, fmt, ap);
-                fclose(fds);
+bstring *
+(get_command_output)(const char *command, char *const *const argv, bstring *input)
+{
+        int fds[2][2], pid, status;
+        if (pipe2(fds[0], O_CLOEXEC) == (-1) || pipe2(fds[1], O_CLOEXEC) == (-1)) 
+                err(1, "pipe() failed\n");
+        if ((pid = fork()) == 0) {
+                if (dup2(fds[0][READ_FD], 0) == (-1) || dup2(fds[1][WRITE_FD], 1) == (-1))
+                        err(1, "dup2() failed\n");
+                if (execvp(command, argv) == (-1))
+                        err(1, "exec() failed\n");
         }
 
-        va_end(ap);
-        return (ret);
+        if (input)
+                b_write(fds[0][WRITE_FD], input);
+        close  (fds[0][READ_FD]);
+        close  (fds[1][WRITE_FD]);
+        close  (fds[0][WRITE_FD]);
+        waitpid(pid, &status, 0);
+        bstring *rd = b_read_fd(fds[1][READ_FD]);
+        close(fds[1][READ_FD]);
+
+        if ((status <<= 8) != 0)
+                SHOUT("Command failed with status %d\n", status);
+        return rd;
 }
-#endif /* __WIN32__ */

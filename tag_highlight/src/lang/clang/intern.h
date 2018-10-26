@@ -6,7 +6,7 @@ extern "C" {
 
 #include "tag_highlight.h"
 
-#include "data.h"
+#include "lang/common.h"
 
 #ifdef I
 #  undef I
@@ -39,12 +39,6 @@ struct translationunit {
         CXCursor          *cxcursors;
         CXTranslationUnit  tu;
         unsigned           num;
-};
-
-struct cmd_info {
-        unsigned num;
-        int      kind;
-        bstring *group;
 };
 
 struct token {

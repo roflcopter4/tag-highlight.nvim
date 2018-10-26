@@ -32,7 +32,10 @@ set (tag_highlight_SOURCES
     my_p99_common.h
     tag_highlight.h
 
+    go_crap.c
     regex.c
+    lang/common.c
+    lang/common.h
 
     contrib/bstring/additions.c
     contrib/bstring/b_list.c
@@ -163,6 +166,16 @@ else()
         ${PCRE2_LIBRARIES}
         ${LIBEV_LIBRARIES}
     )
+
+    # target_link_libraries(tag_highlight
+        # "-L${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/gccgo_linux_amd64_fPIC"
+        # "-Wl,-rpath=${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/gccgo_linux_amd64_fPIC"
+        # "libtag_highlight_go.so"
+        # "-L${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/linux_amd64_shared"
+        # "-Wl,-rpath=${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/linux_amd64_shared"
+        # "${CMAKE_SOURCE_DIR}/src/lang/golang/pkg/linux_amd64_shared/tag_highlight_go.a"
+    # )
+
     if (LZMA_SUPPORT)
         target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
     endif()

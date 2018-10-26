@@ -9,70 +9,22 @@
 #include "util/list.h"
 
 static void do_typeswitch(struct bufdata           *bdata,
-                          struct nvim_arg_array *calls,
+                          struct nvim_arg_array    *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,
                           enum CXCursorKind *const  last_kind);
-static void add_hl_call(struct nvim_arg_array *calls,
-                        const int                 bufnum,
-                        const int                 hl_id,
-                        const bstring            *group,
-                        const struct token       *tok);
-static void
-add_clr_call(struct nvim_arg_array *calls,
-             const int bufnum,
-             const int hl_id,
-             const int line,
-             const int end);
 
 static bool tok_in_skip_list(struct bufdata *bdata, struct token *tok);
 static void tokvisitor(struct token *tok);
 
-static struct nvim_arg_array *new_arg_array(void);
-static const bstring *find_group(struct filetype *ft, const struct cmd_info *info, unsigned num, const int ctags_kind);
-
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
-#define ADD_CALL(CH)                                                              \
-        do {                                                                      \
-                if ((group = find_group(bdata->ft, info, info->num, (CH))))       \
-                        add_hl_call(calls, bdata->num, bdata->hl_id, group, tok); \
+#define ADD_CALL(CH)                                                                \
+        do {                                                                        \
+                if ((group = find_group(bdata->ft, info, info->num, (CH))))         \
+                        add_hl_call(calls, bdata->num, bdata->hl_id, group,         \
+                                    &(line_data){tok->line, tok->col1, tok->col2}); \
         } while (0)
-#define STRDUP(STR)                                                     \
-        __extension__({                                                 \
-                static const char strng_[]   = ("" STR "");             \
-                char *            strng_cpy_ = xmalloc(sizeof(strng_)); \
-                memcpy(strng_cpy_, strng_, sizeof(strng_));             \
-                strng_cpy_;                                             \
-        })
-
-#if 0
-enum equiv_ctags_type {
-        CTAGS_CLASS     = 'c',
-        CTAGS_ENUM      = 'g',
-        CTAGS_ENUMCONST = 'e',
-        CTAGS_FUNCTION  = 'f',
-        CTAGS_GLOBALVAR = 'v',
-        CTAGS_MEMBER    = 'm',
-        CTAGS_NAMESPACE = 'n',
-        CTAGS_PREPROC   = 'd',
-        CTAGS_STRUCT    = 's',
-        CTAGS_TYPE      = 't',
-        CTAGS_UNION     = 'u',
-};
-#endif
-#define CTAGS_CLASS     'c'
-#define CTAGS_ENUM      'g'
-#define CTAGS_ENUMCONST 'e'
-#define CTAGS_FUNCTION  'f'
-#define CTAGS_GLOBALVAR 'v'
-#define CTAGS_MEMBER    'm'
-#define CTAGS_NAMESPACE 'n'
-#define CTAGS_PREPROC   'd'
-#define CTAGS_STRUCT    's'
-#define CTAGS_TYPE      't'
-#define CTAGS_UNION     'u'
-#define EXTENSION_TEMPLATE 'T'
 
 /*======================================================================================*/
 
@@ -114,7 +66,7 @@ type_id(struct bufdata *bdata, struct translationunit *stu)
 
 
 static void do_typeswitch(struct bufdata           *bdata,
-                          struct nvim_arg_array *calls,
+                          struct nvim_arg_array    *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,
@@ -166,14 +118,6 @@ retry:
         case CXCursor_MemberRefExpr: {
                 /* Ordinary reference to a struct/class member. */
                 CXType deftype = clang_getCanonicalType(tok->cursortype);
-                /* CXCursor def = clang_getCursorDefinition(cursor); */
-                /* CXType   deftype = clang_getCursorType(def); */
-                /* CXString curskind = clang_getCursorKindSpelling(def.kind); */
-                /* echo("Got curs_kind %s... for %s\n", CS(curskind), tok->raw); */
-                /* CXString type = clang_getTypeSpelling(deftype);
-                CXString typekind = clang_getTypeKindSpelling(deftype.kind);
-                echo("And %s - %s - %d for %s\n", CS(type), CS(typekind), deftype.kind, tok->raw); */
-                /* free_cxstrings(curskind, type); */
                 if (deftype.kind == CXType_Unexposed)
                         ADD_CALL(CTAGS_FUNCTION);
                 else
@@ -329,95 +273,4 @@ tokvisitor(struct token *tok)
         report_parent(tok->cursor, toklog);
         fclose(toklog);
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
-}
-
-/*======================================================================================*/
-
-#define INIT_ACALL_SIZE (128)
-extern FILE *cmd_log;
-
-static struct nvim_arg_array *
-new_arg_array(void)
-{
-        struct nvim_arg_array *calls = xmalloc(sizeof(struct nvim_arg_array));
-        calls->mlen = INIT_ACALL_SIZE;
-        calls->fmt  = nmalloc(calls->mlen, sizeof(char *));
-        calls->args = nmalloc(calls->mlen, sizeof(nvim_argument *));
-        calls->qty  = 0;
-        return calls;
-}
-
-static void
-add_hl_call(struct nvim_arg_array *calls,
-            const int                 bufnum,
-            const int                 hl_id,
-            const bstring            *group,
-            const struct token       *tok)
-{
-        assert(calls);
-        if (calls->qty >= calls->mlen-1) {
-                calls->mlen *= 2;
-                calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
-        }
-
-        calls->fmt[calls->qty]         = STRDUP("s[dd,s,ddd]");
-        calls->args[calls->qty]        = nmalloc(7, sizeof(nvim_argument));
-        calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_add_highlight");
-        calls->args[calls->qty][1].num = bufnum;
-        calls->args[calls->qty][2].num = hl_id;
-        calls->args[calls->qty][3].str = b_strcpy(group);
-        calls->args[calls->qty][4].num = tok->line;
-        calls->args[calls->qty][5].num = tok->col1;
-        calls->args[calls->qty][6].num = tok->col2;
-
-        if (cmd_log)
-                fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %d, %d, %d)\n",
-                        bufnum, hl_id, BS(group), tok->line, tok->col1, tok->col2);
-        ++calls->qty;
-}
-
-static void
-add_clr_call(struct nvim_arg_array *calls,
-             const int bufnum,
-             const int hl_id,
-             const int line,
-             const int end)
-{
-        assert(calls);
-        if (calls->qty >= calls->mlen-1) {
-                calls->mlen *= 2;
-                calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
-        }
-
-        calls->fmt[calls->qty]         = STRDUP("s[dddd]");
-        calls->args[calls->qty]        = nmalloc(5, sizeof(nvim_argument));
-        calls->args[calls->qty][0].str = b_lit2bstr("nvim_buf_clear_highlight");
-        calls->args[calls->qty][1].num = bufnum;
-        calls->args[calls->qty][2].num = hl_id;
-        calls->args[calls->qty][3].num = line;
-        calls->args[calls->qty][4].num = end;
-
-        if (cmd_log)
-                fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n",
-                        bufnum, hl_id, line, end);
-        ++calls->qty;
-}
-
-static const bstring *
-find_group(struct filetype *ft, const struct cmd_info *info, const unsigned num, const int ctags_kind)
-{
-        if (b_strchr(ft->order, ctags_kind) < 0)
-                return NULL;
-        const bstring *ret = NULL;
-
-        for (unsigned i = 0; i < num; ++i) {
-                if (info[i].kind == ctags_kind) {
-                        ret = info[i].group;
-                        break;
-                }
-        }
-
-        return ret;
 }

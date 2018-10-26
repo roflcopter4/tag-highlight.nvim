@@ -3,37 +3,35 @@
 #include "data.h"
 #include "mpack.h"
 
-/* static mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...); */
-/* static void       write_and_clean(int fd, mpack_obj *pack, const bstring *func); */
-static void       collect_items (struct item_free_stack *tofree, mpack_obj *item);
-static mpack_obj *find_key_value(mpack_dict_t *dict, const bstring *key);
-static void free_stack_push(struct item_free_stack *list, void *item);
-/* static inline retval_t m_expect_intern(mpack_obj *root, mpack_expect_t type); */
+static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);
+static mpack_obj *find_key_value (mpack_dict_t *dict, const bstring *key);
+static void       free_stack_push(struct item_free_stack *list, void *item);
 
 FILE  *mpack_log;
 
 #ifdef _MSC_VER
 #  define restrict __restrict
 #endif
-
-#if 0
-#ifdef DOSISH
-pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+#if defined __GNUC__ && !defined __clang__
+#  define PRAGMA_NO_NONHEAP()           \
+        _Pragma("GCC diagnostic push"); \
+        _Pragma("GCC diagnostic ignored \"-Wfree-nonheap-object\"")
+#  define PRAGMA_NO_NONHEAP_POP() _Pragma("GCC diagnostic pop")
 #else
-pthread_mutex_t mpack_rw_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#  define PRAGMA_NO_NONHEAP()
+#  define PRAGMA_NO_NONHEAP_POP()
 #endif
-#endif
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-braces"
 
 pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
-static void _mpack_mutex_constructor(void) __attribute__((__constructor__));
+__attribute__((__constructor__))
 static void _mpack_mutex_constructor(void) { 
         pthread_mutexattr_t attr = { 0 };
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&mpack_rw_lock, &attr);
 }
-
-/* #include "my_p99_common.h" */
-//#include "execinfo.h"
+#pragma GCC diagnostic pop
 
 /*======================================================================================*/
 
@@ -148,27 +146,6 @@ error:
         mpack_destroy_object(obj);
         ret.ptr = NULL;
         abort();
-        /* pthread_mutex_unlock(&mpack_rw_lock); */
-
-        //{
-        //        extern char LOGDIR[];
-        //        extern const char *const m_expect_names[];
-        //        eprintf("WARNING: Got mpack of type %s, expected type %s, possible error.",
-        //                m_type_names[mpack_type(obj)], m_expect_names[err_expect]);
-
-        //        FILE *tmp = safe_fopen_fmt("%s/.log", "wb", LOGDIR);
-        //        mpack_print_object(tmp, obj);
-        //        fclose(tmp);
-        //        
-        //        void * arr[128];
-        //        size_t num = backtrace(arr, 128);
-        //        eprintf("Fatal error in func %s in bstrlib.c, line %d\nSTACKTRACE: \n", FUNC_NAME, __LINE__);
-        //        backtrace_symbols_fd(arr, num, 2);
-        //        abort();
-        //}
-
-
-        /* return ret; */
 }
 
 /*======================================================================================*/
@@ -180,8 +157,12 @@ mpack_destroy_object(mpack_obj *root)
         if (!(root->flags & MPACK_ENCODE)) {
                 if (root->flags & MPACK_HAS_PACKED)
                         b_free(*root->packed);
+                /* This gcc specific warning is a false positive. Non-heap
+                 * objects all have the `phony' flag and won't be free'd. */
+                PRAGMA_NO_NONHEAP();
                 if (!(root->flags & MPACK_PHONY))
                         xfree(root);
+                PRAGMA_NO_NONHEAP_POP();
                 pthread_mutex_unlock(&mpack_rw_lock);
                 return;
         }

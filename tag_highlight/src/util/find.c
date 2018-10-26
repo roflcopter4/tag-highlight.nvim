@@ -108,7 +108,7 @@ run_find(const char *path, const char *search)
         if ((status >>= 8) != 0)
                 errx(status, "Command failed with status %d", status);
 
-        bstring *ret = read_fd(pipefds[0]);
+        bstring *ret = b_read_fd(pipefds[0]);
         close(pipefds[0]);
 
         if (ret->slen == 0)
@@ -126,6 +126,7 @@ run_find(const char *path, const char *search)
         return ret;
 }
 
+#if 0
 #define INIT_READ ((size_t)(8192llu))
 #ifdef DOSISH
 #  define SSIZE_T size_t
@@ -155,6 +156,7 @@ read_fd(const int fd)
         ret->data[ret->slen] = '\0';
         return ret;
 }
+#endif
 
 #if 0
 static b_list *
