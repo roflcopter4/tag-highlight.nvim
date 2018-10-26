@@ -89,7 +89,7 @@ void
                 const unsigned old = atomic_exchange(&bdata->last_ctick, new);
 
                 if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
-                        eprintf("Ctick unchanged (%u vs %u). Returning.", old, new);
+                        ECHO("Ctick unchanged (%u vs %u). Returning.", old, new);
                         TRY_RETURN;
                 }
         } FINALLY {
@@ -104,7 +104,7 @@ void
 
         if (cnt_val >= 2) {
                 p99_futex_add(&bdata->lock.clang_count, (-1u));
-                eprintf("Too many waiters, returning!\n");
+                ECHO("Too many waiters, returning!");
                 return;
         }
 
@@ -510,7 +510,7 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         if (tokkind != CXToken_Identifier ||
             !resolve_range(clang_getTokenExtent(*tu, *tok), &res))
                 return NULL;
-        PRIu64;
+
         CXString dispname = clang_getCursorDisplayName(*cursor);
         size_t   len      = strlen(CS(dispname)) + 1llu;
         ret               = xmalloc(offsetof(struct token, raw) + len);
