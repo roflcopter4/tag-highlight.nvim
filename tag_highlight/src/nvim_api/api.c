@@ -20,7 +20,7 @@ void
         }
 
         const int  count = INC_COUNT(fd);
-        mpack_obj *pack  = mpack_encode_fmt(0, "[d,d,s:[s]]", MES_REQUEST, count, func, mes);
+        mpack_obj *pack  = mpack_encode_fmt(0, "[d,d,s,[s]]", MES_REQUEST, count, func, mes);
         mpack_obj *tmp   = write_and_clean(fd, pack, count, func);
 
         mpack_print_object(mpack_log, tmp);

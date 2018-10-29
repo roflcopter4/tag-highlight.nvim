@@ -20,7 +20,6 @@
 #else
 #  define KILL_SIG SIGUSR1
 #endif
-#define UEVP_ __attribute__((__unused__)) EV_P
 
 #define EVENT_LIB_EV     1
 #define EVENT_LIB_EVENT2 2
@@ -44,9 +43,6 @@ static void         *emergency_debug     (void *vdata);
 #endif
 static void           post_nvim_response(mpack_obj *obj);
 static noreturn void *nvim_event_handler(void *unused);
-/* static void           event_loop_io_callback(UEVP_, ev_io *w, int revents);
-static void           sig_cb(UEVP_, ev_signal *w, int revents);
-static void           graceful_sig_cb(struct ev_loop *loop, ev_signal *w, int revents); */
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
@@ -119,6 +115,7 @@ nvim_event_handler(UNUSED void *unused)
 #if USE_EVENT_LIB == EVENT_LIB_EV
 
 #  include <ev.h>
+#  define UEVP_ __attribute__((__unused__)) EV_P
 struct ev_io     input_watcher;
 struct ev_signal signal_watcher[4];
 
@@ -301,18 +298,18 @@ event_loop_io_callback(void *vdata)
         pthread_exit();
 }
 
-#  if UV_VERSION_MAJOR >= 1
-static void alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+static void
+alloc_buffer(UNUSED uv_handle_t *handle, const size_t suggested_size, uv_buf_t *buf)
 {
          *buf = uv_buf_init(xmalloc(suggested_size), suggested_size);
 }
 
-static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
+static void
+read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
         if (nread <= 0)
                 return;
-        bstring *str = &(bstring){
-            .slen = nread, .mlen = 0, .data = (uchar *)buf->base, .flags = 0};
+        bstring *str = &(bstring){nread, 0, (uchar *)buf->base, 0};
 
         while (str->slen > 0) {
                 mpack_obj *obj = mpack_decode_obj(str);
@@ -320,26 +317,6 @@ static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_bu
         }
         xfree(buf->base);
 }
-#  else
-static uv_buf_t alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size)
-{
-         return uv_buf_init(xmalloc(suggested_size), suggested_size);
-}
-
-static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_buf_t buf)
-{
-        if (nread <= 0)
-                return;
-        bstring *str = &(bstring){
-            .slen = nread, .mlen = 0, .data = (uchar *)buf.base, .flags = 0};
-
-        while (str->slen > 0) {
-                mpack_obj *obj = mpack_decode_obj(str);
-                START_DETACHED_PTHREAD(event_loop_io_callback, obj);
-        }
-        xfree(buf.base);
-}
-#  endif
 
 void
 event_loop_init(const int fd)
@@ -402,10 +379,9 @@ noreturn void
 event_loop_init(const int fd)
 {
         for (;;) {
-                mpack_obj *obj = mpack_decode_stream(fd);
                 struct cb_data *data = xmalloc(sizeof *data);
-                data->fd = fd;
-                data->obj = obj;
+                data->fd             = fd;
+                data->obj            = mpack_decode_stream(fd);
                 START_DETACHED_PTHREAD(event_loop_io_callback, data);
         }
 }

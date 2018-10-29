@@ -36,7 +36,7 @@ static void _mpack_mutex_constructor(void) {
 /*======================================================================================*/
 
 retval_t
-(m_expect)(mpack_obj *obj, const mpack_expect_t type, bool destroy)
+(m_expect)(mpack_obj *const obj, const mpack_expect_t type, bool destroy)
 {
         retval_t     ret = {.ptr = NULL};
         uint64_t     value;
@@ -50,6 +50,8 @@ retval_t
                 fflush(mpack_log);
         }
 
+        const mpack_type_t obj_type = mpack_type(obj);
+
         switch (type) {
         case E_MPACK_ARRAY:
                 if (destroy)
@@ -58,7 +60,7 @@ retval_t
                 break;
 
         case E_MPACK_DICT:
-                if (mpack_type(obj) != (err_expect = MPACK_DICT))
+                if (obj_type != (err_expect = MPACK_DICT))
                         goto error;
                 if (destroy)
                         mpack_spare_data(obj);
@@ -66,7 +68,7 @@ retval_t
                 break;
 
         case E_MPACK_EXT:
-                if (mpack_type(obj) != (err_expect = MPACK_EXT))
+                if (obj_type != (err_expect = MPACK_EXT))
                         goto error;
                 if (destroy)
                         mpack_spare_data(obj);
@@ -74,13 +76,13 @@ retval_t
                 break;
 
         case E_MPACK_NIL:
-                if (mpack_type(obj) != (err_expect = MPACK_NIL))
+                if (obj_type != (err_expect = MPACK_NIL))
                         goto error;
                 break;
 
         case E_BOOL:
-                if (mpack_type(obj) != (err_expect = MPACK_BOOL)) {
-                        if (mpack_type(obj) == MPACK_SIGNED || mpack_type(obj) == MPACK_UNSIGNED)
+                if (obj_type != (err_expect = MPACK_BOOL)) {
+                        if (obj_type == MPACK_SIGNED || obj_type == MPACK_UNSIGNED)
                                 value = obj->data.num;
                         else
                                 goto error;
@@ -91,23 +93,20 @@ retval_t
                 break;
 
         case E_NUM:
-                if (mpack_type(obj) != (err_expect = MPACK_SIGNED) &&
-                    mpack_type(obj) != MPACK_UNSIGNED)
+                if (obj_type != (err_expect = MPACK_SIGNED) &&
+                    obj_type != MPACK_UNSIGNED)
                 {
-                        if (mpack_type(obj) == MPACK_EXT)
+                        if (obj_type == MPACK_EXT)
                                 ret.num = obj->data.ext->num;
                         else
                                 goto error;
                 } else {
-                        if (mpack_type(obj) == MPACK_SIGNED)
-                                ret.num = obj->data.num;
-                        else
-                                ret.num = obj->data.num;
+                        ret.num = obj->data.num;
                 }
                 break;
 
         case E_STRING:
-                if (mpack_type(obj) != (err_expect = MPACK_STRING))
+                if (obj_type != (err_expect = MPACK_STRING))
                         goto error;
                 ret.ptr = obj->data.str;
                 if (destroy)
@@ -115,7 +114,7 @@ retval_t
                 break;
 
         case E_STRLIST:
-                if (mpack_type(obj) != (err_expect = MPACK_ARRAY))
+                if (obj_type != (err_expect = MPACK_ARRAY))
                         goto error;
                 ret.ptr = mpack_array_to_blist(obj->data.arr, destroy);
                 if (destroy) {

@@ -163,8 +163,8 @@ else()
         ${LIBCLANG_LIBRARIES}
         ${ZLIB_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
-        # ${PCRE2_LIBRARIES}
-        -lpcre2-8
+        ${PCRE2_LIBRARIES}
+        #-lpcre2-8
         -luv
         # -levent
         # ${LIBEV_LIBRARIES}
