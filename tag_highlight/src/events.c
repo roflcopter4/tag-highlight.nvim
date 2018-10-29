@@ -170,7 +170,7 @@ static void graceful_sig_cb(struct ev_loop *loop, UNUSED ev_signal *w, UNUSED in
         ev_io_stop(loop, &input_watcher);
 }
 
-struct ev_loop *
+void
 event_loop_init(const int fd)
 {
         struct ev_loop *loop = EV_DEFAULT;
@@ -186,7 +186,7 @@ event_loop_init(const int fd)
         ev_signal_start(loop, &signal_watcher[2]);
         ev_signal_start(loop, &signal_watcher[3]);
 
-        return loop;
+        ev_run(mainloop);
 }
 
 /*======================================================================================*/
@@ -237,7 +237,7 @@ event_loop_io_callback(evutil_socket_t fd, UNUSED short events, UNUSED void *dat
         pthread_mutex_unlock(&event_loop_cb_mutex);
 }
 
-struct my_event_container *
+void
 event_loop_init(const int fd)
 {
         struct my_event_container *ret = xmalloc(sizeof *ret);
@@ -251,17 +251,22 @@ event_loop_init(const int fd)
         ret->base    = event_base_new();
         ret->io_loop = event_new(ret->base, fd, EV_READ|EV_PERSIST, event_loop_io_callback, NULL);
         event_add(ret->io_loop, NULL);
+        event_base_loop(ret->base, 0);
         
         /* event_free(ret->io_loop); */
         /* event_base_free(ret->base); */
         /* xfree(ret); */
-        return ret;
+        /* return ret; */
 }
 
 /*======================================================================================*/
 #elif USE_EVENT_LIB == EVENT_LIB_UV
 
 #  include <uv.h>
+struct my_event_container {
+        uv_loop_t *loop;
+        uv_pipe_t  p;
+};
 
 static noreturn void *
 event_loop_io_callback(void *vdata)
@@ -296,7 +301,7 @@ event_loop_io_callback(void *vdata)
         pthread_exit();
 }
 
-#  ifdef DOSISH
+#  if UV_VERSION_MAJOR >= 1
 static void alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
          *buf = uv_buf_init(xmalloc(suggested_size), suggested_size);
@@ -313,7 +318,7 @@ static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_bu
                 mpack_obj *obj = mpack_decode_obj(str);
                 START_DETACHED_PTHREAD(event_loop_io_callback, obj);
         }
-        xfree(buf >base);
+        xfree(buf->base);
 }
 #  else
 static uv_buf_t alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size)
@@ -339,12 +344,14 @@ static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_bu
 void
 event_loop_init(const int fd)
 {
-        uv_loop_t *loop = uv_default_loop();
-        uv_pipe_t *p    = xmalloc(sizeof *p);
-        uv_pipe_init(loop, p, 0);
-        uv_pipe_open(p, fd);
-        uv_read_start((uv_stream_t *)p, alloc_buffer, read_callback);
-        uv_run(loop, UV_RUN_DEFAULT);
+        struct my_event_container *ret = xmalloc(sizeof *ret);
+        ret->loop = uv_default_loop();
+        uv_pipe_init(ret->loop, &ret->p, 0);
+        uv_pipe_open(&ret->p, fd);
+        uv_read_start((uv_stream_t *)&ret->p, alloc_buffer, read_callback);
+        uv_run(ret->loop, UV_RUN_DEFAULT);
+
+        xfree(ret);
 }
 
 /*======================================================================================*/

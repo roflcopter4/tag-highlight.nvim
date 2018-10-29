@@ -6,7 +6,6 @@
 #include "lang/clang/clang.h"
 #include "mpack/mpack.h"
 #include "my_p99_common.h"
-#include <wait.h>
 
 /* #include "lang/golang/pkg/gccgo_linux_amd64_fPIC/tag_highlight_go.h" */
 /* #include "lang/golang/pkg/linux_amd64_shared/tag_highlight_go.h" */
@@ -49,21 +48,6 @@ static noreturn void *main_initialization(void *arg);
 #define ev_run_defarg_1() (0)
 
 #include "my_p99_common.h"
-/* #include "nvim_api/apiv2.h" */
-/* extern void try_go_crap(struct bufdata *bdata); */
-
-/* extern struct ev_loop *event_loop_init(int fd); */
-#if 0
-#include "event2/event.h"
-struct my_event_container {
-        struct event_base *base;
-        struct event      *io_loop;
-#ifdef DOSISH
-        WSADATA wsaData;
-#endif
-};
-extern struct my_event_container *event_loop_init(int fd);
-#endif
 extern void event_loop_init(int fd);
 jmp_buf main_jmp_buf;
 p99_futex first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
