@@ -61,8 +61,8 @@ struct timer {
 
 /*======================================================================================*/
 
-const double USEC2SECOND = 1000000.0;
-const double NSEC2SECOND = 1000000000.0;
+#define USEC2SECOND (1000000.0)
+#define NSEC2SECOND (1000000000.0)
 
 #define MKTIMESPEC(FLT) (&(struct timespec){ \
           (int64_t)(FLT),                    \
