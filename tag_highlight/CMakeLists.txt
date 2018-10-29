@@ -47,8 +47,8 @@ find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibLZMA)
 find_package (LibClang REQUIRED)
-find_package (PCRE2 REQUIRED)
-find_package (LibEv REQUIRED)
+# find_package (PCRE2 REQUIRED)
+# find_package (LibEv REQUIRED)
 
 include_directories(${ZLIB_INCLUDE_DIRS})
 include_directories(${PCRE2_INCLUDE_DIRS})
@@ -175,7 +175,7 @@ else()
               " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
                )
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
-        string (JOIN " " CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE}"
+        # string (CONCAT CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} "
             # "-Rpass='.*'"
             # "-Rpass-missed='.*'" 
             # "-Rpass='inline'"
@@ -183,7 +183,7 @@ else()
             # "-mllvm -inline-threshold=10000000"
             # "-mllvm -inlinehint-threshold=30000000"
             # "-Rpass-analysis='.*'"
-        )
+        # )
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
@@ -191,8 +191,8 @@ else()
     endif()
 #####################################################################################################
 
-    string (JOIN " " CMAKE_C_FLAGS_MINSIZEREL  "${CMAKE_C_FLAGS_MINSIZEREL}" "${BASE}" "-Os")
-    string (JOIN " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}" "${BASE}" "-g3 -Ofast -ftree-vectorize")
+    string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Os")
+    string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -g3 -Ofast -ftree-vectorize")
 
     if (MINGW)
         set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--allow-multiple-definition")

@@ -137,10 +137,10 @@ mpack_decode_stream(int32_t fd)
 mpack_obj *
 mpack_decode_obj(bstring *buf)
 {
-        bstring *cpy = &(bstring){
-            .data = buf->data, .slen = buf->slen, .mlen = 0, .flags = 0
-        };
-        mpack_obj *ret = do_decode(&obj_read, cpy);
+        /* bstring *cpy = &(bstring){                                      */
+        /*     .data = buf->data, .slen = buf->slen, .mlen = 0, .flags = 0 */
+        /* };                                                              */
+        mpack_obj *ret = do_decode(&obj_read, buf);
 
         if (!ret)
                 errx(1, "Failed to decode stream.");

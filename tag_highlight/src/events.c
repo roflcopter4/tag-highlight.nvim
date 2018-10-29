@@ -22,6 +22,12 @@
 #endif
 #define UEVP_ __attribute__((__unused__)) EV_P
 
+#define EVENT_LIB_EV     1
+#define EVENT_LIB_EVENT2 2
+#define EVENT_LIB_UV     3
+#define EVENT_LIB_NONE   4
+#define USE_EVENT_LIB    EVENT_LIB_UV
+
 typedef volatile p99_futex vfutex_t;
 
 /*======================================================================================*/
@@ -38,9 +44,9 @@ static void         *emergency_debug     (void *vdata);
 #endif
 static void           post_nvim_response(mpack_obj *obj);
 static noreturn void *nvim_event_handler(void *unused);
-static void           event_loop_io_callback(UEVP_, ev_io *w, int revents);
+/* static void           event_loop_io_callback(UEVP_, ev_io *w, int revents);
 static void           sig_cb(UEVP_, ev_signal *w, int revents);
-static void           graceful_sig_cb(struct ev_loop *loop, ev_signal *w, int revents);
+static void           graceful_sig_cb(struct ev_loop *loop, ev_signal *w, int revents); */
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
@@ -58,9 +64,6 @@ struct event_node {
         event_node *p99_fifo;
 };
 P99_FIFO(event_node_ptr) nvim_event_queue;
-
-struct ev_io     input_watcher;
-struct ev_signal signal_watcher[4];
 
 static const struct event_id {
         const bstring          name;
@@ -111,6 +114,13 @@ nvim_event_handler(UNUSED void *unused)
         pthread_mutex_unlock(&nvim_event_handler_mutex);
         pthread_exit();
 }
+
+/*======================================================================================*/
+#if USE_EVENT_LIB == EVENT_LIB_EV
+
+#  include <ev.h>
+struct ev_io     input_watcher;
+struct ev_signal signal_watcher[4];
 
 static void
 event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
@@ -178,6 +188,221 @@ event_loop_init(const int fd)
 
         return loop;
 }
+
+/*======================================================================================*/
+#elif USE_EVENT_LIB == EVENT_LIB_EVENT2
+
+#  include <event2/event.h>
+#  include <event2/thread.h>
+
+struct my_event_container {
+        struct event_base *base;
+        struct event      *io_loop;
+#  ifdef DOSISH
+        WSADATA wsaData;
+#  endif
+};
+
+static void
+event_loop_io_callback(evutil_socket_t fd, UNUSED short events, UNUSED void *data)
+{
+        pthread_mutex_lock(&event_loop_cb_mutex);
+
+        //const int  fd  = w->fd;
+        mpack_obj *obj = mpack_decode_stream(fd);
+
+        if (!obj)
+                errx(1, "Got NULL object from decoder. This should never be "
+                        "possible. Cannot continue; aborting.");
+
+        const nvim_message_type mtype = (nvim_message_type)
+                                        m_expect(m_index(obj, 0), E_NUM).num;
+
+        switch (mtype) {
+        case MES_NOTIFICATION: {
+                event_node *node = xcalloc(1, sizeof(event_node));
+                node->obj        = obj;
+                P99_FIFO_APPEND(&nvim_event_queue, node);
+                START_DETACHED_PTHREAD(nvim_event_handler);
+        } break;
+        case MES_RESPONSE:
+                post_nvim_response(obj);
+                break;
+        case MES_REQUEST:
+        case MES_ANY:
+        default:
+                abort();
+        }
+
+        pthread_mutex_unlock(&event_loop_cb_mutex);
+}
+
+struct my_event_container *
+event_loop_init(const int fd)
+{
+        struct my_event_container *ret = xmalloc(sizeof *ret);
+#  ifdef DOSISH
+        if (WSAStartup(MAKEWORD(2,2), &ret->wsaData) != 0)
+                err(1, "WSAStartup() failed.\n");
+        evthread_use_windows_threads();
+#  endif
+        /* evthread_use_pthreads(); */
+
+        ret->base    = event_base_new();
+        ret->io_loop = event_new(ret->base, fd, EV_READ|EV_PERSIST, event_loop_io_callback, NULL);
+        event_add(ret->io_loop, NULL);
+        
+        /* event_free(ret->io_loop); */
+        /* event_base_free(ret->base); */
+        /* xfree(ret); */
+        return ret;
+}
+
+/*======================================================================================*/
+#elif USE_EVENT_LIB == EVENT_LIB_UV
+
+#  include <uv.h>
+
+static noreturn void *
+event_loop_io_callback(void *vdata)
+{
+        pthread_mutex_lock(&event_loop_cb_mutex);
+
+        mpack_obj *obj = vdata;
+        if (!obj)
+                errx(1, "Got NULL object from decoder. This should never be "
+                        "possible. Cannot continue; aborting.");
+
+        const nvim_message_type mtype = (nvim_message_type)
+                                        m_expect(m_index(obj, 0), E_NUM).num;
+
+        switch (mtype) {
+        case MES_NOTIFICATION: {
+                event_node *node = xcalloc(1, sizeof(event_node));
+                node->obj        = obj;
+                P99_FIFO_APPEND(&nvim_event_queue, node);
+                START_DETACHED_PTHREAD(nvim_event_handler);
+        } break;
+        case MES_RESPONSE:
+                post_nvim_response(obj);
+                break;
+        case MES_REQUEST:
+        case MES_ANY:
+        default:
+                abort();
+        }
+
+        pthread_mutex_unlock(&event_loop_cb_mutex);
+        pthread_exit();
+}
+
+#  ifdef DOSISH
+static void alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
+         *buf = uv_buf_init(xmalloc(suggested_size), suggested_size);
+}
+
+static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
+{
+        if (nread <= 0)
+                return;
+        bstring *str = &(bstring){
+            .slen = nread, .mlen = 0, .data = (uchar *)buf->base, .flags = 0};
+
+        while (str->slen > 0) {
+                mpack_obj *obj = mpack_decode_obj(str);
+                START_DETACHED_PTHREAD(event_loop_io_callback, obj);
+        }
+        xfree(buf >base);
+}
+#  else
+static uv_buf_t alloc_buffer(UNUSED uv_handle_t *handle, size_t suggested_size)
+{
+         return uv_buf_init(xmalloc(suggested_size), suggested_size);
+}
+
+static void read_callback(UNUSED uv_stream_t *stream, ssize_t nread, const uv_buf_t buf)
+{
+        if (nread <= 0)
+                return;
+        bstring *str = &(bstring){
+            .slen = nread, .mlen = 0, .data = (uchar *)buf.base, .flags = 0};
+
+        while (str->slen > 0) {
+                mpack_obj *obj = mpack_decode_obj(str);
+                START_DETACHED_PTHREAD(event_loop_io_callback, obj);
+        }
+        xfree(buf.base);
+}
+#  endif
+
+void
+event_loop_init(const int fd)
+{
+        uv_loop_t *loop = uv_default_loop();
+        uv_pipe_t *p    = xmalloc(sizeof *p);
+        uv_pipe_init(loop, p, 0);
+        uv_pipe_open(p, fd);
+        uv_read_start((uv_stream_t *)p, alloc_buffer, read_callback);
+        uv_run(loop, UV_RUN_DEFAULT);
+}
+
+/*======================================================================================*/
+#elif USE_EVENT_LIB == EVENT_LIB_NONE
+
+struct cb_data {
+        int fd;
+        mpack_obj *obj;
+};
+
+static noreturn void *
+event_loop_io_callback(void *vdata)
+{
+        pthread_mutex_lock(&event_loop_cb_mutex);
+
+        const int  fd  = ((struct cb_data *)vdata)->fd;
+        mpack_obj *obj = ((struct cb_data *)vdata)->obj;
+        xfree(vdata);
+
+        if (!obj)
+                errx(1, "Got NULL object from decoder. This should never be "
+                        "possible. Cannot continue; aborting.");
+
+        const nvim_message_type mtype = (nvim_message_type)
+                                        m_expect(m_index(obj, 0), E_NUM).num;
+
+        switch (mtype) {
+        case MES_NOTIFICATION: {
+                event_node *node = xcalloc(1, sizeof(event_node));
+                node->obj        = obj;
+                P99_FIFO_APPEND(&nvim_event_queue, node);
+                START_DETACHED_PTHREAD(nvim_event_handler);
+        } break;
+        case MES_RESPONSE:
+                post_nvim_response(obj);
+                break;
+        case MES_REQUEST:
+        case MES_ANY:
+        default:
+                abort();
+        }
+
+        pthread_mutex_unlock(&event_loop_cb_mutex);
+        pthread_exit();
+}
+
+noreturn void
+event_loop_init(const int fd)
+{
+        for (;;) {
+                mpack_obj *obj = mpack_decode_stream(fd);
+                struct cb_data *data = xmalloc(sizeof *data);
+                data->fd = fd;
+                data->obj = obj;
+                START_DETACHED_PTHREAD(event_loop_io_callback, data);
+        }
+}
+#endif
 
 /*======================================================================================*/
 /* Event Handlers */

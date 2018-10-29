@@ -400,6 +400,7 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *b
 
 #define CMD_SIZ      (4096)
 #define STATUS_SHIFT (8)
+#define TMP_LOCATION "/tmp"
 
 static void
 get_tmp_path(void)
@@ -410,7 +411,7 @@ get_tmp_path(void)
         b_destroy(name);
         mkdir(libclang_tmp_path, 0700);
 #else
-        memcpy(libclang_tmp_path, SLS("/mnt/ramdisk/tag_highlight_XXXXXX"));
+        memcpy(libclang_tmp_path, SLS(TMP_LOCATION "/tag_highlight_XXXXXX"));
         errno = 0;
         if (!mkdtemp(libclang_tmp_path))
                 err(1, "mkdtemp failed");
@@ -425,7 +426,7 @@ clean_tmpdir(void)
 #ifndef DOSISH
         int  status, pid, ret;
         char cmd[CMD_SIZ];
-        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", "/mnt/ramdisk");
+        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", TMP_LOCATION);
         char *const argv[] = {"sh", "-c", cmd, (char *)0};
 
         posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
