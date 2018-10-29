@@ -19,6 +19,7 @@
 #cmakedefine HAVE_STRSEP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
+#cmakedefine HAVE_CLOCK_GETTIME
 
 #cmakedefine HAVE_COMPLEX_H
 #cmakedefine HAVE_EXECINFO_H

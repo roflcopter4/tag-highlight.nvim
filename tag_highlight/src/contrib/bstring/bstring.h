@@ -262,7 +262,7 @@ BSTR_PUBLIC int b_alloc(bstring *bstr, unsigned olen);
 BSTR_PUBLIC int b_allocmin(bstring *bstr, unsigned len);
 
 
-__always_inline int b_growby(bstring *bstr, unsigned len)
+extern __inline__ __attribute__((__always_inline__)) int b_growby(bstring *bstr, unsigned len)
 {
         return b_alloc(bstr, bstr->mlen + len);
 }

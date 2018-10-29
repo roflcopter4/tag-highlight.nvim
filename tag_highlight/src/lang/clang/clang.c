@@ -23,7 +23,7 @@
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_Incomplete                  \
          | CXTranslationUnit_CreatePreambleOnFirstParse  \
-         | CXTranslationUnit_IncludeAttributedTypes )
+         /*| CXTranslationUnit_IncludeAttributedTypes*/ )
 #define INIT_ARGV   (32)
 #define DUMPDATASIZ ((int64_t)((double)SAFE_PATH_MAX * 1.5))
 
@@ -83,18 +83,20 @@ void
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
 
-        TRY {
+        //TRY {
                 pthread_mutex_lock(&bdata->lock.ctick);
                 const unsigned new = atomic_load(&bdata->ctick);
                 const unsigned old = atomic_exchange(&bdata->last_ctick, new);
 
                 if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
-                        ECHO("Ctick unchanged (%u vs %u). Returning.", old, new);
-                        TRY_RETURN;
+                        /* ECHO("Ctick unchanged (%u vs %u). Returning.", old, new); */
+                        pthread_mutex_unlock(&bdata->lock.ctick);
+                        return;
+                        //TRY_RETURN;
                 }
-        } FINALLY {
+        //} FINALLY {
                 pthread_mutex_unlock(&bdata->lock.ctick);
-        }
+        //}
 
         struct translationunit *stu;
         int64_t                 startend[2];
@@ -104,7 +106,7 @@ void
 
         if (cnt_val >= 2) {
                 p99_futex_add(&bdata->lock.clang_count, (-1u));
-                ECHO("Too many waiters, returning!");
+                /* ECHO("Too many waiters, returning!"); */
                 return;
         }
 

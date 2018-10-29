@@ -100,7 +100,7 @@ bool
                 pthread_mutex_init(&bdata->lock.total, &attr);
                 pthread_mutex_init(&bdata->lock.ctick, &attr);
                 pthread_mutex_init(&bdata->lock.update, &attr);
-                bdata->lock.clang_count = FUTEX_INITIALIZER(0);
+                bdata->lock.clang_count = (p99_futex)FUTEX_INITIALIZER(0);
                 /* pthread_mutex_init(&bdata->lock.clang, &attr); */
                 /* bdata->lock.clang_flg = (atomic_flag)ATOMIC_FLAG_INIT; */
         }

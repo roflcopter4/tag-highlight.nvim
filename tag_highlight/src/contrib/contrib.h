@@ -5,6 +5,8 @@
    extern "C" {
 #endif
 
+#include "tag_highlight.h"
+
 #include <stdint.h>
 #include <string.h>
 #ifdef HAVE_TOPCONFIG_H
@@ -36,7 +38,7 @@
 
 #ifdef DOSISH
 #  include <WinSock2.h>
-extern int dprintf(const SOCKET fd, const char *__restrict fmt, ...) __aFMT(2, 3);
+extern int dprintf(const SOCKET fd, const char *__restrict fmt, ...);
 #endif
 
 #ifndef HAVE_GETTIMEOFDAY

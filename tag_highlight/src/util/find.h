@@ -3,7 +3,7 @@
 
 /* #include "tag_highlight.h" */
 
-#include "bstring/bstring.h"
+#include "contrib/bstring/bstring.h"
 
 #ifdef __cplusplus
 extern "C" {

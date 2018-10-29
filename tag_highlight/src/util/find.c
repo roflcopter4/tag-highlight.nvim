@@ -72,10 +72,9 @@ find_file(const char *path, const char *search, const enum find_flags flags)
 static bstring *
 run_find(const char *path, const char *search)
 {
-        int pipefds[2] = {0, 0};
-        int status     = 0;
-
+        int status = 0;
 #ifdef HAVE_FORK
+        int pipefds[2] = {0, 0};
 #  ifdef HAVE_PIPE2
         if (pipe2(pipefds, O_NONBLOCK|O_CLOEXEC) == (-1))
                 err(1, "Pipe failed");
@@ -114,13 +113,15 @@ run_find(const char *path, const char *search)
         if (ret->slen == 0)
                 b_destroy(ret);
 #else
-        char buf[8192];
-        snprintf(buf, 8192, "find %s -regex %s > .find_tmp", path, search);
+        char buf[8192], tmpbuf[SAFE_PATH_MAX];
+        strcpy_s(tmpbuf, SAFE_PATH_MAX, ".find_tmp_XXXXXX");
+        tmpnam_s(tmpbuf, SAFE_PATH_MAX);
+        snprintf(buf, 8192, "find %s -regex %s > %s", path, search, tmpbuf);
         status = system(buf);
         if ((status >>= 8) != 0)
                 errx(status, "Command failed with status %d", status);
-        bstring *ret = b_quickread(".find_tmp");
-        unlink(".find_tmp");
+        bstring *ret = b_quickread("%s", tmpbuf);
+        unlink(tmpbuf);
 #endif
 
         return ret;

@@ -52,7 +52,7 @@
 
 #ifdef __GNUC__
 #  define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
-#  if !defined(_WIN32) && !defined(__cygwin__)
+#  ifdef HAVE_EXECINFO_H
 #    include <execinfo.h>
 #  endif
 #else

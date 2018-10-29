@@ -46,6 +46,8 @@ extern "C" {
 #  include <pthread.h>
 #  define PATHSEP '\\'
 #  define __CLEANUP_C
+#  define at_quick_exit(a)
+#  define quick_exit(a) _Exit(a)
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
 extern char * basename(char *path);
@@ -97,7 +99,7 @@ extern char * basename(char *path);
 
 #include "contrib/bstring/bstring.h"
 #include "contrib/contrib.h"
-#include <ev.h>
+//#include <ev.h>
 
 //#include "p99/p99_clib.h"
 
@@ -152,6 +154,10 @@ struct backups {
 #define __aALSZ(...)   __attribute__((__alloc_size__(__VA_ARGS__)))
 #define __aNNA         __attribute__((__nonnull__))
 #define __aNN(...)     __attribute__((__nonnull__(__VA_ARGS__)))
+
+#ifndef __always_inline
+#  define __always_inline extern __inline__ __attribute__((__always_inline__))
+#endif
 
 #ifdef __clang__
 #  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))

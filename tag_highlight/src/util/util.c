@@ -198,7 +198,7 @@ warn_(const bool print_err, const char *const __restrict fmt, ...)
         else
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
-        nvim_vprintf(0, buf, ap1);
+        vfprintf(stderr, buf, ap1);
 
 /* #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);
@@ -289,9 +289,10 @@ free_backups(struct backups *list)
         list->qty = 0;
 }
 
-#define READ_FD  (0)
-#define WRITE_FD (1)
-#include <wait.h>
+#ifdef HAVE_FORK
+#  define READ_FD  (0)
+#  define WRITE_FD (1)
+#  include <wait.h>
 
 bstring *
 (get_command_output)(const char *command, char *const *const argv, bstring *input)
@@ -319,3 +320,4 @@ bstring *
                 SHOUT("Command failed with status %d\n", status);
         return rd;
 }
+#endif
