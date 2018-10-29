@@ -47,14 +47,24 @@ static noreturn void *main_initialization(void *arg);
 #define exit_defarg_0() (EXIT_SUCCESS)
 #define ev_run(...) P99_CALL_DEFARG(ev_run, 2, __VA_ARGS__)
 #define ev_run_defarg_1() (0)
-#define event_loop_init(...) P99_CALL_DEFARG(event_loop_init, 1, __VA_ARGS__)
-#define event_loop_init_defarg_0() (0)
 
 #include "my_p99_common.h"
-#include "nvim_api/apiv2.h"
-extern void try_go_crap(struct bufdata *bdata);
+/* #include "nvim_api/apiv2.h" */
+/* extern void try_go_crap(struct bufdata *bdata); */
 
-extern struct ev_loop *event_loop_init(int fd);
+/* extern struct ev_loop *event_loop_init(int fd); */
+#if 0
+#include "event2/event.h"
+struct my_event_container {
+        struct event_base *base;
+        struct event      *io_loop;
+#ifdef DOSISH
+        WSADATA wsaData;
+#endif
+};
+extern struct my_event_container *event_loop_init(int fd);
+#endif
+extern void event_loop_init(int fd);
 jmp_buf main_jmp_buf;
 p99_futex first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 
@@ -71,9 +81,20 @@ main(UNUSED int argc, char *argv[])
         p99_futex_init(&first_buffer_initialized, 0);
         at_quick_exit(quick_cleanup);
         
-        struct ev_loop *mainloop = event_loop_init();
+        /* struct ev_loop *mainloop = event_loop_init(0); */
         START_DETACHED_PTHREAD(main_initialization, main_timer);
-        ev_run(mainloop);
+        event_loop_init(0);
+#if 0
+        struct my_event_container *mainloop = event_loop_init(0);
+        /* event_loop_init(0); */
+        /* ev_run(mainloop); */
+
+        event_base_loop(mainloop->base, 0);
+        SHOUT("DONE!\n");
+        event_free(mainloop->io_loop);
+        event_base_free(mainloop->base);
+        xfree(mainloop);
+#endif
 
         eprintf("Right, cleaning up!\n");
         exit_cleanup();
@@ -106,7 +127,7 @@ main_initialization(void *arg)
 {
         struct timer *main_timer = arg;
         get_settings();
-        (void)_nvim_get_api_context(0);
+        /* (void)_nvim_get_api_context(0); */
 
         int initial_buf = 0;
 

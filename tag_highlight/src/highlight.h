@@ -8,7 +8,6 @@
 #define DEFAULT_FD       (1)
 #define BUFFER_ATTACH_FD (0)
 
-#include "bstring/bstring.h"
 #include "data.h"
 #include "highlight.h"
 #include "nvim_api/api.h"

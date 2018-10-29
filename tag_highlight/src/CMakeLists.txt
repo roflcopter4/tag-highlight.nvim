@@ -16,7 +16,7 @@ set (tag_highlight_SOURCES
     nvim_api/api.c
     nvim_api/common.c
     nvim_api/misc.c
-    nvim_api/mark2.c
+    # nvim_api/mark2.c
     nvim_api/api.h
     nvim_api/intern.h
     nvim_api/read.h
@@ -32,7 +32,7 @@ set (tag_highlight_SOURCES
     my_p99_common.h
     tag_highlight.h
 
-    go_crap.c
+    # go_crap.c
     regex.c
     lang/common.c
     lang/common.h
@@ -163,8 +163,11 @@ else()
         ${LIBCLANG_LIBRARIES}
         ${ZLIB_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
-        ${PCRE2_LIBRARIES}
-        ${LIBEV_LIBRARIES}
+        # ${PCRE2_LIBRARIES}
+        -lpcre2-8
+        -luv
+        # -levent
+        # ${LIBEV_LIBRARIES}
     )
 
     # target_link_libraries(tag_highlight
