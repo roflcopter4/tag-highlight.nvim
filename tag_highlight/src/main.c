@@ -7,15 +7,10 @@
 #include "mpack/mpack.h"
 #include "my_p99_common.h"
 
-/* #include "lang/golang/pkg/gccgo_linux_amd64_fPIC/tag_highlight_go.h" */
-/* #include "lang/golang/pkg/linux_amd64_shared/tag_highlight_go.h" */
-
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
         const char *program_invocation_short_name;
-#  define at_quick_exit(a)
-#  define quick_exit(a) _Exit(a)
 #endif
 #ifdef HAVE_PAUSE
 #  define PAUSE() pause()
@@ -23,75 +18,72 @@
 #  define PAUSE() do fsleep(1000000.0); while (1)
 #endif
 
+extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
+static struct timer main_timer               = TIMER_STATIC_INITIALIZER;
+p99_futex           first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
+char                LOGDIR[SAFE_PATH_MAX];
+pthread_t           top_thread;
+
+static void           init                (char **argv);
+static void           platform_init       (char **argv);
+static void           get_settings        (void);
+static void           open_logs           (void);
+static void           exit_cleanup        (void);
+static void           quick_cleanup       (void);
+static comp_type_t    get_compression_type(int fd);
+static noreturn void *main_initialization (void *arg);
+extern void           event_loop_init     (int fd);
+
 #define SIGHANDLER_QUICK  (1)
 #define SIGHANDLER_NORMAL (2)
 #define WAIT_TIME         (3.0)
-
-extern FILE      *cmd_log, *echo_log, *main_log, *mpack_raw;
-extern pthread_t  top_thread;
-pthread_t         top_thread;
-char              LOGDIR[PATH_MAX+1];
-
-static void           platform_init(char **argv);
-static void           get_settings(void);
-static void           open_logs(void);
-static void           exit_cleanup(void);
-static void           quick_cleanup(void);
-static comp_type_t    get_compression_type(int fd);
-static noreturn void *main_initialization(void *arg);
-
-#define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
-#define get_compression_type_defarg_0() (0)
-#define exit(...) P99_CALL_DEFARG(exit, 1, __VA_ARGS__)
-#define exit_defarg_0() (EXIT_SUCCESS)
-#define ev_run(...) P99_CALL_DEFARG(ev_run, 2, __VA_ARGS__)
-#define ev_run_defarg_1() (0)
-
-#include "my_p99_common.h"
-extern void event_loop_init(int fd);
-jmp_buf main_jmp_buf;
-p99_futex first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
+#define eputs(str)        fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
+#define get_compression_type(...)       P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
+#define get_compression_type_defarg_0() (_nvim_api_read_fd)
 
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
-        struct timer *main_timer = TIMER_INITIALIZER;
-        top_thread               = pthread_self();
+        _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(main_timer);
+        init(argv);
+
+        /* This actually runs the event loop and does not normally return. */
+        event_loop_init(_nvim_api_read_fd);
+
+        /* If the user explicitly gives the vim command to stop the plugin, the loop does
+         * return and we can clean everything up. We don't do this when Neovim exits
+         * because the editor freezes until all child processes, meaning this program,
+         * exit. This delay is noticeable and annoying, so normally we just call
+         * quick_exit or _Exit instead. */
+        eputs("Right, cleaning up!\n");
+        exit_cleanup();
+        exit(EXIT_SUCCESS);
+}
+
+/*======================================================================================*/
+/* General Setup */
+
+static void
+init(char **argv)
+{
+        top_thread = pthread_self();
         platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
         at_quick_exit(quick_cleanup);
-        
-        /* struct ev_loop *mainloop = event_loop_init(0); */
-        START_DETACHED_PTHREAD(main_initialization, main_timer);
-        event_loop_init(0);
-#if 0
-        struct my_event_container *mainloop = event_loop_init(0);
-        /* event_loop_init(0); */
-        /* ev_run(mainloop); */
-
-        event_base_loop(mainloop->base, 0);
-        SHOUT("DONE!\n");
-        event_free(mainloop->io_loop);
-        event_base_free(mainloop->base);
-        xfree(mainloop);
-#endif
-
-        eprintf("Right, cleaning up!\n");
-        exit_cleanup();
-        exit();
+        START_DETACHED_PTHREAD(main_initialization);
 }
 
 static void
 platform_init(char **argv)
 {
+        if (!program_invocation_short_name)
+                program_invocation_short_name = basename(argv[0]);
 #ifdef DOSISH
         HOME = getenv("USERPROFILE");
-        extern const char *program_invocation_short_name;
-        program_invocation_short_name = basename(argv[0]);
 
         /* Set the standard streams to binary mode on Windows */
         if (_setmode(0, O_BINARY) == (-1))
@@ -101,19 +93,34 @@ platform_init(char **argv)
         if (_setmode(2, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stderr");
 #else
-        (void)argv;
         HOME = getenv("HOME");
 #endif
 }
 
-static noreturn void *
-main_initialization(void *arg)
+/**
+ * Open debug logs
+ */
+static void
+open_logs(void)
 {
-        struct timer *main_timer = arg;
-        get_settings();
-        /* (void)_nvim_get_api_context(0); */
+#ifdef DEBUG
+        extern char LOGDIR[];
+        snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag_highlight_log", HOME);
+        mkdir(LOGDIR, 0777);
+        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
+        mpack_raw      = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
+        setvbuf(mpack_raw, NULL, 0, _IONBF);
+        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
+        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
+        main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
+#endif
+}
 
-        int initial_buf = 0;
+static noreturn void *
+main_initialization(UNUSED void *arg)
+{
+        unsigned initial_buf = 0;
+        get_settings();
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
@@ -137,12 +144,9 @@ main_initialization(void *arg)
         update_highlight(bdata);
 
         TIMER_REPORT(main_timer, "main initialization");
-        nvim_set_client_info(,B("tag_highlight"), 0, 1, B("alpha"));
+        nvim_set_client_info(,B(PKG), 0, 1, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1u, 0u, P99_FUTEX_MAX_WAITERS);
-
-        /* if (bdata->ft->id == FT_GO)
-                try_go_crap(bdata); */
 
         pthread_exit();
 }
@@ -167,22 +171,6 @@ get_settings(void)
         settings.verbose        = nvim_get_var(,B(PKG "verbose"),           E_BOOL      ).num;
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
-#endif
-}
-
-static void
-open_logs(void)
-{
-#ifdef DEBUG
-        extern char LOGDIR[];
-        snprintf(LOGDIR, PATH_MAX+1, "%s/.tag_highlight_log", HOME);
-        mkdir(LOGDIR, 0777);
-        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
-        mpack_raw      = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
-        setvbuf(mpack_raw, NULL, 0, _IONBF);
-        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
-        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
-        main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
 #endif
 }
 

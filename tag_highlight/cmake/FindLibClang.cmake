@@ -38,6 +38,14 @@
 # You should have received a copy of the GNU General Public License
 # along with RTags.  If not, see <http://www.gnu.org/licenses/>.
 
+
+macro(FIX_WINDOWS_PATHS _pathvar)
+    if (WIN32 OR MINGW)
+        string(REPLACE "\\" "/" _TMP_VAR1 "${${_pathvar}}")
+        set (${_pathvar} ${_TMP_VAR1})
+    endif ()
+endmacro()
+
 if (NOT LIBCLANG_ROOT_DIR)
     set(LIBCLANG_ROOT_DIR $ENV{LIBCLANG_ROOT_DIR})
 endif ()
@@ -98,6 +106,7 @@ if (NOT LIBCLANG_CFLAGS)
     endif ()
     string(REGEX MATCHALL "-(D__?[a-zA-Z_]*|I([^\" ]+|\"[^\"]+\"))" LIBCLANG_CFLAGS "${LIBCLANG_CFLAGS}")
     string(REGEX REPLACE ";" " " LIBCLANG_CFLAGS "${LIBCLANG_CFLAGS}")
+    FIX_WINDOWS_PATHS(LIBCLANG_CXXFLAGS)
     set(LIBCLANG_CFLAGS ${LIBCLANG_CFLAGS} CACHE STRING "The LLVM C++ compiler flags needed to compile LLVM based applications.")
     unset(LIBCLANG_CFLAGS_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT CACHE)
 endif ()
@@ -121,10 +130,10 @@ if (NOT LIBCLANG_CXXFLAGS)
     endif ()
     string(REGEX MATCHALL "-(D__?[a-zA-Z_]*|I([^\" ]+|\"[^\"]+\"))" LIBCLANG_CXXFLAGS "${LIBCLANG_CXXFLAGS}")
     string(REGEX REPLACE ";" " " LIBCLANG_CXXFLAGS "${LIBCLANG_CXXFLAGS}")
+    FIX_WINDOWS_PATHS(LIBCLANG_CXXFLAGS)
     set(LIBCLANG_CXXFLAGS ${LIBCLANG_CXXFLAGS} CACHE STRING "The LLVM C++ compiler flags needed to compile LLVM based applications.")
     unset(LIBCLANG_CXXFLAGS_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT CACHE)
 endif ()
- 
 
 if (NOT EXISTS ${LIBCLANG_LIBDIR})
     if (NOT LIBCLANG_LLVM_CONFIG_EXECUTABLE)
@@ -134,8 +143,24 @@ if (NOT EXISTS ${LIBCLANG_LIBDIR})
     if (NOT EXISTS ${LIBCLANG_LIBDIR})
         message(FATAL_ERROR "Could NOT find clang libdir. You can fix this by setting LIBCLANG_LIBDIR in your shell or as a cmake variable.")
     endif ()
+    # FIX_WINDOWS_PATHS(LIBCLANG_LIBDIR)
     set(LIBCLANG_LIBDIR ${LIBCLANG_LIBDIR} CACHE STRING "Path to the clang library.")
 endif ()
+
+
+## added
+if (NOT LLVM_LIBRARIES)
+    execute_process(COMMAND ${LIBCLANG_LLVM_CONFIG_EXECUTABLE} --libfiles OUTPUT_VARIABLE LLVM_LIBRARIES OUTPUT_STRIP_TRAILING_WHITESPACE)
+    separate_arguments(LLVM_LIBRARIES)
+endif()
+if (NOT LLVM_SYS_LIBRARIES)
+    execute_process(COMMAND ${LIBCLANG_LLVM_CONFIG_EXECUTABLE} --system-libs OUTPUT_VARIABLE LLVM_SYS_LIBRARIES OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
+# if (MINGW)
+#     set(LIBCLANG_LIBRARIES "${LIBCLANG_LIBDIR}/libclang.a" CACHE STRING "Libclang archive.")
+# endif()
+##
+
 
 if (NOT LIBCLANG_LIBRARIES)
     find_library(LIBCLANG_LIB_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT NAMES clang libclang HINTS ${LIBCLANG_LIBDIR} ${LIBCLANG_ROOT_DIR}/lib NO_DEFAULT_PATH)
@@ -150,6 +175,7 @@ if (NOT LIBCLANG_LIBRARIES)
     unset(LIBCLANG_LIB_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT CACHE)
 endif ()
 
+# FIX_WINDOWS_PATHS(LIBCLANG_LIBRARIES)
 set(LIBCLANG_LIBRARY ${LIBCLANG_LIBRARIES} CACHE FILEPATH "Path to the libclang library")
 
 if (LIBCLANG_LLVM_CONFIG_EXECUTABLE)

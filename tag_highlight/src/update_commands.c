@@ -13,7 +13,7 @@
         nvim_get_var(0, B(PKG VARNAME_), (EXPECT_), (KEY_), (FATAL_))
 
 struct cmd_info {
-        int kind;
+        int      kind;
         bstring *group;
         bstring *prefix;
         bstring *suffix;
@@ -30,7 +30,6 @@ static void     update_other(struct bufdata *bdata);
 static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                             const struct taglist  *tags, const struct cmd_info *info);
 
-/* extern pthread_mutex_t update_mutex; */
 #ifdef DEBUG
 extern FILE *cmd_log;
 #  define LOGCMD(...) fprintf(cmd_log, __VA_ARGS__)
@@ -295,7 +294,6 @@ get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
                 bstring *output = nvim_command_output(0, btp_fromblk(cmd, len), E_STRING).ptr;
                 if (!output)
                         continue;
-
                 const char *ptr = strstr(BS(output), "xxx");
                 if (!ptr) {
                         b_destroy(output);
@@ -409,12 +407,9 @@ get_ignored_tags(struct bufdata *bdata)
 
         if (restored_groups) {
                 b_list_writeallow(restored_groups);
-                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP) {
+                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP)
                         get_tags_from_restored_groups(bdata, restored_groups);
-#ifdef DEBUG
-                        b_list_dump(cmd_log, bdata->ft->ignored_tags);
-#endif
-                } else
+                else
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
 
                 b_list_destroy(restored_groups);
@@ -428,23 +423,24 @@ get_ignored_tags(struct bufdata *bdata)
 static void
 add_cmd_call(nvim_arg_array **calls, bstring *cmd)
 {
-        assert(calls);
+#define CALLS (*calls)
         if (!*calls) {
-                (*calls)        = xmalloc(sizeof **calls);
-                (*calls)->mlen  = 16;
-                (*calls)->fmt   = xcalloc((*calls)->mlen, sizeof(char *));
-                (*calls)->args  = xcalloc((*calls)->mlen, sizeof(nvim_argument *));
-                (*calls)->qty   = 0;
-        } else if ((*calls)->qty >= (*calls)->mlen-1) {
-                (*calls)->mlen *= 2;
-                (*calls)->fmt   = nrealloc((*calls)->fmt,  (*calls)->mlen, sizeof(char *));
-                (*calls)->args  = nrealloc((*calls)->args, (*calls)->mlen, sizeof(nvim_argument *));
+                CALLS        = xmalloc(sizeof(nvim_arg_array *));
+                CALLS->qty   = 0;
+                CALLS->mlen  = 16;
+                CALLS->fmt   = xcalloc(CALLS->mlen, sizeof(char *));
+                CALLS->args  = xcalloc(CALLS->mlen, sizeof(nvim_argument *));
+        } else if (CALLS->qty >= CALLS->mlen-1) {
+                CALLS->mlen *= 2;
+                CALLS->fmt   = nrealloc(CALLS->fmt,  CALLS->mlen, sizeof(char *));
+                CALLS->args  = nrealloc(CALLS->args, CALLS->mlen, sizeof(nvim_argument *));
         }
 
-        (*calls)->args[(*calls)->qty]        = nmalloc(2, sizeof(nvim_argument));
-        (*calls)->fmt[(*calls)->qty]         = strdup("s[s]");
-        (*calls)->args[(*calls)->qty][0].str = b_lit2bstr("nvim_command");
-        (*calls)->args[(*calls)->qty][1].str = cmd;
+        CALLS->args[CALLS->qty]        = nmalloc(2, sizeof(nvim_argument));
+        CALLS->fmt[CALLS->qty]         = strdup("s[s]");
+        CALLS->args[CALLS->qty][0].str = b_lit2bstr("nvim_command");
+        CALLS->args[CALLS->qty][1].str = cmd;
 
-        ++(*calls)->qty;
+        ++CALLS->qty;
+#undef CALLS
 }

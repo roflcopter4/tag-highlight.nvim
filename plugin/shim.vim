@@ -138,21 +138,18 @@ function! s:InitTagHighlight()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
 
-    call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
-
-    "if filereadable(expand('~/.vim_tags/bin/tag_highlight'))
-    "    let l:binary = expand('~/.vim_tags/bin/tag_highlight')
-    "elseif filereadable(expand('~/.vim_tags/bin/tag_highlight.exe'))
-    "    let l:binary = expand('~/.vim_tags/bin/tag_highlight.exe')
-    "else
-    "    echom 'Failed to find binary'
-    "    return
-    "endif
-    "let l:binary = 'D:/msys64/mingw64/bin/tag_highlight.exe'
-    " let l:binary = 'D:\ass\c\thl\tag_highlight\mingw\src\tag_highlight.exe'
-
-    let l:binary = expand('~/.vim_tags/bin/tag_highlight')
-
+    try
+        call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
+    endtry
+        
+    if has('unix')
+        let l:binary = expand('~/.vim_tags/bin/tag_highlight')
+    elseif has('win32')
+        let l:binary = expand('~/.vim_tags/bin/tag_highlight')
+    else
+        finish
+    endif
+        
     echom 'Opening ' . l:binary . ' with pipe ' . s:pipe
     
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)

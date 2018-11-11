@@ -18,7 +18,7 @@ struct filetype ftdata[] = {
     { NULL, NULL, NULL, NULL, BI("NONE"),       BI("NONE"),       FT_NONE,       0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("c"),          BI("c"),          FT_C,          0, 0, 1 },
     { NULL, NULL, NULL, NULL, BI("cpp"),        BI("c++"),        FT_CPP,        0, 0, 1 },
-    { NULL, NULL, NULL, NULL, BI("cs"),         BI("csharp"),     FT_CSHARP,     0, 0, 0 },
+    { NULL, NULL, NULL, NULL, BI("cs"),         BI("c#"),         FT_CSHARP,     0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("go"),         BI("go"),         FT_GO,         0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("java"),       BI("java"),       FT_JAVA,       0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("javascript"), BI("javascript"), FT_JAVASCRIPT, 0, 0, 0 },

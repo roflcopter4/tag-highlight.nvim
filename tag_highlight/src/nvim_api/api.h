@@ -113,82 +113,107 @@ extern void _nvim_init(void) __attribute__((__constructor__));
 
 extern int _nvim_get_tmpfile(const int fd, bstring **name, const bstring *suffix);
 
+/*============================================================================*/
+extern int _nvim_api_read_fd;
+
 /* 
  * Perl output: default arguments for Neovim functions.
  */
-#define _nvim_write(...) P99_CALL_DEFARG(_nvim_write, 3, __VA_ARGS__)
-#define _nvim_write_defarg_0() (0)
-#define nvim_vprintf(...) P99_CALL_DEFARG(nvim_vprintf, 3, __VA_ARGS__)
-#define nvim_vprintf_defarg_0() (0)
-#define nvim_buf_add_highlight(...) P99_CALL_DEFARG(nvim_buf_add_highlight, 7, __VA_ARGS__)
-#define nvim_buf_add_highlight_defarg_0() (0)
-#define nvim_buf_add_highlight_defarg_2() (0)
-#define nvim_buf_add_highlight_defarg_3() NULL
-#define nvim_buf_add_highlight_defarg_4() (0)
-#define nvim_buf_add_highlight_defarg_5() (0)
-#define nvim_buf_add_highlight_defarg_6() (0)
-#define nvim_get_hl_by_name(...) P99_CALL_DEFARG(nvim_get_hl_by_name, 3, __VA_ARGS__)
-#define nvim_get_hl_by_name_defarg_0() (0)
-#define nvim_get_hl_by_id(...) P99_CALL_DEFARG(nvim_get_hl_by_id, 3, __VA_ARGS__)
-#define nvim_get_hl_by_id_defarg_0() (0)
-#define nvim_buf_attach(...) P99_CALL_DEFARG(nvim_buf_attach, 2, __VA_ARGS__)
-#define nvim_buf_attach_defarg_0() (0)
-#define nvim_buf_clear_highlight(...) P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
-#define nvim_buf_clear_highlight_defarg_0() (0)
-/* #define nvim_buf_clear_highlight_defarg_1() nvim_get_current_buf()
-#define nvim_buf_clear_highlight_defarg_2() nvim_get_current_buf() */
-#define nvim_buf_get_changedtick(...) P99_CALL_DEFARG(nvim_buf_get_changedtick, 2, __VA_ARGS__)
-#define nvim_buf_get_changedtick_defarg_0() (0)
-#define nvim_buf_get_lines(...) P99_CALL_DEFARG(nvim_buf_get_lines, 4, __VA_ARGS__)
-#define nvim_buf_get_lines_defarg_0() (0)
-#define nvim_buf_get_lines_defarg_2() (0)
-#define nvim_buf_get_lines_defarg_3() (-1)
-#define nvim_buf_get_name(...) P99_CALL_DEFARG(nvim_buf_get_name, 2, __VA_ARGS__)
-#define nvim_buf_get_name_defarg_0() (0)
-#define nvim_buf_get_option(...) P99_CALL_DEFARG(nvim_buf_get_option, 4, __VA_ARGS__)
-#define nvim_buf_get_option_defarg_0() (0)
-#define nvim_buf_get_var(...) P99_CALL_DEFARG(nvim_buf_get_var, 4, __VA_ARGS__)
-#define nvim_buf_get_var_defarg_0() (0)
-#define nvim_buf_line_count(...) P99_CALL_DEFARG(nvim_buf_line_count, 2, __VA_ARGS__)
-#define nvim_buf_line_count_defarg_0() (0)
-#define nvim_call_atomic(...) P99_CALL_DEFARG(nvim_call_atomic, 2, __VA_ARGS__)
-#define nvim_call_atomic_defarg_0() (0)
-#define nvim_call_function(...) P99_CALL_DEFARG(nvim_call_function, 3, __VA_ARGS__)
-#define nvim_call_function_defarg_0() (0)
-#define nvim_command(...) P99_CALL_DEFARG(nvim_command, 2, __VA_ARGS__)
-#define nvim_command_defarg_0() (0)
-#define nvim_command_output(...) P99_CALL_DEFARG(nvim_command_output, 3, __VA_ARGS__)
-#define nvim_command_output_defarg_0() (0)
-#define nvim_eval(...) P99_CALL_DEFARG(nvim_eval, 3, __VA_ARGS__)
-#define nvim_eval_defarg_0() (0)
-#define nvim_get_api_info(...) P99_CALL_DEFARG(nvim_get_api_info, 1, __VA_ARGS__)
-#define nvim_get_api_info_defarg_0() (0)
-#define nvim_get_current_buf(...) P99_CALL_DEFARG(nvim_get_current_buf, 1, __VA_ARGS__)
-#define nvim_get_current_buf_defarg_0() (0)
-#define nvim_get_current_line(...) P99_CALL_DEFARG(nvim_get_current_line, 1, __VA_ARGS__)
-#define nvim_get_current_line_defarg_0() (0)
-#define nvim_get_option(...) P99_CALL_DEFARG(nvim_get_option, 3, __VA_ARGS__)
-#define nvim_get_option_defarg_0() (0)
-#define nvim_get_var(...) P99_CALL_DEFARG(nvim_get_var, 3, __VA_ARGS__)
-#define nvim_get_var_defarg_0() (0)
-#define nvim_list_bufs(...) P99_CALL_DEFARG(nvim_list_bufs, 1, __VA_ARGS__)
-#define nvim_list_bufs_defarg_0() (0)
-#define nvim_subscribe(...) P99_CALL_DEFARG(nvim_subscribe, 2, __VA_ARGS__)
-#define nvim_subscribe_defarg_0() (0)
+#define _nvim_write(...)                    P99_CALL_DEFARG(_nvim_write, 3, __VA_ARGS__)
+#define _nvim_write_defarg_0()              (_nvim_api_read_fd)
 
-#define nvim_set_client_info(...) P99_CALL_DEFARG(nvim_set_client_info, 8, __VA_ARGS__)
-#define nvim_set_client_info_defarg_0() (0)
-#define nvim_set_client_info_defarg_4() (B(""))
-#define nvim_set_client_info_defarg_5() (B("remote"))
-#define nvim_set_client_info_defarg_6() NULL
-#define nvim_set_client_info_defarg_7() NULL
+#define nvim_vprintf(...)                   P99_CALL_DEFARG(nvim_vprintf, 3, __VA_ARGS__)
+#define nvim_vprintf_defarg_0()             (_nvim_api_read_fd)
 
-#define nvim_get_var_fmt(...) (nvim_get_var_fmt)(0, __VA_ARGS__)
-#define _nvim_get_tmpfile(...) P99_CALL_DEFARG(_nvim_get_tmpfile, 3, __VA_ARGS__)
-#define _nvim_get_tmpfile_defarg_0() (0)
-#define _nvim_get_tmpfile_defarg_1() NULL
-#define _nvim_get_tmpfile_defarg_2() NULL
+#define nvim_buf_add_highlight(...)         P99_CALL_DEFARG(nvim_buf_add_highlight, 7, __VA_ARGS__)
+#define nvim_buf_add_highlight_defarg_0()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_2()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_3()   NULL
+#define nvim_buf_add_highlight_defarg_4()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_5()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_6()   (_nvim_api_read_fd)
 
+#define nvim_get_hl_by_name(...)            P99_CALL_DEFARG(nvim_get_hl_by_name, 3, __VA_ARGS__)
+#define nvim_get_hl_by_name_defarg_0()      (_nvim_api_read_fd)
+
+#define nvim_get_hl_by_id(...)              P99_CALL_DEFARG(nvim_get_hl_by_id, 3, __VA_ARGS__)
+#define nvim_get_hl_by_id_defarg_0()        (_nvim_api_read_fd)
+
+#define nvim_buf_attach(...)                P99_CALL_DEFARG(nvim_buf_attach, 2, __VA_ARGS__)
+#define nvim_buf_attach_defarg_0()          (_nvim_api_read_fd)
+
+#define nvim_buf_clear_highlight(...)       P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
+#define nvim_buf_clear_highlight_defarg_0() (_nvim_api_read_fd)
+
+#define nvim_buf_get_changedtick(...)       P99_CALL_DEFARG(nvim_buf_get_changedtick, 2, __VA_ARGS__)
+#define nvim_buf_get_changedtick_defarg_0() (_nvim_api_read_fd)
+
+#define nvim_buf_get_lines(...)             P99_CALL_DEFARG(nvim_buf_get_lines, 4, __VA_ARGS__)
+#define nvim_buf_get_lines_defarg_0()       (_nvim_api_read_fd)
+#define nvim_buf_get_lines_defarg_2()       (_nvim_api_read_fd)
+#define nvim_buf_get_lines_defarg_3()       (-1)
+
+#define nvim_buf_get_name(...)              P99_CALL_DEFARG(nvim_buf_get_name, 2, __VA_ARGS__)
+#define nvim_buf_get_name_defarg_0()        (_nvim_api_read_fd)
+
+#define nvim_buf_get_option(...)            P99_CALL_DEFARG(nvim_buf_get_option, 4, __VA_ARGS__)
+#define nvim_buf_get_option_defarg_0()      (_nvim_api_read_fd)
+
+#define nvim_buf_get_var(...)               P99_CALL_DEFARG(nvim_buf_get_var, 4, __VA_ARGS__)
+#define nvim_buf_get_var_defarg_0()         (_nvim_api_read_fd)
+
+#define nvim_buf_line_count(...)            P99_CALL_DEFARG(nvim_buf_line_count, 2, __VA_ARGS__)
+#define nvim_buf_line_count_defarg_0()      (_nvim_api_read_fd)
+
+#define nvim_call_atomic(...)               P99_CALL_DEFARG(nvim_call_atomic, 2, __VA_ARGS__)
+#define nvim_call_atomic_defarg_0()         (_nvim_api_read_fd)
+
+#define nvim_call_function(...)             P99_CALL_DEFARG(nvim_call_function, 3, __VA_ARGS__)
+#define nvim_call_function_defarg_0()       (_nvim_api_read_fd)
+
+#define nvim_command(...)                   P99_CALL_DEFARG(nvim_command, 2, __VA_ARGS__)
+#define nvim_command_defarg_0()             (_nvim_api_read_fd)
+
+#define nvim_command_output(...)            P99_CALL_DEFARG(nvim_command_output, 3, __VA_ARGS__)
+#define nvim_command_output_defarg_0()      (_nvim_api_read_fd)
+
+#define nvim_eval(...)                      P99_CALL_DEFARG(nvim_eval, 3, __VA_ARGS__)
+#define nvim_eval_defarg_0()                (_nvim_api_read_fd)
+
+#define nvim_get_api_info(...)              P99_CALL_DEFARG(nvim_get_api_info, 1, __VA_ARGS__)
+#define nvim_get_api_info_defarg_0()        (_nvim_api_read_fd)
+
+#define nvim_get_current_buf(...)           P99_CALL_DEFARG(nvim_get_current_buf, 1, __VA_ARGS__)
+#define nvim_get_current_buf_defarg_0()     (_nvim_api_read_fd)
+
+#define nvim_get_current_line(...)          P99_CALL_DEFARG(nvim_get_current_line, 1, __VA_ARGS__)
+#define nvim_get_current_line_defarg_0()    (_nvim_api_read_fd)
+
+#define nvim_get_option(...)                P99_CALL_DEFARG(nvim_get_option, 3, __VA_ARGS__)
+#define nvim_get_option_defarg_0()          (_nvim_api_read_fd)
+
+#define nvim_get_var(...)                   P99_CALL_DEFARG(nvim_get_var, 3, __VA_ARGS__)
+#define nvim_get_var_defarg_0()             (_nvim_api_read_fd)
+
+#define nvim_list_bufs(...)                 P99_CALL_DEFARG(nvim_list_bufs, 1, __VA_ARGS__)
+#define nvim_list_bufs_defarg_0()           (_nvim_api_read_fd)
+
+#define nvim_subscribe(...)                 P99_CALL_DEFARG(nvim_subscribe, 2, __VA_ARGS__)
+#define nvim_subscribe_defarg_0()           (_nvim_api_read_fd)
+
+#define nvim_set_client_info(...)           P99_CALL_DEFARG(nvim_set_client_info, 8, __VA_ARGS__)
+#define nvim_set_client_info_defarg_0()     (_nvim_api_read_fd)
+#define nvim_set_client_info_defarg_4()     (B(""))
+#define nvim_set_client_info_defarg_5()     (B("remote"))
+#define nvim_set_client_info_defarg_6()     NULL
+#define nvim_set_client_info_defarg_7()     NULL
+
+#define _nvim_get_tmpfile(...)              P99_CALL_DEFARG(_nvim_get_tmpfile, 3, __VA_ARGS__)
+#define _nvim_get_tmpfile_defarg_0()        (_nvim_api_read_fd)
+#define _nvim_get_tmpfile_defarg_1()        NULL
+#define _nvim_get_tmpfile_defarg_2()        NULL
+
+#define nvim_get_var_fmt(...)               (nvim_get_var_fmt)((_nvim_api_read_fd), __VA_ARGS__)
 
 /*============================================================================*/
 __END_DECLS

@@ -47,7 +47,7 @@ find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibLZMA)
 find_package (LibClang REQUIRED)
-find_package (PCRE2 REQUIRED)
+# find_package (PCRE2 REQUIRED)
 #find_package (LibUv REQUIRED)
 
 include_directories(${ZLIB_INCLUDE_DIRS})
@@ -58,6 +58,7 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
+    string(CONCAT CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include _mingw.h")
 endif()
 
 set (CMAKE_REQUIRED_DEFINITIONS -D__USE_MINGW_ANSI_STDIO=1 -D_GNU_SOURCE -DHAVE_TOPCONFIG_H -D__USE_ISOC11)
@@ -195,10 +196,14 @@ else()
     string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -g3 -Ofast -ftree-vectorize")
 
     if (MINGW)
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--allow-multiple-definition")
+        string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -Wl,--allow-multiple-definition"
+        )
+    else()
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
     endif()
     
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
+    set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
     set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
 endif()
 

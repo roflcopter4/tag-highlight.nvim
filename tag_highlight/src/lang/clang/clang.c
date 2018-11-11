@@ -83,20 +83,15 @@ void
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CPP))
                 return;
 
-        //TRY {
-                pthread_mutex_lock(&bdata->lock.ctick);
-                const unsigned new = atomic_load(&bdata->ctick);
-                const unsigned old = atomic_exchange(&bdata->last_ctick, new);
+        pthread_mutex_lock(&bdata->lock.ctick);
+        const unsigned new = atomic_load(&bdata->ctick);
+        const unsigned old = atomic_exchange(&bdata->last_ctick, new);
 
-                if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
-                        /* ECHO("Ctick unchanged (%u vs %u). Returning.", old, new); */
-                        pthread_mutex_unlock(&bdata->lock.ctick);
-                        return;
-                        //TRY_RETURN;
-                }
-        //} FINALLY {
+        if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new) {
                 pthread_mutex_unlock(&bdata->lock.ctick);
-        //}
+                return;
+        }
+        pthread_mutex_unlock(&bdata->lock.ctick);
 
         struct translationunit *stu;
         int64_t                 startend[2];
@@ -106,7 +101,6 @@ void
 
         if (cnt_val >= 2) {
                 p99_futex_add(&bdata->lock.clang_count, (-1u));
-                /* ECHO("Too many waiters, returning!"); */
                 return;
         }
 
@@ -250,19 +244,53 @@ stupid_windows_bullshit(const char *const path)
         if (len < 5 || path[4] != '/')
                 return NULL;
 
-        char *ret = xmalloc(len + 8);
+        char *ret = xmalloc(len + 6);
         char *ptr = ret;
         *ptr++    = '-';
         *ptr++    = 'I';
         *ptr++    = path[3];
         *ptr++    = ':';
         *ptr++    = '\\';
-        *ptr++    = '\\';
         for (const char *sptr = path+5; *sptr; ++sptr)
                 *ptr++ = (*sptr == '/') ? '\\' : *sptr;
         *ptr      = '\0';
 
         return ret;
+}
+
+static void
+handle_win32_command_script(struct bufdata *bdata, const char *cstr, str_vector *ret)
+{
+        char        ch;
+        char        searchbuf[2048];
+        const char *optr = cstr + 1;
+        char       *sptr = searchbuf;
+        *sptr++          = '.';
+        *sptr++          = '*';
+
+        while ((ch = *optr++))
+                *sptr++ = (char)((ch == '\\') ? '/' : ch);
+        *sptr = '\0';
+
+        bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST);
+        if (file) {
+                bstring *contents = b_quickread("%s", BS(b_regularize_path(file)));
+                assert(contents);
+                eprintf("Read %s\n", BS(contents));
+                char *dataptr = (char *)contents->data;
+
+                while ((sptr = strsep(&dataptr, " \n\t"))) {
+                        if (sptr[0] == '-') {
+                                if (sptr[2] == '/')
+                                        argv_append(ret, stupid_windows_bullshit(sptr), false);
+                                else
+                                        argv_append(ret, sptr, true);
+                        }
+                }
+
+                b_free(contents);
+                b_free(file);
+        }
 }
 #endif
 
@@ -320,29 +348,7 @@ get_compile_commands(struct bufdata *bdata)
                                 argv_append(ret, cstr, true);
 #ifdef DOSISH
                         } else if (cstr[0] == '@') {
-                                char searchbuf[2048];
-                                char *sptr = searchbuf, *optr = cstr+1, ch;
-                                *sptr++ = '.'; *sptr++ = '*';
-                                while ((ch = *optr++))
-                                        *sptr++ = (char)((ch == '\\') ? '/' : ch);
-                                *sptr = '\0';
-                                bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST);
-                                eprintf("In searching for \"%s\", got \"%s\"\n", searchbuf, BS(file));
-                                if (file) {
-                                        bstring *contents = b_quickread("%s", BS(b_regularize_path(file)));
-                                        eprintf("Read %s\n", BS(contents));
-                                        assert(contents);
-                                        optr = (char *)contents->data;
-                                        while ((sptr = strsep(&optr, " \n\t")))
-                                                if (sptr[0] == '-') {
-                                                        if (sptr[2] == '/')
-                                                                argv_append(ret, stupid_windows_bullshit(sptr), false);
-                                                        else
-                                                                argv_append(ret, sptr, true);
-                                                }
-                                        b_free(contents);
-                                        b_free(file);
-                                }
+                                handle_win32_command_script(bdata, cstr, ret);
 #endif
                         }
                                 
@@ -423,13 +429,18 @@ get_tmp_path(void)
 static void
 clean_tmpdir(void)
 {
-#ifndef DOSISH
+#if defined(HAVE_POSIX_SPAWNP) || defined(HAVE_FORK)
         int  status, pid, ret;
         char cmd[CMD_SIZ];
         snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", TMP_LOCATION);
         char *const argv[] = {"sh", "-c", cmd, (char *)0};
 
+#  ifdef HAVE_POSIX_SPAWNP
         posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
+#  else
+        if ((pid = fork()) == 0)
+                execvpe("sh", argv, environ);
+#  endif
         waitpid(pid, &status, 0);
 #endif
 }

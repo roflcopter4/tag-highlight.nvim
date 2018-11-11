@@ -33,7 +33,7 @@ set (tag_highlight_SOURCES
     tag_highlight.h
 
     # go_crap.c
-    regex.c
+    # regex.c
     lang/common.c
     lang/common.h
 
@@ -155,17 +155,68 @@ else()
     endif()
     
     target_link_libraries(tag_highlight 
+        # -nostdinc -static
+        # "D:/msys64/mingw64/x86_64-w64-mingw32/lib/libpthread.a"
+        # "D:/msys64/mingw64/x86_64-w64-mingw32/lib/libm.a"
+        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libgcc.a"
+        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libgcc_s.a"
+        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libstdc++.a"
+        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libatomic.a"
+        # "D:/msys64/mingw64/lib/libz.a"
+        # "D:/msys64/mingw64/lib/liblzma.a"
+        # "D:/msys64/mingw64/lib/libclang_static.a"
+
+        # -static
+        # -pthread -lz -llzma -latomic -lstdc++ -lm -lclang_static
+
+        # "/mingw64/lib/libclangAnalysis.a"
+        # "/mingw64/lib/libclangARCMigrate.a"
+        # "/mingw64/lib/libclangAST.a"
+        # "/mingw64/lib/libclangASTMatchers.a"
+        # "/mingw64/lib/libclangBasic.a"
+        # "/mingw64/lib/libclangCodeGen.a"
+        # "/mingw64/lib/libclangCrossTU.a"
+        # "/mingw64/lib/libclangDriver.a"
+        # "/mingw64/lib/libclangDynamicASTMatchers.a"
+        # "/mingw64/lib/libclangEdit.a"
+        # "/mingw64/lib/libclangFormat.a"
+        # "/mingw64/lib/libclangFrontend.a"
+        # "/mingw64/lib/libclangFrontendTool.a"
+        # "/mingw64/lib/libclangHandleCXX.a"
+        # "/mingw64/lib/libclangHandleLLVM.a"
+        # "/mingw64/lib/libclangIndex.a"
+        # "/mingw64/lib/libclangLex.a"
+        # "/mingw64/lib/libclangParse.a"
+        # "/mingw64/lib/libclangRewrite.a"
+        # "/mingw64/lib/libclangRewriteFrontend.a"
+        # "/mingw64/lib/libclangSema.a"
+        # "/mingw64/lib/libclangSerialization.a"
+        # "/mingw64/lib/libclangStaticAnalyzerCheckers.a"
+        # "/mingw64/lib/libclangStaticAnalyzerCore.a"
+        # "/mingw64/lib/libclangStaticAnalyzerFrontend.a"
+        # "/mingw64/lib/libclangTooling.a"
+        # "/mingw64/lib/libclangToolingASTDiff.a"
+        # "/mingw64/lib/libclangToolingCore.a"
+        # "/mingw64/lib/libclangToolingInclusions.a"
+        # "/mingw64/lib/libclangToolingRefactor.a"
+
+        # ${LLVM_LIBRARIES}
+        # ${LIBCLANG_LIBRARY}
+        # ${LLVM_SYS_LIBRARIES}
+
         -lm -latomic
+        ${LIBCLANG_LIBRARY}
+        ${ZLIB_LIBRARIES}
+        ${CMAKE_THREAD_LIBS_INIT}
+
+        # -lm -latomic
         #"D:/msys64/mingw64/lib/libz.a"
         #"D:/msys64/mingw64/lib/libclang.a"
         #"D:/msys64/mingw64/lib/liblzma.a"
         #"D:/msys64/mingw64/lib/libcpre2-8.a"
-        ${LIBCLANG_LIBRARIES}
-        ${ZLIB_LIBRARIES}
-        ${CMAKE_THREAD_LIBS_INIT}
-        ${PCRE2_LIBRARIES}
+        # ${PCRE2_LIBRARIES}
         #-lpcre2-8
-        -luv
+        #-luv
         # -levent
         # ${LIBEV_LIBRARIES}
     )

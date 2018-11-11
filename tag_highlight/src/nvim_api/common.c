@@ -15,14 +15,9 @@ extern vfutex_t             event_loop_futex, _nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             _nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
-static void _nvim_api_wrapper_init(void) __attribute__((__constructor__, __used__));
-
-/* extern struct ev_async await_package_watcher; */
-/* extern struct ev_loop *await_package_loop; */
-
 /*======================================================================================*/
 
-static void
+__attribute__((__constructor__)) static void
 _nvim_api_wrapper_init(void)
 {
         pthread_mutex_init(&await_package_mutex);
@@ -49,14 +44,6 @@ await_package(UNUSED const int fd)
 
         return obj;
 }
-
-#if 0
-mpack_obj *
-await_package(const int fd)
-{
-
-}
-#endif
 
 mpack_obj *
 generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
@@ -86,18 +73,6 @@ generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
 }
 
 /*======================================================================================*/
-
-#if 0
-bstring *
-_nvim_get_notification(int fd)
-{
-        CHECK_DEF_FD(fd);
-        mpack_obj *result = await_package(fd, (-1), MES_NOTIFICATION);
-        bstring   *ret    = b_strcpy(result->DAI[1]->data.str);
-        PRINT_AND_DESTROY(result);
-        return ret;
-}
-#endif
 
 mpack_obj *
 (write_and_clean)(const int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
@@ -151,7 +126,7 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
                         root->DAI[2] = NULL;
                 }
         } else {
-                ret = m_expect(data, type, true);
+                ret          = m_expect(data, type, true);
                 root->DAI[3] = NULL;
         }
 

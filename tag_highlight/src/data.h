@@ -1,5 +1,5 @@
-#ifndef SRC_DATA_H
-#define SRC_DATA_H
+#ifndef SRC_DATA_H_
+#define SRC_DATA_H_
 
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
@@ -72,7 +72,7 @@ struct bufdata {
         _Atomic(uint32_t) last_ctick;
         uint16_t          num;
         uint8_t           hl_id;
-        bool              initialized; /* exactly 8 bytes. yay. */
+        bool              initialized;
 
         struct {
                 pthread_mutex_t total;
@@ -92,7 +92,6 @@ struct bufdata {
         struct filetype *ft;
         struct top_dir  *topdir;
 
-        /* This feels so hacky. */
         union {
                 /* C, C++ */
                 struct {
@@ -115,10 +114,9 @@ struct buffer_list {
                 uint16_t mlen;
         } bad_bufs;
 
-        uint16_t         mkr;
-        uint16_t         mlen;
-        /* pthread_rwlock_t lock; */
-        pthread_mutex_t  lock;
+        uint16_t        mkr;
+        uint16_t        mlen;
+        pthread_mutex_t lock;
 };
 
 struct top_dir_list {
@@ -132,13 +130,9 @@ extern struct settings_s   settings;
 extern struct buffer_list  buffers;
 extern struct filetype     ftdata[];
 extern genlist            *top_dirs;
-
-extern const size_t ftdata_len;
-
+extern const size_t        ftdata_len;
 
 /*===========================================================================*/
-/*===========================================================================*/
-/* Functions */
 
 extern bool            have_seen_file   (const bstring *filename);
 extern bool            new_buffer       (int fd, int bufnum);
@@ -150,14 +144,6 @@ extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft
 
 #define new_buffer(...) P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__)
 #define new_buffer_defarg_0() (0)
-
-/*---------------------------------------------------------------------------*/
-/* Events */
-extern void handle_unexpected_notification(mpack_obj *note);
-
-/*---------------------------------------------------------------------------*/
-/* Archives */
-extern b_list *get_archived_tags(struct bufdata *bdata);
 
 /*===========================================================================*/
 #ifdef __cplusplus

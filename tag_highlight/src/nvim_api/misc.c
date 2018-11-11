@@ -16,8 +16,9 @@
 
 extern genlist *_nvim_wait_list;
 
-genlist *nvim_connections = NULL;
-genlist *_nvim_wait_list  = NULL;
+genlist *nvim_connections  = NULL;
+genlist *_nvim_wait_list   = NULL;
+int      _nvim_api_read_fd = 0;
 
 static void add_nvim_connection(const int fd, const enum nvim_connection_type type);
 static void clean_nvim_connections(void);

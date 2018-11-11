@@ -1,5 +1,5 @@
-#ifndef TOP_MINGW_CONFIG_
-#define TOP_MINGW_CONFIG_
+#ifndef SRC_MINGW_CONFIG_H_
+#define SRC_MINGW_CONFIG_H_
 #ifdef __MINGW__
 
 #define __USE_MINGW_ANSI_STDIO 1

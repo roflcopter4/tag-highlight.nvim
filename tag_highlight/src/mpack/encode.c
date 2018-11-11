@@ -74,7 +74,7 @@ mpack_make_new(UNUSED const unsigned len, const bool encode)
         root->flags     = (uint8_t)(encode ? MPACK_ENCODE : 0) |
                           (uint8_t)MPACK_HAS_PACKED;
         *root->packed   = b_alloc_null(128);
-        /* mpack_encode_array(root, &root, len); */
+
         return root;
 }
 
@@ -96,7 +96,7 @@ mpack_encode_array(mpack_obj       *root,
                         (*item)->DAI[i] = NULL;
         }
 
-        if (len <= M_ARRAY_F_MAX) {
+        if (len < 16u) {
                 D[L++] = M_MASK_ARRAY_F | (uint8_t)len;
         } else if (len < UINT16_MAX) {
                 D[L++] = M_MASK_ARRAY_16;
@@ -104,8 +104,9 @@ mpack_encode_array(mpack_obj       *root,
         } else if (len < UINT32_MAX) {
                 D[L++] = M_MASK_ARRAY_32;
                 encode_uint32(D, L, len);
-        } else
+        } else {
                 errx(1, "Array is too big!");
+        }
 }
 
 void
@@ -129,7 +130,7 @@ mpack_encode_dictionary(mpack_obj       *root,
                 }
         }
 
-        if (len <= M_ARRAY_F_MAX) {
+        if (len < 16u) {
                 D[L++] = M_MASK_MAP_F | (uint8_t)len;
         } else if (len < UINT16_MAX) {
                 D[L++] = M_MASK_MAP_16;
@@ -137,8 +138,9 @@ mpack_encode_dictionary(mpack_obj       *root,
         } else if (len < UINT32_MAX) {
                 D[L++] = M_MASK_MAP_32;
                 encode_uint32(D, L, len);
-        } else
+        } else {
                 errx(1, "Dictionary is too big!");
+        }
 }
 
 void
@@ -168,10 +170,11 @@ mpack_encode_integer(mpack_obj      *root,
                 } else if (value <= INT64_MAX) {
                         D[L++] = M_MASK_UINT_64;
                         encode_uint64(D, L, value);
-                } else
+                } else {
                         errx(1, "Value too big!");
+                }
         } else {
-                if (value >= -32) {
+                if (value >= (-32)) {
                         D[L++] = (int8_t)value;
                 } else if (value > INT8_MIN) {
                         D[L++] = M_MASK_INT_8;
@@ -185,15 +188,16 @@ mpack_encode_integer(mpack_obj      *root,
                 } else if (value >= INT64_MIN) {
                         D[L++] = M_MASK_INT_64;
                         encode_int64(D, L, value);
-                } else
+                } else {
                         errx(1, "Value too small!");
+                }
         }
 }
 
 void
 mpack_encode_unsigned(mpack_obj      *root,
-                     mpack_obj     **item,
-                     const uint64_t  value)
+                      mpack_obj     **item,
+                      const uint64_t  value)
 {
         sanity_check(root, item, 15, false);
 
@@ -233,7 +237,7 @@ mpack_encode_string(mpack_obj      *root,
                 (*item)->flags   |= (uint8_t)MPACK_STRING;
         }
 
-        if (string->slen <= 31) {
+        if (string->slen < 32u) {
                 D[L++] = M_MASK_STR_F | (uint8_t)string->slen;
         } else if (string->slen < UINT8_MAX) {
                 D[L++] = M_MASK_STR_8;
@@ -293,3 +297,4 @@ sanity_check(mpack_obj       *root,
         if ((*root->packed)->slen > ((*root->packed)->mlen - check))
                 b_alloc(*root->packed, (*root->packed)->mlen * 2);
 }
+

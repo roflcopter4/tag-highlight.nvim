@@ -175,7 +175,7 @@ err_(UNUSED const int status, const bool print_err, const char *const __restrict
         else
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
-        vfprintf(stderr, buf, ap);
+        __mingw_vfprintf(stderr, buf, ap);
         va_end(ap);
 
         SHOW_STACKTRACE();

@@ -50,8 +50,6 @@ enum m_types {
 #define M_MASK_POS_INT_F 0x00u
 #define M_MASK_NEG_INT_F 0xE0u
 
-#define M_ARRAY_F_MAX 15u
-
 #ifndef __cplusplus
 typedef struct mpack_mask mpack_mask;
 #endif

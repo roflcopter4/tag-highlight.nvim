@@ -4,35 +4,33 @@
 #include "highlight.h"
 #include "lang/clang/clang.h"
 #include "mpack/mpack.h"
-#include "util/list.h"
 #include <signal.h>
 
 #include "contrib/p99/p99_atomic.h"
 #include "contrib/p99/p99_fifo.h"
 #include "contrib/p99/p99_futex.h"
 #include "my_p99_common.h"
-/* #include "p99/p99_cm.h" */
-/* #include "p99/p99_new.h" */
 
 #define BT bt_init
-#ifdef DOSISH
-#  define KILL_SIG SIGTERM
-#else
-#  define KILL_SIG SIGUSR1
-#endif
 
 #define EVENT_LIB_EV     1
 #define EVENT_LIB_EVENT2 2
 #define EVENT_LIB_UV     3
 #define EVENT_LIB_NONE   4
-#define USE_EVENT_LIB    EVENT_LIB_UV
+#ifdef DOSISH
+#  define USE_EVENT_LIB  EVENT_LIB_NONE
+#  define KILL_SIG       SIGTERM
+#else
+#  define USE_EVENT_LIB  EVENT_LIB_EV
+#  define KILL_SIG       SIGUSR1
+#endif
 
 typedef volatile p99_futex vfutex_t;
 
 /*======================================================================================*/
 
 extern void          update_line         (struct bufdata *, int, int);
-static void          handle_line_event   (struct bufdata *bdata, mpack_obj **items);
+static void          handle_line_event   (struct bufdata *bdata, mpack_array_t *arr);
 ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
 ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
 static void          vimscript_interrupt (int val);
@@ -96,10 +94,7 @@ post_nvim_response(mpack_obj *obj)
 static noreturn void *
 nvim_event_handler(UNUSED void *unused)
 {
-        extern p99_futex first_buffer_initialized;
         pthread_mutex_lock(&nvim_event_handler_mutex);
-        P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
-            value, value, 0, 0);
 
         event_node *node = P99_FIFO_POP(&nvim_event_queue);
         if (!node)
@@ -334,27 +329,17 @@ event_loop_init(const int fd)
 /*======================================================================================*/
 #elif USE_EVENT_LIB == EVENT_LIB_NONE
 
-struct cb_data {
-        int fd;
-        mpack_obj *obj;
-};
-
 static noreturn void *
 event_loop_io_callback(void *vdata)
 {
         pthread_mutex_lock(&event_loop_cb_mutex);
-
-        const int  fd  = ((struct cb_data *)vdata)->fd;
-        mpack_obj *obj = ((struct cb_data *)vdata)->obj;
-        xfree(vdata);
-
-        if (!obj)
+        if (!vdata)
                 errx(1, "Got NULL object from decoder. This should never be "
                         "possible. Cannot continue; aborting.");
 
+        mpack_obj              *obj   = vdata;
         const nvim_message_type mtype = (nvim_message_type)
                                         m_expect(m_index(obj, 0), E_NUM).num;
-
         switch (mtype) {
         case MES_NOTIFICATION: {
                 event_node *node = xcalloc(1, sizeof(event_node));
@@ -375,15 +360,23 @@ event_loop_io_callback(void *vdata)
         pthread_exit();
 }
 
-noreturn void
-event_loop_init(const int fd)
+static noreturn void
+event_loop(const int fd)
 {
         for (;;) {
-                struct cb_data *data = xmalloc(sizeof *data);
-                data->fd             = fd;
-                data->obj            = mpack_decode_stream(fd);
-                START_DETACHED_PTHREAD(event_loop_io_callback, data);
+                mpack_obj *obj = mpack_decode_stream(fd);
+                START_DETACHED_PTHREAD(event_loop_io_callback, obj);
         }
+}
+
+void
+event_loop_init(const int fd)
+{
+        /* I wanted to use pthread_once but it requires a function that takes no
+         * arguments. Getting around that would defeat the whole point. */
+        static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
+        if (!atomic_flag_test_and_set(&event_loop_called))
+                event_loop(fd);
 }
 #endif
 
@@ -410,7 +403,7 @@ handle_nvim_event(void *vdata)
 
                 switch (type->id) {
                 case EVENT_BUF_LINES:
-                        handle_line_event(bdata, arr->items);
+                        handle_line_event(bdata, arr);
                         break;
 
                 case EVENT_BUF_CHANGED_TICK: {
@@ -495,24 +488,25 @@ super_debug(struct bufdata *bdata)
 #endif
 
 static void
-handle_line_event(struct bufdata *bdata, mpack_obj **items)
+handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
 {
-        assert(!items[5]->data.boolean);
         pthread_mutex_lock(&handle_mutex);
-
         pthread_mutex_lock(&bdata->lock.ctick);
-        const unsigned new_tick = (unsigned)m_expect(items[1], E_NUM).num;
+        if (arr->qty < 5 || arr->items[5]->data.boolean)
+                errx(1, "Error: Continuation condition is unexpectedly true, cannot continue.");
+
+        const unsigned new_tick = (unsigned)m_expect(arr->items[1], E_NUM).num;
         const unsigned old_tick = atomic_load(&bdata->ctick);
         if (new_tick > old_tick)
                 atomic_store(&bdata->ctick, new_tick);
         pthread_mutex_unlock(&bdata->lock.ctick);
 
-        const int first     = (int)m_expect(items[2], E_NUM).num;
-        const int last      = (int)m_expect(items[3], E_NUM).num;
+        const int first     = (int)m_expect(arr->items[2], E_NUM).num;
+        const int last      = (int)m_expect(arr->items[3], E_NUM).num;
         const int diff      = last - first;
-        b_list   *repl_list = m_expect(items[4], E_STRLIST).ptr;
+        b_list   *repl_list = m_expect(arr->items[4], E_STRLIST).ptr;
         bool      empty     = false;
-        items[4]->data.arr  = NULL;
+        arr->items[4]->data.arr  = NULL;
 
         pthread_mutex_lock(&bdata->lines->lock);
 
@@ -627,8 +621,6 @@ vimscript_interrupt(const int val)
         struct timer     *t      = TIMER_INITIALIZER;
         int               num = 0;
 
-        /* pthread_mutex_lock(&vs_mutex); */
-
         if (val != 'H')
                 echo("Recieved \"%c\"; waking up!", val);
 
@@ -724,8 +716,6 @@ vimscript_interrupt(const int val)
                 echo("Hmm, nothing to do...");
                 break;
         }
-
-        /* pthread_mutex_unlock(&vs_mutex); */
 }
 
 /*======================================================================================*/

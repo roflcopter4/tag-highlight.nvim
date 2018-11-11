@@ -56,7 +56,8 @@ struct timer {
 #else
 #  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
 #endif
-#define TIMER_INITIALIZER (&(struct timer){{0, 0}, {0, 0}})
+#define TIMER_INITIALIZER        (&(struct timer){{0, 0}, {0, 0}})
+#define TIMER_STATIC_INITIALIZER {{0, 0}, {0, 0}}
 
 
 /*======================================================================================*/

@@ -1,10 +1,11 @@
-#ifndef SRC_HIGHLIGHT_H
-#define SRC_HIGHLIGHT_H
+#ifndef SRC_HIGHLIGHT_H_
+#define SRC_HIGHLIGHT_H_
 
 #include "tag_highlight.h"
 
 /* #define DEFAULT_FD       (mainchan) */
 /* #define BUFFER_ATTACH_FD (bufchan) */
+#define DEFAULT_READ_FD  (0)
 #define DEFAULT_FD       (1)
 #define BUFFER_ATTACH_FD (0)
 
@@ -14,8 +15,6 @@
 #include "contrib/p99/p99_defarg.h"
 
 __BEGIN_DECLS
-
-/* extern int mainchan, bufchan; */
 
 #define PKG "tag_highlight#"
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
@@ -50,28 +49,22 @@ struct taglist {
 extern bstring        *strip_comments(struct bufdata *bdata) __aWUR;
 extern b_list         *tokenize      (struct bufdata *bdata, bstring *vimbuf) __aWUR;
 extern struct taglist *process_tags  (struct bufdata *bdata, b_list *toks) __aWUR;
+extern void            launch_event_loop(void);
+extern void            get_initial_lines(struct bufdata *bdata);
+extern void            _b_list_dump_nvim(const b_list *list, const char *listname);
 
-extern b_list *parse_json(const bstring *json_path, const bstring *filename, b_list *includes) __aWUR;
-
-extern int  my_highlight(int bufnum, struct bufdata *bdata);
-extern void my_parser   (int bufnum, struct bufdata *bdata);
-
-/* extern noreturn void *event_loop    (void *vdata); */
-extern void launch_event_loop(void);
-extern void get_initial_lines(struct bufdata *bdata);
-
-p99_inline struct bufdata *find_current_buffer(void) {
+p99_inline struct bufdata *find_current_buffer(void)
+{
         return find_buffer(nvim_get_current_buf());
 }
 
-#define update_highlight(...) P99_CALL_DEFARG(update_highlight, 2, __VA_ARGS__)
+#define update_highlight(...)       P99_CALL_DEFARG(update_highlight, 2, __VA_ARGS__)
 #define update_highlight_defarg_0() (find_current_buffer())
 #define update_highlight_defarg_1() (UPDATE_TAGLIST_NORMAL)
-#define clear_highlight(...) P99_CALL_DEFARG(clear_highlight, 1, __VA_ARGS__)
-#define clear_highlight_defarg_0() (find_current_buffer())
+#define clear_highlight(...)        P99_CALL_DEFARG(clear_highlight, 1, __VA_ARGS__)
+#define clear_highlight_defarg_0()  (find_current_buffer())
 
-#define b_list_dump_nvim(LST_) _b_list_dump_nvim((LST_), #LST_)
-extern void _b_list_dump_nvim(const b_list *list, const char *listname);
+#define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
 
 __END_DECLS
 #endif /* highlight.h */
