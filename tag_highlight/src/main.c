@@ -59,7 +59,7 @@ main(UNUSED int argc, char *argv[])
          * exit. This delay is noticeable and annoying, so normally we just call
          * quick_exit or _Exit instead. */
         eputs("Right, cleaning up!\n");
-        exit_cleanup();
+        /* exit_cleanup(); */
         exit(EXIT_SUCCESS);
 }
 
@@ -73,6 +73,7 @@ init(char **argv)
         platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
+        atexit(exit_cleanup);
         at_quick_exit(quick_cleanup);
         START_DETACHED_PTHREAD(main_initialization);
 }

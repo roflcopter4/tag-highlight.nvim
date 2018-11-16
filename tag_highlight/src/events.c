@@ -684,11 +684,14 @@ vimscript_interrupt(const int val)
          * User called the kill command.
          */
         case 'C': {
-                extern pthread_t top_thread;
+                /* extern pthread_t top_thread; */
                 clear_highlight();
                 pthread_mutex_unlock(&vs_mutex);
-                pthread_kill(top_thread, KILL_SIG);
-                pthread_exit();
+                /* pthread_kill(top_thread, KILL_SIG); */
+                /* pthread_kill(loop_thread, KILL_SIG); */
+                /* raise(KILL_SIG); */
+                /* pthread_exit(); */
+                exit(0);
         }
         /*
          * User called the clear highlight command.
