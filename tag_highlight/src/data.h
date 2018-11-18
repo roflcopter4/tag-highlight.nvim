@@ -68,11 +68,13 @@ struct top_dir {
 };
 
 struct bufdata {
-        _Atomic(uint32_t) ctick;
-        _Atomic(uint32_t) last_ctick;
-        uint16_t          num;
-        uint8_t           hl_id;
-        bool              initialized;
+        /* _Atomic(uint32_t) ctick; */
+        /* _Atomic(uint32_t) last_ctick; */
+        atomic_uint ctick;
+        atomic_uint last_ctick;
+        uint16_t    num;
+        uint8_t     hl_id;
+        bool        initialized;
 
         struct {
                 pthread_mutex_t total;
@@ -101,7 +103,7 @@ struct bufdata {
                 /* Everything else */
                 struct {
                         nvim_arg_array *calls;
-                        b_list          *cmd_cache;
+                        b_list         *cmd_cache;
                 };
         };
 };

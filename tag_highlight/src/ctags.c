@@ -168,13 +168,11 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
 
                 b_destroy(tmp);
                 b_list_destroy(headers);
-        }
-        else if (bdata->topdir->recurse && !bdata->ft->is_c) {
+        } else if (bdata->topdir->recurse && !bdata->ft->is_c) {
                 b_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
                            bdata->topdir->pathname);
         } else {
-                ECHO("Not recursing!!!");
                 b_sprintfa(cmd, " \"-f%s\" \"%s\"",
                            bdata->topdir->tmpfname, bdata->name.full);
         }

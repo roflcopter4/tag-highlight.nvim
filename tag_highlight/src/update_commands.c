@@ -314,7 +314,7 @@ get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
                                 if (strncmp(BS(line), SLS("links to ")) == 0)
                                         break;
 
-                                bstring *tok = &(bstring){0, 0, NULL, 0};
+                                bstring *tok = BSTR_NULL_INIT;
 
                                 while (b_memsep(tok, line, ' ')) {
                                         bstring *toadd = b_fromblk(tok->data, tok->slen);

@@ -244,12 +244,13 @@ stupid_windows_bullshit(const char *const path)
         if (len < 5 || path[4] != '/')
                 return NULL;
 
-        char *ret = xmalloc(len + 6);
+        char *ret = xmalloc(len + 7);
         char *ptr = ret;
         *ptr++    = '-';
         *ptr++    = 'I';
         *ptr++    = path[3];
         *ptr++    = ':';
+        *ptr++    = '\\';
         *ptr++    = '\\';
         for (const char *sptr = path+5; *sptr; ++sptr)
                 *ptr++ = (*sptr == '/') ? '\\' : *sptr;

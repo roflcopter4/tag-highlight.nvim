@@ -37,13 +37,13 @@ const mpack_mask m_masks[] = {
 
 const size_t m_masks_len = (sizeof(m_masks) / sizeof(m_masks[0]));
 
-const char *const m_type_names[] = {
+const char *const m_type_names[9] = {
     "MPACK_UNINITIALIZED", "MPACK_BOOL",     "MPACK_NIL",
     "MPACK_SIGNED",        "MPACK_UNSIGNED", "MPACK_EXT",
     "MPACK_STRING",        "MPACK_ARRAY",    "MPACK_DICT",
 };
 
-const char *const m_expect_names[] = {
+const char *const m_expect_names[9] = {
     "E_MPACK_EXT", "E_MPACK_ARRAY", "E_MPACK_DICT", "E_MPACK_NIL", "E_BOOL",
     "E_NUM",       "E_STRING",      "E_STRLIST",    "E_DICT2ARR"
 };

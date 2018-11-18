@@ -886,6 +886,8 @@ BSTR_PUBLIC int b_reada(bstring *bstr, bNread read_ptr, void *parm);
 #define b_iswriteprotected(BSTR_) \
         ((BSTR_) && (((BSTR_)->flags & BSTR_WRITE_ALLOWED) == 0))
 
+#define BSTR_NULL_INIT ((bstring[1]){{0, 0, NULL, 0}})
+
 /* 
  * Cleanup
  */

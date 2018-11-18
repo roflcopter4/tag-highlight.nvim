@@ -1,10 +1,5 @@
 #include "tag_highlight.h"
 #include <stddef.h>
-//#ifdef DOSISH
-//#  include <WinSock2.h>
-//#else
-//#  include <socket.h>
-//#endif
 
 #include "intern.h"
 #include "mpack.h"
@@ -18,7 +13,6 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 #define INIT_MUTEXES (16)
 
-//typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
 static mpack_obj * do_decode        (read_fn READ, void *src);
@@ -32,7 +26,6 @@ static mpack_obj * decode_nil       (void);
 static mpack_obj * decode_bool      (const mpack_mask *mask);
 static void        stream_read      (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void        obj_read         (void *restrict src, uint8_t *restrict dest, size_t nbytes);
-static void        free_mutexes     (void);
 static const mpack_mask *id_pack_type(uint8_t byte);
 
 
@@ -486,7 +479,7 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
 {
         const int fd = *((int *)src);
 
-#if defined(DOSISH)
+#ifdef DOSISH
         size_t nread = 0;
         while (nread < nbytes) {
                 int n = read(fd, dest, nbytes - nread);
@@ -512,13 +505,3 @@ obj_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
                 dest[i] = *buf->data++;
         buf->slen -= nbytes;
 }
-
-
-#if 0
-static void
-free_mutexes(void)
-{
-        if (mpack_mutex_list)
-                genlist_destroy(mpack_mutex_list);
-}
-#endif

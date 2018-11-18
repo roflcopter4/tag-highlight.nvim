@@ -232,13 +232,13 @@ handle_cstyle(bstring **vim_bufp)
 {
         if (!vim_bufp || !*vim_bufp || !(*vim_bufp)->data)
                 errx(1, "Null paramater");
-        bstring        *data     = *vim_bufp;
-        uint8_t        *bak      = data->data;
-        bstring         tok[1]   = {{0, 0, NULL, 0}};
-        int             ifcount  = 0;
-        bool            esc      = 0;
-        unsigned short  want     = 0;
-        b_list         *list     = b_list_create_alloc(data->slen / GUESS_AVERAGE_LINELEN);
+        bstring        *data    = *vim_bufp;
+        uint8_t        *bak     = data->data;
+        bstring        *tok     = &(bstring){0, 0, NULL, 0};
+        b_list         *list    = b_list_create_alloc(data->slen / GUESS_AVERAGE_LINELEN);
+        int             ifcount = 0;
+        bool            esc     = 0;
+        unsigned short  want    = 0;
 
         while (data && *data->data && b_memsep(tok, data, '\n')) {
                 char     *repl  = xmalloc(tok->slen + 2ll);

@@ -44,10 +44,10 @@ static noreturn void *nvim_event_handler(void *unused);
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
-static pthread_mutex_t      handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t      vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t      event_loop_cb_mutex      = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t      handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t      nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t      vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             event_loop_futex         = P99_FUTEX_INITIALIZER(0);
        _Atomic(mpack_obj *) event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
        FILE                *api_buffer_log;
@@ -761,11 +761,3 @@ emergency_debug(void *vdata)
         pthread_exit();
 }
 #endif
-
-void
-_b_list_dump_nvim(const b_list *list, const char *const listname)
-{
-        echo("Dumping list \"%s\"\n", listname);
-        for (unsigned i = 0; i < list->qty; ++i)
-                echo("%s\n", BS(list->lst[i]));
-}

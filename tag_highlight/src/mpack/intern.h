@@ -1,7 +1,6 @@
 #ifndef SRC_MPACK_CODE_H
 #define SRC_MPACK_CODE_H
 
-
 #include "mpack.h"
 
 #ifdef __cplusplus
@@ -64,7 +63,7 @@ struct mpack_mask {
 };
 
 extern const mpack_mask m_masks[];
-extern const size_t      m_masks_len;
+extern const size_t     m_masks_len;
 
 
 #ifdef __cplusplus
