@@ -1,41 +1,36 @@
 # /src
 set (tag_highlight_SOURCES
-    scan_tags/scan.c
-    scan_tags/strip.c
-    scan_tags/tok.c
+    lang/ctags_scan/scan.c
+    lang/ctags_scan/strip.c
+    lang/ctags_scan/tok.c
+    lang/ctags_scan/scan.h
 
+    lang/common.c
+    lang/common.h
     lang/clang/clang.c
-    lang/clang/const.c
     lang/clang/typeid.c
-    lang/clang/threaded.c
     lang/clang/index.c
     lang/clang/util.c
     lang/clang/clang.h
     lang/clang/intern.h
+    lang/golang/go.c
 
     nvim_api/api.c
     nvim_api/common.c
     nvim_api/misc.c
-    # nvim_api/mark2.c
     nvim_api/api.h
     nvim_api/intern.h
     nvim_api/read.h
 
-    buf_data.c
+    Common.h
+    bufdata.c
     ctags.c
     events.c
     globals.c
-    main.c
-    update_commands.c
-    data.h
     highlight.h
+    main.c
     my_p99_common.h
-    tag_highlight.h
-
-    # go_crap.c
-    # regex.c
-    lang/common.c
-    lang/common.h
+    update_commands.c
 
     contrib/bstring/additions.c
     contrib/bstring/b_list.c
@@ -146,100 +141,31 @@ if (MSVC)
     target_link_libraries(tag_highlight
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/libz.lib"
         "${CMAKE_SOURCE_DIR}/win32_libs/lib/liblzma.lib"
-        "${CMAKE_SOURCE_DIR}/win32_libs/lib/pthreadVC2.lib")
+        "${CMAKE_SOURCE_DIR}/win32_libs/lib/pthreadVC2.lib"
+    )
 else()
     if (MINGW)
         target_link_libraries(tag_highlight -lstdc++)
     else()
-        target_link_libraries(tag_highlight -lrt -pthread)
+        target_link_libraries(tag_highlight
+            -lrt -pthread
+            ${LIBEV_LIBRARIES}
+        )
     endif()
     
     target_link_libraries(tag_highlight 
-        # -nostdinc -static
-        # "D:/msys64/mingw64/x86_64-w64-mingw32/lib/libpthread.a"
-        # "D:/msys64/mingw64/x86_64-w64-mingw32/lib/libm.a"
-        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libgcc.a"
-        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libgcc_s.a"
-        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libstdc++.a"
-        # "D:/msys64/mingw64/lib/gcc/x86_64-w64-mingw32/8.2.0/libatomic.a"
-        # "D:/msys64/mingw64/lib/libz.a"
-        # "D:/msys64/mingw64/lib/liblzma.a"
-        # "D:/msys64/mingw64/lib/libclang_static.a"
-
-        # -static
-        # -pthread -lz -llzma -latomic -lstdc++ -lm -lclang_static
-
-        # "/mingw64/lib/libclangAnalysis.a"
-        # "/mingw64/lib/libclangARCMigrate.a"
-        # "/mingw64/lib/libclangAST.a"
-        # "/mingw64/lib/libclangASTMatchers.a"
-        # "/mingw64/lib/libclangBasic.a"
-        # "/mingw64/lib/libclangCodeGen.a"
-        # "/mingw64/lib/libclangCrossTU.a"
-        # "/mingw64/lib/libclangDriver.a"
-        # "/mingw64/lib/libclangDynamicASTMatchers.a"
-        # "/mingw64/lib/libclangEdit.a"
-        # "/mingw64/lib/libclangFormat.a"
-        # "/mingw64/lib/libclangFrontend.a"
-        # "/mingw64/lib/libclangFrontendTool.a"
-        # "/mingw64/lib/libclangHandleCXX.a"
-        # "/mingw64/lib/libclangHandleLLVM.a"
-        # "/mingw64/lib/libclangIndex.a"
-        # "/mingw64/lib/libclangLex.a"
-        # "/mingw64/lib/libclangParse.a"
-        # "/mingw64/lib/libclangRewrite.a"
-        # "/mingw64/lib/libclangRewriteFrontend.a"
-        # "/mingw64/lib/libclangSema.a"
-        # "/mingw64/lib/libclangSerialization.a"
-        # "/mingw64/lib/libclangStaticAnalyzerCheckers.a"
-        # "/mingw64/lib/libclangStaticAnalyzerCore.a"
-        # "/mingw64/lib/libclangStaticAnalyzerFrontend.a"
-        # "/mingw64/lib/libclangTooling.a"
-        # "/mingw64/lib/libclangToolingASTDiff.a"
-        # "/mingw64/lib/libclangToolingCore.a"
-        # "/mingw64/lib/libclangToolingInclusions.a"
-        # "/mingw64/lib/libclangToolingRefactor.a"
-
-        # ${LLVM_LIBRARIES}
-        # ${LIBCLANG_LIBRARY}
-        # ${LLVM_SYS_LIBRARIES}
-
-        -lm -latomic
+        -latomic
         ${LIBCLANG_LIBRARY}
+        ${LLVM_SYSTEM_LIBRARIES}
         ${ZLIB_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
-
-        # -lm -latomic
-        #"D:/msys64/mingw64/lib/libz.a"
-        #"D:/msys64/mingw64/lib/libclang.a"
-        #"D:/msys64/mingw64/lib/liblzma.a"
-        #"D:/msys64/mingw64/lib/libcpre2-8.a"
-        # ${PCRE2_LIBRARIES}
-        #-lpcre2-8
-        #-luv
-        # -levent
-        # ${LIBEV_LIBRARIES}
     )
-
-    # target_link_libraries(tag_highlight
-        # "-L${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/gccgo_linux_amd64_fPIC"
-        # "-Wl,-rpath=${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/gccgo_linux_amd64_fPIC"
-        # "libtag_highlight_go.so"
-        # "-L${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/linux_amd64_shared"
-        # "-Wl,-rpath=${CMAKE_CURRENT_SOURCE_DIR}/lang/golang/pkg/linux_amd64_shared"
-        # "${CMAKE_SOURCE_DIR}/src/lang/golang/pkg/linux_amd64_shared/tag_highlight_go.a"
-    # )
 
     if (LZMA_SUPPORT)
         target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
     endif()
     
-    #if (USE_JEMALLOC)
-    #    target_link_libraries(tag_highlight /opt/jemalloc/lib/libjemalloc.so.2 -ldl)
-    #endif()
-    #if (CLANG_STR_SEARCH)
-    #    target_link_libraries(tag_highlight -lunwind)
-    #endif()
-    #set(THL_GO_DIR "${PROJECT_SOURCE_DIR}/src/lang/golang/pkg/gccgo_linux_amd64_fPIC")
-    #target_link_libraries(tag_highlight "-Wl,-rpath=${THL_GO_DIR} -L${THL_GO_DIR} -ltag_highlight")
+    if (USE_JEMALLOC)
+       target_link_libraries(tag_highlight -ljemalloc -ldl)
+    endif()
 endif()

@@ -1,8 +1,16 @@
-#include "tag_highlight.h"
-
 #include "clang.h"
 #include "intern.h"
+#if defined HAVE_POSIX_SPAWNP
+#  include <spawn.h>
+#  include <wait.h>
+#elif defined HAVE_FORK
+#  include <wait.h>
+#endif
 
+extern void get_tmp_path(char *buf);
+static void clean_tmpdir();
+
+static const char *cleanup_path;
 
 //========================================================================================
 
@@ -26,6 +34,48 @@ resolve_range(CXSourceRange r, struct resolved_range *res)
         res->offset = rng[0][2];
         res->file   = file;
         return true;
+}
+
+#define CMD_SIZ      (4096)
+#define STATUS_SHIFT (8)
+#define TMP_LOCATION "/mnt/ramdisk"
+
+void
+get_tmp_path(char *buf)
+{
+#ifdef DOSISH
+        bstring *name = nvim_call_function(,B("tempname"), E_STRING).ptr;
+        memcpy(buf, name->data, name->slen+1);
+        b_destroy(name);
+        mkdir(buf, 0700);
+#else
+        memcpy(buf, SLS(TMP_LOCATION "/tag_highlight_XXXXXX"));
+        errno = 0;
+        if (!mkdtemp(buf))
+                err(1, "mkdtemp failed");
+        at_quick_exit(clean_tmpdir);
+        atexit(clean_tmpdir);
+#endif
+        cleanup_path = buf;
+}
+
+static void
+clean_tmpdir(void)
+{
+#if defined(HAVE_POSIX_SPAWNP) || defined(HAVE_FORK)
+        int  status, pid;
+        char cmd[CMD_SIZ];
+        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", TMP_LOCATION);
+        char *const argv[] = {"sh", "-c", cmd, (char *)0};
+
+#  ifdef HAVE_POSIX_SPAWNP
+        posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
+#  else
+        if ((pid = fork()) == 0)
+                execvpe("sh", argv, environ);
+#  endif
+        waitpid(pid, &status, 0);
+#endif
 }
 
 #if 0

@@ -1,9 +1,5 @@
-#include "tag_highlight.h"
+#include "scan.h"
 #include <ctype.h>
-
-#include "data.h"
-#include "highlight.h"
-
 
 static const struct lang_s {
         const nvim_filetype_id id;

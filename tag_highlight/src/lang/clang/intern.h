@@ -1,10 +1,5 @@
-#ifndef SRC_CLANG_INTERN_H
-#define SRC_CLANG_INTERN_H
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "tag_highlight.h"
+#ifndef SRC_LANG_CLANG_INTERN_H_
+#define SRC_LANG_CLANG_INTERN_H_
 
 #include "lang/common.h"
 
@@ -15,6 +10,9 @@ extern "C" {
 #include <clang-c/CXCompilationDatabase.h>
 #include <clang-c/CXString.h>
 #include <clang-c/Index.h>
+
+__BEGIN_DECLS
+/*======================================================================================*/
 
 #define TMPSIZ (SAFE_PATH_MAX + 1)
 #define CLD(s) \
@@ -56,29 +54,17 @@ struct resolved_range {
         CXFile   file;
 };
 
-extern const char *const clang_paths[];
-extern const size_t      n_clang_paths;
-
-extern const char *const idx_entity_kind_repr[];
-extern const size_t      idx_entity_kind_num;
-
 /*======================================================================================*/
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
-#if 0
-INTERN nvim_arg_array *type_id(struct bufdata         *bdata,
-                                struct translationunit *stu,
-                                const b_list           *enumerators,
-                                struct cmd_info        *info);
-#endif
 INTERN nvim_arg_array *type_id(struct bufdata *bdata, struct translationunit *stu);
 
 INTERN IndexerCallbacks *make_cb_struct(void);
 INTERN void              lc_index_file(struct bufdata *bdata, struct translationunit *stu);
 
 INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
-/* INTERN void locate_extent(bstring *dest, struct bufdata *bdata, const struct resolved_range *res); */
+INTERN void get_tmp_path(char *buf);
 
 /*======================================================================================*/
 /* P99 */
@@ -89,7 +75,5 @@ INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
 
 
 /*======================================================================================*/
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 #endif /* intern.h */

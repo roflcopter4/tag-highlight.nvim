@@ -1,11 +1,8 @@
 #ifndef SRC_LANG_COMMON_H_
 #define SRC_LANG_COMMON_H_
 
-#include "tag_highlight.h"
-
-#include "data.h"
+#include "Common.h"
 #include "highlight.h"
-#include "mpack/mpack.h"
 #include "my_p99_common.h"
 
 __BEGIN_DECLS
@@ -60,6 +57,7 @@ extern FILE *cmd_log;
 #define CTAGS_TYPE         't'
 #define CTAGS_UNION        'u'
 #define EXTENSION_TEMPLATE 'T'
+#define EXTENSION_CONSTANT 'c'
 
 /*======================================================================================*/
 __END_DECLS

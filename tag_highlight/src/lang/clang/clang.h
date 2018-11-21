@@ -1,9 +1,9 @@
 #ifndef SRC_CLANG_CLANG_H
 #define SRC_CLANG_CLANG_H
 
-#include "tag_highlight.h"
+#include "Common.h"
 
-#include "data.h"
+#include "highlight.h"
 #include "contrib/p99/p99_defarg.h"
 #include <pthread.h>
 
@@ -19,8 +19,6 @@ extern "C" {
 //extern void libclang_update_line(struct bufdata *bdata, int first, int last);
 
 /* enum libclang_update_type { LCUPDATE_NORMAL, LCUPDATE_FORCE }; */
-
-extern pthread_cond_t libclang_cond;
 
 extern noreturn void *libclang_threaded_highlight(void *vdata);
 

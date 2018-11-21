@@ -1,20 +1,10 @@
-#include "tag_highlight.h"
-
 #include "clang.h"
-#include "data.h"
-#include "highlight.h"
 #include "intern.h"
-#include "nvim_api/api.h"
 #include "util/find.h"
-#include <sys/stat.h>
 
 #ifdef DOSISH
 #  define at_quick_exit(a)
 #  define quick_exit(a) _Exit(a)
-#endif
-#if defined(HAVE_POSIX_SPAWNP)
-#  include <spawn.h>
-#  include <wait.h>
 #endif
 
 #define TUFLAGS                                          \
@@ -42,7 +32,7 @@
 #endif
 
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
-char libclang_tmp_path[SAFE_PATH_MAX];
+static char              libclang_tmp_path[SAFE_PATH_MAX];
 
 struct enum_data {
         CXTranslationUnit tu;
@@ -50,10 +40,8 @@ struct enum_data {
         const bstring *buf;
 };
 
-static void                    clean_tmpdir(void);
 static void                    destroy_struct_translationunit(struct translationunit *stu);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *bdata);
-static void                    get_tmp_path(void);
 static str_vector             *get_backup_commands(struct bufdata *bdata);
 static str_vector             *get_compile_commands(struct bufdata *bdata);
 static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor);
@@ -138,6 +126,13 @@ void
         pthread_mutex_unlock(&lc_mutex);
 }
 
+void *
+libclang_threaded_highlight(void *vdata)
+{
+        libclang_highlight((struct bufdata *)vdata);
+        pthread_exit(NULL);
+}
+
 static inline void
 lines2bytes(struct bufdata *bdata, int64_t *startend, const int first, const int last)
 {
@@ -182,7 +177,7 @@ static struct translationunit *
 init_compilation_unit(struct bufdata *bdata, bstring *buf)
 {
         if (!*libclang_tmp_path)
-                get_tmp_path();
+                get_tmp_path(libclang_tmp_path);
 
         int tmpfd, tmplen;
         char         tmp[SAFE_PATH_MAX];
@@ -404,47 +399,6 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, struct bufdata *b
 }
 
 /*======================================================================================*/
-
-#define CMD_SIZ      (4096)
-#define STATUS_SHIFT (8)
-#define TMP_LOCATION "/tmp"
-
-static void
-get_tmp_path(void)
-{
-#ifdef DOSISH
-        bstring *name = nvim_call_function(,B("tempname"), E_STRING).ptr;
-        memcpy(libclang_tmp_path, name->data, name->slen+1);
-        b_destroy(name);
-        mkdir(libclang_tmp_path, 0700);
-#else
-        memcpy(libclang_tmp_path, SLS(TMP_LOCATION "/tag_highlight_XXXXXX"));
-        errno = 0;
-        if (!mkdtemp(libclang_tmp_path))
-                err(1, "mkdtemp failed");
-        at_quick_exit(clean_tmpdir);
-        atexit(clean_tmpdir);
-#endif
-}
-
-static void
-clean_tmpdir(void)
-{
-#if defined(HAVE_POSIX_SPAWNP) || defined(HAVE_FORK)
-        int  status, pid, ret;
-        char cmd[CMD_SIZ];
-        snprintf(cmd, CMD_SIZ, "rm -rf %s/tag_highlight*", TMP_LOCATION);
-        char *const argv[] = {"sh", "-c", cmd, (char *)0};
-
-#  ifdef HAVE_POSIX_SPAWNP
-        posix_spawnp(&pid, "sh", NULL, NULL, argv, environ);
-#  else
-        if ((pid = fork()) == 0)
-                execvpe("sh", argv, environ);
-#  endif
-        waitpid(pid, &status, 0);
-#endif
-}
 
 static void
 destroy_struct_translationunit(struct translationunit *stu)

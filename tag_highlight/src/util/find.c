@@ -1,5 +1,4 @@
-#include "tag_highlight.h"
-
+#include "Common.h"
 #include "find.h"
 #include <sys/stat.h>
 

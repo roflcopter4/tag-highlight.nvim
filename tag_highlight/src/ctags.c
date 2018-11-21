@@ -1,6 +1,5 @@
-#include "tag_highlight.h"
+#include "Common.h"
 #include <dirent.h>
-#include <sys/stat.h>
 #if defined(DOSISH) || defined(MINGW)
 //#  include <direct.h>
 #else
@@ -8,9 +7,7 @@
 #  include <sys/wait.h>
 #endif
 
-#include "data.h"
 #include "highlight.h"
-#include "mpack/mpack.h"
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);

@@ -60,14 +60,14 @@ typedef unsigned char uchar;
 #define BSTR_OK (0)
 #define BSTR_BS_BUFF_LENGTH_GET (0)
 
-#define BSTR_WRITE_ALLOWED 0x01u
-#define BSTR_FREEABLE      0x02u
-#define BSTR_DATA_FREEABLE 0x04u
-#define BSTR_LIST_END      0x08u
-#define BSTR_CLONE         0x10u
-#define BSTR_MASK_USR3     0x20u
-#define BSTR_MASK_USR2     0x40u
-#define BSTR_MASK_USR1     0x80u
+#define BSTR_WRITE_ALLOWED 0x01U
+#define BSTR_FREEABLE      0x02U
+#define BSTR_DATA_FREEABLE 0x04U
+#define BSTR_LIST_END      0x08U
+#define BSTR_CLONE         0x10U
+#define BSTR_MASK_USR3     0x20U
+#define BSTR_MASK_USR2     0x40U
+#define BSTR_MASK_USR1     0x80U
 
 #define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 

@@ -1,8 +1,8 @@
 #ifndef SRC_ARCHIVE_ARCHIVE_UTIL_H
 #define SRC_ARCHIVE_ARCHIVE_UTIL_H
 
-#include "tag_highlight.h"
-#include "data.h"
+#include "Common.h"
+#include "highlight.h"
 
 __BEGIN_DECLS
 

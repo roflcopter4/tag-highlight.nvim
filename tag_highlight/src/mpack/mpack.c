@@ -1,6 +1,6 @@
-#include "tag_highlight.h"
+#include "Common.h"
 
-#include "data.h"
+#include "highlight.h"
 #include "mpack.h"
 
 static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);

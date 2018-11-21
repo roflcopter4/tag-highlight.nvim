@@ -1,7 +1,4 @@
-#include "tag_highlight.h"
-
-#include "data.h"
-#include "highlight.h"
+#include "scan.h"
 
 #if defined(DOSISH) || defined(__MINGW32__) || defined(__MINGW64__)
 #  include <malloc.h>

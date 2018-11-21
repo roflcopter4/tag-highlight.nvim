@@ -1,7 +1,4 @@
-#include "tag_highlight.h"
-
-#include "data.h"
-#include "highlight.h"
+#include "scan.h"
 
 #define INIT_STRINGS 8192
 

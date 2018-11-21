@@ -1,10 +1,6 @@
-#include "tag_highlight.h"
-
-#include "contrib/p99/p99_defarg.h"
-#include "data.h"
+#include "Common.h"
 #include "highlight.h"
 #include "lang/clang/clang.h"
-#include "mpack/mpack.h"
 #include "my_p99_common.h"
 
 #ifdef DOSISH
@@ -47,19 +43,18 @@ int
 main(UNUSED int argc, char *argv[])
 {
         _nvim_api_read_fd = STDIN_FILENO;
-        TIMER_START(main_timer);
+        TIMER_START(&main_timer);
         init(argv);
 
         /* This actually runs the event loop and does not normally return. */
         event_loop_init(_nvim_api_read_fd);
 
-        /* If the user explicitly gives the vim command to stop the plugin, the loop does
-         * return and we can clean everything up. We don't do this when Neovim exits
-         * because the editor freezes until all child processes, meaning this program,
-         * exit. This delay is noticeable and annoying, so normally we just call
-         * quick_exit or _Exit instead. */
+        /* If the user explicitly gives the vim command to stop the plugin, the loop
+         * returns and we clean everything up. We don't do this when Neovim exits because
+         * it freezes until all child processes have stopped. This delay is noticeable and
+         * annoying, so normally we just call quick_exit or _Exit instead. */
         eputs("Right, cleaning up!\n");
-        /* exit_cleanup(); */
+        exit_cleanup();
         exit(EXIT_SUCCESS);
 }
 
@@ -73,7 +68,9 @@ init(char **argv)
         platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
+#ifdef DOSISH
         atexit(exit_cleanup);
+#endif
         at_quick_exit(quick_cleanup);
         START_DETACHED_PTHREAD(main_initialization);
 }
@@ -144,7 +141,7 @@ main_initialization(UNUSED void *arg)
         get_initial_taglist(bdata);
         update_highlight(bdata);
 
-        TIMER_REPORT(main_timer, "main initialization");
+        TIMER_REPORT(&main_timer, "main initialization");
         nvim_set_client_info(,B(PKG), 0, 1, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1u, 0u, P99_FUTEX_MAX_WAITERS);

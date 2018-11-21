@@ -1,9 +1,7 @@
-#include "tag_highlight.h"
+#include "Common.h"
 
-#include "data.h"
 #include "highlight.h"
 #include "lang/clang/clang.h"
-#include "mpack/mpack.h"
 #include <signal.h>
 
 #include "contrib/p99/p99_atomic.h"
@@ -23,11 +21,14 @@
 #else
 #  define USE_EVENT_LIB  EVENT_LIB_EV
 #  define KILL_SIG       SIGUSR1
+static pthread_t loop_thread;
 #endif
 
 typedef volatile p99_futex vfutex_t;
 
 /*======================================================================================*/
+
+extern void *highlight_go_pthread_wrapper(void *vdata);
 
 extern void          update_line         (struct bufdata *, int, int);
 static void          handle_line_event   (struct bufdata *bdata, mpack_array_t *arr);
@@ -111,8 +112,8 @@ nvim_event_handler(UNUSED void *unused)
 
 #  include <ev.h>
 #  define UEVP_ __attribute__((__unused__)) EV_P
-struct ev_io     input_watcher;
-struct ev_signal signal_watcher[4];
+static struct ev_io     input_watcher;
+static struct ev_signal signal_watcher[4];
 
 static void
 event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
@@ -166,6 +167,7 @@ void
 event_loop_init(const int fd)
 {
         struct ev_loop *loop = EV_DEFAULT;
+        loop_thread          = pthread_self();
         ev_io_init(&input_watcher, event_loop_io_callback, fd, EV_READ);
         ev_io_start(loop, &input_watcher);
 
@@ -178,7 +180,7 @@ event_loop_init(const int fd)
         ev_signal_start(loop, &signal_watcher[2]);
         ev_signal_start(loop, &signal_watcher[3]);
 
-        ev_run(mainloop);
+        ev_run(loop, 0);
 }
 
 /*======================================================================================*/
@@ -199,8 +201,6 @@ static void
 event_loop_io_callback(evutil_socket_t fd, UNUSED short events, UNUSED void *data)
 {
         pthread_mutex_lock(&event_loop_cb_mutex);
-
-        //const int  fd  = w->fd;
         mpack_obj *obj = mpack_decode_stream(fd);
 
         if (!obj)
@@ -405,22 +405,21 @@ handle_nvim_event(void *vdata)
                 case EVENT_BUF_LINES:
                         handle_line_event(bdata, arr);
                         break;
-
                 case EVENT_BUF_CHANGED_TICK: {
+                        uint32_t new_tick, old_tick;
                         pthread_mutex_lock(&bdata->lock.ctick);
-                        const uint32_t new_tick = (uint32_t)m_expect(arr->items[1], E_NUM).num;
-                        const uint32_t old_tick = atomic_load(&bdata->ctick);
+                        new_tick = (uint32_t)m_expect(arr->items[1], E_NUM).num;
+                        old_tick = atomic_load(&bdata->ctick);
                         if (new_tick > old_tick)
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
-                } break;
-
+                        break;
+                }
                 case EVENT_BUF_DETACH:
                         clear_highlight(bdata);
                         destroy_bufdata(&bdata);
                         eprintf("Detaching from buffer %d\n", bufnum);
                         break;
-
                 default:
                         abort();
                 }
@@ -534,12 +533,11 @@ handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
                 /* If the replacement list is empty then we're just deleting lines. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
-
         /* For some reason neovim sometimes sends updates with an empty list in
          * which both the first and last line are the same. God knows what this is
-         * supposed to indicate. I'll just ignore them.
-         *
-         * Neovim always considers there to be at least one line in any buffer.
+         * supposed to indicate. I'll just ignore them. */
+
+        /* Neovim always considers there to be at least one line in any buffer.
          * An empty buffer therefore must have one empty line. */
         if (bdata->lines->qty == 0)
                 ll_append(bdata->lines, b_fromcstr(""));
@@ -547,17 +545,17 @@ handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
         if (!bdata->initialized && !empty)
                 bdata->initialized = true;
 
-        /* LINE_EVENT_DEBUG(); */
-#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
-        START_DETACHED_PTHREAD(emergency_debug, bdata);
-#endif
-
         xfree(repl_list->lst);
         xfree(repl_list);
         pthread_mutex_unlock(&bdata->lines->lock);
+
+        if (!empty && bdata->ft->has_parser) {
+                if (bdata->ft->is_c)
+                        START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
+                else if (bdata->ft->id == FT_GO)
+                        START_DETACHED_PTHREAD(highlight_go_pthread_wrapper, bdata);
+        }
         pthread_mutex_unlock(&handle_mutex);
-        if (!empty && bdata->ft->is_c)
-                START_DETACHED_PTHREAD(libclang_threaded_highlight, bdata);
 }
 
 static inline void
@@ -684,14 +682,15 @@ vimscript_interrupt(const int val)
          * User called the kill command.
          */
         case 'C': {
-                /* extern pthread_t top_thread; */
                 clear_highlight();
                 pthread_mutex_unlock(&vs_mutex);
-                /* pthread_kill(top_thread, KILL_SIG); */
-                /* pthread_kill(loop_thread, KILL_SIG); */
-                /* raise(KILL_SIG); */
-                /* pthread_exit(); */
+#ifdef DOSISH
                 exit(0);
+#else
+                pthread_kill(loop_thread, KILL_SIG);
+                /* raise(KILL_SIG); */
+                pthread_exit();
+#endif
         }
         /*
          * User called the clear highlight command.
@@ -741,23 +740,3 @@ id_event(mpack_obj *event)
 
         return type;
 }
-
-#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
-static void *
-emergency_debug(void *vdata)
-{
-        struct bufdata *bdata = vdata;
-        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
-        const unsigned n     = nvim_buf_line_count(0, bdata->num);
-        pthread_mutex_lock(&bdata->lines->lock);
-        if (atomic_load(&bdata->ctick) == ctick) {
-                if (bdata->lines->qty != (int)n)
-                        errx(1,
-                             "Internal line count (%d) is incorrect. "
-                             "Actual: %u -- %u vs %u. Aborting",
-                             bdata->lines->qty, n, ctick, bdata->ctick);
-        }
-        pthread_mutex_unlock(&bdata->lines->lock);
-        pthread_exit();
-}
-#endif

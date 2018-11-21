@@ -38,7 +38,6 @@
 # You should have received a copy of the GNU General Public License
 # along with RTags.  If not, see <http://www.gnu.org/licenses/>.
 
-
 macro(FIX_WINDOWS_PATHS _pathvar)
     if (WIN32 OR MINGW)
         string(REPLACE "\\" "/" _TMP_VAR1 "${${_pathvar}}")
@@ -143,7 +142,6 @@ if (NOT EXISTS ${LIBCLANG_LIBDIR})
     if (NOT EXISTS ${LIBCLANG_LIBDIR})
         message(FATAL_ERROR "Could NOT find clang libdir. You can fix this by setting LIBCLANG_LIBDIR in your shell or as a cmake variable.")
     endif ()
-    # FIX_WINDOWS_PATHS(LIBCLANG_LIBDIR)
     set(LIBCLANG_LIBDIR ${LIBCLANG_LIBDIR} CACHE STRING "Path to the clang library.")
 endif ()
 
@@ -156,11 +154,6 @@ endif()
 if (NOT LLVM_SYS_LIBRARIES)
     execute_process(COMMAND ${LIBCLANG_LLVM_CONFIG_EXECUTABLE} --system-libs OUTPUT_VARIABLE LLVM_SYS_LIBRARIES OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
-# if (MINGW)
-#     set(LIBCLANG_LIBRARIES "${LIBCLANG_LIBDIR}/libclang.a" CACHE STRING "Libclang archive.")
-# endif()
-##
-
 
 if (NOT LIBCLANG_LIBRARIES)
     find_library(LIBCLANG_LIB_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT NAMES clang libclang HINTS ${LIBCLANG_LIBDIR} ${LIBCLANG_ROOT_DIR}/lib NO_DEFAULT_PATH)
@@ -175,7 +168,6 @@ if (NOT LIBCLANG_LIBRARIES)
     unset(LIBCLANG_LIB_HACK_CMAKECACHE_DOT_TEXT_BULLSHIT CACHE)
 endif ()
 
-# FIX_WINDOWS_PATHS(LIBCLANG_LIBRARIES)
 set(LIBCLANG_LIBRARY ${LIBCLANG_LIBRARIES} CACHE FILEPATH "Path to the libclang library")
 
 if (LIBCLANG_LLVM_CONFIG_EXECUTABLE)

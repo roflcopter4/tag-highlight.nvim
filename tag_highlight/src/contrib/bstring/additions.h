@@ -66,7 +66,7 @@ extern "C" {
                 .slen  = (sizeof(CSTR) - 1),      \
                 .mlen  = 0,                       \
                 .data  = (uchar *)("" CSTR ""),   \
-                .flags = 0x00u                    \
+                .flags = 0x00U                    \
         }
 
 /**

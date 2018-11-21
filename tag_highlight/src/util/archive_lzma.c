@@ -1,5 +1,5 @@
 #include "util/archive.h"
-#include "tag_highlight.h"
+#include "Common.h"
 #include <sys/stat.h>
 
 #include <lzma.h>

@@ -1,7 +1,7 @@
 #ifndef SRC_NVIM_API_INTERN_H
 #define SRC_NVIM_API_INTERN_H
 
-#include "tag_highlight.h"
+#include "Common.h"
 
 #include "highlight.h"
 #include "mpack/mpack.h"

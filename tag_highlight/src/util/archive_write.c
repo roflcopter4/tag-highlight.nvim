@@ -1,7 +1,7 @@
 #include "util/archive.h"
 
 #ifdef HAVE_TOPCONFIG_H
-#  include "tag_highlight.h"
+#  include "Common.h"
 #else
 #  include "util.h"
 #endif

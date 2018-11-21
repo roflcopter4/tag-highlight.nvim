@@ -1,8 +1,6 @@
 #include "util.h"
-#include <sys/stat.h>
-
-#include "data.h"
 #include "mpack/mpack.h"
+#include <sys/stat.h>
 
 #define STARTSIZE 1024
 #define GUESS 100
@@ -175,7 +173,7 @@ err_(UNUSED const int status, const bool print_err, const char *const __restrict
         else
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
-        __mingw_vfprintf(stderr, buf, ap);
+        vfprintf(stderr, buf, ap);
         va_end(ap);
 
         SHOW_STACKTRACE();
@@ -298,6 +296,7 @@ bstring *
 (get_command_output)(const char *command, char *const *const argv, bstring *input)
 {
         int fds[2][2], pid, status;
+
         if (pipe2(fds[0], O_CLOEXEC) == (-1) || pipe2(fds[1], O_CLOEXEC) == (-1)) 
                 err(1, "pipe() failed\n");
         if ((pid = fork()) == 0) {

@@ -1,11 +1,5 @@
-#include "tag_highlight.h"
-#include "intern.h"
-
 #include "clang.h"
-#include "data.h"
-#include "highlight.h"
-#include "mpack/mpack.h"
-#include "nvim_api/api.h"
+#include "intern.h"
 #include "util/list.h"
 
 static void do_typeswitch(struct bufdata           *bdata,

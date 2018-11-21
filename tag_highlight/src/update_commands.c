@@ -1,12 +1,9 @@
-#include "tag_highlight.h"
-
-#include "data.h"
+#include "Common.h"
 #include "highlight.h"
 #include "lang/clang/clang.h"
-#include "mpack/mpack.h"
-#include "nvim_api/api.h"
+#include "lang/ctags_scan/scan.h"
 
-#include <lzma.h>
+extern void highlight_go(struct bufdata *bdata);
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
@@ -55,12 +52,19 @@ void
         if (!bdata->ft->restore_cmds_initialized) 
                 get_ignored_tags(bdata);
 
-        if (bdata->ft->is_c)
-                update_c_like(bdata, type);
-        else if (bdata->calls)
-                update_from_cache(bdata);
-        else
-                update_other(bdata);
+        if (bdata->ft->has_parser) {
+                if (bdata->ft->is_c)
+                        update_c_like(bdata, type);
+                else if (bdata->ft->id == FT_GO)
+                        highlight_go(bdata);
+                else
+                        errx(1, "Impossible filetype.");
+        } else {
+                if (bdata->calls)
+                        update_from_cache(bdata);
+                else
+                        update_other(bdata);
+        }
 
         pthread_mutex_unlock(&bdata->lock.update);
         TIMER_REPORT(t, "update highlight");
@@ -211,9 +215,9 @@ handle_kind(bstring *cmd, unsigned i,
                 b_destroy(ft_allbut);
         }
 
-#if 0
+/* #if 0 */
         if (info->prefix || info->suffix) {
-#endif
+/* #endif */
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
@@ -223,15 +227,14 @@ handle_kind(bstring *cmd, unsigned i,
                 b_sprintfa(cmd, SYN_MATCH_END, suffix, global_allbut, group_id, info->group);
 
                 b_destroy(global_allbut);
-#if 0
-        }
-        else {
+/* #if 0 */
+        } else {
                 b_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         b_sprintfa(cmd, "%s ", tags->lst[i]->b);
                 b_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
         }
-#endif
+/* #endif */
 
         b_destroy(group_id);
         return i;
@@ -252,7 +255,7 @@ void
         if (!bdata)
                 return;
 
-        if (bdata->ft->order && !bdata->ft->is_c) {
+        if (bdata->ft->order && !(bdata->ft->has_parser)) {
                 bstring *cmd = b_alloc_null(8192);
 
                 for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
@@ -425,7 +428,7 @@ add_cmd_call(nvim_arg_array **calls, bstring *cmd)
 {
 #define CALLS (*calls)
         if (!*calls) {
-                CALLS        = xmalloc(sizeof(nvim_arg_array *));
+                CALLS        = xmalloc(sizeof(nvim_arg_array));
                 CALLS->qty   = 0;
                 CALLS->mlen  = 16;
                 CALLS->fmt   = xcalloc(CALLS->mlen, sizeof(char *));

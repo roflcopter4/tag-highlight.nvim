@@ -47,6 +47,9 @@ find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibLZMA)
 find_package (LibClang REQUIRED)
+if (NOT MINGW)
+    find_package (LibEv REQUIRED)
+endif ()
 # find_package (PCRE2 REQUIRED)
 #find_package (LibUv REQUIRED)
 
@@ -91,6 +94,7 @@ CHECK_SYMBOL_EXISTS (pause        "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2        "unistd.h"   HAVE_PIPE2)
 CHECK_SYMBOL_EXISTS (fork         "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (open_memstream "stdio.h"  HAVE_OPEN_MEMSTREAM)
+CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"   HAVE_CLOCK_GETTIME)
 
 CHECK_INCLUDE_FILE("complex.h"     HAVE_COMPLEX_H)
 CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)
@@ -162,19 +166,22 @@ else()
         # set (BASE "${BASE} -fprofile-instr-generate")
         # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
         # set (SANIT "")
-        set (SANIT "-fsanitize=undefined -fsanitize=null")
+        # set (SANIT "-fsanitize=undefined -fsanitize=null")
 
-        string(CONCAT BASE "${BASE} ${SANIT}"
-            " -Wno-incompatible-pointer-types-discards-qualifiers"
-            " -Wno-error=incompatible-pointer-types-discards-qualifiers"
-            )
+        # string(CONCAT BASE "${BASE} ${SANIT}"
+        #     " -Wno-incompatible-pointer-types-discards-qualifiers"
+        #     " -Wno-error=incompatible-pointer-types-discards-qualifiers"
+        #     )
 
         string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
               " -Wno-sign-conversion -Wno-documentation-unknown-command"
               " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
               " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
               " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
-               )
+              " -Wno-error=incompatible-pointer-types-discards-qualifiers"
+        )
+
+        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
         set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
         # string (CONCAT CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} "
             # "-Rpass='.*'"
@@ -188,7 +195,7 @@ else()
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
-        # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
     endif()
 #####################################################################################################
 

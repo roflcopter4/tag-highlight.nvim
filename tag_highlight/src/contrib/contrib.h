@@ -5,7 +5,7 @@
    extern "C" {
 #endif
 
-#include "tag_highlight.h"
+#include "Common.h"
 
 #include <stdint.h>
 #include <string.h>

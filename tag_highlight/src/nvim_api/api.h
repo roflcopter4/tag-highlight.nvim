@@ -1,10 +1,9 @@
 #ifndef SRC_API_H
 #define SRC_API_H
 
-#include "tag_highlight.h"
+#include "Common.h"
+#include "highlight.h"
 
-#include "data.h"
-#include "mpack/mpack.h"
 #include "contrib/p99/p99_defarg.h"
 #include "contrib/p99/p99_futex.h"
 #include "util/list.h"

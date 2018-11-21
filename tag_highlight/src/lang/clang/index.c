@@ -1,10 +1,5 @@
-#include "tag_highlight.h"
-
 #include "clang.h"
-#include "data.h"
 #include "intern.h"
-#include "mpack/mpack.h"
-#include "nvim_api/api.h"
 #include <stdarg.h>
 
 /* static int my_abortQuery(CXClientData data, void *reserved); */
@@ -15,6 +10,36 @@ static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedF
 /* static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved); */
 static void my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info);
 static void my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo *info);
+
+static const char *const idx_entity_kind_repr[] = {
+    "Unexposed",
+    "Typedef",
+    "Function",
+    "Variable",
+    "Field",
+    "EnumConstant",
+    "ObjCClass",
+    "ObjCProtocol",
+    "ObjCCategory",
+    "ObjCInstanceMethod",
+    "ObjCClassMethod",
+    "ObjCProperty",
+    "ObjCIvar",
+    "Enum",
+    "Struct",
+    "Union",
+    "CXXClass",
+    "CXXNamespace",
+    "CXXNamespaceAlias",
+    "CXXStaticVariable",
+    "CXXStaticMethod",
+    "CXXInstanceMethod",
+    "CXXConstructor",
+    "CXXDestructor",
+    "CXXConversionFunction",
+    "CXXTypeAlias",
+    "CXXInterface",
+};
 
 /*======================================================================================*/
 
