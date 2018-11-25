@@ -6,7 +6,7 @@ static const struct lang_s {
         const enum basic_types { C_LIKE, PYTHON } type;
 } lang_comment_groups[] = {
     { FT_C,      C_LIKE, },
-    { FT_CPP,    C_LIKE, },
+    { FT_CXX,    C_LIKE, },
     { FT_CSHARP, C_LIKE, },
     { FT_GO,     C_LIKE, },
     { FT_JAVA,   C_LIKE, },
@@ -29,7 +29,7 @@ static void handle_python(bstring *vim_buf);
  * false positives caused by tag names appearing in comments and strings. */
 
 bstring *
-strip_comments(struct bufdata *bdata)
+strip_comments(Buffer *bdata)
 {
         const struct comment_s *com = NULL;
         /* unsigned               *bytenum = nvim_call_function_args(

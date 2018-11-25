@@ -14,7 +14,7 @@ static bool vim_func (char ch, bool first);
 
 
 b_list *
-tokenize(struct bufdata *bdata, bstring *vimbuf)
+tokenize(Buffer *bdata, bstring *vimbuf)
 {
         b_list *list = b_list_create_alloc(INIT_STRINGS);
 

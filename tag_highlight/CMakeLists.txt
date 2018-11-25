@@ -53,8 +53,8 @@ endif ()
 # find_package (PCRE2 REQUIRED)
 #find_package (LibUv REQUIRED)
 
-include_directories(${ZLIB_INCLUDE_DIRS})
-include_directories(${PCRE2_INCLUDE_DIRS})
+# include_directories(${ZLIB_INCLUDE_DIRS})
+# include_directories(${PCRE2_INCLUDE_DIRS})
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
 
@@ -149,7 +149,7 @@ else()
         endif()
     endif()
 
-    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu17 -fdiagnostics-color=always")
+    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu11 -fdiagnostics-color=always")
 
 #####################################################################################################
     if (CLANG_STR_SEARCH EQUAL -1)
@@ -195,7 +195,7 @@ else()
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
     endif()
 #####################################################################################################
 
@@ -217,7 +217,6 @@ endif()
 add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories("${PROJECT_SOURCE_DIR}/src")
-include_directories("${PROJECT_SOURCE_DIR}/src/contrib/jsmn")
 
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
 GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)

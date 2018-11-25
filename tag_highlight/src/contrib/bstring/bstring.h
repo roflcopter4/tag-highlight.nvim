@@ -474,7 +474,7 @@ BSTR_PUBLIC int64_t b_strrchrp(const bstring *bstr, int ch, unsigned pos);
  *
  * Returns the position of the found character or BSTR_ERR if it is not found.
  */
-#define b_strrchr(b, c) b_strrchrp((b), (c), ((b)->slen - 1u))
+#define b_strrchr(b, c) b_strrchrp((b), (c), ((b)->slen - 1U))
 
 /**
  * Search for the first position in b0 starting from pos or after, in which

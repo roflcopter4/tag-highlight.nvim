@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"go/ast"
 	"go/importer"
 	"go/parser"
@@ -12,50 +11,77 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 var (
-	fset *token.FileSet = token.NewFileSet()
+	fset   = token.NewFileSet()
+	lfile  *os.File
+	errlog *log.Logger
 )
+
+type QuickReadInfo struct {
+	Filename      string
+	Fp            *os.File
+	Bytes_To_Read int
+}
 
 //========================================================================================
 
 func main() {
+	open_log_rel()
 	var (
-		stdin          = QuickRead(os.Stdin).String()
-		filename, err1 = filepath.Abs(os.Args[1])
+		filename, err = filepath.Abs(os.Args[1])
+		buf           = QuickRead(&QuickReadInfo{"", os.Stdin, xatoi(os.Args[2])})
 	)
-	if err1 != nil {
-		panic(err1)
+	if err != nil {
+		panic(err)
 	}
 	var (
 		pathname       = filepath.Dir(filename)
 		astfiles       = parse_files(pathname, filename)
-		new_file, err2 = parser.ParseFile(fset, filename, stdin, 0)
+		new_file, err2 = parser.ParseFile(fset, filename, buf, 0)
 	)
-	astfiles = append(astfiles, new_file)
 	if err2 != nil {
-		// eprintf("%v\n", err2)
+		errlog.Printf("%v\n", err2)
 	}
 
+	astfiles = append(astfiles, new_file)
 	highlight(filename, astfiles)
+}
+
+func open_log_rel() {
+	var err error
+	lfile, err = os.Open("/dev/null")
+	if err != nil {
+		panic(err)
+	}
+	errlog = log.New(lfile, "ERROR: ", 0)
+}
+
+func open_log_dbg() {
+	lfile = os.Stderr
+	errlog = log.New(lfile, "ERROR: ", 0)
 }
 
 //========================================================================================
 
 func parse_whole_dir(path string) *ast.Package {
-	astmap, err := parser.ParseDir(fset, path, nil, 0)
-	if err != nil {
+	var (
+		astmap map[string]*ast.Package
+		err    error
+	)
+	if astmap, err = parser.ParseDir(fset, path, nil, 0); err != nil {
 		panic(err)
 	}
-	var ret *ast.Package
 	for _, file := range astmap {
-		ret = file
-		break
+		return file
 	}
 
-	return ret
+	return nil
 }
 
 func parse_files(path, skip string) []*ast.File {
@@ -64,14 +90,13 @@ func parse_files(path, skip string) []*ast.File {
 		parsed_files = make([]*ast.File, 0, len(fnames))
 	)
 	for _, file := range fnames {
-		if file == skip {
-			continue
+		if file != skip {
+			tmp, err := parser.ParseFile(fset, file, nil, 0)
+			if err != nil {
+				panic(err)
+			}
+			parsed_files = append(parsed_files, tmp)
 		}
-		tmp, err := parser.ParseFile(fset, file, nil, 0)
-		if err != nil {
-			panic(err)
-		}
-		parsed_files = append(parsed_files, tmp)
 	}
 	return parsed_files
 }
@@ -79,9 +104,9 @@ func parse_files(path, skip string) []*ast.File {
 func get_files(path string) []string {
 	var (
 		dir    *os.File
-		st     os.FileInfo
-		fnames []string
 		err    error
+		fnames []string
+		st     os.FileInfo
 	)
 	if dir, err = os.Open(path); err != nil {
 		panic(err)
@@ -112,12 +137,16 @@ func get_files(path string) []string {
 func highlight(filename string, ast_files []*ast.File) {
 	var (
 		file *token.File
-		conf = types.Config{Importer: importer.Default()}
+		conf = types.Config{
+			Importer: importer.Default(),
+			Error:    func(error) {}, // Ignore errors so we can support packages that import "C"
+			// FakeImportC: true,
+		}
 		info = &types.Info{
-			Types:     make(map[ast.Expr]types.TypeAndValue),
-			Implicits: make(map[ast.Node]types.Object),
-			Defs:      make(map[*ast.Ident]types.Object),
-			Uses:      make(map[*ast.Ident]types.Object),
+			// Types:     make(map[ast.Expr]types.TypeAndValue),
+			// Implicits: make(map[ast.Node]types.Object),
+			Defs: make(map[*ast.Ident]types.Object),
+			Uses: make(map[*ast.Ident]types.Object),
 		}
 	)
 
@@ -130,10 +159,10 @@ func highlight(filename string, ast_files []*ast.File) {
 	})
 
 	if file == nil {
-		eprintf("Current file not in fileset.\n")
-		os.Exit(1)
+		errx(1, "Current file not in fileset.\n")
 	}
 	if _, err := conf.Check("", fset, ast_files, info); err != nil {
+		errlog.Printf("%v\n", err)
 	}
 
 	for ident, typeinfo := range info.Defs {
@@ -144,21 +173,16 @@ func highlight(filename string, ast_files []*ast.File) {
 	}
 }
 
-//========================================================================================
-
 func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
 		return
 	}
-	var (
-		pos       = ident.Pos()
-		name      = ident.Name
-		kind rune = identify_kind(ident, typeinfo)
-	)
-	if kind == 0 || file != fset.File(pos) {
+	kind := identify_kind(ident, typeinfo)
+
+	if kind == 0 || file != fset.File(ident.Pos()) {
 		return
 	}
-	p := get_range(pos, len(name))
+	p := get_range(ident.Pos(), len(ident.Name))
 	if p[0].Line <= 0 || p[1].Line <= 0 {
 		return
 	}
@@ -175,7 +199,11 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
 	case *types.PkgName:
 		return 'p'
 	case *types.TypeName:
-		switch x.Type().Underlying().(type) {
+		par_type := x.Type()
+		if par_type == nil {
+			return 0
+		}
+		switch par_type.Underlying().(type) {
 		case *types.Interface:
 			return 'i'
 		case *types.Struct:
@@ -196,8 +224,6 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
 	return 0
 }
 
-//========================================================================================
-
 func get_range(init_pos token.Pos, length int) [2]token.Position {
 	pos := [2]token.Pos{init_pos, init_pos + token.Pos(length)}
 	return resolve(pos)
@@ -215,32 +241,66 @@ func dump_data(ch rune, p [2]token.Position) {
 		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column)
 }
 
+//========================================================================================
+// Util
+
 func eprintf(format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, a...)
+	os.Stderr.Sync()
+}
+func errx(code int, format string, a ...interface{}) {
+	eprintf(format, a...)
+	os.Exit(code)
+}
+func xatoi(str string) int {
+	ret, err := strconv.Atoi(str)
+	if err != nil {
+		panic(err)
+	}
+	return ret
+}
+func xopen(fname string) *os.File {
+	f, e := os.Open(fname)
+	if e != nil {
+		panic("fail")
+	}
+	return f
 }
 
-func QuickRead(input interface{}) *bytes.Buffer {
-	var (
-		e   error
-		f   *os.File
-		buf bytes.Buffer
-	)
+func read_bytes(info *QuickReadInfo) []byte {
+	buf := make([]byte, info.Bytes_To_Read)
+	if _, err := info.Fp.Read(buf); err != nil {
+		panic(err)
+	}
+	return buf
+}
 
+func QuickRead(input interface{}) []byte {
+	var f *os.File
 	switch x := input.(type) {
 	case string:
-		f, e = os.Open(x)
-		if e != nil {
-			panic("fail")
-		}
+		f = xopen(x)
 		defer f.Close()
 	case *os.File:
 		f = x
+	case *QuickReadInfo:
+		if x.Fp == nil {
+			x.Fp = xopen(x.Filename)
+			defer x.Fp.Close()
+		}
+		if x.Bytes_To_Read > 0 {
+			// If we need to read only a pre-determined number of bytes,
+			// we return early to avoid the "read everything" code below.
+			return read_bytes(x)
+		}
+		f = x.Fp
 	default:
-		panic("Invalid")
+		panic("Invalid argument.")
 	}
 
+	var buf bytes.Buffer
 	buf.ReadFrom(f)
-	return &buf
+	return buf.Bytes()
 }
 
 func dummy() {

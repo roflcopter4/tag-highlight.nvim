@@ -1,5 +1,5 @@
-#ifndef SRC_NVIM_API_INTERN_H
-#define SRC_NVIM_API_INTERN_H
+#ifndef NVIM_API_INTERN_H_
+#define NVIM_API_INTERN_H_
 
 #include "Common.h"
 

@@ -32,15 +32,15 @@ static const mpack_mask *id_pack_type(uint8_t byte);
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
 #define decode_int16(NUM)                                  \
-        ((((NUM)[0]) << 010u) | ((NUM)[1]))
+        ((((NUM)[0]) << 010U) | ((NUM)[1]))
 #define decode_int32(NUM)                                  \
-        ((((NUM)[0]) << 030u) | (((NUM)[1]) << 020u) |     \
-         (((NUM)[2]) << 010u) | (((NUM)[3])))
+        ((((NUM)[0]) << 030U) | (((NUM)[1]) << 020U) |     \
+         (((NUM)[2]) << 010U) | (((NUM)[3])))
 #define decode_int64(NUM)                                  \
-        ((IAT(NUM, 0) << 070u) | (IAT(NUM, 1) << 060u) |   \
-         (IAT(NUM, 2) << 050u) | (IAT(NUM, 3) << 040u) |   \
-         (IAT(NUM, 4) << 030u) | (IAT(NUM, 5) << 020u) |   \
-         (IAT(NUM, 6) << 010u) | (IAT(NUM, 7)))
+        ((IAT(NUM, 0) << 070U) | (IAT(NUM, 1) << 060U) |   \
+         (IAT(NUM, 2) << 050U) | (IAT(NUM, 3) << 040U) |   \
+         (IAT(NUM, 4) << 030U) | (IAT(NUM, 5) << 020U) |   \
+         (IAT(NUM, 6) << 010U) | (IAT(NUM, 7)))
 
 #define ERRMSG()                                                                         \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
@@ -308,23 +308,23 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const mpack_ma
 
         if (mask->fixed) {
                 value  = (int64_t)(byte ^ mask->val);
-                value |= 0xFFFFFFFFFFFFFFE0llu;
+                value |= 0xFFFFFFFFFFFFFFE0LLU;
         } else {
                 switch (mask->type) {
                 case M_INT_8:
                         READ(src, word, 1);
                         value  = (int64_t)word[0];
-                        value |= 0xFFFFFFFFFFFFFF00llu;
+                        value |= 0xFFFFFFFFFFFFFF00LLU;
                         break;
                 case M_INT_16:
                         READ(src, word, 2);
                         value  = (int64_t)decode_int16(word);
-                        value |= 0xFFFFFFFFFFFF0000llu;
+                        value |= 0xFFFFFFFFFFFF0000LLU;
                         break;
                 case M_INT_32:
                         READ(src, word, 4);
                         value  = (int64_t)decode_int32(word);
-                        value |= 0xFFFFFFFF00000000llu;
+                        value |= 0xFFFFFFFF00000000LLU;
                         break;
                 case M_INT_64:
                         READ(src, word, 8);

@@ -26,25 +26,9 @@ extern "C" {
  * checking is performed. The program is hopeless anyway if it is accessing NULL
  * memory and should crash.
  */
-#ifdef __GNUC__
-#if 0
-#  define BS(BSTR_)                                                 \
-        __extension__({                                             \
-                _Static_assert(sizeof(*BSTR_) == sizeof(bstring) && \
-                               sizeof((BSTR_)->flags) == 1,         \
-                               "Pointer is not a bstring");         \
-                (char *)((BSTR_)->data);                            \
-        })
-#  define BTS(BSTR_)                                               \
-        __extension__({                                            \
-                _Static_assert(sizeof(BSTR_) == sizeof(bstring) && \
-                               sizeof((BSTR_).flags) == 1,         \
-                               "Pointer is not a bstring");        \
-                (char *)((BSTR_).data);                            \
-        })
-#endif
-#  define BS(BSTR) \
-        ((BSTR) ? _Generic((BSTR), \
+#if __STDC_VERSION__ >= 201112LL
+#  define BS(BSTR)                                                     \
+        ((BSTR) ? _Generic((BSTR),                                     \
                             const bstring *: ((char *)((BSTR)->data)), \
                                   bstring *: ((char *)((BSTR)->data))) \
                 : "(null)")
@@ -81,38 +65,17 @@ extern "C" {
 #define b_tmp(CSTR) (&(bstring)bt_init(CSTR)) 
 #define B(CSTR)     (&(bstring)bt_init(CSTR)) 
 
-
-#if 0
 /**
  * Creates a static bstring reference to existing memory without copying it.
  * Unlike the return from b_tmp, this will accept non-literal strings, and the
  * data is modifyable by default. However, b_free will refuse to free the data,
  * and the object itself is stack memory and therefore also not freeable.
  */
-#define bt_fromblk(BLK, LEN) \
-        ((bstring[]){{ (LEN), 0, ((uchar *)(BLK)), BSTR_WRITE_ALLOWED }})
-
 /**
  * Return a static bstring derived from a cstring. Identical to bt_fromblk
  * except that the length field is derived through a call to strlen(). Beware
  * that this macro evaluates its argument twice!
  */
-#define bt_fromcstr(STR_) \
-        ((bstring[]){{ strlen(STR_), 0, ((uchar *)(STR_)), BSTR_WRITE_ALLOWED }})
-
-#define bt_fromarray(CSTR) \
-        ((bstring[]){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
-
-
-#define b_static_fromblk(BLK, LEN) \
-        ((bstring){ (LEN), 0, ((uchar *)(BLK)), 0x00u })
-
-#define b_static_fromcstr(CSTR) \
-        ((bstring){ strlen(CSTR), 0, ((uchar *)(CSTR)), 0x00u })
-
-#define b_static_fromarray(CSTR) \
-        ((bstring){ (sizeof(CSTR) - 1), 0, (uchar *)(CSTR), 0x00u })
-#endif
 
 #define bt_fromblk(BLK, LEN) \
         ((bstring){ .slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u })
@@ -139,12 +102,15 @@ extern "C" {
 #define b_assignlit(BSTR, LIT_STR) b_assign_blk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_catlit(BSTR, LIT_STR)    b_catblk((BSTR), b_staticBlkParms(LIT_STR))
 #define b_fromlit(LIT_STR)         b_lit2bstr(LIT_STR)
-
 #define b_iseq_lit(BSTR, LIT_STR)  b_iseq((BSTR), B(LIT_STR))
 
-#define B_ISEQ(a, b) _Generic(b, \
-                bstring *: b_iseq(((void *)(a)), ((void *)(b))), const bstring *: b_iseq(((void *)(a)), ((void *)(b))), volatile bstring *: b_iseq(((void *)(a)), ((void *)(b))), \
-                char *: b_iseq_cstr(((void *)(a)), ((void *)(b))), const char *: b_iseq(((void *)(a)), ((void *)B(b))), volatile char *: b_iseq_cstr(((void *)(a)), ((void *)(b))))
+#define B_ISEQ(a, b) _Generic(b,                                                 \
+                bstring *          : b_iseq     (((void *)(a)), ((void *) (b))), \
+                const bstring *    : b_iseq     (((void *)(a)), ((void *) (b))), \
+                volatile bstring * : b_iseq     (((void *)(a)), ((void *) (b))), \
+                char *             : b_iseq_cstr(((void *)(a)), ((void *) (b))), \
+                const char *       : b_iseq     (((void *)(a)), ((void *)B(b))), \
+                volatile char *    : b_iseq_cstr(((void *)(a)), ((void *) (b))))
 
 
 /**
@@ -273,29 +239,27 @@ BSTR_PUBLIC void _b_list_dump_fd(int fd, const b_list *list, const char *listnam
 #define b_list_dump(FP, LST)    _b_list_dump((FP), (LST), #LST)
 #define b_list_dump_fd(FD, LST) _b_list_dump_fd((FD), (LST), #LST)
 
-
 #define B_LIST_FOREACH(BLIST, VAR, CTR)                                    \
         for (bstring *VAR = ((BLIST)->lst[((CTR) = 0)]);                   \
              (CTR) < (BLIST)->qty && (((VAR) = (BLIST)->lst[(CTR)]) || 1); \
              ++(CTR))
-
-#define FOREACH_COUNTER(OP_) ({ static _Thread_local int x__ = 0; (OP_) ? ++(x__) : (x__);})
-
-#define B_LIST_FOREACH_LAZY(BLIST, VAR)                                    \
-        for (bstring *VAR = ((BLIST)->lst[(FOREACH_COUNTER(0))]);                   \
-             FOREACH_COUNTER(0) < (BLIST)->qty && (((VAR) = (BLIST)->lst[FOREACH_COUNTER(0)]) || 1); \
-             FOREACH_COUNTER(1))
-
-#define B_LIST_SORT_FAST(BLIST)                                    \
-        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), \
-              &b_strcmp_fast_wrap)
-
-#define B_LIST_BSEARCH_FAST(BLIST, ITEM_)             \
-        bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, \
-                sizeof(bstring *), &b_strcmp_fast_wrap)
+#define B_LIST_FOREACH_2(BLIST, VAR, CTR)                                          \
+        for (unsigned CTR, BLIST##_##VAR##_##CTR##_b = true;                       \
+             BLIST##_##VAR##_##CTR##_b;                                            \
+             BLIST##_##VAR##_##CTR##_b = false)                                    \
+                for (bstring *VAR = ((BLIST)->lst[((CTR) = 0)]);                   \
+                     (CTR) < (BLIST)->qty && (((VAR) = (BLIST)->lst[(CTR)]) || 1); \
+                     ++(CTR))
 
 #define B_LIST_SORT(BLIST) \
         qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_wrap)
+#define B_LIST_SORT_FAST(BLIST) \
+        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_fast_wrap)
+
+#define B_LIST_BSEARCH(BLIST, ITEM_) \
+        bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_wrap)
+#define B_LIST_BSEARCH_FAST(BLIST, ITEM_) \
+        bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_fast_wrap)
 
 /*--------------------------------------------------------------------------------------*/
 
@@ -307,15 +271,15 @@ BSTR_PUBLIC void _b_list_dump_fd(int fd, const b_list *list, const char *listnam
 BSTR_PUBLIC int       b_list_append(b_list **list, bstring *bstr);
 BSTR_PUBLIC int       b_list_merge(b_list **dest, b_list *src, int flags);
 BSTR_PUBLIC int       b_list_remove_dups(b_list **listp);
-BSTR_PUBLIC b_list *  b_list_copy(const b_list *list);
-BSTR_PUBLIC b_list *  b_list_clone(const b_list *list);
-BSTR_PUBLIC b_list *  b_list_clone_swap(b_list *list);
-BSTR_PUBLIC bstring * b_list_join(const b_list *list, const bstring *sep);
+BSTR_PUBLIC b_list   *b_list_copy(const b_list *list);
+BSTR_PUBLIC b_list   *b_list_clone(const b_list *list);
+BSTR_PUBLIC b_list   *b_list_clone_swap(b_list *list);
+BSTR_PUBLIC bstring  *b_list_join(const b_list *list, const bstring *sep);
 
 BSTR_PUBLIC int b_list_writeprotect(b_list *list);
 BSTR_PUBLIC int b_list_writeallow(b_list *list);
 
-BSTR_PUBLIC bstring * b_join_quote(const b_list *bl, const bstring *sep, int ch);
+BSTR_PUBLIC bstring  *b_join_quote(const b_list *bl, const bstring *sep, int ch);
 
 BSTR_PUBLIC int64_t b_strstr(const bstring *haystack, const bstring *needle, unsigned pos);
 BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, char delim);
@@ -329,17 +293,17 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 #define b_strpbrk(BSTR_, DELIM_) b_strpbrk_pos((BSTR_), 0, (DELIM_))
 #define b_strrpbrk(BSTR_, DELIM_) b_strrpbrk_pos((BSTR_), ((BSTR_)->slen), (DELIM_))
 
-BSTR_PUBLIC bstring *  b_dirname(const bstring *path);
-BSTR_PUBLIC bstring *  b_basename(const bstring *path);
-BSTR_PUBLIC bstring *  b_regularize_path(bstring *path);
+BSTR_PUBLIC bstring   *b_dirname(const bstring *path);
+BSTR_PUBLIC bstring   *b_basename(const bstring *path);
+BSTR_PUBLIC bstring   *b_regularize_path(bstring *path);
 
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
 BSTR_PUBLIC _Bool      b_starts_with(const bstring *b0, const bstring *b1);
 
-BSTR_PUBLIC bstring *  _b_sprintf  (const bstring *fmt, ...);
-BSTR_PUBLIC bstring *  _b_vsprintf (const bstring *fmt, va_list args);
+BSTR_PUBLIC bstring   *_b_sprintf  (const bstring *fmt, ...);
+BSTR_PUBLIC bstring   *_b_vsprintf (const bstring *fmt, va_list args);
 BSTR_PUBLIC int        _b_fprintf  (FILE *out_fp, const bstring *fmt, ...);
 BSTR_PUBLIC int        _b_vfprintf (FILE *out_fp, const bstring *fmt, va_list args);
 BSTR_PUBLIC int        _b_dprintf  (int out_fd, const bstring *fmt, ...);
@@ -362,8 +326,10 @@ BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list a
 
 /*--------------------------------------------------------------------------------------*/
 
+#define b_conchar b_catchar
+
 INLINE int
-b_conchar(bstring *bstr, const char ch)
+b_catchar(bstring *bstr, const char ch)
 {
         if (!bstr || !bstr->data || ((bstr->flags & BSTR_WRITE_ALLOWED) == 0))
                 abort();

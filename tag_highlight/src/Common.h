@@ -1,5 +1,6 @@
-#ifndef TAG_HIGHLIGHT_H_
-#define TAG_HIGHLIGHT_H_
+#pragma once
+#ifndef THL_COMMON_H_
+#define THL_COMMON_H_
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,8 +37,9 @@ extern "C" {
 #    include <dirent.h>
 #    include <sys/time.h>
 #    include <unistd.h>
+#    pragma GCC diagnostic ignored "-Wattributes"
 #  else
-     typedef signed long long int ssize_t;
+typedef signed long long int ssize_t;
 #  endif
 #  include <WinSock2.h>
 #  include <Windows.h>
@@ -113,13 +115,13 @@ struct backups {
 /* Generic Macros */
 
 #ifndef O_BINARY
-#  define O_BINARY 00
+#  define O_BINARY (0)
 #endif
 #ifndef O_DSYNC
-#  define O_DSYNC 00
+#  define O_DSYNC (0)
 #endif
 #ifndef O_DIRECTORY
-#  define O_DIRECTORY 00
+#  define O_DIRECTORY (0)
 #endif
 
 #define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
@@ -128,13 +130,13 @@ struct backups {
                 pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
         } while (0)
 
-#define START_DETACHED_PTHREAD(...)                                   \
+#define START_DETACHED_PTHREAD(...)                                            \
         do {                                                                   \
                 pthread_t      __th;                                           \
                 pthread_attr_t _attr_;                                         \
                 pthread_attr_init(&_attr_);                                    \
                 pthread_attr_setdetachstate(&_attr_, PTHREAD_CREATE_DETACHED); \
-                pthread_create(&__th, &_attr_, __VA_ARGS__);              \
+                pthread_create(&__th, &_attr_, __VA_ARGS__);                   \
         } while (0)
 
 #define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
@@ -278,11 +280,6 @@ noreturn void err_ (int status, bool print_err, const char *fmt, ...) __aFMT(3, 
 #define warn  eprintf
 #define warnx eprintf
 
-#define Err(...) \
-        err_(1, true, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
-#define Errx(...) \
-        err_(1, false, P99_CHS(0, __VA_ARGS__) " (%s line %d)", P99_IF_EQ_1(P99_NARG(__VA_ARGS__))()(P99_SKP(1, __VA_ARGS__),) __FILE__, __LINE__)
-
 #define echo warnx
 #ifdef DEBUG
 #  define SHOUT(...) warn_(false, __VA_ARGS__)
@@ -344,16 +341,11 @@ xreallocarray(void *ptr, size_t num, size_t size)
 #  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
-
 #define xfree(PTR) free(PTR)
-
 #define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-
-/* extern b_list * get_pcre2_matches(const bstring *pattern, const bstring *subject, uint32_t flags);
-#define get_pcre2_matches(b1, b2) (get_pcre2_matches)(B(b1), B(b2), 0) */
 
 /*===========================================================================*/
 #ifdef __cplusplus
 }
 #endif
-#endif /* tag_highlight.h */
+#endif /* Common.h */

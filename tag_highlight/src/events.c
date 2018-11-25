@@ -1,13 +1,11 @@
 #include "Common.h"
-
-#include "highlight.h"
-#include "lang/clang/clang.h"
-#include <signal.h>
-
 #include "contrib/p99/p99_atomic.h"
 #include "contrib/p99/p99_fifo.h"
 #include "contrib/p99/p99_futex.h"
+#include "highlight.h"
+#include "lang/clang/clang.h"
 #include "my_p99_common.h"
+#include <signal.h>
 
 #define BT bt_init
 
@@ -19,7 +17,8 @@
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-#  define USE_EVENT_LIB  EVENT_LIB_EV
+/* #  define USE_EVENT_LIB  EVENT_LIB_EV */
+#  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGUSR1
 static pthread_t loop_thread;
 #endif
@@ -30,18 +29,14 @@ typedef volatile p99_futex vfutex_t;
 
 extern void *highlight_go_pthread_wrapper(void *vdata);
 
-extern void          update_line         (struct bufdata *, int, int);
-static void          handle_line_event   (struct bufdata *bdata, mpack_array_t *arr);
-ALWAYS_INLINE   void replace_line        (struct bufdata *bdata, b_list *repl_list, int lineno, int replno);
-ALWAYS_INLINE   void line_event_multi_op (struct bufdata *bdata, b_list *repl_list, int first, int diff);
-static void          vimscript_interrupt (int val);
-static void          handle_nvim_event   (void *vdata);
-#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
-static void          super_debug         (struct bufdata *bdata);
-static void         *emergency_debug     (void *vdata);
-#endif
-static void           post_nvim_response(mpack_obj *obj);
-static noreturn void *nvim_event_handler(void *unused);
+extern void           update_line         (Buffer *, int, int);
+static void           handle_line_event   (Buffer *bdata, mpack_array_t *arr);
+ALWAYS_INLINE   void  replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
+ALWAYS_INLINE   void  line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
+static void           vimscript_interrupt (int val);
+static void           handle_nvim_event   (void *vdata);
+static void           post_nvim_response  (mpack_obj *obj);
+static noreturn void *nvim_event_handler  (void *unused);
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
@@ -60,6 +55,7 @@ struct event_node {
 };
 P99_FIFO(event_node_ptr) nvim_event_queue;
 
+P99_DECLARE_STRUCT(event_id);
 static const struct event_id {
         const bstring          name;
         const enum event_types id;
@@ -70,7 +66,7 @@ static const struct event_id {
     { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
 
-static const struct event_id *id_event(mpack_obj *event);
+static const event_id *id_event(mpack_obj *event);
 
 __attribute__((__constructor__))
 static void events_mutex_initializer(void) {
@@ -387,16 +383,16 @@ event_loop_init(const int fd)
 static void
 handle_nvim_event(void *vdata)
 {
-        mpack_obj             *event = vdata;
-        mpack_array_t         *arr   = m_expect(m_index(event, 2), E_MPACK_ARRAY).ptr;
-        const struct event_id *type  = id_event(event);
+        mpack_obj      *event = vdata;
+        mpack_array_t  *arr   = m_expect(m_index(event, 2), E_MPACK_ARRAY).ptr;
+        const event_id *type  = id_event(event);
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
                 vimscript_interrupt((int)arr->items[0]->data.str->data[0]);
         } else {
-                const int       bufnum = (int)m_expect(arr->items[0], E_NUM).num;
-                struct bufdata *bdata  = find_buffer(bufnum);
+                const int bufnum = (int)m_expect(arr->items[0], E_NUM).num;
+                Buffer   *bdata  = find_buffer(bufnum);
 
                 if (!bdata)
                         errx(1, "Update called on uninitialized buffer.");
@@ -439,7 +435,7 @@ handle_nvim_event(void *vdata)
 
 #if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
 static void
-super_debug(struct bufdata *bdata)
+super_debug(Buffer *bdata)
 {
         const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
         const unsigned n     = nvim_buf_line_count(0, bdata->num);
@@ -487,7 +483,7 @@ super_debug(struct bufdata *bdata)
 #endif
 
 static void
-handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
+handle_line_event(Buffer *bdata, mpack_array_t *arr)
 {
         pthread_mutex_lock(&handle_mutex);
         pthread_mutex_lock(&bdata->lock.ctick);
@@ -514,10 +510,9 @@ handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
                         /* An "initial" update, recieved only if asked for when attaching
                          * to a buffer. We never ask for this, so this shouldn't occur. */
                         errx(1, "Got initial update somehow...");
-                } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer... */
-                           repl_list->qty == 1 &&                  /* one string...   */
-                           repl_list->lst[0]->slen == 0            /* which is emtpy. */)
-                {
+                } else if (bdata->lines->qty <= 1 && first == 0 && // Empty buffer...
+                           repl_list->qty == 1 &&                  // with one string...  
+                           repl_list->lst[0]->slen == 0            /* which is emtpy. */) {
                         /* Useless update, one empty string in an empty buffer. */
                         empty = true;
                 } else if (first == 0 && last == 0) {
@@ -559,7 +554,7 @@ handle_line_event(struct bufdata *bdata, mpack_array_t *arr)
 }
 
 static inline void
-replace_line(struct bufdata *bdata, b_list *repl_list,
+replace_line(Buffer *bdata, b_list *repl_list,
              const int lineno, const int replno)
 {
         ll_node *node = ll_at(bdata->lines, lineno);
@@ -575,7 +570,7 @@ replace_line(struct bufdata *bdata, b_list *repl_list,
  * line in the file, and before it otherwise.
  */
 static inline void
-line_event_multi_op(struct bufdata *bdata, b_list *repl_list, const int first, int diff)
+line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 {
         const int olen  = bdata->lines->qty;
         const int iters = (int)MAX((unsigned)diff, repl_list->qty);
@@ -631,7 +626,7 @@ vimscript_interrupt(const int val)
                 num            = nvim_get_current_buf();
                 const int prev = atomic_exchange(&bufnum, num);
                 TIMER_START_BAR(t);
-                struct bufdata *bdata = find_buffer(num);
+                Buffer *bdata = find_buffer(num);
 
                 if (!bdata) {
                 try_attach:
@@ -662,7 +657,7 @@ vimscript_interrupt(const int val)
                 TIMER_START_BAR(t);
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
-                struct bufdata *bdata = find_buffer(num);
+                Buffer *bdata = find_buffer(num);
 
                 if (!bdata) {
                         echo("Failed to find buffer! %d -> p: %p\n",
@@ -709,7 +704,7 @@ vimscript_interrupt(const int val)
         case 'F': {
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
-                struct bufdata *bdata = find_buffer(num);
+                Buffer *bdata = find_buffer(num);
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
                 update_highlight(bdata, HIGHLIGHT_UPDATE);
                 break;
@@ -722,11 +717,11 @@ vimscript_interrupt(const int val)
 
 /*======================================================================================*/
 
-static const struct event_id *
+static const event_id *
 id_event(mpack_obj *event)
 {
-        const struct event_id *type = NULL;
-        bstring *typename = event->data.arr->items[1]->data.str;
+        const event_id *type     = NULL;
+        bstring        *typename = event->data.arr->items[1]->data.str;
 
         for (unsigned i = 0; i < ARRSIZ(event_list); ++i) {
                 if (b_iseq(typename, &event_list[i].name)) {

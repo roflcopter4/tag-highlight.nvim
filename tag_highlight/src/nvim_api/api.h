@@ -1,17 +1,21 @@
-#ifndef SRC_API_H
-#define SRC_API_H
+#pragma once
+#ifndef NVIM_API_API_H_
+#define NVIM_API_API_H_
 
 #include "Common.h"
 #include "highlight.h"
 
 #include "contrib/p99/p99_defarg.h"
 #include "contrib/p99/p99_futex.h"
+#include "mpack/mpack.h"
 #include "util/list.h"
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum nvim_filetype_id {
-        FT_NONE, FT_C, FT_CPP, FT_CSHARP, FT_GO, FT_JAVA,
+        FT_NONE, FT_C, FT_CXX, FT_CSHARP, FT_GO, FT_JAVA,
         FT_JAVASCRIPT, FT_LISP, FT_PERL, FT_PHP, FT_PYTHON,
         FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
 };
@@ -19,13 +23,11 @@ enum nvim_message_type    { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY
 enum nvim_write_type      { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
 enum nvim_connection_type { NVIM_STDOUT, NVIM_SOCKET, NVIM_FILE };
 
-#ifndef __cplusplus
-typedef enum   nvim_message_type    nvim_message_type;
-typedef enum   nvim_filetype_id     nvim_filetype_id;
-typedef enum   nvim_connection_type nvim_connection_type;
-#endif
-typedef struct nvim_arg_array nvim_arg_array;
-typedef union  nvim_argument  nvim_argument;
+typedef enum nvim_message_type    nvim_message_type;
+typedef enum nvim_filetype_id     nvim_filetype_id;
+typedef enum nvim_connection_type nvim_connection_type;
+typedef struct nvim_arg_array     nvim_arg_array;
+typedef union nvim_argument       nvim_argument;
 
 struct nvim_arg_array {
         char    **fmt;
@@ -126,11 +128,11 @@ extern int _nvim_api_read_fd;
 
 #define nvim_buf_add_highlight(...)         P99_CALL_DEFARG(nvim_buf_add_highlight, 7, __VA_ARGS__)
 #define nvim_buf_add_highlight_defarg_0()   (_nvim_api_read_fd)
-#define nvim_buf_add_highlight_defarg_2()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_2()   0
 #define nvim_buf_add_highlight_defarg_3()   NULL
-#define nvim_buf_add_highlight_defarg_4()   (_nvim_api_read_fd)
-#define nvim_buf_add_highlight_defarg_5()   (_nvim_api_read_fd)
-#define nvim_buf_add_highlight_defarg_6()   (_nvim_api_read_fd)
+#define nvim_buf_add_highlight_defarg_4()   0
+#define nvim_buf_add_highlight_defarg_5()   0
+#define nvim_buf_add_highlight_defarg_6()   0
 
 #define nvim_get_hl_by_name(...)            P99_CALL_DEFARG(nvim_get_hl_by_name, 3, __VA_ARGS__)
 #define nvim_get_hl_by_name_defarg_0()      (_nvim_api_read_fd)
@@ -149,7 +151,7 @@ extern int _nvim_api_read_fd;
 
 #define nvim_buf_get_lines(...)             P99_CALL_DEFARG(nvim_buf_get_lines, 4, __VA_ARGS__)
 #define nvim_buf_get_lines_defarg_0()       (_nvim_api_read_fd)
-#define nvim_buf_get_lines_defarg_2()       (_nvim_api_read_fd)
+#define nvim_buf_get_lines_defarg_2()       0
 #define nvim_buf_get_lines_defarg_3()       (-1)
 
 #define nvim_buf_get_name(...)              P99_CALL_DEFARG(nvim_buf_get_name, 2, __VA_ARGS__)
@@ -215,5 +217,7 @@ extern int _nvim_api_read_fd;
 #define nvim_get_var_fmt(...)               (nvim_get_var_fmt)((_nvim_api_read_fd), __VA_ARGS__)
 
 /*============================================================================*/
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif
 #endif /* api.h */

@@ -1,12 +1,19 @@
-#ifndef SRC_HIGHLIGHT_H_
-#define SRC_HIGHLIGHT_H_
+#ifndef HIGHLIGHT_H_
+#define HIGHLIGHT_H_
 
 #include "Common.h"
-#include "contrib/p99/p99_defarg.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
+#include "util/list.h"
 
-__BEGIN_DECLS
+#include "my_p99_common.h"
+#include "contrib/p99/p99.h"
+#include "contrib/p99/p99_count.h"
+#include "contrib/p99/p99_defarg.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*===========================================================================*/
 /* Old "data.h" */
 /*===========================================================================*/
@@ -23,6 +30,8 @@ enum event_types {
 };
 
 typedef enum { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type_t;
+
+typedef struct bufdata Buffer;
 
 struct settings_s {
         uint16_t    job_id;
@@ -42,17 +51,17 @@ struct settings_s {
 };
 
 struct filetype {
-        b_list        *equiv;
-        b_list        *ignored_tags;
-        bstring       *restore_cmds;
-        bstring       *order;
-        const bstring  vim_name;
-        const bstring  ctags_name;
-        const nvim_filetype_id id;
-        bool           initialized;
-        bool           restore_cmds_initialized;
-        bool           is_c;
-        bool           has_parser;
+        b_list          *equiv;
+        b_list          *ignored_tags;
+        bstring         *restore_cmds;
+        bstring         *order;
+        bstring          vim_name;
+        bstring          ctags_name;
+        nvim_filetype_id id;
+        bool             initialized;
+        bool             restore_cmds_initialized;
+        bool             is_c;
+        bool             has_parser;
 };
 
 struct top_dir {
@@ -81,7 +90,7 @@ struct bufdata {
                 pthread_mutex_t total;
                 pthread_mutex_t ctick;
                 pthread_mutex_t update;
-                vfutex_t        clang_count;
+                p99_count       num_workers;
         } lock;
 
         struct {
@@ -96,13 +105,11 @@ struct bufdata {
         struct top_dir  *topdir;
 
         union {
-                /* C, C++ */
-                struct {
+                struct /* C, C++ */ {
                         void   *clangdata;
                         b_list *headers;
                 };
-                /* Everything else */
-                struct {
+                struct /* Everything else */ {
                         nvim_arg_array *calls;
                         b_list         *cmd_cache;
                 };
@@ -110,7 +117,7 @@ struct bufdata {
 };
         
 struct buffer_list {
-        struct bufdata *lst[DATA_ARRSIZE];
+        Buffer *lst[DATA_ARRSIZE];
         struct bad_bufs_s {
                 int      lst[DATA_ARRSIZE];
                 uint16_t qty;
@@ -137,13 +144,13 @@ extern const size_t        ftdata_len;
 
 /*===========================================================================*/
 
-extern bool            have_seen_file   (const bstring *filename);
-extern bool            new_buffer       (int fd, int bufnum);
-extern int             find_buffer_ind  (int bufnum);
-extern bool            is_bad_buffer    (int bufnum);
-extern void            destroy_bufdata  (struct bufdata **bdata);
-extern struct bufdata *find_buffer      (int bufnum);
-extern struct bufdata *get_bufdata      (int fd, int bufnum, struct filetype *ft);
+extern bool    have_seen_file   (const bstring *filename);
+extern bool    new_buffer       (int fd, int bufnum);
+extern int     find_buffer_ind  (int bufnum);
+extern bool    is_bad_buffer    (int bufnum);
+extern void    destroy_bufdata  (Buffer **bdata);
+extern Buffer *find_buffer      (int bufnum);
+extern Buffer *get_bufdata      (int fd, int bufnum, struct filetype *ft);
 
 #define new_buffer(...) P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__)
 #define new_buffer_defarg_0() (0)
@@ -167,16 +174,16 @@ enum update_taglist_opts {
 
 enum { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
 
-extern bool run_ctags          (struct bufdata *bdata, enum update_taglist_opts opts);
-extern int  update_taglist     (struct bufdata *bdata, enum update_taglist_opts opts);
-extern void update_highlight   (struct bufdata *bdata, int type);
-extern int  get_initial_taglist(struct bufdata *bdata);
-extern void clear_highlight    (struct bufdata *bdata);
-extern void get_initial_lines  (struct bufdata *bdata);
+extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
+extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);
+extern void update_highlight   (Buffer *bdata, int type);
+extern int  get_initial_taglist(Buffer *bdata);
+extern void clear_highlight    (Buffer *bdata);
+extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
 extern void _b_list_dump_nvim  (const b_list *list, const char *listname);
 
-p99_inline struct bufdata *find_current_buffer(void)
+__always_inline Buffer *find_current_buffer(void)
 {
         return find_buffer(nvim_get_current_buf());
 }
@@ -190,5 +197,7 @@ p99_inline struct bufdata *find_current_buffer(void)
 #define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
 
 /*===========================================================================*/
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif
 #endif /* highlight.h */

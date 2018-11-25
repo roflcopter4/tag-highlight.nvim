@@ -9,28 +9,28 @@
 
 #define encode_uint64(ARR, IT, VAL)                                     \
         do {                                                            \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 070u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 060u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 050u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 040u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 030u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 020u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 010u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) & 0xFFu); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 070U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 060U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 050U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 040U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 030U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 020U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 010U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) & 0xFFU); \
         } while (0)
 
 #define encode_uint32(ARR, IT, VAL)                                     \
         do {                                                            \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 030u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 020u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 010u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) & 0xFFu); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 030U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 020U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) >> 010U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint32_t)(VAL)) & 0xFFU); \
         } while (0)
 
 #define encode_uint16(ARR, IT, VAL)                                     \
         do {                                                            \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) >> 010u); \
-                ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) & 0xFFu); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) >> 010U); \
+                ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) & 0xFFU); \
         } while (0)
 
 #define encode_int64(ARR, IT, VAL)                                    \
@@ -96,7 +96,7 @@ mpack_encode_array(mpack_obj       *root,
                         (*item)->DAI[i] = NULL;
         }
 
-        if (len < 16u) {
+        if (len < 16U) {
                 D[L++] = M_MASK_ARRAY_F | (uint8_t)len;
         } else if (len < UINT16_MAX) {
                 D[L++] = M_MASK_ARRAY_16;
@@ -130,7 +130,7 @@ mpack_encode_dictionary(mpack_obj       *root,
                 }
         }
 
-        if (len < 16u) {
+        if (len < 16U) {
                 D[L++] = M_MASK_MAP_F | (uint8_t)len;
         } else if (len < UINT16_MAX) {
                 D[L++] = M_MASK_MAP_16;
@@ -237,7 +237,7 @@ mpack_encode_string(mpack_obj      *root,
                 (*item)->flags   |= (uint8_t)MPACK_STRING;
         }
 
-        if (string->slen < 32u) {
+        if (string->slen < 32U) {
                 D[L++] = M_MASK_STR_F | (uint8_t)string->slen;
         } else if (string->slen < UINT8_MAX) {
                 D[L++] = M_MASK_STR_8;

@@ -51,7 +51,7 @@ struct timer {
                       (int)(30 - sizeof(MSG_)), TDIFF((T_)->tv1, (T_)->tv2)); \
         } while (0)
 #endif
-#ifdef __MINGW__
+#if defined __MINGW__
 #  define TIMER_REPORT_RESTART(T, MSG) ((void)0)
 #else
 #  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
@@ -98,6 +98,9 @@ extern void     add_backup    (struct backups *list, void *item) __aNNA;
 extern void     free_backups  (struct backups *list);
 
 extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input);
+#ifdef DOSISH
+extern bstring *_win32_get_command_output(char *argv, bstring *input);
+#endif
 
 __END_DECLS
 #endif /* util.h */

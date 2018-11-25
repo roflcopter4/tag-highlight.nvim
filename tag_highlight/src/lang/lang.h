@@ -1,5 +1,6 @@
-#ifndef SRC_LANG_COMMON_H_
-#define SRC_LANG_COMMON_H_
+#pragma once
+#ifndef SRC_LANG_LANG_H_
+#define SRC_LANG_LANG_H_
 
 #include "Common.h"
 #include "highlight.h"
@@ -29,7 +30,7 @@ extern void add_clr_call(nvim_arg_array *calls, int bufnum, int hl_id, int line,
 extern nvim_arg_array  *new_arg_array(void);
 extern const bstring   *find_group   (struct filetype *ft, const cmd_info *info,
                                       unsigned num, const int ctags_kind);
-extern struct cmd_info *getinfo      (struct bufdata *bdata);
+extern struct cmd_info *getinfo      (Buffer *bdata);
 extern void destroy_struct_info(cmd_info *info);
 
 /*======================================================================================*/
@@ -61,4 +62,4 @@ extern FILE *cmd_log;
 
 /*======================================================================================*/
 __END_DECLS
-#endif /* common.h */
+#endif /* lang.h */

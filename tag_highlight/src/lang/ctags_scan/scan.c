@@ -17,14 +17,14 @@
 
 static bool is_c_or_cpp;
 
-static struct taglist *tok_search   (const struct bufdata *bdata, b_list *vimbuf);
+static struct taglist *tok_search   (const Buffer *bdata, b_list *vimbuf);
 static void           *do_tok_search(void *vdata);
 
 
 struct taglist *
-process_tags(struct bufdata *bdata, b_list *toks)
+process_tags(Buffer *bdata, b_list *toks)
 {
-        is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP);
+        is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CXX);
         struct taglist *list = tok_search(bdata, toks);
         if (!list)
                 return NULL;
@@ -167,7 +167,7 @@ struct pdata {
 
 
 static struct taglist *
-tok_search(const struct bufdata *bdata, b_list *vimbuf)
+tok_search(const Buffer *bdata, b_list *vimbuf)
 {
         if (!bdata)
                 errx(1, "NEOTAGS ERROR: bdata is null\n");

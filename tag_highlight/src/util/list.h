@@ -135,6 +135,8 @@ INTERN void argv_dump_fd__(int fd, const struct argument_vector *argv, const cha
 #define argv_dump(FP, ARGV)    (argv_dump__((FP), (ARGV), #ARGV, __FILE__, __LINE__))
 #define argv_dump_fd(FD, ARGV) (argv_dump_fd__((FD), (ARGV), #ARGV, __FILE__, __LINE__))
 
+#undef INTERN
+
 /*======================================================================================================*/
 __END_DECLS
 #endif /* list.h */

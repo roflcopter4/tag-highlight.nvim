@@ -45,7 +45,7 @@ static const char *const idx_entity_kind_repr[] = {
 
 struct idx_data {
         genlist          *tok_list;
-        struct bufdata   *bdata;
+        Buffer   *bdata;
         struct clangdata *cdata;
         FILE             *fp;
         unsigned          cnt;
@@ -56,7 +56,7 @@ struct idx_data {
 #define DAT(D)      ((struct idx_data *)(D))
 
 void
-lc_index_file(struct bufdata *bdata, struct translationunit *stu)
+lc_index_file(Buffer *bdata, struct translationunit *stu)
 {
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/idx.log", "wb", HOME);
         struct idx_data  data = {genlist_create(), bdata, CLD(bdata), fp, 0};

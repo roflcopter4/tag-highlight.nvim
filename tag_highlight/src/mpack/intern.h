@@ -19,35 +19,35 @@ enum m_types {
         M_EXT_F4,
 };
 
-#define M_MASK_NIL       0xC0u                                                           
-#define M_MASK_TRUE      0xC3u                                                           
-#define M_MASK_FALSE     0xC2u                                                         
-#define M_MASK_ARRAY_F   0x90u                                                         
-#define M_MASK_ARRAY_16  0xDCu
-#define M_MASK_ARRAY_32  0xDDu
-#define M_MASK_MAP_F     0x80u
-#define M_MASK_MAP_16    0xDEu
-#define M_MASK_MAP_32    0xDFu
-#define M_MASK_STR_F     0xA0u
-#define M_MASK_STR_8     0xD9u
-#define M_MASK_STR_16    0xDAu
-#define M_MASK_STR_32    0xDBu
-#define M_MASK_BIN_8     0xC4u
-#define M_MASK_BIN_16    0xC5u
-#define M_MASK_BIN_32    0xC6u
-#define M_MASK_EXT_8     0xD4u
-#define M_MASK_EXT_16    0xD5u
-#define M_MASK_EXT_32    0xD6u
-#define M_MASK_INT_8     0xD0u
-#define M_MASK_INT_16    0xD1u
-#define M_MASK_INT_32    0xD2u
-#define M_MASK_INT_64    0xD3u
-#define M_MASK_UINT_8    0xCCu
-#define M_MASK_UINT_16   0xCDu
-#define M_MASK_UINT_32   0xCEu
-#define M_MASK_UINT_64   0xCFu
-#define M_MASK_POS_INT_F 0x00u
-#define M_MASK_NEG_INT_F 0xE0u
+#define M_MASK_NIL       0xC0U
+#define M_MASK_TRUE      0xC3U
+#define M_MASK_FALSE     0xC2U
+#define M_MASK_ARRAY_F   0x90U
+#define M_MASK_ARRAY_16  0xDCU
+#define M_MASK_ARRAY_32  0xDDU
+#define M_MASK_MAP_F     0x80U
+#define M_MASK_MAP_16    0xDEU
+#define M_MASK_MAP_32    0xDFU
+#define M_MASK_STR_F     0xA0U
+#define M_MASK_STR_8     0xD9U
+#define M_MASK_STR_16    0xDAU
+#define M_MASK_STR_32    0xDBU
+#define M_MASK_BIN_8     0xC4U
+#define M_MASK_BIN_16    0xC5U
+#define M_MASK_BIN_32    0xC6U
+#define M_MASK_EXT_8     0xD4U
+#define M_MASK_EXT_16    0xD5U
+#define M_MASK_EXT_32    0xD6U
+#define M_MASK_INT_8     0xD0U
+#define M_MASK_INT_16    0xD1U
+#define M_MASK_INT_32    0xD2U
+#define M_MASK_INT_64    0xD3U
+#define M_MASK_UINT_8    0xCCU
+#define M_MASK_UINT_16   0xCDU
+#define M_MASK_UINT_32   0xCEU
+#define M_MASK_UINT_64   0xCFU
+#define M_MASK_POS_INT_F 0x00U
+#define M_MASK_NEG_INT_F 0xE0U
 
 #ifndef __cplusplus
 typedef struct mpack_mask mpack_mask;

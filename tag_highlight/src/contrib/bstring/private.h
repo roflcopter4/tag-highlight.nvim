@@ -41,8 +41,13 @@
 
 #if defined(HAVE_UNISTD_H)
 #  include <unistd.h>
-#elif defined(_WIN32)
-#  define PATH_MAX _MAX_PATH
+#elif defined(_WIN32) || defined(_WIN64)
+#  ifndef PATH_MAX
+#    define PATH_MAX _MAX_PATH
+#  endif
+#  ifdef __GNUC__
+#    pragma GCC diagnostic ignored "-Wattributes"
+#  endif
 #  include <io.h>
 #elif defined(__unix__) /* Last hope... */
 #  include <unistd.h>

@@ -3,7 +3,7 @@
 #include "lang/clang/clang.h"
 #include "lang/ctags_scan/scan.h"
 
-extern void highlight_go(struct bufdata *bdata);
+extern void highlight_go(Buffer *bdata);
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
@@ -16,14 +16,14 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static nvim_arg_array *update_commands(struct bufdata *bdata, struct taglist *tags);
-static void     update_from_cache(struct bufdata *bdata);
+static nvim_arg_array *update_commands(Buffer *bdata, struct taglist *tags);
+static void     update_from_cache(Buffer *bdata);
 static bstring *get_restore_cmds(b_list *restored_groups);
 static void     add_cmd_call(nvim_arg_array **calls, bstring *cmd);
-static void     get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups);
-static void     get_ignored_tags(struct bufdata *bdata);
-static void     update_c_like(struct bufdata *bdata, int type);
-static void     update_other(struct bufdata *bdata);
+static void     get_tags_from_restored_groups(Buffer *bdata, b_list *restored_groups);
+static void     get_ignored_tags(Buffer *bdata);
+static void     update_c_like(Buffer *bdata, int type);
+static void     update_other(Buffer *bdata);
 static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                             const struct taglist  *tags, const struct cmd_info *info);
 
@@ -38,7 +38,7 @@ extern FILE *cmd_log;
 #define BBS(BSTR) ((char *)((BSTR)->data))
 
 void
-(update_highlight)(struct bufdata *bdata, const int type)
+(update_highlight)(Buffer *bdata, const int type)
 {
         struct timer *t = TIMER_INITIALIZER;
         TIMER_START(t);
@@ -71,7 +71,7 @@ void
 }
 
 static void
-update_c_like(struct bufdata *bdata, const int type)
+update_c_like(Buffer *bdata, const int type)
 {
         libclang_highlight(bdata,,,type);
         if (!bdata->topdir->tags && !bdata->initialized) {
@@ -81,7 +81,7 @@ update_c_like(struct bufdata *bdata, const int type)
 }
 
 static void
-update_from_cache(struct bufdata *bdata)
+update_from_cache(Buffer *bdata)
 {
         ECHO("Updating from cache.");
         nvim_call_atomic(0, bdata->calls);
@@ -90,7 +90,7 @@ update_from_cache(struct bufdata *bdata)
 }
 
 static void
-update_other(struct bufdata *bdata)
+update_other(Buffer *bdata)
 {
         bstring        *joined;
         b_list         *toks;
@@ -137,7 +137,7 @@ retry:
 /*======================================================================================*/
 
 static nvim_arg_array *
-update_commands(struct bufdata *bdata, struct taglist *tags)
+update_commands(Buffer *bdata, struct taglist *tags)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nalloca(ngroups, sizeof(*info));
@@ -243,13 +243,13 @@ handle_kind(bstring *cmd, unsigned i,
 /*======================================================================================*/
 
 void
-update_line(struct bufdata *bdata, const int first, const int last)
+update_line(Buffer *bdata, const int first, const int last)
 {
         libclang_highlight(bdata, first, last);
 }
 
 void
-(clear_highlight)(struct bufdata *bdata)
+(clear_highlight)(Buffer *bdata)
 {
         eprintf("??\n");
         if (!bdata)
@@ -285,7 +285,7 @@ void
 /*======================================================================================*/
 
 static void
-get_tags_from_restored_groups(struct bufdata *bdata, b_list *restored_groups)
+get_tags_from_restored_groups(Buffer *bdata, b_list *restored_groups)
 {
         if (!bdata->ft->ignored_tags)
                 bdata->ft->ignored_tags = b_list_create();
@@ -399,7 +399,7 @@ get_restore_cmds(b_list *restored_groups)
 }
 
 static void
-get_ignored_tags(struct bufdata *bdata)
+get_ignored_tags(Buffer *bdata)
 {
         mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
         b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name).ptr;
@@ -410,7 +410,7 @@ get_ignored_tags(struct bufdata *bdata)
 
         if (restored_groups) {
                 b_list_writeallow(restored_groups);
-                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CPP)
+                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CXX)
                         get_tags_from_restored_groups(bdata, restored_groups);
                 else
                         bdata->ft->restore_cmds = get_restore_cmds(restored_groups);

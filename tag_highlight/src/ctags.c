@@ -1,5 +1,6 @@
 #include "Common.h"
 #include <dirent.h>
+#include <sys/stat.h>
 #if defined(DOSISH) || defined(MINGW)
 //#  include <direct.h>
 #else
@@ -11,13 +12,13 @@
 #include "util/archive.h"
 
 static inline void write_gzfile(struct top_dir *topdir);
-static int         exec_ctags(struct bufdata *bdata, b_list *headers, enum update_taglist_opts opts);
+static int         exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
 
 /*======================================================================================*/
 
 
 bool
-run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
+run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
 {
         assert(bdata != NULL && bdata->topdir != NULL);
         if (!bdata->lines || !bdata->initialized) {
@@ -26,7 +27,7 @@ run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
         }
 
         /* Wipe any cached commands if they exist. */
-        if (!bdata->ft->is_c && bdata->calls) {
+        if (!bdata->ft->has_parser && bdata->calls) {
                 _nvim_destroy_arg_array(bdata->calls);
                 bdata->calls = NULL;
         }
@@ -43,7 +44,7 @@ run_ctags(struct bufdata *bdata, const enum update_taglist_opts opts)
 
 
 int
-get_initial_taglist(struct bufdata *bdata)
+get_initial_taglist(Buffer *bdata)
 {
         struct stat  st;
         struct timer *t  = TIMER_INITIALIZER;
@@ -96,7 +97,7 @@ get_initial_taglist(struct bufdata *bdata)
 
 
 int
-update_taglist(struct bufdata *bdata, const enum update_taglist_opts opts)
+update_taglist(Buffer *bdata, const enum update_taglist_opts opts)
 {
         if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
@@ -150,7 +151,7 @@ write_gzfile(struct top_dir *topdir)
 
 #ifdef DOSISH
 static int
-exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opts opts)
+exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
 {
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
@@ -165,7 +166,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
 
                 b_destroy(tmp);
                 b_list_destroy(headers);
-        } else if (bdata->topdir->recurse && !bdata->ft->is_c) {
+        } else if (bdata->topdir->recurse) {
                 b_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
                            bdata->topdir->pathname);
@@ -188,7 +189,7 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
  * calling fork/exec, even at the cost of a bunch of extra allocations and copying.
  */
 static int
-exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opts opts)
+exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
 {
         unsigned i;
         str_vector *argv = argv_create(128);
@@ -204,10 +205,12 @@ exec_ctags(struct bufdata *bdata, b_list *headers, const enum update_taglist_opt
                bdata->topdir->tmpfname->data[0] != '\0');
         argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
-        if (opts != UPDATE_TAGLIST_FORCE_LANGUAGE &&
-            bdata->topdir->recurse && !bdata->ft->is_c)
+        if (opts != UPDATE_TAGLIST_FORCE_LANGUAGE && bdata->topdir->recurse)
         {
-                argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
+                if (bdata->ft->is_c)
+                        argv_append(argv, "--languages=c,c++", true);
+                else
+                        argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
         } else {

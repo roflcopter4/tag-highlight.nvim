@@ -80,7 +80,7 @@ clean_tmpdir(void)
 
 #if 0
 void
-locate_extent(bstring *dest, struct bufdata *bdata, const struct resolved_range *const res)
+locate_extent(bstring *dest, Buffer *bdata, const struct resolved_range *const res)
 {
 #if 0
         ll_node *node = ll_at((linked_list *)lst, res->line);

@@ -1,17 +1,15 @@
 #include "Common.h"
 #include "highlight.h"
-#include "lang/clang/clang.h"
-#include "my_p99_common.h"
 
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
-        const char *program_invocation_short_name;
+const char *program_invocation_short_name;
 #endif
 #ifdef HAVE_PAUSE
 #  define PAUSE() pause()
 #else
-#  define PAUSE() do fsleep(1000000.0); while (1)
+#  define PAUSE() do { fsleep(1000000.0); } while (1)
 #endif
 
 extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
@@ -34,10 +32,26 @@ extern void           event_loop_init     (int fd);
 #define SIGHANDLER_NORMAL (2)
 #define WAIT_TIME         (3.0)
 #define eputs(str)        fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
-#define get_compression_type(...)       P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
+#define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (_nvim_api_read_fd)
 
+#define MKARGV(...) ((char *const[]){__VA_ARGS__, (char *)0})
+
 /*======================================================================================*/
+
+#ifdef DOSISH
+static void *
+tststuff(void *x)
+{
+        /* bstring *s = get_command_output(NULL, MKARGV("sh.exe", "-c", "ls ."), NULL); */
+        char buf[9192];
+        strcpy(buf, "sh.exe -c ls .");
+        bstring *s = _win32_get_command_output(buf, NULL);
+        eprintf("returned -> %s\n", BS(s));
+        b_destroy(s);
+        pthread_exit();
+}
+#endif
 
 int
 main(UNUSED int argc, char *argv[])
@@ -45,6 +59,7 @@ main(UNUSED int argc, char *argv[])
         _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(&main_timer);
         init(argv);
+        /* START_DETACHED_PTHREAD(tststuff); */
 
         /* This actually runs the event loop and does not normally return. */
         event_loop_init(_nvim_api_read_fd);
@@ -135,7 +150,7 @@ main_initialization(UNUSED void *arg)
                         break;
         }
 
-        struct bufdata *bdata = find_buffer(initial_buf);
+        Buffer *bdata = find_buffer(initial_buf);
         nvim_buf_attach(BUFFER_ATTACH_FD, bdata->num);
         get_initial_lines(bdata);
         get_initial_taglist(bdata);
@@ -144,7 +159,7 @@ main_initialization(UNUSED void *arg)
         TIMER_REPORT(&main_timer, "main initialization");
         nvim_set_client_info(,B(PKG), 0, 1, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
-            true, 1u, 0u, P99_FUTEX_MAX_WAITERS);
+            true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
 
         pthread_exit();
 }
@@ -178,7 +193,7 @@ get_settings(void)
  * Does what it says on the tin.
  */
 void
-get_initial_lines(struct bufdata *bdata)
+get_initial_lines(Buffer *bdata)
 {
         pthread_mutex_lock(&bdata->lock.total);
         b_list *tmp = nvim_buf_get_lines(,bdata->num);

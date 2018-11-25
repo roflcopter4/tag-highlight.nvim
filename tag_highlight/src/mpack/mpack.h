@@ -1,5 +1,5 @@
-#ifndef SRC_MPACK_H
-#define SRC_MPACK_H
+#ifndef MPACK_MPACK_H_
+#define MPACK_MPACK_H_
 
 #ifndef __GNUC__
 #  define __attribute__(...)
@@ -41,11 +41,11 @@ enum mpack_expect_types {
         E_DICT2ARR
 };
 
-#define MPACK_HAS_PACKED  0x80u
-#define MPACK_ENCODE      0x40u
-#define MPACK_PHONY       0x20u
-#define MPACK_SPARE_DATA  0x10u
-#define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0Fu)
+#define MPACK_HAS_PACKED  0x80U
+#define MPACK_ENCODE      0x40U
+#define MPACK_PHONY       0x20U
+#define MPACK_SPARE_DATA  0x10U
+#define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0FU)
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 
@@ -140,7 +140,7 @@ extern retval_t m_expect            (mpack_obj *obj, mpack_expect_t type, bool d
 /* extern void   * get_expect          (mpack_obj *result, mpack_type_t expect, bool destroy, bool is_retval); */
 /* void      * m_expect    (mpack_obj *obj, mpack_expect_t type, bool destroy); */
 
-static inline void
+__always_inline void
 destroy_mpack_dict(mpack_dict_t *dict)
 {
         mpack_obj tmp;
@@ -149,7 +149,7 @@ destroy_mpack_dict(mpack_dict_t *dict)
         mpack_destroy_object(&tmp);
 }
 
-static inline void
+__always_inline void
 destroy_mpack_array(mpack_array_t *array)
 {
         mpack_obj tmp;
@@ -159,7 +159,7 @@ destroy_mpack_array(mpack_array_t *array)
 }
 
 extern pthread_mutex_t mpack_rw_lock;
-static inline mpack_obj *
+__always_inline mpack_obj *
 m_index(mpack_obj *obj, const unsigned index)
 {
         pthread_mutex_lock(&mpack_rw_lock);

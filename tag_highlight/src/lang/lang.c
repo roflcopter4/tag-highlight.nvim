@@ -1,4 +1,4 @@
-#include "lang/common.h"
+#include "lang/lang.h"
 
 /*======================================================================================*/
 
@@ -21,7 +21,7 @@ find_group(struct filetype *ft, const struct cmd_info *info,
 }
 
 struct cmd_info *
-getinfo(struct bufdata *bdata)
+getinfo(Buffer *bdata)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
