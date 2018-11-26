@@ -1,6 +1,6 @@
 #include "Common.h"
 
-#include "highlight.h"
+/* #include "highlight.h" */
 #include "mpack.h"
 
 static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);
@@ -258,32 +258,6 @@ free_stack_push(struct item_free_stack *list, void *item)
         list->items[list->qty++] = item;
 }
 
-void
-_nvim_destroy_arg_array(struct nvim_arg_array *calls)
-{
-        if (!calls)
-                return;
-        for (unsigned i = 0; i < calls->qty; ++i) {
-                unsigned x = 0;
-                for (const char *ptr = calls->fmt[i]; *ptr; ++ptr) {
-                        switch (*ptr) {
-                        case 'b': case 'B':
-                        case 'd': case 'D':
-                                ++x;
-                                break;
-                        case 's': case 'S':
-                                b_free(calls->args[i][x].str); ++x;
-                                break;
-                        }
-                }
-                xfree(calls->args[i]);
-                xfree(calls->fmt[i]);
-        }
-        xfree(calls->args);
-        xfree(calls->fmt);
-        xfree(calls);
-}
-
 /*======================================================================================*/
 /* Type conversions */
 
@@ -332,6 +306,34 @@ find_key_value(mpack_dict_t *dict, const bstring *key)
                         return dict->entries[i]->value;
 
         return NULL;
+}
+
+/*======================================================================================*/
+
+void
+mpack_destroy_arg_array(mpack_arg_array *calls)
+{
+        if (!calls)
+                return;
+        for (unsigned i = 0; i < calls->qty; ++i) {
+                unsigned x = 0;
+                for (const char *ptr = calls->fmt[i]; *ptr; ++ptr) {
+                        switch (*ptr) {
+                        case 'b': case 'B':
+                        case 'd': case 'D':
+                                ++x;
+                                break;
+                        case 's': case 'S':
+                                b_free(calls->args[i][x].str); ++x;
+                                break;
+                        }
+                }
+                xfree(calls->args[i]);
+                xfree(calls->fmt[i]);
+        }
+        xfree(calls->args);
+        xfree(calls->fmt);
+        xfree(calls);
 }
 
 /*======================================================================================*/
@@ -424,13 +426,13 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
  * Three additional special values are recognized:
  *     !: Denotes a pointer to an initialized va_list, from which all arguments
  *        thereafter will be taken, until either another '!' or '@' is encountered.
- *     @: Denotes an argument of type "nvim_argument **", that is to
- *        say an array of arrays of nvim_argument objects. When '@'
+ *     @: Denotes an argument of type "mpack_argument **", that is to
+ *        say an array of arrays of mpack_argument objects. When '@'
  *        is encountered, this double pointer is taken from the current argument
  *        source and used thereafter as such. The first sub array is used until
  *        a '*' is encountered in the format string, at which point the next
  *        array is used, and so on.
- *     *: Increments the current sub array of the nvim_argument ** object.
+ *     *: Increments the current sub array of the mpack_argument ** object.
  *
  * All of the following characters are ignored in the format string, and may be
  * used to make it clearer or more visually pleasing: ':'  ';'  ','  ' '
@@ -447,7 +449,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         int             ch;
         va_list         args;
         va_list        *ref         = NULL;
-        nvim_argument **a_args      = NULL;
+        mpack_argument **a_args      = NULL;
         unsigned       *sub_lengths = nalloca(arr_size, sizeof(unsigned));
         const char     *ptr         = fmt;
         unsigned       *cur_len     = &sub_lengths[0];
@@ -621,7 +623,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         continue;
 
                 case '@':
-                        NEXT_VALIST_ONLY(a_args, nvim_argument **);
+                        NEXT_VALIST_ONLY(a_args, mpack_argument **);
                         a_arg_ctr    = 0;
                         a_arg_subctr = 0;
                         assert(a_args[a_arg_ctr]);

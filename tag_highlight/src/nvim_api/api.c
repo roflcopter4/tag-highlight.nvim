@@ -350,7 +350,7 @@ void
 /* The single most important api function gets its own section for no reason. */
 
 void
-(nvim_call_atomic)(int fd, const nvim_arg_array *calls)
+(nvim_call_atomic)(int fd, const mpack_arg_array *calls)
 {
 #ifdef DEBUG
         static bool first = true;
@@ -363,7 +363,7 @@ void
 #endif
         CHECK_DEF_FD(fd);
         static bstring  fn   = BS_FROMARR(__func__);
-        nvim_argument **args = calls->args;
+        mpack_argument **args = calls->args;
         bstring        *fmt  = b_fromcstr_alloc(4096, "[d,d,s:[:");
 
         if (calls->qty) {

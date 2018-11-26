@@ -57,19 +57,19 @@ destroy_struct_info(struct cmd_info *info)
 
 #define INIT_ACALL_SIZE (128)
 
-struct nvim_arg_array *
+struct mpack_arg_array *
 new_arg_array(void)
 {
-        struct nvim_arg_array *calls = xmalloc(sizeof(struct nvim_arg_array));
+        struct mpack_arg_array *calls = xmalloc(sizeof(struct mpack_arg_array));
         calls->mlen = INIT_ACALL_SIZE;
         calls->fmt  = nmalloc(calls->mlen, sizeof(char *));
-        calls->args = nmalloc(calls->mlen, sizeof(nvim_argument *));
+        calls->args = nmalloc(calls->mlen, sizeof(mpack_argument *));
         calls->qty  = 0;
         return calls;
 }
 
 void
-add_hl_call(struct nvim_arg_array *calls,
+add_hl_call(struct mpack_arg_array *calls,
             const int                 bufnum,
             const int                 hl_id,
             const bstring            *group,
@@ -79,11 +79,11 @@ add_hl_call(struct nvim_arg_array *calls,
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
                 calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
+                calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
         }
 
         calls->fmt[calls->qty]         = STRDUP("s[dd,s,ddd]");
-        calls->args[calls->qty]        = nmalloc(7, sizeof(nvim_argument));
+        calls->args[calls->qty]        = nmalloc(7, sizeof(mpack_argument));
         calls->args[calls->qty][0].str = b_fromlit("nvim_buf_add_highlight");
         calls->args[calls->qty][1].num = bufnum;
         calls->args[calls->qty][2].num = hl_id;
@@ -99,7 +99,7 @@ add_hl_call(struct nvim_arg_array *calls,
 }
 
 void
-add_clr_call(struct nvim_arg_array *calls,
+add_clr_call(struct mpack_arg_array *calls,
              const int bufnum,
              const int hl_id,
              const int line,
@@ -109,11 +109,11 @@ add_clr_call(struct nvim_arg_array *calls,
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
                 calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(nvim_argument *));
+                calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
         }
 
         calls->fmt[calls->qty]         = STRDUP("s[dddd]");
-        calls->args[calls->qty]        = nmalloc(5, sizeof(nvim_argument));
+        calls->args[calls->qty]        = nmalloc(5, sizeof(mpack_argument));
         calls->args[calls->qty][0].str = b_fromlit("nvim_buf_clear_highlight");
         calls->args[calls->qty][1].num = bufnum;
         calls->args[calls->qty][2].num = hl_id;

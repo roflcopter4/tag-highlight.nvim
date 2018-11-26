@@ -28,7 +28,7 @@ run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
 
         /* Wipe any cached commands if they exist. */
         if (!bdata->ft->has_parser && bdata->calls) {
-                _nvim_destroy_arg_array(bdata->calls);
+                mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = NULL;
         }
 

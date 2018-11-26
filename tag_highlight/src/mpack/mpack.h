@@ -95,6 +95,22 @@ struct mpack_ext {
 
 #pragma pack(pop)
 
+typedef struct mpack_arg_array mpack_arg_array;
+typedef union mpack_argument   mpack_argument;
+
+struct mpack_arg_array {
+        char    **fmt;
+        union mpack_argument {
+                bool     boolean;
+                int64_t  num;
+                uint64_t uint;
+                bstring *str;
+                char    *c_str;
+        } **args;
+
+        uint32_t qty;
+        uint32_t mlen;
+};
 
 struct item_free_stack {
         mpack_obj **items;
@@ -176,6 +192,7 @@ m_index(mpack_obj *obj, const unsigned index)
         return obj->data.arr->items[index];
 }
 
+extern void mpack_destroy_arg_array(struct mpack_arg_array *calls);
 
 /* I am very lazy. */
 #define DAI data.arr->items

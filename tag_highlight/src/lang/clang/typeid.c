@@ -7,15 +7,14 @@
 #include "util/list.h"
 
 static void do_typeswitch(Buffer                  *bdata,
-                          struct nvim_arg_array   *calls,
+                          struct mpack_arg_array   *calls,
                           struct token            *tok,
                           struct cmd_info         *info,
                           const b_list            *enumerators,
                           enum CXCursorKind *const last_kind);
 
 static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
-static inline void dump_cursor(FILE *fp, CXCursor curs);
-static void report_cursor(FILE *fp, CXCursor cursor);
+/* static void report_cursor(FILE *fp, CXCursor cursor); */
 static void tokvisitor(struct token *tok);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
@@ -24,8 +23,6 @@ static void tokvisitor(struct token *tok);
                 if ((group = find_group(bdata->ft, info, info->num, (CH))))         \
                         add_hl_call(calls, bdata->num, bdata->hl_id, group,         \
                                     &(line_data){tok->line, tok->col1, tok->col2}); \
-                else \
-                        fprintf(what_the_fuck, "Didn't find group...\n"); \
         } while (0)
 
 /*======================================================================================*/
@@ -37,11 +34,11 @@ static void tokvisitor(struct token *tok);
                 fclose(fp);                                                                     \
         } while (0)
 
-nvim_arg_array *
+mpack_arg_array *
 type_id(Buffer *bdata, struct translationunit *stu)
 {
         enum CXCursorKind last  = 1;
-        nvim_arg_array  *calls = new_arg_array();
+        mpack_arg_array  *calls = new_arg_array();
 
         if (!CLD(bdata)->info)
                 errx(1, "Invalid");
@@ -57,7 +54,7 @@ type_id(Buffer *bdata, struct translationunit *stu)
                 struct token *tok = stu->tokens->lst[i];
                 if ((int)tok->line == (-1) || tok_in_skip_list(bdata, tok))
                         continue;
-                tokvisitor(tok);
+                /* tokvisitor(tok); */
                 do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last);
         }
 
@@ -68,24 +65,23 @@ type_id(Buffer *bdata, struct translationunit *stu)
 
 
 static void do_typeswitch(Buffer           *bdata,
-                          struct nvim_arg_array    *calls,
+                          struct mpack_arg_array    *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,
                           enum CXCursorKind *const  last_kind)
 {
-        extern char LOGDIR[];
-        static atomic_flag flg = ATOMIC_FLAG_INIT;
-        FILE *what_the_fuck;
-        if (!atomic_flag_test_and_set(&flg))
-                what_the_fuck = safe_fopen_fmt("%s/seriously_fuck_this.log", "wb", LOGDIR);
-        else
-                what_the_fuck = safe_fopen_fmt("%s/seriously_fuck_this.log", "ab", LOGDIR);
-
-        CXCursor       cursor = tok->cursor;
-        const bstring *group;
+        extern char        LOGDIR[];
+        const bstring     *group;
+        int goto_safety_count = 0;
+        /* static atomic_flag flg    = ATOMIC_FLAG_INIT; */
+        CXCursor           cursor = tok->cursor;
 
 retry:
+        if (goto_safety_count < 2)
+                ++goto_safety_count;
+        else
+                return;
         switch (cursor.kind) {
         case CXCursor_TypedefDecl:
                 /* An actual typedef */
@@ -98,7 +94,7 @@ retry:
                  * differentiate them from other types we need to find the
                  * declaration cursor and identify its type. The easiest way to do
                  * this is to change the value of `cursor' and jump back to the top. */
-                if (bdata->ft->id == FT_CXX) {
+                if (bdata->ft->id != FT_C) {
                         /* CXType curs_type = clang_getCursorType(tok->cursor); */
                         CXCursor newcurs = clang_getTypeDeclaration(tok->cursortype);
 
@@ -129,7 +125,7 @@ retry:
         case CXCursor_MemberRefExpr: {
                 /* Ordinary reference to a struct/class member. */
                 CXType deftype = clang_getCanonicalType(tok->cursortype);
-                if (deftype.kind == CXType_Unexposed)
+                if (bdata->ft->id != FT_C && deftype.kind == CXType_Unexposed)
                         ADD_CALL(CTAGS_FUNCTION);
                 else
                         ADD_CALL(CTAGS_MEMBER);
@@ -192,15 +188,28 @@ retry:
         /* Macros are trouble */
         case CXCursor_MacroDefinition:
 #if 0
-        P99_AVOID {
+        /* P99_AVOID */ {
                 /* CXCursor tmp = clang_getCursorReferenced(cursor); */
                 /* CXString str = clang_getTypeSpelling(clang_getCursorType(tmp)); */
 
+                /* CXType   curs_type = clang_getCursorType(cursor); */
+                /* CXType   can_type  = clang_getCanonicalType(curs_type);  */
+                /* CXString str       = clang_getTypeSpelling(can_type);    */
+                /* echo("Got cursor of kind \"%s\" in the macro", CS(str)); */
+                /* clang_disposeString(str);                                */
+                /* CXCursor new       = clang_getCursorLexicalParent(cursor); */
                 CXType   curs_type = clang_getCursorType(cursor);
-                CXType   can_type  = clang_getCanonicalType(curs_type);
-                CXString str       = clang_getTypeSpelling(can_type);
-                echo("Got cursor of kind \"%s\" in the macro", CS(str));
-                clang_disposeString(str);
+                CXString str1      = clang_getTypeSpelling(curs_type);
+                CXString str2      = clang_getCursorKindSpelling(cursor.kind);
+                CXString str3      = clang_getTypeKindSpelling(curs_type.kind);
+                echo("got \"%s\" - kind: \"%s\" - typekind: \"%s\" -- \"%s\"\n", CS(str1), CS(str2), CS(str3), tok->raw);
+                free_cxstrings(str1, str2, str3);
+
+                /* if (!clang_Cursor_isNull(new)) {      */
+                /*         echo("Not null, retying.\n"); */
+                /*         cursor = new;                 */
+                /*         goto retry;                   */
+                /* }                                     */
         }
 #endif
                 if (*last_kind == CXCursor_PreprocessingDirective)
@@ -234,57 +243,29 @@ retry:
                                 ADD_CALL(CTAGS_ENUMCONST);
                         break;
                 }
-                default: {
-                        CXString typekindrepr = clang_getTypeKindSpelling(tok->cursortype.kind);
-                        fprintf(what_the_fuck, "unknown declrefexpr type --> %s\n", CS(typekindrepr));
-                        clang_disposeString(typekindrepr);
-                        /* dump_cursor(what_the_fuck, cursor); */
-                        report_cursor(what_the_fuck, cursor);
+                default:
                         break;
-                }
                 }
 
                 break;
 
         case CXCursor_ParmDecl:
-                fprintf(what_the_fuck, "\n\033[1mParmDecl\033[0m\n");
-                report_cursor(what_the_fuck, cursor);
                 break;
 
-        default: {
-                CXString kindspell = clang_getCursorKindSpelling(cursor.kind);
-                fprintf(what_the_fuck, "unknown --> %s\n", CS(kindspell));
-                clang_disposeString(kindspell);
-                /* dump_cursor(what_the_fuck, cursor); */
-                report_cursor(what_the_fuck, cursor);
+        default:
                 break;
         }
-        }
 
-        fclose(what_the_fuck);
         *last_kind = cursor.kind;
 }
-
-static inline void
-dump_cursor(FILE *fp, CXCursor curs)
-{
-        /* char buf1[8192 << 2], buf2[8192 << 2]; */
-        char *buf[2];
-        unsigned line[2], column[2];
-        clang_getDefinitionSpellingAndExtent(curs, &buf[0], &buf[1], &line[0], &column[0], &line[1], &column[1]);
-
-        fprintf(fp, "startbuf: \"%s\"\nendbuf: \"%s\"\n(%u, %u) - (%u, %u)\n\n",
-                buf[0], buf[1], line[0], column[0], line[1], column[1]);
-}
-
 
 /*======================================================================================*/
 
 static bool
 tok_in_skip_list(Buffer *bdata, struct token *tok)
 {
-        bstring *tmp = btp_fromcstr(tok->raw);
-        return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tmp);
+        bstring *tmp = &tok->text;
+        return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tmp) != NULL;
 }
 
 static void
@@ -302,6 +283,7 @@ report_parent(FILE *fp, CXCursor cursor)
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
 
+#if 0
 static void
 report_cursor(FILE *fp, CXCursor cursor)
 {
@@ -315,6 +297,7 @@ report_cursor(FILE *fp, CXCursor cursor)
 
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
+#endif
 
 static void
 tokvisitor(struct token *tok)

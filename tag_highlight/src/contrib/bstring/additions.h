@@ -259,7 +259,8 @@ BSTR_PUBLIC void _b_list_dump_fd(int fd, const b_list *list, const char *listnam
 #define B_LIST_BSEARCH(BLIST, ITEM_) \
         bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_wrap)
 #define B_LIST_BSEARCH_FAST(BLIST, ITEM_) \
-        bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_fast_wrap)
+        _Generic(ITEM_, bstring *: bsearch, const bstring *: bsearch) \
+        (&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_fast_wrap)
 
 /*--------------------------------------------------------------------------------------*/
 

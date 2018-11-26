@@ -214,7 +214,6 @@ static void
 exit_cleanup(void)
 {
         extern bool           process_exiting;
-        extern struct backups backup_pointers;
         extern b_list        *seen_files;
 
         process_exiting = true;
@@ -251,9 +250,6 @@ exit_cleanup(void)
         }
 
         destroy_mpack_dict(settings.ignored_tags);
-        free_backups(&backup_pointers);
-        xfree(backup_pointers.lst);
-
         quick_cleanup();
 }
 

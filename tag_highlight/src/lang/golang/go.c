@@ -13,6 +13,10 @@ struct go_output {
         struct {
                 unsigned line, column;
         } start, end;
+        struct {
+                unsigned len;
+                char     str[32768];
+        } ident;
 };
 
 #ifdef DOSISH
@@ -32,6 +36,7 @@ struct go_output {
 
 static void    parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *data);
 static b_list *separate_and_sort(bstring *output);
+static bool    ident_is_ignored(Buffer *bdata, const bstring *tok);
 
 /*======================================================================================*/
 
@@ -52,8 +57,14 @@ highlight_go(Buffer *bdata)
         char buf[8192];
         snprintf(buf, 8192, "%u", tmp->slen);
 
+        bstring *binpath   = nvim_call_function(, B(PKG "install_info#Get_Binary_Name"), E_STRING).ptr;
+        bstring *go_binary = b_dirname(binpath);
+        b_catlit(go_binary, "/golang");
+        b_destroy(binpath);
+        ECHO("Using binary %s\n", go_binary);
+
         struct cmd_info *info      = getinfo(bdata);
-        bstring         *go_binary = b_format("%s/.vim_tags/bin/golang" CMD_SUFFIX, HOME);
+        /* bstring         *go_binary = b_format("%s/.vim_tags/bin/golang" CMD_SUFFIX, HOME); */
         char *const      argv[]    = {BS(go_binary), BS(bdata->name.full), buf, (char *)0};
         bstring         *rd        = get_command_output(BS(go_binary), argv, tmp);
         b_list          *data      = separate_and_sort(rd);
@@ -75,8 +86,9 @@ highlight_go_pthread_wrapper(void *vdata)
 static void
 parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
 {
-        const bstring  *group;
-        nvim_arg_array *calls = new_arg_array();
+        struct go_output data;
+        const bstring   *group;
+        mpack_arg_array *calls = new_arg_array();
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(,bdata->num);
@@ -84,9 +96,13 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
         B_LIST_FOREACH_2 (output, tok, i) {
-                struct go_output data;
-                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u", &data.ch, &data.start.line,
-                       &data.start.column, &data.end.line, &data.end.column);
+                int ret = sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%s", &data.ch,
+                                 &data.start.line, &data.start.column, &data.end.line,
+                                 &data.end.column, &data.ident.len, data.ident.str);
+
+                bstring str[1] = {{data.ident.len, 0, (uchar *)data.ident.str, 0}};
+                if (ident_is_ignored(bdata, str))
+                        continue;
 
                 switch (data.ch) {
                 case 'p': case 'f': case 'm': case 'c':
@@ -100,7 +116,7 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
         }
 
         nvim_call_atomic(,calls);
-        _nvim_destroy_arg_array(calls);
+        mpack_destroy_arg_array(calls);
 }
 
 /*======================================================================================*/
@@ -116,4 +132,12 @@ separate_and_sort(bstring *output)
         b_list_remove_dups(&ret);
         output->data = bak;
         return ret;
+}
+
+static bool
+ident_is_ignored(Buffer *bdata, const bstring *tok)
+{
+        if (!bdata->ft->ignored_tags)
+                return false;
+        return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tok) != NULL;
 }

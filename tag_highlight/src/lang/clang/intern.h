@@ -39,6 +39,7 @@ struct translationunit {
         unsigned           num;
 };
 
+
 struct token {
         CXCursor    cursor;
         CXType      cursortype;
@@ -58,7 +59,7 @@ struct resolved_range {
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
-INTERN nvim_arg_array *type_id(Buffer *bdata, struct translationunit *stu);
+INTERN mpack_arg_array *type_id(Buffer *bdata, struct translationunit *stu);
 
 INTERN IndexerCallbacks *make_cb_struct(void);
 INTERN void              lc_index_file(Buffer *bdata, struct translationunit *stu);

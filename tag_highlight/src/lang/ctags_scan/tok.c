@@ -2,8 +2,6 @@
 
 #define INIT_STRINGS 8192
 
-extern struct backups backup_pointers;
-
 typedef bool (*cmp_f)(char, bool);
 
 static void do_tokenize(b_list *list, char *vimbuf, cmp_f check);

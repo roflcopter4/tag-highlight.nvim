@@ -36,14 +36,12 @@ struct filetype ftdata[] = {
 extern bool             process_exiting;
 extern b_list          *seen_files;
 extern jmp_buf          exit_buf;
-extern struct backups   backup_pointers;
 extern FILE            *cmd_log, *echo_log, *main_log;
 extern const char      *program_name;
 extern pthread_mutex_t  update_mutex;
 
 struct settings_s   settings        = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 struct buffer_list  buffers         = {{ZERO_DATA}, {{ZERO_DATA}, 0, DATA_ARRSIZE}, 0, DATA_ARRSIZE, PTHREAD_MUTEX_INITIALIZER};
-struct backups      backup_pointers = {NULL, 0, 0};
 
 pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
 const size_t    ftdata_len   = ARRSIZ(ftdata);

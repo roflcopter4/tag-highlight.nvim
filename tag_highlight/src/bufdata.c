@@ -167,7 +167,7 @@ destroy_bufdata(Buffer **bdata)
                         b_list_destroy((*bdata)->headers);
         } else {
                 if ((*bdata)->calls)
-                        _nvim_destroy_arg_array((*bdata)->calls);
+                        mpack_destroy_arg_array((*bdata)->calls);
         }
 
         if (--((*bdata)->topdir->refs) == 0) {
@@ -422,7 +422,19 @@ check_project_directories(bstring *dir)
         return ret;
 }
 
+static void
+bufdata_constructor(void)
+{
+        seen_files = b_list_create_alloc(32);
+        top_dirs   = genlist_create_alloc(32);
+}
+
+
 /*======================================================================================*/
+
+static void     get_ignored_tags(Filetype *ft);
+static void     get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups);
+static bstring *get_restore_cmds(b_list *restored_groups);
 
 /**
  * Populate the non-static portions of the filetype structure, including a list of special
@@ -446,6 +458,9 @@ init_filetype(const int fd, Filetype *ft)
         } else {
                 ft->ignored_tags = NULL;
         }
+
+        ft->restore_cmds = NULL;
+        get_ignored_tags(ft);
 
         mpack_dict_t *equiv = (nvim_get_var_fmt)(fd, E_MPACK_DICT, PKG "%s#equivalent",
                                                  BTS(ft->vim_name)).ptr;
@@ -473,8 +488,140 @@ init_filetype(const int fd, Filetype *ft)
 }
 
 static void
-bufdata_constructor(void)
+get_ignored_tags(Filetype *ft)
 {
-        seen_files = b_list_create_alloc(32);
-        top_dirs   = genlist_create_alloc(32);
+        mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
+        b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
+
+        if (restored_groups)
+                b_list_writeprotect(restored_groups);
+        destroy_mpack_dict(tmp);
+
+        if (restored_groups) {
+                b_list_writeallow(restored_groups);
+                if (ft->has_parser)
+                        get_tags_from_restored_groups(ft, restored_groups);
+                else
+                        ft->restore_cmds = get_restore_cmds(restored_groups);
+
+                b_list_destroy(restored_groups);
+        }
+
+        ft->restore_cmds_initialized = true;
+}
+
+static void
+get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
+{
+        if (!ft->ignored_tags)
+                ft->ignored_tags = b_list_create();
+
+        ECHO("Getting ignored tags for ft %d\n", ft->id);
+
+        for (unsigned i = 0; i < restored_groups->qty; ++i) {
+                char         cmd[2048];
+                const size_t len = snprintf(cmd, 2048, "syntax list %s",
+                                            BS(restored_groups->lst[i]));
+                bstring *output = nvim_command_output(0, btp_fromblk(cmd, len), E_STRING).ptr;
+                if (!output)
+                        continue;
+                const char *ptr = strstr(BS(output), "xxx");
+                if (!ptr) {
+                        b_destroy(output);
+                        continue;
+                }
+                ptr += 4;
+                bstring tmp = bt_fromblk(ptr, output->slen - PSUB(ptr, output->data));
+                b_writeallow(&tmp);
+
+                if (strncmp(ptr, SLS("match /")) != 0) {
+                        bstring *line = &(bstring){0, 0, NULL, BSTR_WRITE_ALLOWED};
+
+                        while (b_memsep(line, &tmp, '\n')) {
+                                while (isblank(*line->data)) {
+                                        ++line->data;
+                                        --line->slen;
+                                }
+                                if (strncmp(BS(line), SLS("links to ")) == 0)
+                                        break;
+
+                                bstring *tok = BSTR_NULL_INIT;
+
+                                while (b_memsep(tok, line, ' ')) {
+                                        bstring *toadd = b_fromblk(tok->data, tok->slen);
+                                        toadd->flags  |= BSTR_MASK_USR1;
+                                        b_list_append(&ft->ignored_tags, toadd);
+                                }
+                        }
+                }
+
+                b_destroy(output);
+        }
+
+        B_LIST_SORT_FAST(ft->ignored_tags);
+}
+
+static bstring *
+get_restore_cmds(b_list *restored_groups)
+{
+        assert(restored_groups);
+        b_list *allcmds = b_list_create_alloc(restored_groups->qty);
+
+        for (unsigned i = 0; i < restored_groups->qty; ++i) {
+                bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
+                bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
+                b_destroy(cmd);
+                if (!output)
+                        continue;
+
+                cmd       = b_alloc_null(64u + output->slen);
+                char *ptr = strstr(BS(output), "xxx");
+                if (!ptr) {
+                        b_destroy(output);
+                        continue;
+                }
+
+                ptr += 4;
+                assert(!isblank(*ptr));
+                b_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
+
+                b_list *toks = b_list_create();
+
+                /* Only syntax keywords can replace previously supplied items,
+                 * so just ignore any match groups. */
+                if (strncmp(ptr, SLS("match /")) != 0) {
+                        char *tmp;
+                        char link_name[1024];
+                        b_sprintfa(cmd, "syntax keyword %s ", restored_groups->lst[i]);
+
+                        while ((tmp = strchr(ptr, '\n'))) {
+                                b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
+                                while (isblank(*++tmp))
+                                        ;
+                                if (strncmp((ptr = tmp), "links to ", 9) == 0)
+                                        if (!((tmp = strchr(ptr, '\n')) + 1))
+                                                break;
+                        }
+
+                        b_list_remove_dups(&toks);
+                        for (unsigned x = 0; x < toks->qty; ++x) {
+                                b_concat(cmd, toks->lst[x]);
+                                b_conchar(cmd, ' ');
+                        }
+                        b_list_destroy(toks);
+
+                        const size_t n = strlcpy(link_name, (ptr += 9), 1024);
+                        assert(n > 0);
+                        b_sprintfa(cmd, " | hi! link %s %s",
+                                   restored_groups->lst[i], btp_fromcstr(link_name));
+
+                        b_list_append(&allcmds, cmd);
+                }
+
+                b_destroy(output);
+        }
+
+        bstring *ret = b_join(allcmds, B(" | "));
+        b_list_destroy(allcmds);
+        return ret;
 }

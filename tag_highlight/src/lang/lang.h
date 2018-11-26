@@ -5,6 +5,7 @@
 #include "Common.h"
 #include "highlight.h"
 #include "my_p99_common.h"
+#include "util/util.h"
 
 __BEGIN_DECLS
 /*======================================================================================*/
@@ -23,11 +24,11 @@ struct line_data {
         unsigned end;
 };
 
-extern void add_hl_call (nvim_arg_array *calls, int bufnum, int hl_id,
+extern void add_hl_call (mpack_arg_array *calls, int bufnum, int hl_id,
                          const bstring *group, const line_data *data);
-extern void add_clr_call(nvim_arg_array *calls, int bufnum, int hl_id, int line, int end);
+extern void add_clr_call(mpack_arg_array *calls, int bufnum, int hl_id, int line, int end);
 
-extern nvim_arg_array  *new_arg_array(void);
+extern mpack_arg_array  *new_arg_array(void);
 extern const bstring   *find_group   (struct filetype *ft, const cmd_info *info,
                                       unsigned num, const int ctags_kind);
 extern struct cmd_info *getinfo      (Buffer *bdata);

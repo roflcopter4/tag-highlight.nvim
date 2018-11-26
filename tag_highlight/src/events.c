@@ -17,8 +17,7 @@
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-/* #  define USE_EVENT_LIB  EVENT_LIB_EV */
-#  define USE_EVENT_LIB  EVENT_LIB_NONE
+#  define USE_EVENT_LIB  EVENT_LIB_EV
 #  define KILL_SIG       SIGUSR1
 static pthread_t loop_thread;
 #endif
@@ -145,7 +144,7 @@ event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
         pthread_mutex_unlock(&event_loop_cb_mutex);
 }
 
-static void sig_cb(UEVP_, UNUSED ev_signal *w, UNUSED int revents)
+static noreturn void sig_cb(UEVP_, UNUSED ev_signal *w, UNUSED int revents)
 {
         quick_exit(0);
 }

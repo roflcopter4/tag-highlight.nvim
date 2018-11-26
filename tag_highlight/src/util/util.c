@@ -266,27 +266,6 @@ free_all__(void *ptr, ...)
         va_end(ap);
 }
 
-void
-add_backup(struct backups *list, void *item)
-{
-        if (!list->lst)
-                list->lst = nmalloc(128, sizeof(char *));
-        else if (list->qty >= (list->max - 1))
-                list->lst = nrealloc(list->lst, (list->max *= 2),
-                                     sizeof *list->lst);
-        list->lst[list->qty++] = item;
-}
-
-void
-free_backups(struct backups *list)
-{
-        if (!list || !list->lst || list->qty == 0)
-                return;
-        for (unsigned i = 0; i < list->qty; ++i)
-                xfree(list->lst[i]);
-        list->qty = 0;
-}
-
 #define READ_FD  (0)
 #define WRITE_FD (1)
 

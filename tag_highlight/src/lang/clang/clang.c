@@ -120,10 +120,10 @@ void
         CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
-        nvim_arg_array *calls = type_id(bdata, stu);
+        mpack_arg_array *calls = type_id(bdata, stu);
         nvim_call_atomic(,calls);
 
-        _nvim_destroy_arg_array(calls);
+        mpack_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&lc_mutex);
@@ -185,14 +185,14 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         int          tmpfd, tmplen;
         char         tmp[SAFE_PATH_MAX];
         str_vector  *comp_cmds = get_compile_commands(bdata);
-#ifdef DOSISH
+#ifdef HAVE_MKOSTEMPS
+        tmplen = snprintf(tmp, SAFE_PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
+        tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
+#else
         bstring *tmp_file;
         tmpfd = _nvim_get_tmpfile(,&tmp_file, btp_fromcstr(bdata->name.suffix));
         memcpy(tmp, tmp_file->data, (tmplen = (int)tmp_file->slen) + 1);
         b_destroy(tmp_file);
-#else
-        tmplen = snprintf(tmp, SAFE_PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
-        tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
 #endif
         
         if (b_write(tmpfd, buf, B("\n")) != 0)
@@ -204,7 +204,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
 #endif
 
         bdata->clangdata = xmalloc(sizeof(struct clangdata));
-        CLD(bdata)->idx  = clang_createIndex(0, 1);
+        CLD(bdata)->idx  = clang_createIndex(0, 0);
         CLD(bdata)->tu   = NULL;
 
         unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
@@ -314,10 +314,10 @@ get_compile_commands(Buffer *bdata)
 
         const unsigned ncmds = clang_CompileCommands_getSize(cmds);
         str_vector    *ret   = argv_create(INIT_ARGV);
-        argv_append(ret, "-ferror-limit=0", true);
 
         for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], false);
+        argv_append(ret, "-ferror-limit=0", true);
 
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command = clang_CompileCommands_getCommand(cmds, i);

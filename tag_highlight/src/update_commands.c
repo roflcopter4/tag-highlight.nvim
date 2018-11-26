@@ -16,12 +16,9 @@ struct cmd_info {
         bstring *suffix;
 };
 
-static nvim_arg_array *update_commands(Buffer *bdata, struct taglist *tags);
+static mpack_arg_array *update_commands(Buffer *bdata, struct taglist *tags);
 static void     update_from_cache(Buffer *bdata);
-static bstring *get_restore_cmds(b_list *restored_groups);
-static void     add_cmd_call(nvim_arg_array **calls, bstring *cmd);
-static void     get_tags_from_restored_groups(Buffer *bdata, b_list *restored_groups);
-static void     get_ignored_tags(Buffer *bdata);
+static void     add_cmd_call(mpack_arg_array **calls, bstring *cmd);
 static void     update_c_like(Buffer *bdata, int type);
 static void     update_other(Buffer *bdata);
 static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
@@ -48,9 +45,6 @@ void
 
         ECHO("Updating commands for bufnum %d", bdata->num);
         pthread_mutex_lock(&bdata->lock.update);
-
-        if (!bdata->ft->restore_cmds_initialized) 
-                get_ignored_tags(bdata);
 
         if (bdata->ft->has_parser) {
                 if (bdata->ft->is_c)
@@ -105,7 +99,7 @@ retry:
                 retry = false;
                 ECHO("Got %u total tags\n", tags->qty);
                 if (bdata->calls)
-                        _nvim_destroy_arg_array(bdata->calls);
+                        mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
                 nvim_call_atomic(0, bdata->calls);
 
@@ -136,7 +130,7 @@ retry:
 
 /*======================================================================================*/
 
-static nvim_arg_array *
+static mpack_arg_array *
 update_commands(Buffer *bdata, struct taglist *tags)
 {
         const unsigned   ngroups = bdata->ft->order->slen;
@@ -161,7 +155,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
                 b_writeallow(info[i].suffix);
         }
 
-        nvim_arg_array *calls = NULL;
+        mpack_arg_array *calls = NULL;
         add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
 
         for (unsigned i = 0; i < ngroups; ++i) {
@@ -285,161 +279,22 @@ void
 /*======================================================================================*/
 
 static void
-get_tags_from_restored_groups(Buffer *bdata, b_list *restored_groups)
-{
-        if (!bdata->ft->ignored_tags)
-                bdata->ft->ignored_tags = b_list_create();
-
-        for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                char         cmd[2048];
-                const size_t len = snprintf(cmd, 2048, "syntax list %s",
-                                            BS(restored_groups->lst[i]));
-                bstring *output = nvim_command_output(0, btp_fromblk(cmd, len), E_STRING).ptr;
-                if (!output)
-                        continue;
-                const char *ptr = strstr(BS(output), "xxx");
-                if (!ptr) {
-                        b_destroy(output);
-                        continue;
-                }
-                ptr += 4;
-                bstring tmp = bt_fromblk(ptr, output->slen - PSUB(ptr, output->data));
-                b_writeallow(&tmp);
-
-                if (strncmp(ptr, SLS("match /")) != 0) {
-                        bstring *line = &(bstring){0, 0, NULL, BSTR_WRITE_ALLOWED};
-
-                        while (b_memsep(line, &tmp, '\n')) {
-                                while (isblank(*line->data)) {
-                                        ++line->data;
-                                        --line->slen;
-                                }
-                                if (strncmp(BS(line), SLS("links to ")) == 0)
-                                        break;
-
-                                bstring *tok = BSTR_NULL_INIT;
-
-                                while (b_memsep(tok, line, ' ')) {
-                                        bstring *toadd = b_fromblk(tok->data, tok->slen);
-                                        toadd->flags  |= BSTR_MASK_USR1;
-                                        b_list_append(&bdata->ft->ignored_tags, toadd);
-                                }
-                        }
-                }
-
-                b_destroy(output);
-        }
-
-        B_LIST_SORT_FAST(bdata->ft->ignored_tags);
-}
-
-static bstring *
-get_restore_cmds(b_list *restored_groups)
-{
-        assert(restored_groups);
-        b_list *allcmds = b_list_create_alloc(restored_groups->qty);
-
-        for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
-                bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
-                b_destroy(cmd);
-                if (!output)
-                        continue;
-
-                cmd       = b_alloc_null(64u + output->slen);
-                char *ptr = strstr(BS(output), "xxx");
-                if (!ptr) {
-                        b_destroy(output);
-                        continue;
-                }
-
-                ptr += 4;
-                assert(!isblank(*ptr));
-                b_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
-
-                b_list *toks = b_list_create();
-
-                /* Only syntax keywords can replace previously supplied items,
-                 * so just ignore any match groups. */
-                if (strncmp(ptr, SLS("match /")) != 0) {
-                        char *tmp;
-                        char link_name[1024];
-                        b_sprintfa(cmd, "syntax keyword %s ", restored_groups->lst[i]);
-
-                        while ((tmp = strchr(ptr, '\n'))) {
-                                b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
-                                while (isblank(*++tmp))
-                                        ;
-                                if (strncmp((ptr = tmp), "links to ", 9) == 0)
-                                        if (!((tmp = strchr(ptr, '\n')) + 1))
-                                                break;
-                        }
-
-                        b_list_remove_dups(&toks);
-                        for (unsigned x = 0; x < toks->qty; ++x) {
-                                b_concat(cmd, toks->lst[x]);
-                                b_conchar(cmd, ' ');
-                        }
-                        b_list_destroy(toks);
-
-                        const size_t n = strlcpy(link_name, (ptr += 9), 1024);
-                        assert(n > 0);
-                        b_sprintfa(cmd, " | hi! link %s %s",
-                                   restored_groups->lst[i], btp_fromcstr(link_name));
-
-                        b_list_append(&allcmds, cmd);
-                }
-
-                b_destroy(output);
-        }
-
-        bstring *ret = b_join(allcmds, B(" | "));
-        b_list_destroy(allcmds);
-        return ret;
-}
-
-static void
-get_ignored_tags(Buffer *bdata)
-{
-        mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
-        b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &bdata->ft->vim_name).ptr;
-
-        if (restored_groups)
-                b_list_writeprotect(restored_groups);
-        destroy_mpack_dict(tmp);
-
-        if (restored_groups) {
-                b_list_writeallow(restored_groups);
-                if (bdata->ft->id == FT_C || bdata->ft->id == FT_CXX)
-                        get_tags_from_restored_groups(bdata, restored_groups);
-                else
-                        bdata->ft->restore_cmds = get_restore_cmds(restored_groups);
-
-                b_list_destroy(restored_groups);
-        }
-
-        bdata->ft->restore_cmds_initialized = true;
-}
-
-/*======================================================================================*/
-
-static void
-add_cmd_call(nvim_arg_array **calls, bstring *cmd)
+add_cmd_call(mpack_arg_array **calls, bstring *cmd)
 {
 #define CALLS (*calls)
         if (!*calls) {
-                CALLS        = xmalloc(sizeof(nvim_arg_array));
+                CALLS        = xmalloc(sizeof(mpack_arg_array));
                 CALLS->qty   = 0;
                 CALLS->mlen  = 16;
                 CALLS->fmt   = xcalloc(CALLS->mlen, sizeof(char *));
-                CALLS->args  = xcalloc(CALLS->mlen, sizeof(nvim_argument *));
+                CALLS->args  = xcalloc(CALLS->mlen, sizeof(mpack_argument *));
         } else if (CALLS->qty >= CALLS->mlen-1) {
                 CALLS->mlen *= 2;
                 CALLS->fmt   = nrealloc(CALLS->fmt,  CALLS->mlen, sizeof(char *));
-                CALLS->args  = nrealloc(CALLS->args, CALLS->mlen, sizeof(nvim_argument *));
+                CALLS->args  = nrealloc(CALLS->args, CALLS->mlen, sizeof(mpack_argument *));
         }
 
-        CALLS->args[CALLS->qty]        = nmalloc(2, sizeof(nvim_argument));
+        CALLS->args[CALLS->qty]        = nmalloc(2, sizeof(mpack_argument));
         CALLS->fmt[CALLS->qty]         = strdup("s[s]");
         CALLS->args[CALLS->qty][0].str = b_lit2bstr("nvim_command");
         CALLS->args[CALLS->qty][1].str = cmd;

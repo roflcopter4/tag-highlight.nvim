@@ -5,6 +5,11 @@ After having gotten this working I decided it wasn't really good enough to justi
 
 I'm not crazy enough to write my own parsers. At the moment, only implementations for C and C++ are functional, using libclang to do the parsing. With the full might of clang behind it, the highlighting is always correct, detailed, and never fooled by tricky namespace problems. It is a proper semantic highlighter of the sort you'd expect from an IDE.
 
+## Installing
+If using dein, installing should be as easy as adding this to your .vimrc.
+    `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': 0, 'build': 'sh build.sh'})`
+The little shell script should build the binary and set everything up. If it goes wrong, you may need to manually build the project. In that case, be sure that the binary goes in the `tag_highlight.nvim/bin/tag_highlight(.exe)` (that is to say, the bin folder in at the top of the plugin). On Windows, you might need to make sure that your `mingw64/bin` directory is in your PATH after installing.
+
 ## Why on earth is it written in C?
 Because.
 

@@ -102,14 +102,7 @@ extern char * basename(char *path);
 #include "contrib/bstring/bstring.h"
 #include "contrib/contrib.h"
 
-//#include "p99/p99_clib.h"
-
 extern char *HOME;
-
-struct backups {
-        char   **lst;
-        unsigned qty, max;
-};
 
 /*===========================================================================*/
 /* Generic Macros */

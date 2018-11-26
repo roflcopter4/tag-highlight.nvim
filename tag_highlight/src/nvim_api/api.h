@@ -26,22 +26,6 @@ enum nvim_connection_type { NVIM_STDOUT, NVIM_SOCKET, NVIM_FILE };
 typedef enum nvim_message_type    nvim_message_type;
 typedef enum nvim_filetype_id     nvim_filetype_id;
 typedef enum nvim_connection_type nvim_connection_type;
-typedef struct nvim_arg_array     nvim_arg_array;
-typedef union nvim_argument       nvim_argument;
-
-struct nvim_arg_array {
-        char    **fmt;
-        union nvim_argument {
-                bool     boolean;
-                int64_t  num;
-                uint64_t uint;
-                bstring *str;
-                char    *c_str;
-        } **args;
-
-        uint32_t qty;
-        uint32_t mlen;
-};
 
 struct nvim_wait {
         int32_t             fd;
@@ -69,7 +53,7 @@ extern bstring      * nvim_buf_get_name       (int fd, int bufnum) __aWUR;
 extern retval_t       nvim_buf_get_option     (int fd, int bufnum, const bstring *optname, mpack_expect_t expect) __aWUR;
 extern retval_t       nvim_buf_get_var        (int fd, int bufnum, const bstring *varname, mpack_expect_t expect) __aWUR;
 extern unsigned       nvim_buf_line_count     (int fd, int bufnum);
-extern void           nvim_call_atomic        (int fd, const struct nvim_arg_array *calls);
+extern void           nvim_call_atomic        (int fd, const struct mpack_arg_array *calls);
 extern retval_t       nvim_call_function      (int fd, const bstring *function, mpack_expect_t expect) __aWUR;
 extern retval_t       nvim_call_function_args (int fd, const bstring *function, mpack_expect_t expect, const bstring *fmt, ...) __aWUR;
 extern bool           nvim_command            (int fd, const bstring *cmd);
@@ -88,7 +72,6 @@ extern void nvim_set_client_info(int fd, const bstring *name, unsigned major, un
                                  const bstring *type, const void *methods, const void *attributes);
 
 extern bstring * _nvim_get_notification(int fd);
-extern void      _nvim_destroy_arg_array(struct nvim_arg_array *calls);
 
 /* Convenience Macros */
 #define nvim_out_write(FD, MES) _nvim_write((FD), NW_STANDARD, (MES))

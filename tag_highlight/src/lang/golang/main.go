@@ -13,8 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/davecgh/go-spew/spew"
 )
 
 var (
@@ -187,7 +185,7 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 		return
 	}
 
-	dump_data(kind, p)
+	dump_data(kind, p, ident.Name)
 }
 
 func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
@@ -199,11 +197,10 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
 	case *types.PkgName:
 		return 'p'
 	case *types.TypeName:
-		par_type := x.Type()
-		if par_type == nil {
+		if x.Type() == nil || x.Type().Underlying() == nil {
 			return 0
 		}
-		switch par_type.Underlying().(type) {
+		switch x.Type().Underlying().(type) {
 		case *types.Interface:
 			return 'i'
 		case *types.Struct:
@@ -225,20 +222,15 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
 }
 
 func get_range(init_pos token.Pos, length int) [2]token.Position {
-	pos := [2]token.Pos{init_pos, init_pos + token.Pos(length)}
-	return resolve(pos)
+	return [2]token.Position{
+		fset.Position(init_pos - 1),
+		fset.Position(init_pos - 1 + token.Pos(length)),
+	}
 }
 
-func resolve(pos [2]token.Pos) [2]token.Position {
-	var p [2]token.Position
-	p[0] = fset.Position(pos[0] - 1)
-	p[1] = fset.Position(pos[1] - 1)
-	return p
-}
-
-func dump_data(ch rune, p [2]token.Position) {
-	fmt.Printf("%c\t%d\t%d\t%d\t%d\n",
-		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column)
+func dump_data(ch rune, p [2]token.Position, ident string) {
+	fmt.Printf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
+		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column, len(ident), ident)
 }
 
 //========================================================================================
@@ -299,10 +291,8 @@ func QuickRead(input interface{}) []byte {
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(f)
+	if _, err := buf.ReadFrom(f); err != nil {
+		panic(err)
+	}
 	return buf.Bytes()
-}
-
-func dummy() {
-	spew.Dump(nil)
 }

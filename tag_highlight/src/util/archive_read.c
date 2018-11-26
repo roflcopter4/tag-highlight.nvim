@@ -20,8 +20,6 @@ static int gz_getlines    (b_list *tags, const bstring *filename);
 static int xz_getlines    (b_list *tags, const bstring *filename);
 #endif
 
-extern struct backups backup_pointers;
-
 /* ========================================================================== */
 
 
@@ -51,15 +49,16 @@ getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 static void
 ll_strsep(b_list *tags, uint8_t *buf)
 {
-        char *tok;
-        /* Set this global pointer so the string can be free'd later... */
-        add_backup(&backup_pointers, buf);
+        char    *tok;
+        uint8_t *bak = buf;
 
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
                 if (*tok == '\0')
                         continue;
-                b_list_append(&tags, b_refblk(tok, (char *)(buf) - tok - 1));
+                b_list_append(&tags, b_fromblk(tok, (char *)(buf) - tok - 1));
         }
+
+        xfree(bak);
 }
 
 

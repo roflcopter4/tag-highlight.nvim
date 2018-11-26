@@ -110,7 +110,7 @@ struct bufdata {
                         b_list *headers;
                 };
                 struct /* Everything else */ {
-                        nvim_arg_array *calls;
+                        mpack_arg_array *calls;
                         b_list         *cmd_cache;
                 };
         };
