@@ -62,26 +62,6 @@ static mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 mpack_obj *
 mpack_decode_stream(int32_t fd)
 {
-#if 0
-        if (!mpack_mutex_list || !mpack_mutex_list->lst) {
-                mpack_mutex_list = genlist_create_alloc(INIT_MUTEXES);
-                atexit(free_mutexes);
-        }
-        for (unsigned i = 0; i < mpack_mutex_list->qty; ++i) {
-                mpack_mutex *cur = mpack_mutex_list->lst[i];
-                if (cur->fd == fd) {
-                        mut = &cur->mut;
-                        break;
-                }
-        }
-        if (!mut) {
-                mpack_mutex *tmp = xmalloc(sizeof(mpack_mutex));
-                tmp->fd  = fd;
-                pthread_mutex_init(&tmp->mut, NULL);
-                genlist_append(mpack_mutex_list, tmp);
-                mut = &tmp->mut;
-        }
-#endif
         pthread_mutex_lock(&mpack_search_mutex);
         pthread_mutex_t *mut = NULL;
         if (fd == 1)
@@ -130,9 +110,6 @@ mpack_decode_stream(int32_t fd)
 mpack_obj *
 mpack_decode_obj(bstring *buf)
 {
-        /* bstring *cpy = &(bstring){                                      */
-        /*     .data = buf->data, .slen = buf->slen, .mlen = 0, .flags = 0 */
-        /* };                                                              */
         mpack_obj *ret = do_decode(&obj_read, buf);
 
         if (!ret)
@@ -184,11 +161,12 @@ decode_array(const read_fn READ, void *src, const uint8_t byte, const mpack_mask
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = {0, 0, 0, 0};
 
         if (mask->fixed) {
                 size = (uint32_t)(byte ^ mask->val);
         } else {
+                uint8_t word[4] = {0, 0, 0, 0};
+
                 switch (mask->type) {
                 case M_ARRAY_16:
                         READ(src, word, 2);
@@ -223,12 +201,13 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const mpack
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = {0, 0, 0, 0};
 
 
         if (mask->fixed) {
                 size = (uint32_t)(byte ^ mask->val);
         } else {
+                uint8_t word[4] = {0, 0, 0, 0};
+
                 switch (mask->type) {
                 case M_MAP_16:
                         READ(src, word, 2);
@@ -263,11 +242,12 @@ decode_string(const read_fn READ, void *src, const uint8_t byte, const mpack_mas
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
-        uint8_t    word[4] = {0, 0, 0, 0};
 
         if (mask->fixed) {
                 size = (uint32_t)(byte ^ mask->val);
         } else {
+                uint8_t word[4] = {0, 0, 0, 0};
+
                 switch (mask->type) {
                 case M_STR_8:
                         READ(src, word, 1);
@@ -304,12 +284,13 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const mpack_ma
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         int64_t    value   = 0;
-        uint8_t    word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (mask->fixed) {
                 value  = (int64_t)(byte ^ mask->val);
                 value |= 0xFFFFFFFFFFFFFFE0LLU;
         } else {
+                uint8_t word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
                 switch (mask->type) {
                 case M_INT_8:
                         READ(src, word, 1);
@@ -347,11 +328,12 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const mpack_m
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint64_t   value   = 0;
-        uint8_t    word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
         if (mask->fixed) {
                 value = (uint64_t)(byte ^ mask->val);
         } else {
+                uint8_t word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
                 switch (mask->type) {
                 case M_UINT_8:
                         READ(src, word, 1);
@@ -486,8 +468,11 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
                 nread += (n>0)?n:0;
         }
 #else
+        errno = 0;
         const int n = recv(fd, dest, nbytes, MSG_WAITALL);
-        assert((size_t)n == nbytes);
+        if ((size_t)n != nbytes)
+                err(1, "%d != %zu!", n, nbytes);
+        /* assert((size_t)n == nbytes); */
 #endif
 
 #ifdef DEBUG

@@ -39,20 +39,6 @@ extern void           event_loop_init     (int fd);
 
 /*======================================================================================*/
 
-#ifdef DOSISH
-static void *
-tststuff(void *x)
-{
-        /* bstring *s = get_command_output(NULL, MKARGV("sh.exe", "-c", "ls ."), NULL); */
-        char buf[9192];
-        strcpy(buf, "sh.exe -c ls .");
-        bstring *s = _win32_get_command_output(buf, NULL);
-        eprintf("returned -> %s\n", BS(s));
-        b_destroy(s);
-        pthread_exit();
-}
-#endif
-
 int
 main(UNUSED int argc, char *argv[])
 {
@@ -60,7 +46,6 @@ main(UNUSED int argc, char *argv[])
         _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(&main_timer);
         init(argv);
-        /* START_DETACHED_PTHREAD(tststuff); */
 
         /* This actually runs the event loop and does not normally return. */
         event_loop_init(_nvim_api_read_fd);

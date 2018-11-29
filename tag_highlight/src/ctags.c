@@ -62,18 +62,26 @@ get_initial_taglist(Buffer *bdata)
          * and read the file it creates. If there is a read error in the saved
          * file, run ctags as a backup. */
         if (stat(BS(bdata->topdir->gzfile), &st) == 0) {
-                ret += getlines(bdata->topdir->tags, settings.comp_type,
-                                bdata->topdir->gzfile);
-                if (ret) {
-                        for (unsigned i = 0; i < bdata->topdir->tags->qty; ++i)
-                                b_write(bdata->topdir->tmpfd,
-                                        bdata->topdir->tags->lst[i], B("\n"));
-                } else {
-                        warnx("Could not read file. Running ctags.");
-                        if (!bdata->initialized)
-                                return 0;
-                        echo("linecount -> %d", bdata->lines->qty);
-                        goto force_ctags;
+                if (bdata->topdir->timestamp < st.st_mtime) {
+                        ret += getlines(bdata->topdir->tags, settings.comp_type,
+                                        bdata->topdir->gzfile);
+                        if (ret) {
+                                ftruncate(bdata->topdir->tmpfd, 0);
+                                for (unsigned i = 0; i < bdata->topdir->tags->qty; ++i) {
+                                        errno = 0;
+                                        if (errno)
+                                                err(1, "ftruncate");
+                                        b_write(bdata->topdir->tmpfd,                 
+                                                bdata->topdir->tags->lst[i], B("\n"));
+                                }
+                                fsync(bdata->topdir->tmpfd);
+                        } else {
+                                warnx("Could not read file. Running ctags.");
+                                if (!bdata->initialized)
+                                        return 0;
+                                echo("linecount -> %d", bdata->lines->qty);
+                                goto force_ctags;
+                        }
                 }
         } else {
                 if (errno == ENOENT)
@@ -91,6 +99,7 @@ get_initial_taglist(Buffer *bdata)
                 ret += getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname);
         }
 
+        bdata->topdir->timestamp = (time_t)st.st_mtime;
         TIMER_REPORT(t, "initial taglist");
         return ret;
 }

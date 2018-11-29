@@ -123,13 +123,13 @@ extern char *HOME;
                 pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
         } while (0)
 
-#define START_DETACHED_PTHREAD(...)                                            \
-        do {                                                                   \
-                pthread_t      __th;                                           \
-                pthread_attr_t _attr_;                                         \
-                pthread_attr_init(&_attr_);                                    \
-                pthread_attr_setdetachstate(&_attr_, PTHREAD_CREATE_DETACHED); \
-                pthread_create(&__th, &_attr_, __VA_ARGS__);                   \
+#define START_DETACHED_PTHREAD(...)                                             \
+        do {                                                                    \
+                pthread_t       m_pid_;                                         \
+                pthread_attr_t m_attr_;                                         \
+                pthread_attr_init(&m_attr_);                                    \
+                pthread_attr_setdetachstate(&m_attr_, PTHREAD_CREATE_DETACHED); \
+                pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
         } while (0)
 
 #define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))

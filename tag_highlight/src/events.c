@@ -88,10 +88,6 @@ struct event_data {
 static noreturn void *
 post_nvim_response(void *vdata)
 {
-        /* atomic_store(&event_loop_mpack_obj, obj); */
-        /* p99_futex_wakeup(&_nvim_wait_futex, 1u, 1u); */
-        /* p99_futex_wait(&event_loop_futex); */
-
         struct event_data *data  = vdata;
         mpack_obj         *obj   = data->obj;
         int                fd    = data->fd;
@@ -114,7 +110,6 @@ post_nvim_response(void *vdata)
 
         node->obj = obj;
         p99_futex_wakeup(&node->fut, 1U, 1U);
-        /* p99_futex_wait(&event_loop_futex); */
         pthread_exit();
 }
 
