@@ -290,7 +290,7 @@ init_topdir(const int fd, Buffer *bdata)
         dir                = check_project_directories(dir);
         const bool recurse = check_norecurse_directories(dir);
         const bool is_c    = bdata->ft->is_c;
-        bstring *  base = (!recurse || is_c) ? b_strcpy(bdata->name.full) : dir;
+        bstring   *base    = (!recurse /* || is_c */) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
         ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
@@ -312,15 +312,16 @@ init_topdir(const int fd, Buffer *bdata)
         pthread_mutex_unlock(&top_dirs->mut);
         ECHO("Initializing new topdir \"%s\"\n", dir);
 
-        Top_Dir *tdir  = xcalloc(1, sizeof(Top_Dir));
-        tdir->tmpfname = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
-        tdir->tmpfd    = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
-        tdir->gzfile   = b_fromcstr_alloc(dir->mlen * 3, HOME);
-        tdir->ftid     = bdata->ft->id;
-        tdir->index    = top_dirs->qty;
-        tdir->pathname = dir;
-        tdir->recurse  = recurse;
-        tdir->refs     = 1;
+        Top_Dir *tdir   = xcalloc(1, sizeof(Top_Dir));
+        tdir->tmpfname  = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
+        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
+        tdir->gzfile    = b_fromcstr_alloc(dir->mlen * 3, HOME);
+        tdir->ftid      = bdata->ft->id;
+        tdir->index     = top_dirs->qty;
+        tdir->pathname  = dir;
+        tdir->recurse   = recurse;
+        tdir->refs      = 1;
+        tdir->timestamp = (time_t)UINTMAX_C(0);
 
         tdir->pathname->flags |= BSTR_DATA_FREEABLE;
         b_catlit(tdir->gzfile, SEPSTR ".vim_tags" SEPSTR);
@@ -358,7 +359,7 @@ init_topdir(const int fd, Buffer *bdata)
 
         assert(ret == BSTR_OK);
         genlist_append(top_dirs, tdir);
-        if (!recurse || is_c)
+        if (!recurse/*  || is_c */)
                 b_destroy(base);
 
         return tdir;

@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	fset   = token.NewFileSet()
+	fset   *token.FileSet = token.NewFileSet()
 	lfile  *os.File
 	errlog *log.Logger
 )

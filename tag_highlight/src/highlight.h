@@ -70,6 +70,7 @@ struct top_dir {
         uint16_t refs;
         bool     recurse;
         nvim_filetype_id ftid;
+        time_t  timestamp;
 
         bstring *gzfile;
         bstring *pathname;

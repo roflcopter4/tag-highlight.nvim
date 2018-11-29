@@ -154,13 +154,14 @@ _b_write(const int fd, bstring *bstr, ...)
                                 break;
                         if (bstr->data && bstr->slen > 0) {
                                 ssize_t n, total = 0;
+                                error_t tmp;
                                 errno = 0;
                                 do {
                                         n = write(fd, bstr->data, bstr->slen);
-                                } while (n >= 0 && (total += n) != bstr->slen);
-                                if (errno) {
+                                } while (n > 0 && (unsigned)(total += n) < bstr->slen);
+                                if ((tmp = errno)) {
                                         va_end(ap);
-                                        return errno;
+                                        return tmp;
                                 }
                         }
                 }

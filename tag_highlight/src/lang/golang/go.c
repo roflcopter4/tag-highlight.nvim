@@ -34,9 +34,9 @@ struct go_output {
                                                  data.end.column});                  \
         } while (0)
 
-static void    parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *data);
-static b_list *separate_and_sort(bstring *output);
-static bool    ident_is_ignored(Buffer *bdata, const bstring *tok);
+static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *data);
+static b_list     *separate_and_sort(bstring *output);
+static inline bool ident_is_ignored(Buffer *bdata, const bstring *tok);
 
 /*======================================================================================*/
 
@@ -61,7 +61,6 @@ highlight_go(Buffer *bdata)
         bstring *go_binary = b_dirname(binpath);
         b_catlit(go_binary, "/golang");
         b_destroy(binpath);
-        ECHO("Using binary %s\n", go_binary);
 
         struct cmd_info *info      = getinfo(bdata);
         /* bstring         *go_binary = b_format("%s/.vim_tags/bin/golang" CMD_SUFFIX, HOME); */
@@ -100,8 +99,8 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                                  &data.start.line, &data.start.column, &data.end.line,
                                  &data.end.column, &data.ident.len, data.ident.str);
 
-                bstring str[1] = {{data.ident.len, 0, (uchar *)data.ident.str, 0}};
-                if (ident_is_ignored(bdata, str))
+                if (ident_is_ignored(bdata, &(bstring){data.ident.len, 0,
+                                                       (uchar *)data.ident.str, 0}))
                         continue;
 
                 switch (data.ch) {
@@ -134,7 +133,7 @@ separate_and_sort(bstring *output)
         return ret;
 }
 
-static bool
+static inline bool
 ident_is_ignored(Buffer *bdata, const bstring *tok)
 {
         if (!bdata->ft->ignored_tags)

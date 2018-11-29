@@ -1,6 +1,5 @@
 #include "Common.h"
-#include <limits.h>
-#include <stddef.h>
+#include <endian.h>
 
 #include "intern.h"
 
@@ -35,29 +34,77 @@
 
 #define encode_int64(ARR, IT, VAL)                                    \
         do {                                                          \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 070); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 060); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 050); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 040); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 030); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 020); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) >> 010); \
-                ((ARR)[(IT)++]) = (uint8_t)(((int64_t)(VAL)) & 0xFF); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 070); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 060); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 050); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 040); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 030); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 020); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 010); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) & 0xFF); \
         } while (0)
 
-#define encode_int32(ARR, IT, VAL)                                   \
-        do {                                                         \
-                ((ARR)[(IT)++]) = (int8_t)(((int32_t)(VAL)) >> 030); \
-                ((ARR)[(IT)++]) = (int8_t)(((int32_t)(VAL)) >> 020); \
-                ((ARR)[(IT)++]) = (int8_t)(((int32_t)(VAL)) >> 010); \
-                ((ARR)[(IT)++]) = (int8_t)(((int32_t)(VAL)) & 0xFF); \
+#define encode_int32(ARR, IT, VAL)                                    \
+        do {                                                          \
+                ((ARR)[(IT)++]) = (int8_t)(((uint32_t)(VAL)) >> 030); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint32_t)(VAL)) >> 020); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint32_t)(VAL)) >> 010); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint32_t)(VAL)) & 0xFF); \
         } while (0)
 
-#define encode_int16(ARR, IT, VAL)                                   \
-        do {                                                         \
-                ((ARR)[(IT)++]) = (int8_t)(((int16_t)(VAL)) >> 010); \
-                ((ARR)[(IT)++]) = (int8_t)(((int16_t)(VAL)) & 0xFF); \
+#define encode_int16(ARR, IT, VAL)                                    \
+        do {                                                          \
+                ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) >> 010); \
+                ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) & 0xFF); \
         } while (0)
+
+#if 0
+union int_size_cheat { uint64_t u; int64_t i; };
+
+#define _encode_size(SIZE, ARR, IT, VAL)                      \
+        do {                                                  \
+                uint##SIZE##_t conv = htobe##SIZE(VAL);       \
+                memcpy((ARR), &conv, sizeof(uint##SIZE##_t)); \
+                (IT) += sizeof(uint##SIZE##_t);               \
+        } while (0)
+
+#define encode_uint16(ARR, IT, VAL) _encode_size(16, ARR, IT, VAL)
+#define encode_uint32(ARR, IT, VAL) _encode_size(32, ARR, IT, VAL)
+#define encode_uint64(ARR, IT, VAL) _encode_size(64, ARR, IT, VAL)
+
+#define _encode_signed(SIZE, ARR, IT, VAL)                    \
+        do {                                                  \
+                union int_size_cheat m_cheat_ = {.i = (VAL)}; \
+                _encode_size(SIZE, ARR, IT, m_cheat_.u);      \
+        } while (0)
+
+#define encode_int16(ARR, IT, VAL) _encode_signed(16, ARR, IT, VAL)
+#define encode_int32(ARR, IT, VAL) _encode_signed(32, ARR, IT, VAL)
+#define encode_int64(ARR, IT, VAL) _encode_signed(64, ARR, IT, VAL)
+#endif
+
+#if 0
+#define encode_uint16(ARR, IT, VAL)                     \
+        do {                                            \
+                uint16_t conv = htobe16(VAL);           \
+                memcpy((ARR), &conv, sizeof(uint16_t)); \
+                (IT) += sizeof(uint16_t);               \
+        } while (0)
+
+#define encode_uint32(ARR, IT, VAL)                     \
+        do {                                            \
+                uint32_t conv = htobe32(VAL);           \
+                memcpy((ARR), &conv, sizeof(uint32_t)); \
+                (IT) += sizeof(uint32_t);               \
+        } while (0)
+
+#define encode_uint64(ARR, IT, VAL)                     \
+        do {                                            \
+                uint64_t conv = htobe64(VAL);           \
+                memcpy((ARR), &conv, sizeof(uint64_t)); \
+                (IT) += sizeof(uint64_t);               \
+        } while (0)
+#endif
 
 
 static void sanity_check(mpack_obj *root, mpack_obj **item, unsigned check, bool force);
@@ -297,4 +344,3 @@ sanity_check(mpack_obj       *root,
         if ((*root->packed)->slen > ((*root->packed)->mlen - check))
                 b_alloc(*root->packed, (*root->packed)->mlen * 2);
 }
-

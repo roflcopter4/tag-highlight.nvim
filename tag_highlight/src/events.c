@@ -32,7 +32,7 @@ extern void           update_line         (Buffer *, int, int);
 static void           handle_line_event   (Buffer *bdata, mpack_array_t *arr);
 ALWAYS_INLINE   void  replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
 ALWAYS_INLINE   void  line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
-static void           vimscript_interrupt (int val);
+static noreturn void * vimscript_message  (void *vdata);
 static void           handle_nvim_event   (void *vdata);
 static void           post_nvim_response  (mpack_obj *obj);
 static noreturn void *nvim_event_handler  (void *unused);
@@ -83,7 +83,7 @@ static void
 post_nvim_response(mpack_obj *obj)
 {
         atomic_store(&event_loop_mpack_obj, obj);
-        p99_futex_wakeup(&_nvim_wait_futex, 1u, 1u);
+        p99_futex_wakeup(&_nvim_wait_futex, 1U, 1U);
         p99_futex_wait(&event_loop_futex);
 }
 
@@ -388,7 +388,8 @@ handle_nvim_event(void *vdata)
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                vimscript_interrupt((int)arr->items[0]->data.str->data[0]);
+                START_DETACHED_PTHREAD(vimscript_message, (void *)((uintptr_t)arr->items[0]->data.str->data[0]));
+                /* vimscript_message((int)arr->items[0]->data.str->data[0]); */
         } else {
                 const int bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 Buffer   *bdata  = find_buffer(bufnum);
@@ -606,9 +607,10 @@ line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
  * response to the user calling the provided clear command.
  */
-static void
-vimscript_interrupt(const int val)
+static noreturn void *
+vimscript_message(void *vdata)
 {
+        const  int        val    = (int)((uintptr_t)(vdata));
         static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
         struct timer     *t      = TIMER_INITIALIZER;
         int               num = 0;
@@ -712,6 +714,8 @@ vimscript_interrupt(const int val)
                 echo("Hmm, nothing to do...");
                 break;
         }
+
+        pthread_exit();
 }
 
 /*======================================================================================*/
