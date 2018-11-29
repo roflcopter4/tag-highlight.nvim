@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,31 +32,43 @@ type QuickReadInfo struct {
 
 func main() {
 	open_log_rel()
+
 	var (
-		filename, err = filepath.Abs(os.Args[1])
-		buf           = QuickRead(&QuickReadInfo{"", os.Stdin, xatoi(os.Args[2])})
+		buf, err1      = ioutil.ReadAll(os.Stdin)
+		filename, err2 = filepath.Abs(os.Args[1])
+		// buf           = QuickRead(&QuickReadInfo{"", os.Stdin, xatoi(os.Args[2])})
 	)
-	if err != nil {
-		panic(err)
+	if err1 != nil {
+		panic(err1)
+	}
+	if err2 != nil {
+		panic(err2)
 	}
 	var (
 		pathname       = filepath.Dir(filename)
 		astfiles       = parse_files(pathname, filename)
-		new_file, err2 = parser.ParseFile(fset, filename, buf, 0)
+		new_file, err3 = parser.ParseFile(fset, filename, buf, 0)
 	)
-	if err2 != nil {
-		errlog.Printf("%v\n", err2)
+	if err3 != nil {
+		if errlog != nil {
+			errlog.Printf("%v\n", err3)
+		}
 	}
 
 	astfiles = append(astfiles, new_file)
 	highlight(filename, astfiles)
+	eprintf("Done!\n")
+	os.Exit(0)
 }
 
 func open_log_rel() {
 	var err error
 	lfile, err = os.Open("/dev/null")
 	if err != nil {
-		panic(err)
+		lfile, err = os.Open("NUL")
+		if err != nil {
+			panic(err)
+		}
 	}
 	errlog = log.New(lfile, "ERROR: ", 0)
 }
@@ -160,7 +173,9 @@ func highlight(filename string, ast_files []*ast.File) {
 		errx(1, "Current file not in fileset.\n")
 	}
 	if _, err := conf.Check("", fset, ast_files, info); err != nil {
-		errlog.Printf("%v\n", err)
+		if errlog != nil {
+			errlog.Printf("%v\n", err)
+		}
 	}
 
 	for ident, typeinfo := range info.Defs {
@@ -186,6 +201,7 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	}
 
 	dump_data(kind, p, ident.Name)
+	os.Stdout.Sync()
 }
 
 func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {

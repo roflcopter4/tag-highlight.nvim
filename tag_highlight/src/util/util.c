@@ -368,13 +368,14 @@ _win32_get_command_output(char *argv, bstring *input)
                 ErrorExit("WriteFile()", GetLastError());
         CloseHandle(handles[0][WRITE_FD]);
         
+        bstring *ret = ReadFromPipe(handles[1][READ_FD]);
+        CloseHandle(handles[1][READ_FD]);
+
         WaitForSingleObject(pi.hProcess, INFINITE);
         GetExitCodeProcess(pi.hProcess, &status);
         if (status != 0)
                 SHOUT("Command failed with status %ld\n", status);
         
-        bstring *ret = ReadFromPipe(handles[1][READ_FD]);
-        CloseHandle(handles[1][READ_FD]);
         return ret;
 }
 

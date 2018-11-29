@@ -5,6 +5,7 @@
 #include "Common.h"
 #include "lang/lang.h"
 #include "my_p99_common.h"
+#include <sys/stat.h>
 
 extern void try_go_crap(Buffer *bdata);
 
@@ -40,13 +41,14 @@ static bool    ident_is_ignored(Buffer *bdata, const bstring *tok);
 
 /*======================================================================================*/
 
-void
+int
 highlight_go(Buffer *bdata)
 {
+        int               retval  = 0;
         register unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
         if (cnt_val >= 2) {
                 p99_count_dec(&bdata->lock.num_workers);
-                return;
+                return retval;
         }
 
         pthread_mutex_lock(&bdata->lock.update);
@@ -57,10 +59,14 @@ highlight_go(Buffer *bdata)
         char buf[8192];
         snprintf(buf, 8192, "%u", tmp->slen);
 
-        bstring *binpath   = nvim_call_function(, B(PKG "install_info#Get_Binary_Name"), E_STRING).ptr;
-        bstring *go_binary = b_dirname(binpath);
-        b_catlit(go_binary, "/golang");
-        b_destroy(binpath);
+        bstring *go_binary = nvim_call_function(, B(PKG "install_info#Get_Binary_Path"), E_STRING).ptr;
+        b_catlit(go_binary, "/golang" CMD_SUFFIX);
+        struct stat st;
+        if (stat(BS(go_binary), &st) != 0) {
+                retval = errno;
+                goto error;
+        }
+        
         ECHO("Using binary %s\n", go_binary);
 
         struct cmd_info *info      = getinfo(bdata);
@@ -70,10 +76,14 @@ highlight_go(Buffer *bdata)
         b_list          *data      = separate_and_sort(rd);
 
         parse_go_output(bdata, info, data);
-        b_destroy_all(tmp, go_binary, rd);
+        b_destroy_all(tmp, rd);
         b_list_destroy(data);
+
+error:
+        b_destroy(tmp);
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.update);
+        return retval;
 }
 
 void *

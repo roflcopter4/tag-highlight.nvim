@@ -15,6 +15,8 @@ extern vfutex_t             event_loop_futex, _nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             _nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
+
+
 /*======================================================================================*/
 
 __attribute__((__constructor__)) static void
@@ -31,18 +33,19 @@ _nvim_api_wrapper_init(void)
  * reference, at one point this funcion was over 100 lines long.
  */
 mpack_obj *
-await_package(UNUSED const int fd)
+await_package(_nvim_wait_node *node)
 {
-        mpack_obj *obj;
-        p99_futex_wait(&_nvim_wait_futex);
-        obj = atomic_load(&event_loop_mpack_obj);
+        /* mpack_obj *obj; */
+        /* p99_futex_wait(&_nvim_wait_futex); */
+        /* obj = atomic_load(&event_loop_mpack_obj); */
+        p99_futex_wait(&node->fut);
 
-        if (!obj)
+        if (!node->obj)
                 errx(1, "null object");
 
-        p99_futex_wakeup(&event_loop_futex, 1u, 1u);
+        /* p99_futex_wakeup(&event_loop_futex, 1u, 1u); */
 
-        return obj;
+        return node->obj;
 }
 
 mpack_obj *
@@ -55,7 +58,7 @@ generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
         if (fmt) {
                 /* Skrew it, despite early efforts to the contrary, this will never
                  * compile with anything but gcc/clang. No reason not to use VLAs. */
-                const unsigned size = fmt->slen + 16u;
+                const unsigned size = fmt->slen + 16U;
                 va_list        ap;
                 char           buf[size];
                 snprintf(buf, size, "[d,d,s:[!%s]]", BS(fmt));
@@ -102,12 +105,20 @@ mpack_obj *
         mpack_print_object(logfp, pack);
 #endif
 
-        pthread_mutex_lock(&await_package_mutex);
+        _nvim_wait_node *node = xcalloc(1, sizeof(*node));
+        node->fd    = fd;
+        node->count = count;
+        node->fut   = P99_FUTEX_INITIALIZER(0);
+        /* p99_futex_init(&node->fut, 0); */
+        P99_FIFO_APPEND(&_nvim_wait_queue, node);
+
+        /* pthread_mutex_lock(&await_package_mutex); */
         b_write(fd, *pack->packed);
+        /* pthread_mutex_unlock(&await_package_mutex); */
 
         mpack_destroy_object(pack);
-        mpack_obj *ret = await_package(fd);
-        pthread_mutex_unlock(&await_package_mutex);
+        mpack_obj *ret = await_package(node);
+        xfree(node);
         return ret;
 }
 

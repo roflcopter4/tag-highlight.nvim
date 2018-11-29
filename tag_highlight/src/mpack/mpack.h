@@ -1,15 +1,7 @@
 #ifndef MPACK_MPACK_H_
 #define MPACK_MPACK_H_
 
-#ifndef __GNUC__
-#  define __attribute__(...)
-#endif
-
-#include "contrib/bstring/bstring.h"
-#include <pthread.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include "Common.h"
 
 #ifdef __cplusplus
 extern "C" {

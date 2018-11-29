@@ -10,14 +10,11 @@ system_type=
 die()
 {
     if [ $# -eq 0 ]; then
-        exit 1
-    elif [ $# -eq 1 ]; then
-        echo "Fatal error: $1" >&2
-        exit 1
+        echo "\033[1;32mFatal error encountered.\033[0m"
     else
-        echo "Fatal error: $2" >&2
-        exit "$1"
+        echo "\033[1;32mFatal error\033[0m: $1" >&2
     fi
+    exit 1
 }
 
 Exists() {
@@ -33,7 +30,7 @@ check() {
 guess_system() {
     _output=$(uname)
     case "$_output" in 
-        *msys*|*mingw*)
+        *MSYS*|*MINGW*)
             echo 'MinGW'
             ;;
         FreeBSD)
@@ -66,17 +63,22 @@ init_directories()
     case "$system_type" in
         MinGW)
             binary_path="${project_dir}/build/src/tag_highlight.exe"
-            final_path="${bin_dir}/tag_highlight.exe"
+            final_path=$(cygpath -wa "${bin_dir}/tag_highlight.exe")
+            binary_path_win32=$(cygpath -wa "${bin_dir}")
             ;;
         *)
             binary_path="${project_dir}/build/src/tag_highlight"
             final_path="${bin_dir}/tag_highlight"
+            binary_path_win32="${bin_dir}"
             ;;
     esac
 
     cat > "${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#Get_Binary_Name()
     return '${final_path}'
+endfunction
+function! tag_highlight#install_info#Get_Binary_Path()
+    return '${binary_path_win32}'
 endfunction
 EOF
 }
@@ -119,10 +121,12 @@ install()
                 link_cmd='cp -L'
             fi
 
-            $link_cmd '/mingw64/bin/libwinpthread.dll' "${bin_dir}"
-            $link_cmd '/mingw64/bin/libz.dll' "${bin_dir}"
-            $link_cmd '/mingw64/bin/libstdc++.dll' "${bin_dir}"
-            $link_cmd "/mingw64/bin/libclang.dll" "${bin_dir}"
+            for libname in libclang.dll libgcc_s_seh-1.dll libgomp-1.dll libstdc++-6.dll libwinpthread-1.dll libz3.dll zlib1.dll
+            do
+                _command_="$link_cmd '$(cygpath -wa "/mingw64/bin/${libname}")' '$(cygpath -wa "${bin_dir}")'"
+                /usr/bin/printf "%s\n" "$_command_" >&2
+                eval $_command_
+            done
             ;;
     esac
 
@@ -130,6 +134,7 @@ install()
         die 'Invalid'
     fi
 
+    /usr/bin/printf "mv '%s' '%s'\n" "${binary_path}" "${bin_dir}" >&2
     mv "${binary_path}" "${bin_dir}"
     rm -r "${project_dir}/build"
 

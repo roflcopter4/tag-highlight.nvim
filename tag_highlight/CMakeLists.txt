@@ -165,14 +165,14 @@ else()
         # set (BASE "${BASE} -fprofile-instr-generate")
         # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
         # set (SANIT "")
-        # set (SANIT "-fsanitize=undefined -fsanitize=null")
+        #set (SANIT "-fsanitize=undefined -fsanitize=null")
 
         # string(CONCAT BASE "${BASE} ${SANIT}"
         #     " -Wno-incompatible-pointer-types-discards-qualifiers"
         #     " -Wno-error=incompatible-pointer-types-discards-qualifiers"
         #     )
 
-        string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
+        string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} ${SANIT} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
               " -Wno-sign-conversion -Wno-documentation-unknown-command"
               " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
               " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
@@ -194,7 +194,7 @@ else()
         # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
         #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
         # 
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld -rtlib=compiler-rt")
+        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt")
     endif()
 #####################################################################################################
 

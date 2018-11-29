@@ -3,10 +3,10 @@
 
 #include "Common.h"
 
+#include "contrib/p99/p99_defarg.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
-#include "contrib/p99/p99_defarg.h"
 
 __BEGIN_DECLS
 /*======================================================================================*/
@@ -61,7 +61,7 @@ static inline int _get_fd_count(const int fd, const bool inc)
 }
 
 INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) __aWUR;
-INTERN mpack_obj *await_package(int fd) __aWUR;
+INTERN mpack_obj *await_package(_nvim_wait_node *node) __aWUR;
 INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) __aWUR;
 INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) __aWUR;
 
@@ -81,3 +81,4 @@ extern pthread_mutex_t api_mutex;
 /*======================================================================================*/
 __END_DECLS
 #endif /* intern.h */
+

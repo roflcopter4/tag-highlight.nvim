@@ -31,13 +31,13 @@ endif()
 add_executable(tag_highlight ${tag_highlight_SOURCES})
 add_definitions(-D_BUILD_)
 
-add_library(bstring STATIC
+add_library(bstring OBJECT
     contrib/bstring/additions.c
     contrib/bstring/b_list.c
     contrib/bstring/bstrlib.c
 )
 
-add_library(mpack-c STATIC 
+add_library(mpack-c OBJECT 
     mpack/data.c
     mpack/decode.c
     mpack/encode.c
@@ -45,7 +45,7 @@ add_library(mpack-c STATIC
     mpack/print.c
 )
 
-add_library(thl-util STATIC
+add_library(thl-util OBJECT
     contrib/contrib.c
     util/archive_gzip.c
     util/archive_read.c
@@ -60,16 +60,17 @@ add_library(thl-util STATIC
 # Libraries
 
 if (MINGW)
-    target_link_libraries(tag_highlight -lstdc++)
+    target_link_libraries(tag_highlight
+        -lstdc++ #-latomic
+    )
 else()
     target_link_libraries(tag_highlight
         -lrt -pthread -lunwind
-        ${LIBEV_LIBRARIES}
+        # ${LIBEV_LIBRARIES}
     )
 endif()
 
 target_link_libraries(tag_highlight 
-    # -latomic
     ${LIBCLANG_LIBRARY}
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}

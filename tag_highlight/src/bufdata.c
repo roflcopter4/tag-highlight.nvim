@@ -123,7 +123,7 @@ get_bufdata(const int fd, const int bufnum, Filetype *ft)
         bdata->lines     = ll_make_new();
         bdata->num       = (uint16_t)bufnum;
         bdata->ft        = ft;
-        bdata->topdir    = init_topdir(fd, bdata); /* Topdir init must be the last step. */
+        bdata->topdir    = init_topdir(fd, bdata); // Topdir init must be the last step.
 
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
@@ -146,8 +146,6 @@ destroy_bufdata(Buffer **bdata)
                 return;
         pthread_mutex_lock(&destruction_mutex);
         pthread_mutex_lock(&(*bdata)->lock.update);
-        /* pthread_mutex_lock(&(*bdata)->lock.total); */
-        /* pthread_mutex_lock(&(*bdata)->lock.ctick); */
 
         if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
@@ -170,7 +168,7 @@ destroy_bufdata(Buffer **bdata)
                         mpack_destroy_arg_array((*bdata)->calls);
         }
 
-        if (--((*bdata)->topdir->refs) == 0) {
+        if (--(*bdata)->topdir->refs == 0) {
                 Top_Dir *topdir = (*bdata)->topdir;
                 close(topdir->tmpfd);
                 unlink(BS(topdir->tmpfname));
@@ -188,9 +186,7 @@ destroy_bufdata(Buffer **bdata)
                 }
         }
 
-        /* pthread_mutex_unlock(&(*bdata)->lock.total); */
         pthread_mutex_destroy(&(*bdata)->lock.total);
-        /* pthread_mutex_unlock(&(*bdata)->lock.ctick); */
         pthread_mutex_destroy(&(*bdata)->lock.ctick);
         pthread_mutex_unlock(&(*bdata)->lock.update);
         pthread_mutex_destroy(&(*bdata)->lock.update);

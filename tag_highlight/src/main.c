@@ -56,6 +56,7 @@ tststuff(void *x)
 int
 main(UNUSED int argc, char *argv[])
 {
+        //fsleep(15);
         _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(&main_timer);
         init(argv);
@@ -116,7 +117,8 @@ platform_init(char **argv)
 static void
 open_logs(void)
 {
-#ifdef DEBUG
+/* #ifdef DEBUG */
+#if 0
         extern char LOGDIR[];
         snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);

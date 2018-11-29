@@ -245,13 +245,14 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
 #endif
         int pid, status;
 
-#ifdef HAVE_POSIX_SPAWNP
+#ifdef HAVE_POSIX_SAWNP
         if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
                 err(1, "Exec failed");
 #else
-        if ((pid = fork()) == 0)
+        if ((pid = vfork()) == 0)
                 if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
-                        err(1, "Exec failed");
+                        _Exit(1);
+                        /* err(1, "Exec failed"); */
 #endif
 
         waitpid(pid, &status, 0);

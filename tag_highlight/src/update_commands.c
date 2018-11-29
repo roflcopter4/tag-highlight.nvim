@@ -3,7 +3,7 @@
 #include "lang/clang/clang.h"
 #include "lang/ctags_scan/scan.h"
 
-extern void highlight_go(Buffer *bdata);
+extern int highlight_go(Buffer *bdata);
 
 #undef nvim_get_var_l
 #define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
@@ -47,13 +47,27 @@ void
         pthread_mutex_lock(&bdata->lock.update);
 
         if (bdata->ft->has_parser) {
-                if (bdata->ft->is_c)
+                if (bdata->ft->is_c) {
                         update_c_like(bdata, type);
-                else if (bdata->ft->id == FT_GO)
-                        highlight_go(bdata);
-                else
+                } else if (bdata->ft->id == FT_GO) {
+                        int ret = highlight_go(bdata);
+                        switch (ret) {
+                        case 0:
+                                break;
+                        case ENOENT: case ENOEXEC:
+                                echo("Parser not found, falling back to ctags: %s\n",
+                                     strerror(ret));
+                                goto parser_failed;
+                        default:
+                                echo("Unexpected parser error: %s\n", strerror(ret));
+                                goto parser_failed;
+                        }
+                        
+                } else {
                         errx(1, "Impossible filetype.");
+                }
         } else {
+        parser_failed:
                 if (bdata->calls)
                         update_from_cache(bdata);
                 else
@@ -156,7 +170,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
         }
 
         mpack_arg_array *calls = NULL;
-        add_cmd_call(&calls, b_lit2bstr("ownsyntax"));
+        add_cmd_call(&calls, b_fromlit("ownsyntax"));
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 unsigned ctr = 0;
@@ -302,3 +316,4 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
         ++CALLS->qty;
 #undef CALLS
 }
+
