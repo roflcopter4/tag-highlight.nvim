@@ -41,6 +41,7 @@ struct settings_s {
         bool        verbose;
         comp_type_t comp_type;
 
+        bstring      *cache_dir;
         bstring      *ctags_bin;
         bstring      *settings_file;
         b_list       *ctags_args;
@@ -79,10 +80,9 @@ struct top_dir {
 };
 
 struct bufdata {
-        /* _Atomic(uint32_t) ctick; */
-        /* _Atomic(uint32_t) last_ctick; */
         atomic_uint ctick;
         atomic_uint last_ctick;
+        atomic_bool is_normal_mode;
         uint16_t    num;
         uint8_t     hl_id;
         bool        initialized;

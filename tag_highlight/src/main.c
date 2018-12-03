@@ -35,14 +35,11 @@ extern void           event_loop_init     (int fd);
 #define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
 #define get_compression_type_defarg_0() (_nvim_api_read_fd)
 
-#define MKARGV(...) ((char *const[]){__VA_ARGS__, (char *)0})
-
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
-        //fsleep(15);
         _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(&main_timer);
         init(argv);
@@ -158,6 +155,7 @@ static void
 get_settings(void)
 {
         settings.enabled        = nvim_get_var(,B(PKG "enabled"),   E_BOOL  ).num;
+        settings.cache_dir      = nvim_get_var(,B(PKG "directory"), E_STRING).ptr;
         settings.ctags_bin      = nvim_get_var(,B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
@@ -205,6 +203,8 @@ exit_cleanup(void)
 
         process_exiting = true;
 
+        b_destroy(settings.cache_dir);
+        b_destroy(settings.ctags_bin);
         b_destroy(settings.settings_file);
         b_list_destroy(seen_files);
         b_list_destroy(settings.ctags_args);
@@ -236,6 +236,7 @@ exit_cleanup(void)
                 }
         }
 
+        destroy_mpack_dict(settings.order);
         destroy_mpack_dict(settings.ignored_tags);
         quick_cleanup();
 }

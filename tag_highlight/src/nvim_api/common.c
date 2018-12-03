@@ -15,8 +15,6 @@ extern vfutex_t             event_loop_futex, _nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             _nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
-
-
 /*======================================================================================*/
 
 __attribute__((__constructor__)) static void
@@ -108,7 +106,8 @@ mpack_obj *
         _nvim_wait_node *node = xcalloc(1, sizeof(*node));
         node->fd    = fd;
         node->count = count;
-        node->fut   = P99_FUTEX_INITIALIZER(0);
+        p99_futex_init(&node->fut, 0);
+        /* node->fut   = (p99_futex)P99_FUTEX_INITIALIZER(0); */
         /* p99_futex_init(&node->fut, 0); */
         P99_FIFO_APPEND(&_nvim_wait_queue, node);
 

@@ -64,8 +64,8 @@ type_id(Buffer *bdata, struct translationunit *stu)
 /*======================================================================================*/
 
 
-static void do_typeswitch(Buffer           *bdata,
-                          struct mpack_arg_array    *calls,
+static void do_typeswitch(Buffer                   *bdata,
+                          struct mpack_arg_array   *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
                           const b_list             *enumerators,

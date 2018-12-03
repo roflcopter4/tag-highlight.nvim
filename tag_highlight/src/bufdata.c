@@ -130,8 +130,9 @@ get_bufdata(const int fd, const int bufnum, Filetype *ft)
                 for (unsigned i = loc, b = 0; i < bdata->name.base->slen && b < 8; ++i, ++b)
                         bdata->name.suffix[b] = bdata->name.base->data[i];
 
-        atomic_store(&bdata->ctick, 0);
-        atomic_store(&bdata->last_ctick, 0);
+        atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed);
+        atomic_store_explicit(&bdata->last_ctick, 0, memory_order_relaxed);
+        atomic_store_explicit(&bdata->is_normal_mode, 0, memory_order_relaxed);
 
         return bdata;
 }

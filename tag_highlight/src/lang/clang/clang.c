@@ -14,7 +14,7 @@
         (  CXTranslationUnit_DetailedPreprocessingRecord \
          | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
-         /* | CXTranslationUnit_Incomplete */                  \
+         | CXTranslationUnit_Incomplete                  \
          | CXTranslationUnit_CreatePreambleOnFirstParse  \
          /* | CXTranslationUnit_IncludeAttributedTypes */ )
 #define INIT_ARGV   (32)
@@ -133,7 +133,7 @@ void *
 libclang_threaded_highlight(void *vdata)
 {
         libclang_highlight((Buffer *)vdata);
-        pthread_exit(NULL);
+        pthread_exit();
 }
 
 static inline void
@@ -258,10 +258,27 @@ stupid_windows_bullshit(const char *const path)
 }
 
 static void
+unquote(bstring *str)
+{
+        uint8_t  buf[str->slen + 1];
+        unsigned x = 0;
+
+        for (unsigned i = 0; i < str->slen; ++i)
+                if (str->data[i] != '"' && str->data[i] != '\'')
+                        buf[x++] = str->data[i];
+
+        if (x != str->slen) {
+                memcpy(str->data, buf, x);
+                str->data[x] = '\0';
+                str->slen    = x;
+        }
+}
+
+static void
 handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
 {
         char        ch;
-        char        searchbuf[2048];
+        char        searchbuf[8192];
         const char *optr = cstr + 1;
         char       *sptr = searchbuf;
         *sptr++          = '.';
@@ -276,15 +293,42 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                 bstring *contents = b_quickread("%s", BS(b_regularize_path(file)));
                 assert(contents);
                 eprintf("Read %s\n", BS(contents));
-                char *dataptr = (char *)contents->data;
+                char *tok = strstr((char *)contents->data, "-I");
 
-                while ((sptr = strsep(&dataptr, " \n\t"))) {
-                        if (sptr[0] == '-') {
-                                if (sptr[2] == '/')
-                                        argv_append(ret, stupid_windows_bullshit(sptr), false);
-                                else
-                                        argv_append(ret, sptr, true);
+                eprintf("Found %s\n", tok);
+
+                while (tok) {
+                        size_t len;
+                        char  *next = strstr(tok+2, "-I");
+
+                        if (next) {
+                                *(next-1) = '\0';
+                                len       = PSUB(next-1, tok);
+                        } else {
+                                next = strchrnul(tok+2, '\n');
+                                if (*(next-1) == '\r')
+                                        --next;
+                                *next = '\0';
+                                len   = PSUB(next, tok);
                         }
+
+                        unquote(&(bstring){len, 0, (uchar *)tok, 0});
+                        argv_append(ret, "-I", true);
+                        tok += 2;
+                        char *abspath;
+                        char buf[PATH_MAX];
+
+                        if (tok[0] == '/') {
+                                char *tmp = stupid_windows_bullshit(tok);
+                                abspath = realpath(tmp, buf);
+                                xfree(tmp);
+                        } else {
+                                abspath = realpath(tok, buf);
+                        }
+
+                        eprintf("Path is %s\n", abspath);
+                        argv_append(ret, abspath, true);
+                        tok = (*next) ? next : NULL;
                 }
 
                 b_free(contents);
@@ -308,6 +352,7 @@ get_compile_commands(Buffer *bdata)
 
         CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
         if (!cmds) {
+                warnx("Using backup commands.\n");
                 clang_CompilationDatabase_dispose(db);
                 return get_backup_commands(bdata);
         }
@@ -317,6 +362,9 @@ get_compile_commands(Buffer *bdata)
 
         for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], false);
+
+        /* If we don't remove clang's max error limit then it will crash if it
+         * reaches it. This happens fairly often when editing a file. */
         argv_append(ret, "-ferror-limit=0", true);
 
         for (unsigned i = 0; i < ncmds; ++i) {
@@ -329,11 +377,27 @@ get_compile_commands(Buffer *bdata)
                         CXString    tmp         = clang_CompileCommand_getArg(command, x);
                         const char *cstr        = CS(tmp);
 
-                        if (strcmp(cstr, "-o") == 0)
+                        if (strcmp(cstr, "-o") == 0) {
                                 ++x;
-                        else if (cstr[0] == '-') {
-                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include", "x"))
+                        } else if (cstr[0] == '-') {
+                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include", "x")) {
                                         next_fileok = true;
+                                        argv_append(ret, cstr, true);
+                                } else if (P44_STREQ_ANY(cstr+1, "MMD")) {
+                                        /* Nothing */
+                                } else {
+                                        switch (cstr[1]) {
+                                        case 'f': case 'c': case 'W':
+                                                break;
+                                        case 'I':
+                                                argv_append(ret, "-I", true);
+                                                argv_append(ret, cstr+2, true);
+                                                break;
+                                        default:
+                                                argv_append(ret, cstr, true);
+                                        }
+                                }
+#if 0
 #ifdef DOSISH
                                 if (cstr[2] == '/') {
                                         char *fixed_path = stupid_windows_bullshit(cstr);
@@ -343,20 +407,35 @@ get_compile_commands(Buffer *bdata)
 #endif
                                 if (cstr[1] != 'f' && cstr[1] != 'c' && cstr[1] != 'W')
                                         argv_append(ret, cstr, true);
+#endif
 
 #ifdef DOSISH
                         } else if (cstr[0] == '@') {
                                 handle_win32_command_script(bdata, cstr, ret);
 #endif
-                        } else if (fileok)
+                        } else if (fileok) {
                                 argv_append(ret, cstr, true);
+                        }
                                 
                         clang_disposeString(tmp);
                         fileok = next_fileok;
                 }
         }
 
-        argv_fmt(ret, "-I%s", BS(bdata->name.path));
+        /* bstring *tmp = b_regularize_path(bdata->name.path); */
+        /* argv_fmt(ret, "-I%s", BS(tmp)); */
+        /* b_destroy(tmp); */
+
+        argv_append(ret, "-I", true);
+#ifdef DOSISH
+        unsigned char fixbuf[bdata->name.path->slen+1];
+        bstring *fixbs = &(bstring){bdata->name.path->slen, bdata->name.path->slen+1, fixbuf, BSTR_WRITE_ALLOWED};
+        memcpy(fixbuf, bdata->name.path->data, bdata->name.path->slen+1);
+        b_replace_ch(fixbs, '\\', '/');
+        argv_append(ret, (char *)fixbuf, true);
+#else
+        argv_append(ret, BS(bdata->name.path), true);
+#endif
         argv_append(ret, "-stdlib=libstdc++", true);
 
         clang_CompileCommands_dispose(cmds);
@@ -370,8 +449,10 @@ get_backup_commands(Buffer *bdata)
         str_vector *ret = argv_create(INIT_ARGV);
         for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], false);
-        argv_fmt(ret, "-I%s", BS(bdata->name.path));
-        argv_fmt(ret, "-I%s", BS(bdata->topdir->pathname));
+        argv_append(ret, "-I", true);
+        argv_append(ret, BS(bdata->name.path), true);
+        argv_append(ret, "-I", true);
+        argv_append(ret, BS(bdata->topdir->pathname), true);
         argv_append(ret, "-stdlib=libstdc++", true);
 
         return ret;
@@ -380,9 +461,12 @@ get_backup_commands(Buffer *bdata)
 static CXCompileCommands
 get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 {
-        CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full));
+        bstring *newnam = b_regularize_path(bdata->name.full);
+        /* CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full)); */
+        CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(newnam));
         const unsigned    num  = clang_CompileCommands_getSize(comp);
-        ECHO("num is %u\n", num);
+        ECHO("num is %u for %s\n", num, newnam);
+        b_destroy(newnam);
 
         if (num == 0) {
                 ECHO("Looking for backup files...");
@@ -399,6 +483,22 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
                 }
         }
         return comp;
+}
+
+CXCompilationDatabase
+find_compilation_database(Buffer *bdata)
+{
+        CXCompilationDatabase_Error cberr;
+        CXCompilationDatabase       db =
+                clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
+        if (cberr != 0) {
+                clang_CompilationDatabase_dispose(db);
+                warn("Couldn't locate compilation database in \"%s\".",
+                     BS(bdata->topdir->pathname));
+                return NULL;
+        }
+        ECHO("Found db at '%s'\n", bdata->topdir->pathname);
+        return db;
 }
 
 /*======================================================================================*/
@@ -529,3 +629,5 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
                 if ((t = get_token_data(&stu->tu, &toks[i], &cursors[i])))
                         genlist_append(stu->tokens, t);
 }
+
+

@@ -109,7 +109,7 @@ post_nvim_response(void *vdata)
         }
 
         node->obj = obj;
-        p99_futex_wakeup(&node->fut, 1U, 1U);
+        p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
         pthread_exit();
 }
 
@@ -233,6 +233,19 @@ event_loop_io_callback(void *vdata)
 }
 #endif
 
+#ifndef DOSISH
+jmp_buf event_loop_jmp_buf;
+
+static noreturn void
+event_loop_sighandler(int signum)
+{
+        if (signum == SIGUSR1)
+                longjmp(event_loop_jmp_buf, 1);
+        else
+                quick_exit(0);
+}
+#endif
+
 static noreturn void
 event_loop(const int fd)
 {
@@ -269,8 +282,25 @@ event_loop_init(const int fd)
         /* I wanted to use pthread_once but it requires a function that takes no
          * arguments. Getting around that would defeat the whole point. */
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
-        if (!atomic_flag_test_and_set(&event_loop_called))
+        if (!atomic_flag_test_and_set(&event_loop_called)) {
+#ifdef DOSISH
                 event_loop(fd);
+#else
+                loop_thread = pthread_self();
+
+                if (setjmp(event_loop_jmp_buf) == 0) {
+                        struct sigaction act;
+                        memset(&act, 0, sizeof(act));
+                        act.sa_handler = event_loop_sighandler;
+                        sigaction(SIGUSR1, &act, NULL);
+                        sigaction(SIGTERM, &act, NULL);
+                        sigaction(SIGPIPE, &act, NULL);
+                        sigaction(SIGINT, &act, NULL);
+
+                        event_loop(fd);
+                }
+#endif
+        }
 }
 #endif
 
@@ -596,11 +626,6 @@ vimscript_message(void *vdata)
                 clear_highlight();
                 break;
         /* 
-         * Not used...
-         */
-        case 'H':
-                break;
-        /* 
          * Force an update.
          */
         case 'F': {
@@ -609,6 +634,12 @@ vimscript_message(void *vdata)
                 Buffer *bdata = find_buffer(num);
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
                 update_highlight(bdata, HIGHLIGHT_UPDATE);
+                break;
+        }
+        /* 
+         * 
+         */
+        case 'M': {
                 break;
         }
         default:

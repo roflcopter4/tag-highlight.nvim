@@ -15,11 +15,7 @@
 #define CNULL ((char *)0)
 
 static bstring *run_find(const char *path, const char *search);
-static bstring *read_fd(const int fd);
-#if 0
-static b_list  *split_find(const char *path, const char *search);
-static void     dump_char_list(const char *desc, char **list);
-#endif
+static void unquote(bstring *orig);
 
 /*======================================================================================*/
 
@@ -48,15 +44,15 @@ find_file(const char *path, const char *search, const enum find_flags flags)
                 return shortest;
         }
         case FIND_FIRST: {
-                bstring *tmp;
+                bstring *first;
                 unsigned pos = b_strchr(result, '\n');
                 if (pos > 0) {
-                        tmp = b_fromblk(result->data, pos);
+                        first = b_fromblk(result->data, pos);
                         b_destroy(result);
                 } else
-                        tmp = result;
+                        first = result;
 
-                return tmp;
+                return first;
         }
         case FIND_SPLIT: // b_list *
                 return b_split_char(result, '\n', true);
@@ -115,7 +111,7 @@ run_find(const char *path, const char *search)
         char buf[8192], tmpbuf[SAFE_PATH_MAX];
         strcpy_s(tmpbuf, SAFE_PATH_MAX, ".find_tmp_XXXXXX");
         tmpnam_s(tmpbuf, SAFE_PATH_MAX);
-        snprintf(buf, 8192, "find %s -regex %s > %s", path, search, tmpbuf);
+        snprintf(buf, 8192, "find \"%s\" -regex \"%s\" > \"%s\"", path, search, tmpbuf);
         status = system(buf);
         if ((status >>= 8) != 0)
                 errx(status, "Command failed with status %d", status);
@@ -126,56 +122,22 @@ run_find(const char *path, const char *search)
         return ret;
 }
 
-#if 0
-#define INIT_READ ((size_t)(8192llu))
-#ifdef DOSISH
-#  define SSIZE_T size_t
-#else
-#  define SSIZE_T ssize_t
-#endif
-
-static bstring *
-read_fd(const int fd)
+static void
+unquote(bstring *str)
 {
-        bstring *ret = b_alloc_null(INIT_READ + 1u);
+        /* bstring *ret = b_alloc_null(str->slen + 1); */
+        uint8_t  buf[str->slen + 1];
+        unsigned x = 0;
 
-        for (;;) {
-                SSIZE_T nread = read(fd, (ret->data + ret->slen), INIT_READ);
-                if (nread > 0) {
-                        ret->slen += nread;
-                        if ((size_t)nread < INIT_READ) {
-                                /* eprintf("breaking\n"); */
-                                break;
-                        }
-                        b_growby(ret, INIT_READ);
-                } else {
-                        break;
-                }
+        for (unsigned i = 0; i < str->slen; ++i) {
+                const uint8_t ch = str->data[str->slen];
+                if (ch != '"' && ch != '\'')
+                        buf[x++] = ch;
         }
 
-        ret->data[ret->slen] = '\0';
-        return ret;
+        if (x != str->slen) {
+                memcpy(str->data, buf, x);
+                str->data[x] = '\0';
+                str->slen    = x;
+        }
 }
-#endif
-
-#if 0
-static b_list *
-split_find(const char *path, const char *search)
-{
-        bstring *result = run_find(path, search);
-        if (!result)
-                return NULL;
-        return b_split_char(result, '\n', true);
-}
-
-static void
-dump_char_list(const char *desc, char **list)
-{
-        char *tmp;
-        fputs(desc, stderr);
-
-        while ((tmp = *list++))
-                fprintf(stderr, "%s, ", tmp);
-        fputc('\n', stderr);
-}
-#endif

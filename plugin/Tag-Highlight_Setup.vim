@@ -26,7 +26,7 @@ if !exists('g:tag_highlight#ignored_tags')
 endif
 call s:InitVar('ignored_dirs', [])
 
-call s:InitVar('directory',     expand('~/.vim_tags'))
+call s:InitVar('directory',     tag_highlight#install_info#GetCachePath())
 call s:InitVar('bin',           expand(g:tag_highlight#directory . '/bin/tag_highlight'))
 call s:InitVar('settings_file', expand(g:tag_highlight#directory . '/tag_highlight.txt'))
 call s:InitVar('use_compression',   1)
@@ -40,13 +40,13 @@ call s:InitVar('verbose',     1)
 " People often make annoying #defines for C and C++ keywords, types, etc. Avoid
 " highlighting these by default, leaving the built in vim highlighting intact.
 call s:InitVar('restored_groups', {
-                \     'c':   ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType', 'cStatement'],
-                \     'cpp': ['cConstant', 'cStorageClass', 'cConditional', 'cRepeat', 'cType', 'cStatement',
+                \     'c':   ['cConstant', 'cStorageClass', 'cType', 'cStatement'],
+                \     'cpp': ['cConstant', 'cStorageClass', 'cType', 'cStatement',
                 \             'cppStorageClass', 'cppType',],
                 \ })
  
 call s:InitVar('norecurse_dirs', [
-                \ $HOME,
+                \ expand('~'),
                 \ '/',
                 \ '/lib',
                 \ '/include',
@@ -56,6 +56,7 @@ call s:InitVar('norecurse_dirs', [
                 \ '/usr/local/lib',
                 \ '/usr/local/share',
                 \ '/usr/local/include',
+                \ 'C:/'
                 \ ])
 
 if g:tag_highlight#run_ctags
@@ -90,7 +91,6 @@ if g:tag_highlight#run_ctags
                 \   '--c-kinds=+px',
                 \   '--c++-kinds=+px',
                 \   '--sort=yes',
-                \   '--exclude=.mypy_cache',
                 \   '--regex-go=/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/',
                 \   '--languages=-Pod',
                 \ ])
@@ -154,15 +154,11 @@ call s:InitVar('ft_conv', {
 
 call s:InitVar('allbut', '.*Comment.*,.*String.*,.*Quote.*')
 
+" }}}
+
 if !isdirectory(g:tag_highlight#directory)
     call mkdir(g:tag_highlight#directory)
 endif
-
-if !isdirectory(g:tag_highlight#directory . '/bin')
-    call mkdir(g:tag_highlight#directory . '/bin')
-endif
-
-" }}}
 
 function! s:Add_Remove_Project(operation, ...)
     if exists('a:1')
@@ -255,7 +251,7 @@ function! s:OnStderr(job_id, data, event) dict
             echom l:str
             " if g:tag_highlight#verbose
                 try
-                    call writefile([l:str], expand('~/.tag_highlight_log/stderr.log'), 'a')
+                    call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
                 endtry
             " endif
         endif
@@ -288,24 +284,6 @@ function! s:NewBuf()
     endif
 endfunction
 
-function! s:UpdateTags()
-    if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'B')
-    endif
-endfunction
-
-function! s:ForceUpdateTags()
-    if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'F')
-    endif
-endfunction
-
-function! s:StopTagHighlight()
-    if g:tag_highlight#pid >= 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'C')
-    endif
-endfunction
-
 function! s:BufChanged()
     call s:Wait()
     let l:buf = nvim_get_current_buf()
@@ -320,21 +298,33 @@ function! s:BufChanged()
     endif
 endfunction
 
+function! s:UpdateTags()
+    if g:tag_highlight#pid !=# 0
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'B')
+    endif
+endfunction
+
+function! s:StopTagHighlight()
+    if g:tag_highlight#pid >= 0
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'C')
+    endif
+endfunction
+
 function! s:ClearBuffer()
     if g:tag_highlight#pid >=# 0
         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'E')
     endif
 endfunction
 
-function! s:ModeChange()
-    if g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'I')
+function! s:ForceUpdateTags()
+    if g:tag_highlight#pid !=# 0
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'F')
     endif
 endfunction
 
-function! s:CursorHold()
+function! s:ModeChange()
     if g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'H')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'M')
     endif
 endfunction
 
@@ -384,7 +374,7 @@ function! s:InitTagHighlight()
         call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
     endtry
         
-    let l:binary = tag_highlight#install_info#Get_Binary_Name()
+    let l:binary = tag_highlight#install_info#GetBinaryName()
     echom 'Opening ' . l:binary . ' with pipe ' . s:pipe
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     

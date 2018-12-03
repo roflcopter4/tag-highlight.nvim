@@ -74,7 +74,7 @@ get_initial_taglist(Buffer *bdata)
                                         b_write(bdata->topdir->tmpfd,                 
                                                 bdata->topdir->tags->lst[i], B("\n"));
                                 }
-                                fsync(bdata->topdir->tmpfd);
+                                /* fsync(bdata->topdir->tmpfd); */
                         } else {
                                 warnx("Could not read file. Running ctags.");
                                 if (!bdata->initialized)

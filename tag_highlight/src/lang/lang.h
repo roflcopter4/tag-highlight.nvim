@@ -38,14 +38,6 @@ extern void destroy_struct_info(cmd_info *info);
 
 extern FILE *cmd_log;
 
-#define STRDUP(STR)                                                     \
-        __extension__({                                                 \
-                static const char strng_[]   = ("" STR "");             \
-                char *            strng_cpy_ = xmalloc(sizeof(strng_)); \
-                memcpy(strng_cpy_, strng_, sizeof(strng_));             \
-                strng_cpy_;                                             \
-        })
-
 #define CTAGS_CLASS        'c'
 #define CTAGS_ENUM         'g'
 #define CTAGS_ENUMCONST    'e'

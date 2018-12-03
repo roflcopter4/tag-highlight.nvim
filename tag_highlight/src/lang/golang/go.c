@@ -59,7 +59,7 @@ highlight_go(Buffer *bdata)
         char buf[8192];
         snprintf(buf, 8192, "%u", tmp->slen);
 
-        bstring *go_binary = nvim_call_function(, B(PKG "install_info#Get_Binary_Path"), E_STRING).ptr;
+        bstring *go_binary = nvim_call_function(, B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);
         struct stat st;
         if (stat(BS(go_binary), &st) != 0) {

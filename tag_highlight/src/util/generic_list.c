@@ -391,6 +391,7 @@ argv_dump__(FILE *                              fp,
         for (unsigned i = 0; i < argv->qty; ++i)
                 fprintf(fp, "%s\n", argv->lst[i]);
         fputc('\n', fp);
+        fflush(fp);
 }
 
 

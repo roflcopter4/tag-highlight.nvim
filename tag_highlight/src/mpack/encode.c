@@ -1,5 +1,4 @@
 #include "Common.h"
-#include <endian.h>
 
 #include "intern.h"
 

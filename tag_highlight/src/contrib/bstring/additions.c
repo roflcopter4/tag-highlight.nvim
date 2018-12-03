@@ -89,8 +89,8 @@ b_memsep(bstring *dest, bstring *stringp, const char delim)
         if (pos >= 0) {
                 dest->data[pos] = '\0';
                 dest->slen      = pos;
-                stringp->data   = stringp->data + pos + 1u;
-                stringp->slen  -= pos + 1u;
+                stringp->data   = stringp->data + pos + 1U;
+                stringp->slen  -= pos + 1U;
         } else {
                 dest->slen    = stringp->slen;
                 stringp->data = NULL;
@@ -154,7 +154,7 @@ _b_write(const int fd, bstring *bstr, ...)
                                 break;
                         if (bstr->data && bstr->slen > 0) {
                                 ssize_t n, total = 0;
-                                error_t tmp;
+                                errno_t tmp;
                                 errno = 0;
                                 do {
                                         n = write(fd, bstr->data, bstr->slen);
@@ -696,7 +696,7 @@ b_strpbrk_pos(const bstring *bstr, const unsigned pos, const bstring *delim)
                         if (bstr->data[i] == delim->data[x])
                                 return (int64_t)i;
 
-        return (-1ll);
+        return (-1LL);
 }
 
 
@@ -714,7 +714,7 @@ b_strrpbrk_pos(const bstring *bstr, const unsigned pos, const bstring *delim)
                                 return (int64_t)i;
         } while (i-- > 0);
 
-        return (-1ll);
+        return (-1LL);
 }
 
 
@@ -761,7 +761,7 @@ b_basename(const bstring *path)
 #endif
 
         if (pos >= 0)
-                return b_fromblk(path->data + pos + 1u, path->slen - pos - 1u);
+                return b_fromblk(path->data + pos + 1U, path->slen - pos - 1U);
 
         RETURN_NULL();
 }
@@ -824,7 +824,7 @@ static size_t
 getstdin(char **dest, FILE *fp)
 {
         size_t  total = 0;
-        char   *buf   = xmalloc(INIT_READ+1llu);
+        char   *buf   = xmalloc(INIT_READ+1LLU);
         
         for (;;) {
                 size_t nread = fread(buf + total, 1, INIT_READ, fp);
@@ -858,7 +858,7 @@ b_read_fd(const int fd)
 }
 #endif
 
-#define INIT_READ ((size_t)(8192llu))
+#define INIT_READ ((size_t)(8192LLU))
 #ifdef DOSISH
 #  define SSIZE_T size_t
 #else
@@ -868,7 +868,7 @@ b_read_fd(const int fd)
 bstring *
 b_read_fd(const int fd)
 {
-        bstring *ret = b_alloc_null(INIT_READ + 1u);
+        bstring *ret = b_alloc_null(INIT_READ + 1U);
 
         for (;;) {
                 SSIZE_T nread = read(fd, (ret->data + ret->slen), INIT_READ);
@@ -895,10 +895,10 @@ bstring *
 b_read_fd(const int fd)
 {
         /* size_t   total = 0; */
-        bstring *ret   = b_alloc_null(INIT_READ+1llu);
+        bstring *ret   = b_alloc_null(INIT_READ+1LLU);
         /* FILE    *fp    = fdopen(fd, "rb"); */
         /* bstring *ret   = xmalloc(sizeof *ret); */
-        /* *ret = (bstring){0, INIT_READ+1llu, xcalloc(1, INIT_READ+1llu), BSTR_STANDARD}; */
+        /* *ret = (bstring){0, INIT_READ+1LLU, xcalloc(1, INIT_READ+1LLU), BSTR_STANDARD}; */
 
         int ch = 0;
         while (read(fd, &ch, 1) != EOF)
@@ -953,7 +953,7 @@ b_ll2str(const long long value)
 
         /* Compute length and add null term. */
         *rev--    = (uchar)'\0';
-        ret->slen = psub(rev, ret->data) + 1u;
+        ret->slen = psub(rev, ret->data) + 1U;
 
         /* Reverse the string. */
         while (fwd < rev) {
@@ -974,14 +974,14 @@ _tmp_ll2bstr(bstring *bstr, const long long value)
         rev = fwd = bstr->data;
 
         do {
-                *rev++ = (uchar)('0' + (inv % 10llu));
-                inv    = (inv / 10llu);
+                *rev++ = (uchar)('0' + (inv % 10LLU));
+                inv    = (inv / 10LLU);
         } while (inv);
         if (value < 0)
                 *rev++ = (uchar)'-';
 
         *rev--     = (uchar)'\0';
-        bstr->slen = psub(rev, bstr->data) + 1u;
+        bstr->slen = psub(rev, bstr->data) + 1U;
         while (fwd < rev) {
                 const uchar swap = *fwd;
                 *fwd++           = *rev;
@@ -1000,12 +1000,12 @@ _tmp_ull2bstr(bstring *bstr, const unsigned long long value)
         rev = fwd = bstr->data;
 
         do {
-                *rev++ = (uchar)('0' + (inv % 10llu));
-                inv    = (inv / 10llu);
+                *rev++ = (uchar)('0' + (inv % 10LLU));
+                inv    = (inv / 10LLU);
         } while (inv);
 
         *rev--     = (uchar)'\0';
-        bstr->slen = psub(rev, bstr->data) + 1u;
+        bstr->slen = psub(rev, bstr->data) + 1U;
         while (fwd < rev) {
                 const uchar swap = *fwd;
                 *fwd++           = *rev;
@@ -1112,7 +1112,7 @@ _b_vsprintf(const bstring *fmt, va_list args)
 
         for (; i < fmt->slen; ++pcnt) {
                 int     islong = 0;
-                pos[pcnt] = b_strchrp(fmt, '%', i) + 1ll;
+                pos[pcnt] = b_strchrp(fmt, '%', i) + 1LL;
                 if (pos[pcnt] == 0)
                         break;
 
@@ -1123,10 +1123,10 @@ _b_vsprintf(const bstring *fmt, va_list args)
                 case 's': {
                         bstring *next = va_arg(cpy, bstring *);
                         if (!next || !next->data)
-                                len = (len - 2u) + (sizeof("(null)") - 1u);
+                                len = (len - 2U) + (sizeof("(null)") - 1U);
                         else
-                                len = (len - 2u) + next->slen;
-                        i   = pos[pcnt] + 2;
+                                len = (len - 2U) + next->slen;
+                        i   = pos[pcnt] + 2LL;
 
                         break;
                 }
@@ -1141,7 +1141,7 @@ _b_vsprintf(const bstring *fmt, va_list args)
                                 tmp = b_fromlit("(null)");
                         b_list_append(&c_strings, tmp);
 
-                        len = (len - 2u) + tmp->slen;
+                        len = (len - 2U) + tmp->slen;
                         i   = pos[pcnt] + 2;
                         break;
                 }
@@ -1150,25 +1150,25 @@ _b_vsprintf(const bstring *fmt, va_list args)
                         switch (islong) {
                         case 0:
                                 (void)va_arg(cpy, int);
-                                len = (len - 2u) + 11u;
+                                len = (len - 2U) + 11U;
                                 i   = pos[pcnt] + 2;
                                 break;
                         case 1: (void)va_arg(cpy, long);
 #if INT_MAX == LONG_MAX
-                                len = (len - 3u) + 11u;
+                                len = (len - 3U) + 11U;
 #else
-                                len = (len - 3u) + 21u;
+                                len = (len - 3U) + 21U;
 #endif
                                 i   = pos[pcnt] + 3;
                                 break;
                         case 2:
                                 (void)va_arg(cpy, long long);
-                                len = (len - 4u) + 21u;
+                                len = (len - 4U) + 21U;
                                 i   = pos[pcnt] + 4;
                                 break;
                         case 3:
                                 (void)va_arg(cpy, size_t);
-                                len = (len - 3u) + 21u;
+                                len = (len - 3U) + 21U;
                                 i   = pos[pcnt] + 3;
                                 break;
                         default:
@@ -1199,13 +1199,13 @@ _b_vsprintf(const bstring *fmt, va_list args)
         }
 
         va_end(cpy);
-        bstring *ret = b_alloc_null(snapUpSize(len + 1u));
+        bstring *ret = b_alloc_null(snapUpSize(len + 1U));
         int64_t  x;
         pcnt = i = x = 0;
 
         for (; ; ++pcnt) {
                 const int64_t diff = (pos[pcnt] == 0) ? (int64_t)fmt->slen - x
-                                                      : pos[pcnt] - x - 1ll;
+                                                      : pos[pcnt] - x - 1LL;
                 if (diff >= 0)
                         memcpy(ret->data + i, fmt->data + x, diff);
                 
@@ -1426,7 +1426,7 @@ _b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
         if (INVALID(app))
                 RUNTIME_ERROR();
 
-        const unsigned newlen = snapUpSize(dest->slen + app->slen + 1u);
+        const unsigned newlen = snapUpSize(dest->slen + app->slen + 1U);
 
         if (dest->mlen >= newlen) {
                 memcpy(dest->data + dest->slen, app->data, app->slen);

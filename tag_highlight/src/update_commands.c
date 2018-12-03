@@ -92,9 +92,9 @@ static void
 update_from_cache(Buffer *bdata)
 {
         ECHO("Updating from cache.");
-        nvim_call_atomic(0, bdata->calls);
+        nvim_call_atomic(,bdata->calls);
         if (bdata->ft->restore_cmds)
-                nvim_command(0, bdata->ft->restore_cmds);
+                nvim_command(,bdata->ft->restore_cmds);
 }
 
 static void
@@ -115,7 +115,7 @@ retry:
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
-                nvim_call_atomic(0, bdata->calls);
+                nvim_call_atomic(,bdata->calls);
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_destroy(tags->lst[i]->b);
@@ -126,7 +126,7 @@ retry:
 
                 if (bdata->ft->restore_cmds) {
                         LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
-                        nvim_command(0, bdata->ft->restore_cmds);
+                        nvim_command(,bdata->ft->restore_cmds);
                 }
         }
 
@@ -259,7 +259,6 @@ update_line(Buffer *bdata, const int first, const int last)
 void
 (clear_highlight)(Buffer *bdata)
 {
-        eprintf("??\n");
         if (!bdata)
                 return;
 
@@ -309,8 +308,8 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
         }
 
         CALLS->args[CALLS->qty]        = nmalloc(2, sizeof(mpack_argument));
-        CALLS->fmt[CALLS->qty]         = strdup("s[s]");
-        CALLS->args[CALLS->qty][0].str = b_lit2bstr("nvim_command");
+        CALLS->fmt[CALLS->qty]         = STRDUP("s[s]");
+        CALLS->args[CALLS->qty][0].str = b_fromlit("nvim_command");
         CALLS->args[CALLS->qty][1].str = cmd;
 
         ++CALLS->qty;
