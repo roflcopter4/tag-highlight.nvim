@@ -207,34 +207,8 @@ event_loop_init(const int fd)
 /*======================================================================================*/
 #elif USE_EVENT_LIB == EVENT_LIB_NONE
 
-#if 0
-static noreturn void *
-event_loop_io_callback(void *vdata)
-{
-        pthread_mutex_lock(&event_loop_cb_mutex);
-        struct event_data      *data  = vdata;
-        mpack_obj              *obj   = data->obj;
-
-        switch (data->type) {
-        case MES_NOTIFICATION:
-                break;
-        case MES_RESPONSE:
-                post_nvim_response(data->fd, obj);
-                break;
-        case MES_REQUEST:
-        case MES_ANY:
-        default:
-                abort();
-        }
-
-        pthread_mutex_unlock(&event_loop_cb_mutex);
-        xfree(data);
-        pthread_exit();
-}
-#endif
-
-#ifndef DOSISH
-jmp_buf event_loop_jmp_buf;
+#  ifndef DOSISH
+static jmp_buf event_loop_jmp_buf;
 
 static noreturn void
 event_loop_sighandler(int signum)
@@ -244,7 +218,7 @@ event_loop_sighandler(int signum)
         else
                 quick_exit(0);
 }
-#endif
+#  endif
 
 static noreturn void
 event_loop(const int fd)
@@ -283,9 +257,9 @@ event_loop_init(const int fd)
          * arguments. Getting around that would defeat the whole point. */
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
         if (!atomic_flag_test_and_set(&event_loop_called)) {
-#ifdef DOSISH
+#  ifdef DOSISH
                 event_loop(fd);
-#else
+#  else
                 loop_thread = pthread_self();
 
                 if (setjmp(event_loop_jmp_buf) == 0) {
@@ -299,7 +273,7 @@ event_loop_init(const int fd)
 
                         event_loop(fd);
                 }
-#endif
+#  endif
         }
 }
 #endif
