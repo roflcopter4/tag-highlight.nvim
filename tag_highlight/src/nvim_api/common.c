@@ -96,9 +96,11 @@ mpack_obj *
         }
 #  endif
         if (func && logfp)
-                fprintf(logfp, "=================================\n"
+                fprintf(logfp,
+                        "=================================\n"
                         "Writing request no %d to fd %d: \"%s\"\n",
-                        COUNT(fd) - 1, fd, BS(func));
+                        (COUNT(fd) - 1), fd, BS(func)
+                       );
 
         mpack_print_object(logfp, pack);
 #endif

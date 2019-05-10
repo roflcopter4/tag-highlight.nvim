@@ -62,7 +62,15 @@ static inline int _get_fd_count(const int fd, const bool inc)
 
 INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) __aWUR;
 INTERN mpack_obj *await_package(_nvim_wait_node *node) __aWUR;
+
+/* #define LOG_RAW_MPACK */
 INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) __aWUR;
+/* INTERN mpack_obj *write_and_clean(const int fd, mpack_obj *pack, const int count */
+/* #ifdef LOG_RAW_MPACK */
+                  /* ,const bstring *func, FILE *logfp */
+/* #endif */
+                /* ) __aWUR; */
+
 INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) __aWUR;
 
 #define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 5, __VA_ARGS__)

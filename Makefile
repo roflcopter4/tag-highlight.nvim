@@ -1,4 +1,4 @@
 all:
-	sh ./build.sh
+	exec sh ./build.sh
 
 .PHONY: all

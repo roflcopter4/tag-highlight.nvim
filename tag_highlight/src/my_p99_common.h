@@ -124,5 +124,9 @@
 
 #define P01_FREE_BSTRING(BSTR) b_destroy(BSTR)
 #define b_destroy_all(...) P99_BLOCK(P99_SEP(P01_FREE_BSTRING, __VA_ARGS__);)
+#define P01_WRITEPROTECT_BSTRING(BSTR) b_writeprotect(BSTR)
+#define b_writeprotect_all(...) P99_BLOCK(P99_SEP(P01_WRITEPROTECT_BSTRING, __VA_ARGS__);)
+#define P01_WRITEALLOW_BSTRING(BSTR) b_writeallow(BSTR)
+#define b_writeallow_all(...) P99_BLOCK(P99_SEP(P01_WRITEALLOW_BSTRING, __VA_ARGS__);)
 
 #endif /* p99_common.h */

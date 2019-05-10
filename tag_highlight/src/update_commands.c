@@ -32,7 +32,6 @@ extern FILE *cmd_log;
 #endif
 
 /*======================================================================================*/
-#define BBS(BSTR) ((char *)((BSTR)->data))
 
 void
 (update_highlight)(Buffer *bdata, const int type)
@@ -54,7 +53,8 @@ void
                         switch (ret) {
                         case 0:
                                 break;
-                        case ENOENT: case ENOEXEC:
+                        case ENOENT:
+                        case ENOEXEC:
                                 echo("Parser not found, falling back to ctags: %s\n",
                                      strerror(ret));
                                 goto parser_failed;
@@ -160,6 +160,10 @@ update_commands(Buffer *bdata, struct taglist *tags)
                 info[i].prefix = dict_get_key(dict, E_STRING, B("prefix")).ptr;
                 info[i].suffix = dict_get_key(dict, E_STRING, B("suffix")).ptr;
 
+                b_writeprotect_all(info[i].group, info[i].prefix, info[i].suffix);
+                destroy_mpack_dict(dict);
+                b_writeallow_all(info[i].group, info[i].prefix, info[i].suffix);
+#if 0
                 b_writeprotect(info[i].group);
                 b_writeprotect(info[i].prefix);
                 b_writeprotect(info[i].suffix);
@@ -167,6 +171,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
                 b_writeallow(info[i].group);
                 b_writeallow(info[i].prefix);
                 b_writeallow(info[i].suffix);
+#endif
         }
 
         mpack_arg_array *calls = NULL;

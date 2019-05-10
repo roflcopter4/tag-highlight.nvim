@@ -35,7 +35,7 @@ struct go_output {
                                                  data.end.column});                  \
         } while (0)
 
-static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *data);
+static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, const bstring *tok);
 
@@ -44,8 +44,8 @@ static inline bool ident_is_ignored(Buffer *bdata, const bstring *tok);
 int
 highlight_go(Buffer *bdata)
 {
-        int               retval  = 0;
-        register unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
+        int      retval  = 0;
+        unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
         if (cnt_val >= 2) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return retval;
@@ -64,13 +64,12 @@ highlight_go(Buffer *bdata)
         struct stat st;
         if (stat(BS(go_binary), &st) != 0) {
                 retval = errno;
-                goto error;
+                goto cleanup;
         }
         
         ECHO("Using binary %s\n", go_binary);
 
         struct cmd_info *info      = getinfo(bdata);
-        /* bstring         *go_binary = b_format("%s/.vim_tags/bin/golang" CMD_SUFFIX, HOME); */
         char *const      argv[]    = {BS(go_binary), BS(bdata->name.full), buf, (char *)0};
         bstring         *rd        = get_command_output(BS(go_binary), argv, tmp);
         b_list          *data      = separate_and_sort(rd);
@@ -79,7 +78,7 @@ highlight_go(Buffer *bdata)
         b_destroy_all(tmp, rd);
         b_list_destroy(data);
 
-error:
+cleanup:
         b_destroy(tmp);
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.update);
@@ -106,9 +105,9 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
         B_LIST_FOREACH_2 (output, tok, i) {
-                int ret = sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%s", &data.ch,
-                                 &data.start.line, &data.start.column, &data.end.line,
-                                 &data.end.column, &data.ident.len, data.ident.str);
+                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%s", &data.ch,
+                       &data.start.line, &data.start.column, &data.end.line,
+                       &data.end.column, &data.ident.len, data.ident.str);
 
                 if (ident_is_ignored(bdata, &(bstring){data.ident.len, 0,
                                                        (uchar *)data.ident.str, 0}))

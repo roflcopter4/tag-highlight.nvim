@@ -338,11 +338,14 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
 
 /*======================================================================================*/
 
-/* I'm using two variables, stack and counter, rather than some struct simply to
+enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
+
+/*
+ * I'm using two variables, stack and counter, rather than some struct simply to
  * get around any type checking problems. This way allows the stack to be
  * composed of the actual type it holds (rather than a void pointer) and also
- * allows the elements to be integers without requiring some hack. */
-
+ * allows the elements to be integers without requiring some hack.
+ */
 #define NEW_STACK(TYPE, NAME) \
         TYPE     NAME[128];    \
         unsigned NAME##_ctr = 0
@@ -361,10 +364,10 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
 
 #define STACK_CTR(STACK) (STACK##_ctr)
 
-/*======================================================================================*/
 
-enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
-
+/*
+ * Ugly macros to simplify the code below.
+ */
 #define NEXT(VAR_, TYPE_NAME_, MEMBER_)                                       \
         do {                                                                  \
                 switch (next_type) {                                          \
