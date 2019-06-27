@@ -55,7 +55,6 @@ init() {
         cache_path=$(cygpath -wa "${top_dir}/cache")
         ;;
     *)
-        exit 1
         binary_path="${project_dir}/build/src/tag_highlight"
         final_path="${bin_dir}/tag_highlight"
         binary_install_path="${bin_dir}"
@@ -132,6 +131,10 @@ install() {
     printf "mv '%s' '%s'\\n" "${binary_path}" "${bin_dir}" >&2
     mv "${binary_path}" "${bin_dir}"
     rm -r "${project_dir}/build"
+
+    mkdir -p "${HOME}/.vim_tags"
+    mkdir -p "${HOME}/.tag_highlight"
+    mkdir -p "${HOME}/.tag_highlight_log"
 }
 
 ################################################################################

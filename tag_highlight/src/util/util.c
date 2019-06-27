@@ -24,7 +24,9 @@
                 void * arr[128];                   \
                 size_t num = backtrace(arr, 128);  \
                 fflush(stderr);                    \
-                dprintf(2, "STACKTRACE: \n");      \
+                dprintf(2, "Error in func %s in %s, line "        \
+                      "%d\n%sSTACKTRACE: \n",                        \
+                      FUNC_NAME, __FILE__, __LINE__, buf);         \
                 backtrace_symbols_fd(arr, num, 2); \
         })
 #  define FATAL_ERROR(...)                                         \

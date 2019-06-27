@@ -43,7 +43,7 @@ resolve_range(CXSourceRange r, struct resolved_range *res)
 void
 get_tmp_path(char *buf)
 {
-#ifdef DOSISH
+#ifndef USE_RAMDISK
         bstring *name = nvim_call_function(,B("tempname"), E_STRING).ptr;
         memcpy(buf, name->data, name->slen+1);
         b_destroy(name);

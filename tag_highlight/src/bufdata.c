@@ -364,10 +364,11 @@ init_topdir(const int fd, Buffer *bdata)
 }
 
 /**
- * For filetypes that use ctags to find highlight candidates we normally need to run the
- * program recursively on a directory. For some directories this is undesirable (eg.
- * $HOME, root, /usr/include, etc) because it will take a long time. Check the user
- * provided list of such directories and do not recurse ctags if we find a match.
+ * For filetypes that use ctags to find highlight candidates we normally need to
+ * run the program recursively on a directory. For some directories this is
+ * undesirable (eg. $HOME, /, /usr/include, or something like C:\, etc) because
+ * it will take a long time. Check the user provided list of such directories
+ * and do not recurse ctags if we find a match.
  */
 static bool
 check_norecurse_directories(const bstring *const dir)

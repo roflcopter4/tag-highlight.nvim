@@ -70,6 +70,8 @@ strsep(char **stringp, const char *delim)
         }
         /* NOTREACHED */
 }
+#else
+typedef error_t errno_t;
 #endif
 
 int

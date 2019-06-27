@@ -116,13 +116,13 @@ open_logs(void)
 static noreturn void *
 main_initialization(UNUSED void *arg)
 {
-        unsigned initial_buf = 0;
+        int initial_buf = 0;
         get_settings();
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
          * recognize a buffer, the wait time between tries is modestly long. */
-        for (unsigned attempts = 0; buffers.mkr == 0; ++attempts) {
+        for (int attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
                         if (buffers.bad_bufs.qty)
                                 buffers.bad_bufs.qty = 0;
