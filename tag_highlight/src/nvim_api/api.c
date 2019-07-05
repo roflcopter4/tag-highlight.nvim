@@ -10,12 +10,18 @@
 void
 (_nvim_write)(int fd, const enum nvim_write_type type, const bstring *mes)
 {
+        static const bstring fn_names[] = {
+                bt_init("nvim_out_write"),
+                bt_init("nvim_err_write"),
+                bt_init("nvim_err_writeln"),
+        };
         CHECK_DEF_FD(fd);
-        bstring *func;
+        const bstring *func;
+
         switch (type) {
-        case NW_STANDARD: func = B("nvim_out_write");   break;
-        case NW_ERROR:    func = B("nvim_err_write");   break;
-        case NW_ERROR_LN: func = B("nvim_err_writeln"); break;
+        case NW_STANDARD: func = &fn_names[0]; break;
+        case NW_ERROR:    func = &fn_names[1]; break;
+        case NW_ERROR_LN: func = &fn_names[2]; break;
         default:          errx(1, "Should be unreachable!");
         }
 

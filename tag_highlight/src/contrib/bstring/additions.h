@@ -62,8 +62,8 @@ extern "C" {
  * All bstring functions will refuse to modify the return from this macro,
  * including b_free(). The object must not otheriwise be free'd.
  */
-#define b_tmp(CSTR) (&(bstring)bt_init(CSTR)) 
-#define B(CSTR)     (&(bstring)bt_init(CSTR)) 
+#define b_tmp(CSTR) ((bstring[]){bt_init(CSTR)}) 
+#define B(CSTR)     ((bstring[]){bt_init(CSTR)}) 
 
 /**
  * Creates a static bstring reference to existing memory without copying it.

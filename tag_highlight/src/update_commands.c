@@ -24,7 +24,7 @@ static void     update_other(Buffer *bdata);
 static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
                             const struct taglist  *tags, const struct cmd_info *info);
 
-#ifdef DEBUG
+#if defined DEBUG && defined DEBUG_LOGS
 extern FILE *cmd_log;
 #  define LOGCMD(...) fprintf(cmd_log, __VA_ARGS__)
 #else
@@ -197,7 +197,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
                         b_destroy(info[i].suffix);
         }
 
-#ifdef DEBUG
+#if defined DEBUG && defined DEBUG_LOGS
         fputs("\n\n\n\n", cmd_log);
         fflush(cmd_log);
 #endif
@@ -212,7 +212,8 @@ update_commands(Buffer *bdata, struct taglist *tags)
 #define SYN_KEYWORD_END   "display | hi def link %s %s"
 
 static int
-handle_kind(bstring *cmd, unsigned i,
+handle_kind(bstring *const cmd,
+            unsigned i,
             const struct filetype *ft,
             const struct taglist  *tags,
             const struct cmd_info *info)
@@ -228,9 +229,7 @@ handle_kind(bstring *cmd, unsigned i,
                 b_destroy(ft_allbut);
         }
 
-/* #if 0 */
         if (info->prefix || info->suffix) {
-/* #endif */
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
@@ -240,17 +239,15 @@ handle_kind(bstring *cmd, unsigned i,
                 b_sprintfa(cmd, SYN_MATCH_END, suffix, global_allbut, group_id, info->group);
 
                 b_destroy(global_allbut);
-/* #if 0 */
         } else {
                 b_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         b_sprintfa(cmd, "%s ", tags->lst[i]->b);
                 b_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
         }
-/* #endif */
 
         b_destroy(group_id);
-        return i;
+        return ((i > 0) ? (int)i : 0);
 }
 
 /*======================================================================================*/
@@ -300,7 +297,7 @@ static void
 add_cmd_call(mpack_arg_array **calls, bstring *cmd)
 {
 #define CALLS (*calls)
-        if (!*calls) {
+        if (!CALLS) {
                 CALLS        = xmalloc(sizeof(mpack_arg_array));
                 CALLS->qty   = 0;
                 CALLS->mlen  = 16;

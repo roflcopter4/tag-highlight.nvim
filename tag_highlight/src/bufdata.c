@@ -68,7 +68,6 @@ bool
 
         Filetype *tmp = NULL;
         bstring  *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING).ptr;
-        assert(ft != NULL);
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 if (b_iseq(ft, &ftdata[i].vim_name)) {
@@ -91,7 +90,6 @@ bool
 
         b_destroy(ft);
         Buffer *bdata = get_bufdata(fd, bufnum, tmp);
-        assert(bdata != NULL);
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(fd, bdata->ft);
 

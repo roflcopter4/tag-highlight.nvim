@@ -7,6 +7,12 @@ let g:tag_highlight#perl#p = { 'group': 'perlPackageTag' }
 let g:tag_highlight#perl#s = {
             \   'group': 'perlFunctionTag',
             \   'prefix': '\%(\<sub\s\*\)\@<!\%(>\|\s\|&\|^\)\@<=\<',
+            \   'notin':  [
+            \       '*String*',
+            \       '*Comment*',
+            \       '*Match*',
+            \       '*HereDoc*',
+            \   ]
             \ }
 
 let g:tag_highlight#perl#allbut = '.*Here.oc.*,perlMatch.*,perl.*DQ.*,perl.*SQ.*,perlQQ'

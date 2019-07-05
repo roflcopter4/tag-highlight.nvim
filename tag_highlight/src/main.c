@@ -99,8 +99,7 @@ platform_init(char **argv)
 static void
 open_logs(void)
 {
-/* #ifdef DEBUG */
-#if 0
+#if defined DEBUG && defined DEBUG_LOGS
         extern char LOGDIR[];
         snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);

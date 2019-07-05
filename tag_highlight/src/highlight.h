@@ -112,7 +112,7 @@ struct bufdata {
                 };
                 struct /* Everything else */ {
                         mpack_arg_array *calls;
-                        b_list         *cmd_cache;
+                        b_list          *cmd_cache;
                 };
         };
 };

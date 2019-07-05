@@ -290,7 +290,7 @@ b_fromblk(const void *blk, const unsigned len)
 bstring *
 b_alloc_null(const unsigned len)
 {
-        int safelen   = len + 1;
+        uint safelen  = len + 1;
         bstring *bstr = xmalloc(sizeof *bstr);
         bstr->slen    = 0;
         bstr->mlen    = safelen;
@@ -494,7 +494,7 @@ b_assign_cstr(bstring *a, const char *str)
         const size_t len = strlen(str + i);
         if (len > INT_MAX || i + len + 1 > INT_MAX || 0 > b_alloc(a, (i + len + 1)))
                 RUNTIME_ERROR();
-        memmove(a->data + i, str + i, (size_t)len + 1);
+        memmove(a->data + i, str + i, len + UINTMAX_C(1));
         a->slen += len;
         a->flags = BSTR_STANDARD;
 

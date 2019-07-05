@@ -4,15 +4,6 @@
 #include "intern.h"
 #include "mpack.h"
 
-extern FILE *mpack_raw;
-FILE *mpack_raw;
-static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-#ifdef _MSC_VER
-#  define restrict __restrict
-#endif
-#define INIT_MUTEXES (16)
-
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
 static mpack_obj * do_decode        (read_fn READ, void *src);
@@ -27,7 +18,6 @@ static mpack_obj * decode_bool      (const mpack_mask *mask);
 static void        stream_read      (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void        obj_read         (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static const mpack_mask *id_pack_type(uint8_t byte);
-
 
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
@@ -55,6 +45,9 @@ struct mpack_mutex {
 };
 static mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 
+extern FILE *mpack_raw;
+FILE *mpack_raw;
+static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 /*============================================================================*/
 
@@ -472,7 +465,6 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         const int n = recv(fd, dest, nbytes, MSG_WAITALL);
         if ((size_t)n != nbytes)
                 err(1, "%d != %zu!", n, nbytes);
-        /* assert((size_t)n == nbytes); */
 #endif
 
 #ifdef DEBUG

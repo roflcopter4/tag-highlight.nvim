@@ -274,8 +274,9 @@ mpack_encode_string(mpack_obj      *root,
                     mpack_obj     **item,
                     const bstring  *string)
 {
+        static const bstring nil_string = bt_init("");
         if (!string)
-                string = B("");
+                string = &nil_string;
         sanity_check(root, item, string->slen + 5, false);
 
         if (root->flags & MPACK_ENCODE) {
