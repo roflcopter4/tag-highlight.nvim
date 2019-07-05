@@ -146,15 +146,12 @@ extern const size_t        ftdata_len;
 /*===========================================================================*/
 
 extern bool    have_seen_file   (const bstring *filename);
-extern bool    new_buffer       (int fd, int bufnum);
+extern bool    new_buffer       (int bufnum);
 extern int     find_buffer_ind  (int bufnum);
 extern bool    is_bad_buffer    (int bufnum);
 extern void    destroy_bufdata  (Buffer **bdata);
 extern Buffer *find_buffer      (int bufnum);
-extern Buffer *get_bufdata      (int fd, int bufnum, struct filetype *ft);
-
-#define new_buffer(...) P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__)
-#define new_buffer_defarg_0() (0)
+extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
 
 /*===========================================================================*/
 /* Old "highlight.h" */

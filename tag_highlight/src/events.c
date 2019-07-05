@@ -342,7 +342,7 @@ super_debug(Buffer *bdata)
 {
         const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
         const unsigned n     = nvim_buf_line_count(0, bdata->num);
-        b_list        *lines = nvim_buf_get_lines(,bdata->num);
+        b_list        *lines = nvim_buf_get_lines(bdata->num);
         bstring       *j1    = b_list_join(lines, B("\n"));
         bstring       *j2    = ll_join(bdata->lines, '\n');
 
@@ -536,8 +536,8 @@ vimscript_message(void *vdata)
 
                 if (!bdata) {
                 try_attach:
-                        if (new_buffer(,num)) {
-                                nvim_buf_attach(BUFFER_ATTACH_FD, num);
+                        if (new_buffer(num)) {
+                                nvim_buf_attach(num);
                                 bdata = find_buffer(num);
 
                                 get_initial_lines(bdata);

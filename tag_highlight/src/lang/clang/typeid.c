@@ -44,7 +44,7 @@ type_id(Buffer *bdata, struct translationunit *stu)
                 errx(1, "Invalid");
 
         if (bdata->hl_id == 0)
-                bdata->hl_id = nvim_buf_add_highlight(,bdata->num);
+                bdata->hl_id = nvim_buf_add_highlight(bdata->num);
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 

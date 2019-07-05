@@ -36,8 +36,8 @@ typedef struct top_dir  Top_Dir;
 extern b_list *seen_files;
 
 static void     log_prev_file(const bstring *filename);
-static Top_Dir *init_topdir(int fd, Buffer *bdata);
-static void     init_filetype(int fd, Filetype *ft);
+static Top_Dir *init_topdir(Buffer *bdata);
+static void     init_filetype(Filetype *ft);
 static bool     check_norecurse_directories(const bstring *dir);
 static bstring *check_project_directories(bstring *dir);
 static void     bufdata_constructor(void) __attribute__((__constructor__));
@@ -57,7 +57,7 @@ mutex_constructor(void)
 /*======================================================================================*/
 
 bool
-(new_buffer)(const int fd, const int bufnum)
+new_buffer(const int bufnum)
 {
         bool ret = false;
         pthread_mutex_lock(&buffers.lock);
@@ -67,7 +67,7 @@ bool
                         goto end;
 
         Filetype *tmp = NULL;
-        bstring  *ft  = nvim_buf_get_option(fd, bufnum, B("ft"), E_STRING).ptr;
+        bstring  *ft  = nvim_buf_get_option(bufnum, B("ft"), E_STRING).ptr;
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 if (b_iseq(ft, &ftdata[i].vim_name)) {
@@ -89,9 +89,9 @@ bool
         }
 
         b_destroy(ft);
-        Buffer *bdata = get_bufdata(fd, bufnum, tmp);
+        Buffer *bdata = get_bufdata(bufnum, tmp);
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
-                init_filetype(fd, bdata->ft);
+                init_filetype(bdata->ft);
 
         {
                 pthread_mutexattr_t attr;
@@ -112,16 +112,16 @@ end:
 }
 
 Buffer *
-get_bufdata(const int fd, const int bufnum, Filetype *ft)
+get_bufdata(const int bufnum, Filetype *ft)
 {
         Buffer *bdata    = xcalloc(1, sizeof(Buffer));
-        bdata->name.full = nvim_buf_get_name(fd, bufnum);
+        bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
         bdata->lines     = ll_make_new();
         bdata->num       = (uint16_t)bufnum;
         bdata->ft        = ft;
-        bdata->topdir    = init_topdir(fd, bdata); // Topdir init must be the last step.
+        bdata->topdir    = init_topdir(bdata); // Topdir init must be the last step.
 
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
@@ -278,7 +278,7 @@ have_seen_file(const bstring *filename)
  * we run ctags on the `top_dir' of the tree. This routine populates that structure.
  */
 static Top_Dir *
-init_topdir(const int fd, Buffer *bdata)
+init_topdir(Buffer *bdata)
 {
         int      ret       = (-1);
         bstring *dir       = b_strcpy(bdata->name.path);
@@ -308,7 +308,7 @@ init_topdir(const int fd, Buffer *bdata)
         ECHO("Initializing new topdir \"%s\"\n", dir);
 
         Top_Dir *tdir   = xcalloc(1, sizeof(Top_Dir));
-        tdir->tmpfname  = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
+        tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
         tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tdir->gzfile    = b_fromcstr_alloc(dir->mlen * 3, HOME);
         tdir->ftid      = bdata->ft->id;
@@ -326,7 +326,7 @@ init_topdir(const int fd, Buffer *bdata)
         { /* Set the vim 'tags' option. */
                 char buf[8192];
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tdir->tmpfname));
-                nvim_command(fd, btp_fromblk(buf, n));
+                nvim_command(btp_fromblk(buf, n));
         }
 
         ECHO("Base is %s", base);
@@ -438,14 +438,14 @@ static bstring *get_restore_cmds(b_list *restored_groups);
  * tags and groups of tags that should be ignored by this program when highlighting.
  */
 static void
-init_filetype(const int fd, Filetype *ft)
+init_filetype(Filetype *ft)
 {
         if (ft->initialized)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
 
         ft->initialized    = true;
-        ft->order          = (nvim_get_var_fmt)(fd, E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
+        ft->order          = (nvim_get_var_fmt)(E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
         mpack_array_t *tmp = dict_get_key(settings.ignored_tags, E_MPACK_ARRAY, &ft->vim_name).ptr;
         ECHO("Init filetype called for ft %s\n", &ft->vim_name);
 
@@ -459,7 +459,7 @@ init_filetype(const int fd, Filetype *ft)
         ft->restore_cmds = NULL;
         get_ignored_tags(ft);
 
-        mpack_dict_t *equiv = (nvim_get_var_fmt)(fd, E_MPACK_DICT, PKG "%s#equivalent",
+        mpack_dict_t *equiv = (nvim_get_var_fmt)(E_MPACK_DICT, PKG "%s#equivalent",
                                                  BTS(ft->vim_name)).ptr;
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
@@ -487,7 +487,7 @@ init_filetype(const int fd, Filetype *ft)
 static void
 get_ignored_tags(Filetype *ft)
 {
-        mpack_dict_t *tmp = nvim_get_var(0, B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
+        mpack_dict_t *tmp = nvim_get_var(B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
         b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
 
         if (restored_groups)
@@ -519,7 +519,7 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 char         cmd[2048];
                 const size_t len = snprintf(cmd, 2048, "syntax list %s",
                                             BS(restored_groups->lst[i]));
-                bstring *output = nvim_command_output(0, btp_fromblk(cmd, len), E_STRING).ptr;
+                bstring *output = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
                 if (!output)
                         continue;
                 const char *ptr = strstr(BS(output), "xxx");
@@ -566,7 +566,7 @@ get_restore_cmds(b_list *restored_groups)
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
                 bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
-                bstring *output = nvim_command_output(0, cmd, E_STRING).ptr;
+                bstring *output = nvim_command_output(cmd, E_STRING).ptr;
                 b_destroy(cmd);
                 if (!output)
                         continue;

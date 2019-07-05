@@ -47,11 +47,11 @@ await_package(_nvim_wait_node *node)
 }
 
 mpack_obj *
-generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
+generic_call(const bstring *fn, const bstring *const fmt, ...)
 {
-        CHECK_DEF_FD(*fd);
+        /* CHECK_DEF_FD(*fd); */
         mpack_obj *pack;
-        const int  count = INC_COUNT(*fd);
+        const int  count = INC_COUNT();
 
         if (fmt) {
                 /* Skrew it, despite early efforts to the contrary, this will never
@@ -68,7 +68,7 @@ generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
                 pack = mpack_encode_fmt(0, "[d,d,s:[]]", MES_REQUEST, count, fn);
         }
 
-        mpack_obj *result = write_and_clean(*fd, pack, count, fn);
+        mpack_obj *result = write_and_clean(pack, count, fn);
         mpack_print_object(mpack_log, result);
         return result;
 }
@@ -76,7 +76,7 @@ generic_call(int *fd, const bstring *fn, const bstring *const fmt, ...)
 /*======================================================================================*/
 
 mpack_obj *
-(write_and_clean)(const int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
+(write_and_clean)(mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
 {
 #ifdef DEBUG
 #  ifdef LOG_RAW_MPACK
@@ -106,7 +106,7 @@ mpack_obj *
 #endif
 
         _nvim_wait_node *node = xcalloc(1, sizeof(*node));
-        node->fd    = fd;
+        node->fd    = 1;
         node->count = count;
         p99_futex_init(&node->fut, 0);
         /* node->fut   = (p99_futex)P99_FUTEX_INITIALIZER(0); */
@@ -114,7 +114,7 @@ mpack_obj *
         P99_FIFO_APPEND(&_nvim_wait_queue, node);
 
         /* pthread_mutex_lock(&await_package_mutex); */
-        b_write(fd, *pack->packed);
+        b_write(1, *pack->packed);
         /* pthread_mutex_unlock(&await_package_mutex); */
 
         mpack_destroy_object(pack);

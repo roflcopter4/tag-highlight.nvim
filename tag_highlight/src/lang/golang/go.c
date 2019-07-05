@@ -59,7 +59,7 @@ highlight_go(Buffer *bdata)
         char buf[8192];
         snprintf(buf, 8192, "%u", tmp->slen);
 
-        bstring *go_binary = nvim_call_function(, B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
+        bstring *go_binary = nvim_call_function( B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);
         struct stat st;
         if (stat(BS(go_binary), &st) != 0) {
@@ -100,7 +100,7 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
         mpack_arg_array *calls = new_arg_array();
 
         if (bdata->hl_id == 0)
-                bdata->hl_id = nvim_buf_add_highlight(,bdata->num);
+                bdata->hl_id = nvim_buf_add_highlight(bdata->num);
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
@@ -124,7 +124,7 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                 }
         }
 
-        nvim_call_atomic(,calls);
+        nvim_call_atomic(calls);
         mpack_destroy_arg_array(calls);
 }
 

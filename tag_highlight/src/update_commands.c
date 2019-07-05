@@ -92,9 +92,9 @@ static void
 update_from_cache(Buffer *bdata)
 {
         ECHO("Updating from cache.");
-        nvim_call_atomic(,bdata->calls);
+        nvim_call_atomic(bdata->calls);
         if (bdata->ft->restore_cmds)
-                nvim_command(,bdata->ft->restore_cmds);
+                nvim_command(bdata->ft->restore_cmds);
 }
 
 static void
@@ -115,7 +115,7 @@ retry:
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
-                nvim_call_atomic(,bdata->calls);
+                nvim_call_atomic(bdata->calls);
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_destroy(tags->lst[i]->b);
@@ -126,7 +126,7 @@ retry:
 
                 if (bdata->ft->restore_cmds) {
                         LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
-                        nvim_command(,bdata->ft->restore_cmds);
+                        nvim_command(bdata->ft->restore_cmds);
                 }
         }
 
@@ -222,7 +222,7 @@ handle_kind(bstring *const cmd,
                                       &ft->vim_name, info->kind, info->group);
         b_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
 
-        bstring *global_allbut = nvim_get_var(,B("tag_highlight#allbut"), E_STRING).ptr;
+        bstring *global_allbut = nvim_get_var(B("tag_highlight#allbut"), E_STRING).ptr;
         bstring *ft_allbut     = nvim_get_var_fmt(E_STRING, "tag_highlight#%s#allbut", BTS(ft->vim_name)).ptr;
         if (ft_allbut) {
                 b_concat_all(global_allbut, B(","), ft_allbut);
@@ -282,12 +282,12 @@ void
                         destroy_mpack_dict(dict);
                 }
 
-                nvim_command(0, cmd);
+                nvim_command(cmd);
                 b_destroy(cmd);
         }
 
         if (bdata->hl_id > 0) {
-                nvim_buf_clear_highlight(0, bdata->num, bdata->hl_id, 0, (-1));
+                nvim_buf_clear_highlight(bdata->num, bdata->hl_id, 0, (-1));
         }
 }
 

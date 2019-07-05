@@ -24,7 +24,7 @@ static void           get_settings        (void);
 static void           open_logs           (void);
 static void           exit_cleanup        (void);
 static void           quick_cleanup       (void);
-static comp_type_t    get_compression_type(int fd);
+static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
 extern void           event_loop_init     (int fd);
 
@@ -32,20 +32,17 @@ extern void           event_loop_init     (int fd);
 #define SIGHANDLER_NORMAL (2)
 #define WAIT_TIME         (3.0)
 #define eputs(str)        fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
-#define get_compression_type(...) P99_CALL_DEFARG(get_compression_type, 1, __VA_ARGS__)
-#define get_compression_type_defarg_0() (_nvim_api_read_fd)
 
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
-        _nvim_api_read_fd = STDIN_FILENO;
         TIMER_START(&main_timer);
         init(argv);
 
         /* This actually runs the event loop and does not normally return. */
-        event_loop_init(_nvim_api_read_fd);
+        event_loop_init(fileno(stdin));
 
         /* If the user explicitly gives the vim command to stop the plugin, the loop
          * returns and we clean everything up. We don't do this when Neovim exits because
@@ -129,18 +126,18 @@ main_initialization(UNUSED void *arg)
                 }
 
                 initial_buf = nvim_get_current_buf();
-                if (new_buffer(,initial_buf))
+                if (new_buffer(initial_buf))
                         break;
         }
 
         Buffer *bdata = find_buffer(initial_buf);
-        nvim_buf_attach(BUFFER_ATTACH_FD, bdata->num);
+        nvim_buf_attach(bdata->num);
         get_initial_lines(bdata);
         get_initial_taglist(bdata);
         update_highlight(bdata);
 
         TIMER_REPORT(&main_timer, "main initialization");
-        nvim_set_client_info(,B(PKG), 0, 1, B("alpha"));
+        nvim_set_client_info(B(PKG), 0, 1, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
 
@@ -153,19 +150,19 @@ main_initialization(UNUSED void *arg)
 static void
 get_settings(void)
 {
-        settings.enabled        = nvim_get_var(,B(PKG "enabled"),   E_BOOL  ).num;
-        settings.cache_dir      = nvim_get_var(,B(PKG "directory"), E_STRING).ptr;
-        settings.ctags_bin      = nvim_get_var(,B(PKG "ctags_bin"), E_STRING).ptr;
+        settings.enabled        = nvim_get_var(B(PKG "enabled"),   E_BOOL  ).num;
+        settings.cache_dir      = nvim_get_var(B(PKG "directory"), E_STRING).ptr;
+        settings.ctags_bin      = nvim_get_var(B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
         settings.comp_type      = get_compression_type();
-        settings.comp_level     = nvim_get_var(,B(PKG "compression_level"), E_NUM       ).num;
-        settings.ctags_args     = nvim_get_var(,B(PKG "ctags_args"),        E_STRLIST   ).ptr;
-        settings.ignored_ftypes = nvim_get_var(,B(PKG "ignore"),            E_STRLIST   ).ptr;
-        settings.ignored_tags   = nvim_get_var(,B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
-        settings.norecurse_dirs = nvim_get_var(,B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
-        settings.settings_file  = nvim_get_var(,B(PKG "settings_file"),     E_STRING    ).ptr;
-        settings.verbose        = nvim_get_var(,B(PKG "verbose"),           E_BOOL      ).num;
+        settings.comp_level     = nvim_get_var(B(PKG "compression_level"), E_NUM       ).num;
+        settings.ctags_args     = nvim_get_var(B(PKG "ctags_args"),        E_STRLIST   ).ptr;
+        settings.ignored_ftypes = nvim_get_var(B(PKG "ignore"),            E_STRLIST   ).ptr;
+        settings.ignored_tags   = nvim_get_var(B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
+        settings.norecurse_dirs = nvim_get_var(B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
+        settings.settings_file  = nvim_get_var(B(PKG "settings_file"),     E_STRING    ).ptr;
+        settings.verbose        = nvim_get_var(B(PKG "verbose"),           E_BOOL      ).num;
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
@@ -180,7 +177,7 @@ void
 get_initial_lines(Buffer *bdata)
 {
         pthread_mutex_lock(&bdata->lock.total);
-        b_list *tmp = nvim_buf_get_lines(,bdata->num);
+        b_list *tmp = nvim_buf_get_lines(bdata->num);
         if (bdata->lines->qty == 1)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
@@ -257,9 +254,9 @@ quick_cleanup(void)
 }
 
 static comp_type_t
-(get_compression_type)(const int fd)
+get_compression_type(void)
 {
-        bstring    *tmp = nvim_get_var(fd, B(PKG "compression_type"), E_STRING).ptr;
+        bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
         if (b_iseq_lit(tmp, "gzip")) {

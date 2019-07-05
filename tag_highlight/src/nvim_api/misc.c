@@ -62,7 +62,7 @@ _nvim_init(void)
 int
 _nvim_create_socket(const int mes_fd)
 {
-        bstring *name = nvim_call_function(mes_fd, B("serverstart"), E_STRING).ptr;
+        bstring *name = nvim_call_function(B("serverstart"), E_STRING).ptr;
 
 #ifdef DOSISH
         const int fd = safe_open(BS(name), O_RDWR|O_BINARY, 0);
@@ -87,9 +87,9 @@ _nvim_create_socket(const int mes_fd)
 }
 
 int
-(_nvim_get_tmpfile)(const int fd, bstring **name, const bstring *suffix)
+(_nvim_get_tmpfile)(const bstring **name, const bstring *suffix)
 {
-        bstring *tmp = nvim_call_function(fd, B("tempname"), E_STRING).ptr;
+        bstring *tmp = nvim_call_function(B("tempname"), E_STRING).ptr;
         if (suffix)
                 b_concat(tmp, suffix);
         int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY, 0600);

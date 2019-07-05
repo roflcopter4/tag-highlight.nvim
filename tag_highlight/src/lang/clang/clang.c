@@ -121,7 +121,7 @@ void
 
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
         mpack_arg_array *calls = type_id(bdata, stu);
-        nvim_call_atomic(,calls);
+        nvim_call_atomic(calls);
 
         mpack_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
@@ -190,7 +190,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
 #else
         bstring *tmp_file;
-        tmpfd = _nvim_get_tmpfile(,&tmp_file, btp_fromcstr(bdata->name.suffix));
+        tmpfd = _nvim_get_tmpfile(&tmp_file, btp_fromcstr(bdata->name.suffix));
         memcpy(tmp, tmp_file->data, (tmplen = (int)tmp_file->slen) + 1);
         b_destroy(tmp_file);
 #endif

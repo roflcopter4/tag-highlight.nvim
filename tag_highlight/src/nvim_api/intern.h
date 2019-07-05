@@ -21,8 +21,8 @@ extern genlist *nvim_connections;
 #ifndef DEFAULT_FD
 #  define DEFAULT_FD (1)
 #endif
-#define COUNT(FD_)         _get_fd_count((FD_), false)
-#define INC_COUNT(FD_)     _get_fd_count((FD_), true)
+#define COUNT()         _get_fd_count((1), false)
+#define INC_COUNT()     _get_fd_count((1), true)
 
 #define CHECK_DEF_FD(FD__)                  \
         __extension__ ({                    \
@@ -60,11 +60,11 @@ static inline int _get_fd_count(const int fd, const bool inc)
         errx(1, "Couldn't find fd %d in nvim_connections.", fd);
 }
 
-INTERN mpack_obj *generic_call(int *fd, const bstring *fn, const bstring *fmt, ...) __aWUR;
+INTERN mpack_obj *generic_call(const bstring *fn, const bstring *fmt, ...) __aWUR;
 INTERN mpack_obj *await_package(_nvim_wait_node *node) __aWUR;
 
 /* #define LOG_RAW_MPACK */
-INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, const bstring *func, FILE *logfp) __aWUR;
+INTERN mpack_obj *write_and_clean(mpack_obj *pack, const int count, const bstring *func, FILE *logfp) __aWUR;
 /* INTERN mpack_obj *write_and_clean(const int fd, mpack_obj *pack, const int count */
 /* #ifdef LOG_RAW_MPACK */
                   /* ,const bstring *func, FILE *logfp */
@@ -73,8 +73,8 @@ INTERN mpack_obj *write_and_clean(int fd, mpack_obj *pack, const int count, cons
 
 INTERN retval_t   m_expect_intern(mpack_obj *root, mpack_expect_t type) __aWUR;
 
-#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 5, __VA_ARGS__)
-#define write_and_clean_defarg_0() (0)
+#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
+#define write_and_clean_defarg_3() (NULL)
 #ifdef DEBUG
 #  define write_and_clean_defarg_4() (mpack_log)
 #else

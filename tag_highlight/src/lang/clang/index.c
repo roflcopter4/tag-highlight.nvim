@@ -82,7 +82,7 @@ lc_index_file(Buffer *bdata, struct translationunit *stu)
         stu->tokens = data.tok_list;
 
         mpack_arg_array *calls = type_id(bdata, stu);
-        nvim_call_atomic(,calls);
+        nvim_call_atomic(calls);
         mpack_destroy_arg_array(calls);
 
         if (bdata->headers->qty > 0)

@@ -44,7 +44,7 @@ void
 get_tmp_path(char *buf)
 {
 #ifndef USE_RAMDISK
-        bstring *name = nvim_call_function(,B("tempname"), E_STRING).ptr;
+        bstring *name = nvim_call_function(B("tempname"), E_STRING).ptr;
         memcpy(buf, name->data, name->slen+1);
         b_destroy(name);
         mkdir(buf, 0700);
