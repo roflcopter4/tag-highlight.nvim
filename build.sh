@@ -4,8 +4,11 @@ bin_dir=
 top_dir=
 project_dir=
 system_type=
+link_cmd=
+link_bin=false
 
 ################################################################################
+# Utilities
 
 Exists() {
     command -v "$@" >/dev/null 2>&1
@@ -44,7 +47,39 @@ guess_system() {
     esac
 }
 
+get_link_command() {
+    case "$system_type" in
+    MinGW)
+        if Exists 'winln'; then
+            echo 'winln -sf'
+        else
+            echo 'cp -L'
+        fi
+        ;;
+    *)
+        echo 'ln -sf'
+        ;;
+    esac
+}
+
+make_link() {
+    case "$system_type" in
+        MinGW) _command_="$link_cmd '$(cygpath -wa "$1")' '$(cygpath -wa "$2")'" ;;
+        *)     _command_="$link_cmd '$(realpath "$1")' '$(realpath "$2")'"       ;;
+    esac
+
+    printf '%s\n' "$_command_" >&2
+    eval $_command_
+}
+
 ################################################################################
+# Subroutines
+
+do_all() {
+    init
+    compile "$@"
+    install
+}
 
 init() {
     case "$system_type" in
@@ -85,8 +120,7 @@ compile() {
     check
     cd "$project_dir" || die
     if [ -d 'build' ]; then
-        # rm -r build || die
-        mv build _build_bak
+        mv build _build_bak || die
     fi
     { mkdir build && cd build; } || die
 
@@ -110,16 +144,8 @@ install() {
 
     case "$system_type" in
     MinGW)
-        if Exists 'winln'; then
-            link_cmd='winln -s'
-        else
-            link_cmd='cp -L'
-        fi
-
         for libname in libclang.dll libgcc_s_seh-1.dll libgomp-1.dll libstdc++-6.dll libwinpthread-1.dll libz3.dll zlib1.dll; do
-            _command_="$link_cmd '$(cygpath -wa "/mingw64/bin/${libname}")' '${binary_install_path}'"
-            printf '%s\n' "$_command_" >&2
-            eval $_command_
+            make_link "/mingw64/bin/${libname}" "${binary_install_path}"
         done
         ;;
     esac
@@ -128,9 +154,13 @@ install() {
         die 'Invalid'
     fi
 
-    printf "mv '%s' '%s'\\n" "${binary_path}" "${bin_dir}" >&2
-    mv "${binary_path}" "${bin_dir}"
-    rm -r "${project_dir}/build"
+    if $link_bin; then
+        make_link "${binary_path}" "${bin_dir}"
+    else
+        printf "mv '%s' '%s'\\n" "${binary_path}" "${bin_dir}" >&2
+        mv "${binary_path}" "${bin_dir}"
+        rm -r "${project_dir}/build"
+    fi
 
     mkdir -p "${HOME}/.vim_tags"
     mkdir -p "${HOME}/.tag_highlight"
@@ -138,35 +168,48 @@ install() {
 }
 
 ################################################################################
+# The script
 
-Exists 'printf' || echo "A Posix build environment is required"
-Exists 'uname' || die 'A Posix build environment is required'
+Exists 'uname' || die <<'EOF'
+A Posix build environment is required. How you have a working shell with no
+`uname(1)' utility is beyond my ability to interpret.
+EOF
 
 top_dir=$(dirname "$(realpath "$0")")
 project_dir="${top_dir}/tag_highlight"
 bin_dir="${top_dir}/bin"
 system_type=$(guess_system)
+link_cmd=$(get_link_command)
 
-_all() {
-    init
-    compile "$@"
-    install
-}
+while getopts 'l' ARG "$@"; do
+    case $ARG in
+        l) link_bin=true ;;
+    esac
+done
+shift $((OPTIND - 1))
 
-if [ $# -gt 0 ]; then
-    for ARG in "$@"; do
-        case "$ARG" in
-        dirs | setup | info)
+if [ "$1" ]; then
+    _ARG="$1"
+    shift 1
+    case "$_ARG" in
+    dirs | setup | info)
+        init
+        ;;
+    update | make)
+        do_all "$@"
+        ;;
+    install)
+        if [ -d "${project_dir}/build" ]; then
             init
-            ;;
-        install | update | make)
-            _all "$@"
-            ;;
-        *)
-            exit 1
-            ;;
-        esac
-    done
+            install
+        else
+            do_all "$@"
+        fi
+        ;;
+    *)
+        die 'Invalid command'
+        ;;
+    esac
 else
-    _all "$@"
+    do_all "$@"
 fi

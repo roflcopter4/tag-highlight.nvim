@@ -93,11 +93,11 @@ extern bstring * _nvim_get_notification();
  * to it. Multiple connections can make multithreaded applications easier to
  * write safely.
  */
-extern int _nvim_create_socket(int mes_fd);
+extern int _nvim_create_socket(void);
 /* extern void _nvim_init(enum nvim_connection_type init_type, int init_fd); */
 extern void _nvim_init(void) __attribute__((__constructor__));
 
-extern int _nvim_get_tmpfile(const bstring **name, const bstring *suffix);
+extern int _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
 
 P44_DECLARE_FIFO(_nvim_wait_node);
 struct _nvim_wait_node {
