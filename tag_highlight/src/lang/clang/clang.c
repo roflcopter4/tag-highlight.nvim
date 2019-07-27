@@ -239,20 +239,17 @@ static char *
 stupid_windows_bullshit(const char *const path)
 {
         const size_t len = strlen(path);
-        if (len < 5 || path[4] != '/')
+        if (len < 3 || !isalpha(path[1]) || path[2] != '/')
                 return NULL;
 
-        char *ret = xmalloc(len + 7);
+        char *ret = xmalloc(len + 3);
         char *ptr = ret;
-        *ptr++    = '-';
-        *ptr++    = 'I';
-        *ptr++    = path[3];
+        *ptr++    = path[1];
         *ptr++    = ':';
         *ptr++    = '\\';
-        *ptr++    = '\\';
-        for (const char *sptr = path+5; *sptr; ++sptr)
+        for (const char *sptr = path+3; *sptr; ++sptr)
                 *ptr++ = (*sptr == '/') ? '\\' : *sptr;
-        *ptr      = '\0';
+        *ptr = '\0';
 
         return ret;
 }
@@ -335,6 +332,20 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                 b_free(file);
         }
 }
+
+#  define ARGV_APPEND_FILE(VAR, STR)                                     \
+        do {                                                             \
+                if ((STR)[0] == '/') {                                   \
+                        char *fixed_path = stupid_windows_bullshit(STR); \
+                        if (fixed_path)                                  \
+                                argv_append((VAR), fixed_path, false);   \
+                } else {                                                 \
+                        argv_append((VAR), (STR), true);                 \
+                }                                                        \
+        } while (0)
+#else
+#  define ARGV_APPEND_FILE(VAR, STR) \
+        argv_append((VAR), (STR), true)
 #endif
 
 static str_vector *
@@ -391,30 +402,18 @@ get_compile_commands(Buffer *bdata)
                                                 break;
                                         case 'I':
                                                 argv_append(ret, "-I", true);
-                                                argv_append(ret, cstr+2, true);
+                                                ARGV_APPEND_FILE(ret, cstr+2);
                                                 break;
                                         default:
                                                 argv_append(ret, cstr, true);
                                         }
                                 }
-#if 0
-#ifdef DOSISH
-                                if (cstr[2] == '/') {
-                                        char *fixed_path = stupid_windows_bullshit(cstr);
-                                        if (fixed_path)
-                                                argv_append(ret, fixed_path, false);
-                                } else
-#endif
-                                if (cstr[1] != 'f' && cstr[1] != 'c' && cstr[1] != 'W')
-                                        argv_append(ret, cstr, true);
-#endif
-
 #ifdef DOSISH
                         } else if (cstr[0] == '@') {
                                 handle_win32_command_script(bdata, cstr, ret);
 #endif
                         } else if (fileok) {
-                                argv_append(ret, cstr, true);
+                                ARGV_APPEND_FILE(ret, cstr);
                         }
                                 
                         clang_disposeString(tmp);
@@ -422,21 +421,22 @@ get_compile_commands(Buffer *bdata)
                 }
         }
 
-        /* bstring *tmp = b_regularize_path(bdata->name.path); */
-        /* argv_fmt(ret, "-I%s", BS(tmp)); */
-        /* b_destroy(tmp); */
-
         argv_append(ret, "-I", true);
+        argv_append(ret, BS(bdata->name.path), true);
+#if 0
 #ifdef DOSISH
-        unsigned char fixbuf[bdata->name.path->slen+1];
-        bstring *fixbs = &(bstring){bdata->name.path->slen, bdata->name.path->slen+1, fixbuf, BSTR_WRITE_ALLOWED};
-        memcpy(fixbuf, bdata->name.path->data, bdata->name.path->slen+1);
+        bstring *fixbs = b_strcpy(bdata->name.path);
         b_replace_ch(fixbs, '\\', '/');
-        argv_append(ret, (char *)fixbuf, true);
+        argv_append(ret, BS(fixbs), false);
+        xfree(fixbs);
 #else
         argv_append(ret, BS(bdata->name.path), true);
 #endif
+#endif
+
+#if 0
         argv_append(ret, "-stdlib=libstdc++", true);
+#endif
 
         clang_CompileCommands_dispose(cmds);
         clang_CompilationDatabase_dispose(db);

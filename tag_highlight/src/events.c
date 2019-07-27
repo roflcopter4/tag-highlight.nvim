@@ -31,10 +31,10 @@ extern void *highlight_go_pthread_wrapper(void *vdata);
 
 extern void           update_line         (Buffer *, int, int);
 static void           handle_line_event   (Buffer *bdata, mpack_array_t *arr);
-ALWAYS_INLINE   void  replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
-ALWAYS_INLINE   void  line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
-static noreturn void *vimscript_message   (void *vdata);
 static void           handle_nvim_event   (void *vdata);
+static inline void    replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
+static inline void    line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
+static noreturn void *vimscript_message   (void *vdata);
 static noreturn void *post_nvim_response  (void *vdata);
 static noreturn void *nvim_event_handler  (void *unused);
 

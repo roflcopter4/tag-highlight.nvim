@@ -157,10 +157,7 @@ extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
 /* Old "highlight.h" */
 /*===========================================================================*/
 
-#define PKG              "tag_highlight#"
-#define DEFAULT_READ_FD  (0)
-#define DEFAULT_FD       (1)
-#define BUFFER_ATTACH_FD (0)
+#define PKG "tag_highlight#"
 #define nvim_get_var_pkg(FD__, VARNAME_, EXPECT_) \
         nvim_get_var((FD__), B(PKG VARNAME_), (EXPECT_))
 
