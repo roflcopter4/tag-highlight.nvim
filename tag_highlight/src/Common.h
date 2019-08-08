@@ -248,6 +248,9 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  undef realpath
 #endif
 #ifdef DOSISH
+#  ifdef __MINGW__
+extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__));
+#  endif
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp

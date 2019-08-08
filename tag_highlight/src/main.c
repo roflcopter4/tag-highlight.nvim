@@ -134,7 +134,7 @@ main_initialization(UNUSED void *arg)
         update_highlight(bdata);
 
         TIMER_REPORT(&main_timer, "main initialization");
-        nvim_set_client_info(B(PKG), 0, 1, B("alpha"));
+        nvim_set_client_info(B(PKG), 0, 3, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
 
