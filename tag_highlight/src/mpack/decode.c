@@ -7,17 +7,17 @@
 typedef void (*read_fn)(void *restrict src, uint8_t *restrict dest, size_t nbytes);
 
 static mpack_obj * do_decode        (read_fn READ, void *src);
-static mpack_obj * decode_array     (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
-static mpack_obj * decode_string    (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
-static mpack_obj * decode_dictionary(read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
-static mpack_obj * decode_integer   (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
-static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t byte, const mpack_mask *mask);
+static mpack_obj * decode_array     (read_fn READ, void *src, uint8_t ch, const mpack_mask *mask);
+static mpack_obj * decode_string    (read_fn READ, void *src, uint8_t ch, const mpack_mask *mask);
+static mpack_obj * decode_dictionary(read_fn READ, void *src, uint8_t ch, const mpack_mask *mask);
+static mpack_obj * decode_integer   (read_fn READ, void *src, uint8_t ch, const mpack_mask *mask);
+static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t ch, const mpack_mask *mask);
 static mpack_obj * decode_ext       (read_fn READ, void *src, const mpack_mask *mask);
 static mpack_obj * decode_nil       (void);
 static mpack_obj * decode_bool      (const mpack_mask *mask);
 static void        stream_read      (void *restrict src, uint8_t *restrict dest, size_t nbytes);
 static void        obj_read         (void *restrict src, uint8_t *restrict dest, size_t nbytes);
-static const mpack_mask *id_pack_type(uint8_t byte);
+static const mpack_mask *id_pack_type(uint8_t ch);
 
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
@@ -78,9 +78,10 @@ mpack_decode_stream(int32_t fd)
                 mut = &mpack_mutex_list[i].mut;
                 pthread_mutex_init(mut, NULL);
         }
-        pthread_mutex_unlock(&mpack_search_mutex);
 
         pthread_mutex_lock(mut);
+        pthread_mutex_unlock(&mpack_search_mutex);
+
         mpack_obj *ret = do_decode(&stream_read, &fd);
 
         if (!ret)
@@ -126,18 +127,18 @@ mpack_decode_obj(bstring *buf)
 static mpack_obj *
 do_decode(const read_fn READ, void *src)
 {
-        uint8_t byte;
-        READ(src, &byte, 1);
-        const mpack_mask *mask = id_pack_type(byte);
+        uint8_t ch;
+        READ(src, &ch, 1);
+        const mpack_mask *mask = id_pack_type(ch);
 
         switch (mask->group) {
-        case G_ARRAY:  return decode_array(READ, src, byte, mask);
-        case G_MAP:    return decode_dictionary(READ, src, byte, mask);
-        case G_STRING: return decode_string(READ, src, byte, mask);
+        case G_ARRAY:  return decode_array(READ, src, ch, mask);
+        case G_MAP:    return decode_dictionary(READ, src, ch, mask);
+        case G_STRING: return decode_string(READ, src, ch, mask);
         case G_NLINT:
-        case G_INT:    return decode_integer(READ, src, byte, mask);
+        case G_INT:    return decode_integer(READ, src, ch, mask);
         case G_PLINT:
-        case G_UINT:   return decode_unsigned(READ, src, byte, mask);
+        case G_UINT:   return decode_unsigned(READ, src, ch, mask);
         case G_EXT:    return decode_ext(READ, src, mask);
         case G_BOOL:   return decode_bool(mask);
         case G_NIL:    return decode_nil();
@@ -150,24 +151,24 @@ do_decode(const read_fn READ, void *src)
 
 
 static mpack_obj *
-decode_array(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
+decode_array(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
 
         if (mask->fixed) {
-                size = (uint32_t)(byte ^ mask->val);
+                size = (uint32_t)(ch ^ mask->val);
         } else {
-                uint8_t word[4] = {0, 0, 0, 0};
+                uint8_t word32[4] = {0, 0, 0, 0};
 
                 switch (mask->type) {
                 case M_ARRAY_16:
-                        READ(src, word, 2);
-                        size = decode_int16(word);
+                        READ(src, word32, 2);
+                        size = decode_int16(word32);
                         break;
                 case M_ARRAY_32:
-                        READ(src, word, 4);
-                        size = decode_int32(word);
+                        READ(src, word32, 4);
+                        size = decode_int32(word32);
                         break;
                 default:
                         ERRMSG();
@@ -190,25 +191,25 @@ decode_array(const read_fn READ, void *src, const uint8_t byte, const mpack_mask
 
 
 static mpack_obj *
-decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
+decode_dictionary(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
-        uint32_t   size    = 0;
+        mpack_obj *item = xmalloc(sizeof *item);
+        uint32_t   size = 0;
 
 
         if (mask->fixed) {
-                size = (uint32_t)(byte ^ mask->val);
+                size = (uint32_t)(ch ^ mask->val);
         } else {
-                uint8_t word[4] = {0, 0, 0, 0};
+                uint8_t word32[4] = {0, 0, 0, 0};
 
                 switch (mask->type) {
                 case M_MAP_16:
-                        READ(src, word, 2);
-                        size = decode_int16(word);
+                        READ(src, word32, 2);
+                        size = decode_int16(word32);
                         break;
                 case M_MAP_32:
-                        READ(src, word, 4);
-                        size = decode_int32(word);
+                        READ(src, word32, 4);
+                        size = decode_int32(word32);
                         break;
                 default:
                         ERRMSG();
@@ -231,28 +232,28 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t byte, const mpack
 
 
 static mpack_obj *
-decode_string(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
+decode_string(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   size    = 0;
 
         if (mask->fixed) {
-                size = (uint32_t)(byte ^ mask->val);
+                size = (uint32_t)(ch ^ mask->val);
         } else {
-                uint8_t word[4] = {0, 0, 0, 0};
+                uint8_t word32[4] = {0, 0, 0, 0};
 
                 switch (mask->type) {
                 case M_STR_8:
-                        READ(src, word, 1);
-                        size = (uint32_t)word[0];
+                        READ(src, word32, 1);
+                        size = (uint32_t)word32[0];
                         break;
                 case M_STR_16:
-                        READ(src, word, 2);
-                        size = decode_int16(word);
+                        READ(src, word32, 2);
+                        size = decode_int16(word32);
                         break;
                 case M_STR_32:
-                        READ(src, word, 4);
-                        size = decode_int32(word);
+                        READ(src, word32, 4);
+                        size = decode_int32(word32);
                         break;
                 default:
                         ERRMSG();
@@ -273,36 +274,36 @@ decode_string(const read_fn READ, void *src, const uint8_t byte, const mpack_mas
 
 
 static mpack_obj *
-decode_integer(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
+decode_integer(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         int64_t    value   = 0;
 
         if (mask->fixed) {
-                value  = (int64_t)(byte ^ mask->val);
+                value  = (int64_t)(ch ^ mask->val);
                 value |= 0xFFFFFFFFFFFFFFE0LLU;
         } else {
-                uint8_t word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+                uint8_t word64[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
                 switch (mask->type) {
                 case M_INT_8:
-                        READ(src, word, 1);
-                        value  = (int64_t)word[0];
+                        READ(src, word64, 1);
+                        value  = (int64_t)word64[0];
                         value |= 0xFFFFFFFFFFFFFF00LLU;
                         break;
                 case M_INT_16:
-                        READ(src, word, 2);
-                        value  = (int64_t)decode_int16(word);
+                        READ(src, word64, 2);
+                        value  = (int64_t)decode_int16(word64);
                         value |= 0xFFFFFFFFFFFF0000LLU;
                         break;
                 case M_INT_32:
-                        READ(src, word, 4);
-                        value  = (int64_t)decode_int32(word);
+                        READ(src, word64, 4);
+                        value  = (int64_t)decode_int32(word64);
                         value |= 0xFFFFFFFF00000000LLU;
                         break;
                 case M_INT_64:
-                        READ(src, word, 8);
-                        value  = (int64_t)decode_int64(word);
+                        READ(src, word64, 8);
+                        value  = (int64_t)decode_int64(word64);
                         break;
                 default:
                         ERRMSG();
@@ -317,32 +318,32 @@ decode_integer(const read_fn READ, void *src, const uint8_t byte, const mpack_ma
 
 
 static mpack_obj *
-decode_unsigned(const read_fn READ, void *src, const uint8_t byte, const mpack_mask *mask)
+decode_unsigned(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint64_t   value   = 0;
 
         if (mask->fixed) {
-                value = (uint64_t)(byte ^ mask->val);
+                value = (uint64_t)(ch ^ mask->val);
         } else {
-                uint8_t word[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+                uint8_t word64[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
                 switch (mask->type) {
                 case M_UINT_8:
-                        READ(src, word, 1);
-                        value  = (uint64_t)word[0];
+                        READ(src, word64, 1);
+                        value  = (uint64_t)word64[0];
                         break;
                 case M_UINT_16:
-                        READ(src, word, 2);
-                        value  = (uint64_t)decode_int16(word);
+                        READ(src, word64, 2);
+                        value  = (uint64_t)decode_int16(word64);
                         break;
                 case M_UINT_32:
-                        READ(src, word, 4);
-                        value  = (uint64_t)decode_int32(word);
+                        READ(src, word64, 4);
+                        value  = (uint64_t)decode_int32(word64);
                         break;
                 case M_UINT_64:
-                        READ(src, word, 8);
-                        value  = (uint64_t)decode_int64(word);
+                        READ(src, word64, 8);
+                        value  = (uint64_t)decode_int64(word64);
                         break;
                 default:
                         ERRMSG();
@@ -361,24 +362,24 @@ decode_ext(const read_fn READ, void *src, const mpack_mask *mask)
 {
         mpack_obj *item    = xmalloc(sizeof *item);
         uint32_t   value   = 0;
-        uint8_t    word[4] = {0, 0, 0, 0};
+        uint8_t    word32[4] = {0, 0, 0, 0};
         uint8_t    type;
 
         switch (mask->type) {
         case M_EXT_F1:
                 READ(src, &type, 1);
-                READ(src, word, 1);
-                value = (uint32_t)word[0];
+                READ(src, word32, 1);
+                value = (uint32_t)word32[0];
                 break;
         case M_EXT_F2:
                 READ(src, &type, 1);
-                READ(src, word, 2);
-                value = (uint32_t)decode_int16(word);
+                READ(src, word32, 2);
+                value = (uint32_t)decode_int16(word32);
                 break;
         case M_EXT_F4:
                 READ(src, &type, 1);
-                READ(src, word, 4);
-                value = (uint32_t)decode_int32(word);
+                READ(src, word32, 4);
+                value = (uint32_t)decode_int32(word32);
                 break;
         default:
                 ERRMSG();
@@ -424,7 +425,7 @@ decode_nil(void)
 
 
 static const mpack_mask *
-id_pack_type(const uint8_t byte)
+id_pack_type(const uint8_t ch)
 {
         const mpack_mask *mask = NULL;
 
@@ -432,18 +433,18 @@ id_pack_type(const uint8_t byte)
                 const mpack_mask *m = &m_masks[i];
 
                 if (m->fixed) {
-                        if ((byte >> m->shift) == (m->val >> m->shift)) {
+                        if ((ch >> m->shift) == (m->val >> m->shift)) {
                                 mask = m;
                                 break;
                         }
-                } else if (byte == m->val) {
+                } else if (ch == m->val) {
                         mask = m;
                         break;
                 }
         }
 
         if (!mask)
-                errx(1, "Failed to identify type for byte 0x%0X.", byte);
+                errx(1, "Failed to identify type for byte 0x%0X.", ch);
 
         return mask;
 }
@@ -458,18 +459,20 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         size_t nread = 0;
         while (nread < nbytes) {
                 int n = read(fd, dest, nbytes - nread);
-                nread += (n>0)?n:0;
+                if (n < 0)
+                        err(1, "read() error")
+                /* nread += (n > 0) ? n : 0; */
         }
 #else
-        errno = 0;
         const int n = recv(fd, dest, nbytes, MSG_WAITALL);
+        if (n < 0)
+                err(1, "recv() error");
         if ((size_t)n != nbytes)
-                err(1, "%d != %zu!", n, nbytes);
+                err(1, "recv() returned too few bytes (%d != %zu)!", n, nbytes);
 #endif
 
-#ifdef DEBUG
-        if (mpack_raw)
-                fwrite(dest, 1, nbytes, mpack_raw);
+#if defined DEBUG && defined DEBUG_LOGS
+        fwrite(dest, 1, nbytes, mpack_raw);
 #endif
 }
 

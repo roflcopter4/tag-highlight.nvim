@@ -26,8 +26,8 @@
         ASSERTX((unsigned)end <= blist->qty,                                  \
                 "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
 
-ALWAYS_INLINE void free_data(ll_node *node);
-ALWAYS_INLINE void resolve_negative_index(int *index, int base);
+STATIC_INLINE void free_data(ll_node *node);
+STATIC_INLINE void resolve_negative_index(int *index, int base);
 
 /* static pthread_mutex_t list->lock = PTHREAD_MUTEX_INITIALIZER; */
 
@@ -461,13 +461,13 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
         return NULL;
 }
 
-ALWAYS_INLINE void
+STATIC_INLINE void
 free_data(ll_node *node)
 {
         b_free(node->data);
 }
 
-ALWAYS_INLINE void
+STATIC_INLINE void
 resolve_negative_index(int *index, const int base)
 {
         *index = ((*index >= 0) ? *index : (*index + base + 1));

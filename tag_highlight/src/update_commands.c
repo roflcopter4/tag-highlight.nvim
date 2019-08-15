@@ -5,10 +5,6 @@
 
 extern int highlight_go(Buffer *bdata);
 
-#undef nvim_get_var_l
-#define nvim_get_var_l(VARNAME_, EXPECT_, KEY_, FATAL_) \
-        nvim_get_var(0, B(PKG VARNAME_), (EXPECT_), (KEY_), (FATAL_))
-
 struct cmd_info {
         int      kind;
         bstring *group;
@@ -17,12 +13,12 @@ struct cmd_info {
 };
 
 static mpack_arg_array *update_commands(Buffer *bdata, struct taglist *tags);
-static void     update_from_cache(Buffer *bdata);
-static void     add_cmd_call(mpack_arg_array **calls, bstring *cmd);
-static void     update_c_like(Buffer *bdata, int type);
-static void     update_other(Buffer *bdata);
-static int      handle_kind(bstring *cmd, unsigned i, const struct filetype *ft,
-                            const struct taglist  *tags, const struct cmd_info *info);
+static void update_from_cache(Buffer *bdata);
+static void add_cmd_call(mpack_arg_array **calls, bstring *cmd);
+static void update_c_like(Buffer *bdata, int type);
+static void update_other(Buffer *bdata);
+static int  handle_kind(bstring *cmd, unsigned i,   const struct filetype *ft,
+                        const struct taglist *tags, const struct cmd_info *info);
 
 #if defined DEBUG && defined DEBUG_LOGS
 extern FILE *cmd_log;
@@ -42,7 +38,7 @@ void
         if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1)
                 return;
 
-        ECHO("Updating commands for bufnum %d", bdata->num);
+        echo("Updating commands for bufnum %d", bdata->num);
         pthread_mutex_lock(&bdata->lock.update);
 
         if (bdata->ft->has_parser) {
@@ -91,7 +87,7 @@ update_c_like(Buffer *bdata, const int type)
 static void
 update_from_cache(Buffer *bdata)
 {
-        ECHO("Updating from cache.");
+        echo("Updating from cache.");
         nvim_call_atomic(bdata->calls);
         if (bdata->ft->restore_cmds)
                 nvim_command(bdata->ft->restore_cmds);
@@ -111,7 +107,7 @@ retry:
 
         if (tags) {
                 retry = false;
-                ECHO("Got %u total tags\n", tags->qty);
+                echo("Got %u total tags\n", tags->qty);
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
@@ -134,7 +130,7 @@ retry:
         b_destroy(joined);
 
         if (retry) {
-                ECHO("Nothing whatsoever found. Re-running ctags with the "
+                echo("Nothing whatsoever found. Re-running ctags with the "
                      "'--language-force' option.");
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE_LANGUAGE);
                 retry = false;
@@ -163,15 +159,6 @@ update_commands(Buffer *bdata, struct taglist *tags)
                 b_writeprotect_all(info[i].group, info[i].prefix, info[i].suffix);
                 destroy_mpack_dict(dict);
                 b_writeallow_all(info[i].group, info[i].prefix, info[i].suffix);
-#if 0
-                b_writeprotect(info[i].group);
-                b_writeprotect(info[i].prefix);
-                b_writeprotect(info[i].suffix);
-                destroy_mpack_dict(dict);
-                b_writeallow(info[i].group);
-                b_writeallow(info[i].prefix);
-                b_writeallow(info[i].suffix);
-#endif
         }
 
         mpack_arg_array *calls = NULL;
@@ -205,15 +192,8 @@ update_commands(Buffer *bdata, struct taglist *tags)
         return calls;
 }
 
-
-#define SYN_MATCH_START   "syntax match %s /%s\\%%(%s"
-#define SYN_MATCH_END     "\\)%s/ containedin=ALLBUT,%s display | hi def link %s %s"
-#define SYN_KEYWORD_START " syntax keyword %s %s "
-#define SYN_KEYWORD_END   "display | hi def link %s %s"
-
 static int
-handle_kind(bstring *const cmd,
-            unsigned i,
+handle_kind(bstring *const cmd, unsigned i,
             const struct filetype *ft,
             const struct taglist  *tags,
             const struct cmd_info *info)
@@ -223,7 +203,8 @@ handle_kind(bstring *const cmd,
         b_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
 
         bstring *global_allbut = nvim_get_var(B("tag_highlight#allbut"), E_STRING).ptr;
-        bstring *ft_allbut     = nvim_get_var_fmt(E_STRING, "tag_highlight#%s#allbut", BTS(ft->vim_name)).ptr;
+        bstring *ft_allbut = nvim_get_var_fmt(E_STRING, "tag_highlight#%s#allbut",
+                                              BTS(ft->vim_name)).ptr;
         if (ft_allbut) {
                 b_concat_all(global_allbut, B(","), ft_allbut);
                 b_destroy(ft_allbut);
@@ -233,17 +214,21 @@ handle_kind(bstring *const cmd,
                 bstring *prefix = (info->prefix) ? info->prefix : B("\\C\\<");
                 bstring *suffix = (info->suffix) ? info->suffix : B("\\>");
 
-                b_sprintfa(cmd, SYN_MATCH_START, group_id, prefix, tags->lst[i++]->b);
+                b_sprintfa(cmd, "syntax match %s /%s\\%%(%s",
+                           group_id, prefix, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         b_sprintfa(cmd, "\\|%s", tags->lst[i]->b);
-                b_sprintfa(cmd, SYN_MATCH_END, suffix, global_allbut, group_id, info->group);
+                b_sprintfa(cmd, "\\)%s/ containedin=ALLBUT,%s display | hi def link %s %s",
+                           suffix, global_allbut, group_id, info->group);
 
                 b_destroy(global_allbut);
         } else {
-                b_sprintfa(cmd, SYN_KEYWORD_START, group_id, tags->lst[i++]->b);
+                b_sprintfa(cmd, " syntax keyword %s %s ",
+                           group_id, tags->lst[i++]->b);
                 for (; (i < tags->qty) && (tags->lst[i]->kind == info->kind); ++i)
                         b_sprintfa(cmd, "%s ", tags->lst[i]->b);
-                b_sprintfa(cmd, SYN_KEYWORD_END, group_id, info->group);
+                b_sprintfa(cmd, "display | hi def link %s %s",
+                           group_id, info->group);
         }
 
         b_destroy(group_id);
@@ -317,4 +302,3 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
         ++CALLS->qty;
 #undef CALLS
 }
-

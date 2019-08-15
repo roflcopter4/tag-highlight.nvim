@@ -28,10 +28,8 @@ static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
 extern void           event_loop_init     (int fd);
 
-#define SIGHANDLER_QUICK  (1)
-#define SIGHANDLER_NORMAL (2)
-#define WAIT_TIME         (3.0)
-#define eputs(str)        fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
+#define WAIT_TIME  (3.0)
+#define eputs(str) fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
 
 /*======================================================================================*/
 
@@ -42,7 +40,7 @@ main(UNUSED int argc, char *argv[])
         init(argv);
 
         /* This actually runs the event loop and does not normally return. */
-        event_loop_init(fileno(stdin));
+        event_loop_init(STDIN_FILENO);
 
         /* If the user explicitly gives the vim command to stop the plugin, the loop
          * returns and we clean everything up. We don't do this when Neovim exits because
@@ -194,9 +192,8 @@ get_initial_lines(Buffer *bdata)
 static void
 exit_cleanup(void)
 {
-        extern bool           process_exiting;
-        extern b_list        *seen_files;
-
+        extern bool    process_exiting;
+        extern b_list *seen_files;
         process_exiting = true;
 
         b_destroy(settings.cache_dir);
@@ -259,9 +256,9 @@ get_compression_type(void)
         bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
-        if (b_iseq_lit(tmp, "gzip")) {
+        if (b_iseq(tmp, B("gzip"))) {
                 ret = COMP_GZIP;
-        } else if (b_iseq_lit(tmp, "lzma")) {
+        } else if (b_iseq(tmp, B("lzma"))) {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
@@ -269,7 +266,7 @@ get_compression_type(void)
                       "supported in this build.");
                 ret = COMP_GZIP;
 #endif
-        } else if (b_iseq_lit(tmp, "none")) {
+        } else if (b_iseq(tmp, B("none"))) {
                 ret = COMP_NONE;
         } else {
                 eprintf("Warning: unrecognized compression type \"%s\", "

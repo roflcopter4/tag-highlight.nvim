@@ -49,10 +49,7 @@ enum m_types {
 #define M_MASK_POS_INT_F 0x00U
 #define M_MASK_NEG_INT_F 0xE0U
 
-#ifndef __cplusplus
-typedef struct mpack_mask mpack_mask;
-#endif
-
+P99_DECLARE_STRUCT(mpack_mask);
 struct mpack_mask {
         const enum m_groups group;
         const enum m_types  type;

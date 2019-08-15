@@ -1,4 +1,3 @@
-#pragma once
 #ifndef THL_COMMON_H_
 #define THL_COMMON_H_
 #ifdef __cplusplus
@@ -143,7 +142,7 @@ extern char *HOME;
 #define SLS(STR)           ("" STR ""), LSLEN(STR)
 #define STRINGIFY(VAR)     #VAR
 
-#define ALWAYS_INLINE  __attribute__((__always_inline__)) static inline
+#define STATIC_INLINE  __attribute__((__always_inline__)) static inline
 #define __aMAL         __attribute__((__malloc__))
 #define __aALSZ(...)   __attribute__((__alloc_size__(__VA_ARGS__)))
 #define __aNNA         __attribute__((__nonnull__))
@@ -335,7 +334,7 @@ xreallocarray(void *ptr, size_t num, size_t size)
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
 #define xfree(PTR) free(PTR)
-#define nalloca(NUM_, SIZ_)    alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 
 /*===========================================================================*/
 #ifdef __cplusplus

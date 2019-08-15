@@ -17,26 +17,29 @@
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-/* #  define USE_EVENT_LIB  EVENT_LIB_EV */
-#  define USE_EVENT_LIB  EVENT_LIB_NONE
+#  define USE_EVENT_LIB  EVENT_LIB_EV
+/* #  define USE_EVENT_LIB  EVENT_LIB_NONE */
 #  define KILL_SIG       SIGUSR1
 static pthread_t loop_thread;
 #endif
 
 typedef volatile p99_futex vfutex_t;
+P44_DECLARE_FIFO(event_node);
+P99_DECLARE_STRUCT(event_id);
 
 /*======================================================================================*/
 
-extern void *highlight_go_pthread_wrapper(void *vdata);
-
-extern void           update_line         (Buffer *, int, int);
-static void           handle_line_event   (Buffer *bdata, mpack_array_t *arr);
-ALWAYS_INLINE   void  replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
-ALWAYS_INLINE   void  line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
-static noreturn void *vimscript_message   (void *vdata);
-static void           handle_nvim_event   (void *vdata);
-static noreturn void *post_nvim_response  (void *vdata);
-static noreturn void *nvim_event_handler  (void *unused);
+extern          void * highlight_go_pthread_wrapper(void *vdata);
+extern          void   update_line         (Buffer *bdata, int first, int last);
+static          void   handle_line_event   (Buffer *bdata, mpack_array_t *arr);
+STATIC_INLINE   void   handle_message      (int fd, mpack_obj *obj);
+STATIC_INLINE   void   replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
+STATIC_INLINE   void   line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
+static          void   handle_nvim_event   (void *vdata);
+static noreturn void * vimscript_message   (void *vdata);
+static noreturn void * post_nvim_response  (void *vdata);
+static noreturn void * nvim_event_handler  (void *unused);
+static const event_id *id_event            (mpack_obj *event);
 
 extern vfutex_t             _nvim_wait_futex;
 extern FILE                *main_log;
@@ -48,14 +51,12 @@ static pthread_mutex_t      vs_mutex                 = PTHREAD_MUTEX_INITIALIZER
        _Atomic(mpack_obj *) event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
        FILE                *api_buffer_log;
 
-P44_DECLARE_FIFO(event_node);
 struct event_node {
         mpack_obj  *obj;
         event_node *p99_fifo;
 };
 P99_FIFO(event_node_ptr) nvim_event_queue;
 
-P99_DECLARE_STRUCT(event_id);
 static const struct event_id {
         const bstring          name;
         const enum event_types id;
@@ -66,7 +67,10 @@ static const struct event_id {
     { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
 
-static const event_id *id_event(mpack_obj *event);
+struct event_data {
+        int        fd;
+        mpack_obj *obj;
+};
 
 __attribute__((__constructor__))
 static void events_mutex_initializer(void) {
@@ -79,11 +83,6 @@ static void events_mutex_initializer(void) {
 /*======================================================================================* 
  * Main Event Loop                                                                      * 
  *======================================================================================*/
-
-struct event_data {
-        int          fd;
-        mpack_obj   *obj;
-};
 
 static noreturn void *
 post_nvim_response(void *vdata)
@@ -128,7 +127,36 @@ nvim_event_handler(UNUSED void *unused)
         pthread_exit();
 }
 
+STATIC_INLINE void
+handle_message(const int fd, mpack_obj *obj)
+{
+        const nvim_message_type mtype = (nvim_message_type)m_expect(m_index(obj, 0),
+                                                                    E_NUM).num;
+
+        switch (mtype) {
+        case MES_NOTIFICATION: {
+                event_node *node = xcalloc(1, sizeof(event_node));
+                node->obj        = obj;
+                P99_FIFO_APPEND(&nvim_event_queue, node);
+                START_DETACHED_PTHREAD(nvim_event_handler);
+                break;
+        }
+        case MES_RESPONSE: {
+                struct event_data *data = xmalloc(sizeof(struct event_data));
+                *data = (struct event_data){fd, obj};
+                START_DETACHED_PTHREAD(post_nvim_response, data);
+                break;
+        }
+        case MES_REQUEST:
+        default:
+                abort();
+        }
+}
+
 /*======================================================================================*/
+/*
+ * Using libev
+ */
 #if USE_EVENT_LIB == EVENT_LIB_EV
 
 #  include <ev.h>
@@ -143,39 +171,19 @@ event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
 
         const int  fd  = w->fd;
         mpack_obj *obj = mpack_decode_stream(fd);
-
-        if (!obj)
-                errx(1, "Got NULL object from decoder. This should never be "
-                        "possible. Cannot continue; aborting.");
-
-        const nvim_message_type mtype = (nvim_message_type)
-                                        m_expect(m_index(obj, 0), E_NUM).num;
-
-        switch (mtype) {
-        case MES_NOTIFICATION: {
-                event_node *node = xcalloc(1, sizeof(event_node));
-                node->obj        = obj;
-                P99_FIFO_APPEND(&nvim_event_queue, node);
-                START_DETACHED_PTHREAD(nvim_event_handler);
-        } break;
-        case MES_RESPONSE:
-                post_nvim_response(fd, obj);
-                break;
-        case MES_REQUEST:
-        case MES_ANY:
-        default:
-                abort();
-        }
+        handle_message(fd, obj);
 
         pthread_mutex_unlock(&event_loop_cb_mutex);
 }
 
-static noreturn void sig_cb(UEVP_, UNUSED ev_signal *w, UNUSED int revents)
+static noreturn void
+sig_cb(UEVP_, UNUSED ev_signal *w, UNUSED int revents)
 {
         quick_exit(0);
 }
 
-static void graceful_sig_cb(struct ev_loop *loop, UNUSED ev_signal *w, UNUSED int revents)
+static void
+graceful_sig_cb(struct ev_loop *loop, UNUSED ev_signal *w, UNUSED int revents)
 {
         ev_signal_stop(loop, &signal_watcher[0]);
         ev_signal_stop(loop, &signal_watcher[1]);
@@ -205,6 +213,9 @@ event_loop_init(const int fd)
 }
 
 /*======================================================================================*/
+/*
+ * Using no event library
+ */
 #elif USE_EVENT_LIB == EVENT_LIB_NONE
 
 #  ifndef DOSISH
@@ -225,28 +236,7 @@ event_loop(const int fd)
 {
         for (;;) {
                 mpack_obj *obj = mpack_decode_stream(fd);
-
-                const nvim_message_type mtype = (nvim_message_type)
-                        m_expect(m_index(obj, 0), E_NUM).num;
-
-                switch (mtype) {
-                case MES_NOTIFICATION: {
-                        event_node *node = xcalloc(1, sizeof(event_node));
-                        node->obj        = obj;
-                        P99_FIFO_APPEND(&nvim_event_queue, node);
-                        START_DETACHED_PTHREAD(nvim_event_handler);
-                        break;
-                }
-                case MES_RESPONSE: {
-                        struct event_data *data = xmalloc(sizeof(struct event_data));
-                        *data = (struct event_data){fd, obj};
-                        START_DETACHED_PTHREAD(post_nvim_response, data);
-                        break;
-                }
-                case MES_REQUEST:
-                default:
-                        abort();
-                }
+                handle_message(fd, obj);
         }
 }
 
@@ -276,7 +266,8 @@ event_loop_init(const int fd)
 #  endif
         }
 }
-#endif
+
+#endif /* No event lib */
 
 /*======================================================================================*/
 /* Event Handlers */
@@ -408,13 +399,17 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
 
         pthread_mutex_lock(&bdata->lines->lock);
 
+        /* NOTE: For some reason neovim sometimes sends updates with an empty
+         *       list in which both the first and last line are the same. God
+         *       knows what this is supposed to indicate. I'll just ignore them. */
+
         if (repl_list->qty) {
                 if (last == (-1)) {
                         /* An "initial" update, recieved only if asked for when attaching
                          * to a buffer. We never ask for this, so this shouldn't occur. */
                         errx(1, "Got initial update somehow...");
-                } else if (bdata->lines->qty <= 1 && first == 0 && // Empty buffer...
-                           repl_list->qty == 1 &&                  // with one string...  
+                } else if (bdata->lines->qty <= 1 && first == 0 && /* Empty buffer... */
+                           repl_list->qty == 1 &&                  /* with one string... */
                            repl_list->lst[0]->slen == 0            /* which is emtpy. */) {
                         /* Useless update, one empty string in an empty buffer. */
                         empty = true;
@@ -431,9 +426,6 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
                 /* If the replacement list is empty then we're just deleting lines. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
-        /* For some reason neovim sometimes sends updates with an empty list in
-         * which both the first and last line are the same. God knows what this is
-         * supposed to indicate. I'll just ignore them. */
 
         /* Neovim always considers there to be at least one line in any buffer.
          * An empty buffer therefore must have one empty line. */
@@ -458,7 +450,7 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
         pthread_mutex_unlock(&handle_mutex);
 }
 
-static inline void
+STATIC_INLINE void
 replace_line(Buffer *bdata, b_list *repl_list,
              const int lineno, const int replno)
 {
@@ -474,7 +466,7 @@ replace_line(Buffer *bdata, b_list *repl_list,
  * `first + diff`, and then insert the new line(s) after `first` if it is now the last
  * line in the file, and before it otherwise.
  */
-static inline void
+STATIC_INLINE void
 line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 {
         const int olen  = bdata->lines->qty;

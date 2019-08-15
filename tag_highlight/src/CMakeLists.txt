@@ -66,7 +66,7 @@ if (MINGW)
 else()
     target_link_libraries(tag_highlight
         -lrt -pthread -lunwind
-        # ${LIBEV_LIBRARIES}
+        ${LIBEV_LIBRARIES}
     )
 endif()
 
