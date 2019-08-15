@@ -47,8 +47,7 @@ main(UNUSED int argc, char *argv[])
          * it freezes until all child processes have stopped. This delay is noticeable and
          * annoying, so normally we just call quick_exit or _Exit instead. */
         eputs("Right, cleaning up!\n");
-        exit_cleanup();
-        exit(EXIT_SUCCESS);
+        return EXIT_SUCCESS;
 }
 
 /*======================================================================================*/
@@ -61,9 +60,7 @@ init(char **argv)
         platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
-#ifdef DOSISH
         atexit(exit_cleanup);
-#endif
         at_quick_exit(quick_cleanup);
         START_DETACHED_PTHREAD(main_initialization);
 }
@@ -135,7 +132,7 @@ main_initialization(UNUSED void *arg)
         update_highlight(bdata);
 
         TIMER_REPORT(&main_timer, "main initialization");
-        nvim_set_client_info(B(PKG), 0, 1, B("alpha"));
+        nvim_set_client_info(B(PKG), 0, 3, B("alpha"));
         P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
             true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
 
@@ -192,8 +189,8 @@ get_initial_lines(Buffer *bdata)
 static void
 exit_cleanup(void)
 {
-        extern bool    process_exiting;
         extern b_list *seen_files;
+        extern bool    process_exiting;
         process_exiting = true;
 
         b_destroy(settings.cache_dir);

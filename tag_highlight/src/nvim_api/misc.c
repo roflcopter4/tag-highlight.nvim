@@ -60,7 +60,7 @@ _nvim_init(void)
  * Windows does support Unix sockets nowadays, but Neovim doesn't use them.
  */
 int
-_nvim_create_socket(const int mes_fd)
+_nvim_create_socket(void)
 {
         bstring *name = nvim_call_function(B("serverstart"), E_STRING).ptr;
 
@@ -87,7 +87,7 @@ _nvim_create_socket(const int mes_fd)
 }
 
 int
-(_nvim_get_tmpfile)(const bstring **name, const bstring *suffix)
+(_nvim_get_tmpfile)(bstring *restrict*restrict name, const bstring *restrict suffix)
 {
         bstring *tmp = nvim_call_function(B("tempname"), E_STRING).ptr;
         if (suffix)

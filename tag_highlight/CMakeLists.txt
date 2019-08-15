@@ -39,7 +39,6 @@ endif()
 if (MINGW)
     include_directories("D:/msys64/mingw64/x86_64-w64-mingw32/include")
     add_definitions(-D__MINGW__)
-    #include_directories(tag_highlight "${CMAKE_SOURCE_DIR}/win32_libs/include/pthread")
 endif()
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -50,13 +49,8 @@ find_package (LibClang REQUIRED)
 if (NOT MINGW)
     find_package (LibEv REQUIRED)
 endif ()
-# find_package (PCRE2 REQUIRED)
-#find_package (LibUv REQUIRED)
 
-# include_directories(${ZLIB_INCLUDE_DIRS})
-# include_directories(${PCRE2_INCLUDE_DIRS})
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
 
 string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
 if (MINGW)
@@ -107,112 +101,89 @@ string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 ###############################################################################
 # Flags
 
+if (NOT CMAKE_BUILD_TYPE)
+    message("Setting build type to \"Release\"")
+    set (CMAKE_BUILD_TYPE "Release")
+endif()
+
 if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 
 #####################################################################################################
-if (MSVC)
-    set (CMAKE_C_FLAGS_RELEASE "/MP /GS /TC /GL /W3 /Gm- /Ox /Ob2 /Zc:inline /fp:fast /Gd /Oi /MD /FC /Ot /arch:AVX2")
-    
-    set (CMAKE_BUILD_TYPE Release)
-    set (CMAKE_C_FLAGS_DEBUG "/GS /TC /Wall /ZI /Gm- /Od /RTC1 /Gd /Oi /MDd /FC /MP /arch:AVX2 /DDEBUG")
-    set (CMAKE_C_FLAGS_MINSIZEREL ${CMAKE_C_FLAGS_RELEASE})
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE})
-
-#####################################################################################################
+if (MINGW)
+    add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
+    set (WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types")
+    string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=implicit-function-declaration -Werror=incompatible-pointer-types")
 else()
-    if (MINGW)
-        add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
-        set (WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types")
-        string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=implicit-function-declaration -Werror=incompatible-pointer-types")
-    else()
-        string(CONCAT WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types"
-            " -Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
+    string(CONCAT WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types"
+        " -Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
+endif()
+
+if (NOT BUILD_DIST) 
+    set (MARCH_SETTING "-march=native")
+endif()
+
+
+if (SANITIZE)
+    if ("${SANITIZE}" STREQUAL "thread")
+        set (SANIT "-fsanitize=thread -fsanitize-address-use-after-scope -fsanitize=undefined")
+    elseif ("${SANITIZE}" STREQUAL "address")
+        set (SANIT "-fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined")
+    elseif ("${SANITIZE}" STREQUAL "ON" OR "${SANITIZE}" STREQUAL "On")
+        set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
+    else ()
+        message(FATAL_ERROR "Unrecognized SANITIZE setting!")
     endif()
+endif()
+message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
-    if (NOT BUILD_DIST) 
-        set (MARCH_SETTING "-march=native")
-    endif()
-
-
-    if (SANITIZE)
-        if ("${SANITIZE}" STREQUAL "thread")
-            set (SANIT "-fsanitize=thread -fsanitize-address-use-after-scope -fsanitize=undefined")
-        elseif ("${SANITIZE}" STREQUAL "address")
-            # set (SANIT "-fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined")
-            set (SANIT "-fsanitize=address -fsanitize=undefined")
-        elseif ("${SANITIZE}" STREQUAL "ON" OR "${SANITIZE}" STREQUAL "On")
-            set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
-        else ()
-            message(FATAL_ERROR "Unrecognized SANITIZE setting!")
-        endif()
-    endif()
-    message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
-
-    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu11 -fdiagnostics-color=always")
+set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu11 -fdiagnostics-color=always")
 
 #####################################################################################################
-    if (CLANG_STR_SEARCH EQUAL -1)
-        string(CONCAT WARNS "${WARNS}" 
-            " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
-            " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
-        set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-        # set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
+if (CLANG_STR_SEARCH EQUAL -1)
+    string(CONCAT WARNS "${WARNS}" 
+        " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
+        " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
+    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 #----------------------------------------------------------------------------------------------------
-    else() # CLANG
+else() # CLANG
 #----------------------------------------------------------------------------------------------------
-        # set (BASE "${BASE} -fprofile-instr-generate")
-        # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
-        # set (SANIT "")
-        #set (SANIT "-fsanitize=undefined -fsanitize=null")
+    # set (BASE "${BASE} -fprofile-instr-generate")
+    # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
+    # string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} ${SANIT} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
+    #       " -Wno-sign-conversion -Wno-documentation-unknown-command"
+    #       " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
+    #       " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
+    #       " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
+    # )
+    # string (CONCAT CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} "
+    # "-Rpass='.*'"
+    # "-Rpass-missed='.*'" 
+    # "-Rpass='inline'"
+    # "-Rpass-missed='inline'" 
+    # "-mllvm -inline-threshold=10000000"
+    # "-mllvm -inlinehint-threshold=30000000"
+    # "-Rpass-analysis='.*'"
+    # )
 
-        # string(CONCAT BASE "${BASE} ${SANIT}"
-        #     " -Wno-incompatible-pointer-types-discards-qualifiers"
-        #     " -Wno-error=incompatible-pointer-types-discards-qualifiers"
-        #     )
-
-        string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} ${SANIT} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
-              " -Wno-sign-conversion -Wno-documentation-unknown-command"
-              " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
-              " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
-              " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
-              " -Wno-error=incompatible-pointer-types-discards-qualifiers"
-        )
-
-        # set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
-        # string (CONCAT CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} "
-            # "-Rpass='.*'"
-            # "-Rpass-missed='.*'" 
-            # "-Rpass='inline'"
-            # "-Rpass-missed='inline'" 
-            # "-mllvm -inline-threshold=10000000"
-            # "-mllvm -inlinehint-threshold=30000000"
-            # "-Rpass-analysis='.*'"
-        # )
-        # string (CONCAT CMAKE_C_FLAGS_RELWITHDEBINFO
-        #         "-Werror=enum-conversion -Wno-shorten-64-to-32 -Wno-sign-conversion")
-        # 
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt")
-    endif()
+    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt")
+endif()
 #####################################################################################################
 
-    string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
-    string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -g3 -Ofast -ftree-vectorize")
+string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
+string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -g3 -Ofast -ftree-vectorize")
 
-    if (MINGW)
-        string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -Wl,--allow-multiple-definition"
-        )
-    else()
-        set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
-    endif()
-    
-    #set (CMAKE_EXE_LINKER_FLAGS_RELEASE "-s")
-    # set (CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-s")
+if (MINGW)
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+        " -Wl,--allow-multiple-definition"
+    )
+else()
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
 endif()
 
 add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)

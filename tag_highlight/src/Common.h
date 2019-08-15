@@ -142,15 +142,16 @@ extern char *HOME;
 #define SLS(STR)           ("" STR ""), LSLEN(STR)
 #define STRINGIFY(VAR)     #VAR
 
-#define STATIC_INLINE  __attribute__((__always_inline__)) static inline
-#define __aMAL         __attribute__((__malloc__))
-#define __aALSZ(...)   __attribute__((__alloc_size__(__VA_ARGS__)))
-#define __aNNA         __attribute__((__nonnull__))
-#define __aNN(...)     __attribute__((__nonnull__(__VA_ARGS__)))
+#define __aMAL       __attribute__((__malloc__))
+#define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
+#define __aNNA       __attribute__((__nonnull__))
+#define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
 
 #ifndef __always_inline
 #  define __always_inline extern __inline__ __attribute__((__always_inline__))
 #endif
+#define ALWAYS_INLINE __always_inline
+#define STATIC_INLINE __attribute__((__always_inline__)) static inline
 
 #ifdef __clang__
 #  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
@@ -247,6 +248,9 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  undef realpath
 #endif
 #ifdef DOSISH
+#  ifdef __MINGW__
+extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__));
+#  endif
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp

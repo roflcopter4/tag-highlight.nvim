@@ -29,16 +29,17 @@ P99_DECLARE_STRUCT(event_id);
 
 /*======================================================================================*/
 
-extern          void * highlight_go_pthread_wrapper(void *vdata);
+extern void *highlight_go_pthread_wrapper(void *vdata);
+
 extern          void   update_line         (Buffer *bdata, int first, int last);
 static          void   handle_line_event   (Buffer *bdata, mpack_array_t *arr);
 STATIC_INLINE   void   handle_message      (int fd, mpack_obj *obj);
 STATIC_INLINE   void   replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
 STATIC_INLINE   void   line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
 static          void   handle_nvim_event   (void *vdata);
-static noreturn void * vimscript_message   (void *vdata);
-static noreturn void * post_nvim_response  (void *vdata);
-static noreturn void * nvim_event_handler  (void *unused);
+static noreturn void  *vimscript_message   (void *vdata);
+static noreturn void  *post_nvim_response  (void *vdata);
+static noreturn void  *nvim_event_handler  (void *unused);
 static const event_id *id_event            (mpack_obj *event);
 
 extern vfutex_t             _nvim_wait_futex;
@@ -512,8 +513,9 @@ vimscript_message(void *vdata)
         struct timer     *t      = TIMER_INITIALIZER;
         int               num = 0;
 
-        if (val != 'H')
+        if (val != 'H') {
                 echo("Recieved \"%c\"; waking up!", val);
+        }
 
         switch (val) {
         /*
