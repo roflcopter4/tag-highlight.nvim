@@ -146,6 +146,7 @@ extern char *HOME;
 #define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
 #define __aNNA       __attribute__((__nonnull__))
 #define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
+#define __aNT        __attribute__((__nothrow__))
 
 #ifndef __always_inline
 #  define __always_inline extern __inline__ __attribute__((__always_inline__))
@@ -291,7 +292,7 @@ noreturn void err_ (int status, bool print_err, const char *fmt, ...) __aFMT(3, 
 #include "util/util.h"
 
 #ifdef USE_XMALLOC
-__aWUR __aMAL __aALSZ(1) __always_inline void *
+__aNT __aWUR __aMAL __aALSZ(1) ALWAYS_INLINE void *
 xmalloc(const size_t size)
 {
         void *tmp = malloc(size);
@@ -300,7 +301,7 @@ xmalloc(const size_t size)
         return tmp;
 }
 
-__aWUR __aMAL __aALSZ(1, 2) __always_inline void *
+__aNT __aWUR __aMAL __aALSZ(1, 2) ALWAYS_INLINE  void *
 xcalloc(const size_t num, const size_t size)
 {
         void *tmp = calloc(num, size);
@@ -313,7 +314,7 @@ xcalloc(const size_t num, const size_t size)
 #  define xcalloc calloc
 #endif
 
-__aWUR __aALSZ(2) __always_inline void *
+__aNT __aWUR __aALSZ(2) ALWAYS_INLINE void *
 xrealloc(void *ptr, const size_t size)
 {
         void *tmp = realloc(ptr, size);
@@ -323,7 +324,7 @@ xrealloc(void *ptr, const size_t size)
 }
 
 #if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-__aWUR __aALSZ(2, 3) __always_inline void *
+__aNT __aWUR __aALSZ(2, 3) ALWAYS_INLINE void *
 xreallocarray(void *ptr, size_t num, size_t size)
 {
         void *tmp = reallocarray(ptr, num, size);

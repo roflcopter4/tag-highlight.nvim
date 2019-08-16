@@ -6,11 +6,6 @@
         err(1, "Failed to change " STREAM "to binary mode.")
 const char *program_invocation_short_name;
 #endif
-#ifdef HAVE_PAUSE
-#  define PAUSE() pause()
-#else
-#  define PAUSE() do { fsleep(1000000.0); } while (1)
-#endif
 
 extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
 static struct timer main_timer               = TIMER_STATIC_INITIALIZER;
