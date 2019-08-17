@@ -169,7 +169,7 @@ else() # CLANG
     # "-Rpass-analysis='.*'"
     # )
 
-    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt")
 endif()

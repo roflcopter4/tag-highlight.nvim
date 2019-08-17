@@ -68,8 +68,8 @@
 #if (__GNUC__ >= 4)
 #  define BSTR_PUBLIC  __attribute__((__visibility__("default")))
 #  define BSTR_PRIVATE __attribute__((__visibility__("hidden")))
-#  define INLINE       __attribute__((__always_inline__)) static inline
 #  define PURE         __attribute__((__pure__))
+#  define INLINE       extern __inline__ __attribute__((__always_inline__, __gnu_inline__))
 #else
 #  define BSTR_PUBLIC
 #  define BSTR_PRIVATE

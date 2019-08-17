@@ -5,10 +5,10 @@
 #ifndef BSTRLIB_DEFINES_H
 #define BSTRLIB_DEFINES_H
 
-#if (__GNUC__ >= 4)
+#ifdef __GNUC__
+#  define INLINE static __inline__ __attribute__((__always_inline__))
 #  define BSTR_PUBLIC  __attribute__((__visibility__("default")))
 #  define BSTR_PRIVATE __attribute__((__visibility__("hidden")))
-#  define INLINE       __attribute__((__always_inline__)) static inline
 #  ifndef _GNU_SOURCE
 #    define _GNU_SOURCE
 #  endif
@@ -34,12 +34,6 @@
 #  define __attribute__(...)
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef unsigned char uchar;
-
 #include <ctype.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -60,14 +54,22 @@ typedef unsigned char uchar;
 #define BSTR_OK (0)
 #define BSTR_BS_BUFF_LENGTH_GET (0)
 
-#define BSTR_WRITE_ALLOWED 0x01U
-#define BSTR_FREEABLE      0x02U
-#define BSTR_DATA_FREEABLE 0x04U
-#define BSTR_LIST_END      0x08U
-#define BSTR_CLONE         0x10U
-#define BSTR_MASK_USR3     0x20U
-#define BSTR_MASK_USR2     0x40U
-#define BSTR_MASK_USR1     0x80U
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef unsigned char uchar;
+
+enum BSTR_flags {
+        BSTR_WRITE_ALLOWED = 0x01U,
+        BSTR_FREEABLE      = 0x02U,
+        BSTR_DATA_FREEABLE = 0x04U,
+        BSTR_LIST_END      = 0x08U,
+        BSTR_CLONE         = 0x10U,
+        BSTR_MASK_USR3     = 0x20U,
+        BSTR_MASK_USR2     = 0x40U,
+        BSTR_MASK_USR1     = 0x80U,
+};
 
 #define BSTR_STANDARD (BSTR_WRITE_ALLOWED | BSTR_FREEABLE | BSTR_DATA_FREEABLE)
 

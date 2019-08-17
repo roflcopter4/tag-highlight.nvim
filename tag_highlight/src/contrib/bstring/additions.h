@@ -5,7 +5,6 @@
 #define BSTRLIB_ADDITIONS_H
 
 #include "bstring.h"
-#include "defines.h"
 /*======================================================================================*/
 /* MY ADDITIONS */
 
@@ -13,7 +12,7 @@
 #  define BSTR_PUBLIC
 # endif
 #ifndef INLINE
-#  define INLINE inline
+#  define INLINE extern __inline
 #endif
 
 #ifdef __cplusplus
@@ -88,13 +87,13 @@ extern "C" {
 
 
 #define btp_fromblk(BLK, LEN) \
-        (&(bstring){.slen = (LEN), .mlen = 0, .data = ((uchar *)(BLK)), .flags = 0x00u}) 
+        ((bstring[]){{ .data = ((uchar *)(BLK)), .slen = (LEN), .mlen = 0, .flags = 0x00U}})
 
 #define btp_fromcstr(STR_) \
-        (&(bstring){.slen = strlen(STR_), .mlen = 0, .data = ((uchar *)(STR_)), .flags = 0x00u}) 
+        ((bstring[]){{ .data = ((uchar *)(STR_)), .slen = strlen(STR_), .mlen = 0, .flags = 0x00U}})
 
 #define btp_fromarray(CARRAY_) \
-        (&(bstring){.slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .data  = ((unsigned char *)(CARRAY_)), .flags = 0}) 
+        ((bstring[]){{ .data  = ((uchar *)(CARRAY_)), .slen  = (sizeof(CARRAY_) - 1), .mlen  = 0, .flags = 0}})
 
 
 #define b_litsiz                   b_staticBlkParms
@@ -104,13 +103,15 @@ extern "C" {
 #define b_fromlit(LIT_STR)         b_lit2bstr(LIT_STR)
 #define b_iseq_lit(BSTR, LIT_STR)  b_iseq((BSTR), B(LIT_STR))
 
-#define B_ISEQ(a, b) _Generic(b,                                                 \
+#if __STDC_VERSION__ >= 201112LL
+#  define B_ISEQ(a, b) _Generic(b,                                               \
                 bstring *          : b_iseq     (((void *)(a)), ((void *) (b))), \
                 const bstring *    : b_iseq     (((void *)(a)), ((void *) (b))), \
                 volatile bstring * : b_iseq     (((void *)(a)), ((void *) (b))), \
                 char *             : b_iseq_cstr(((void *)(a)), ((void *) (b))), \
                 const char *       : b_iseq     (((void *)(a)), ((void *)B(b))), \
                 volatile char *    : b_iseq_cstr(((void *)(a)), ((void *) (b))))
+#endif
 
 
 /**
