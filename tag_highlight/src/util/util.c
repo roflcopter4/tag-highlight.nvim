@@ -2,6 +2,8 @@
 #include "mpack/mpack.h"
 #include <sys/stat.h>
 
+#include "highlight.h"
+
 #define STARTSIZE 1024
 #define GUESS 100
 #define INC   10
@@ -19,37 +21,34 @@
 
 #ifdef HAVE_EXECINFO_H
 #  include <execinfo.h>
-#  define SHOW_STACKTRACE()                        \
-        __extension__({                            \
-                void * arr[128];                   \
-                size_t num = backtrace(arr, 128);  \
-                fflush(stderr);                    \
-                dprintf(2, "Error in func %s in %s, line "        \
-                      "%d\n%sSTACKTRACE: \n",                        \
-                      FUNC_NAME, __FILE__, __LINE__, buf);         \
-                backtrace_symbols_fd(arr, num, 2); \
+#  define SHOW_STACKTRACE()                                  \
+        __extension__({                                      \
+                void * arr[128];                             \
+                size_t num = backtrace(arr, 128);            \
+                fflush(stderr);                              \
+                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                backtrace_symbols_fd(arr, num, 2);           \
+                fsync(2);                                    \
         })
-#  define FATAL_ERROR(...)                                         \
-        __extension__({                                            \
-                void * arr[128];                                   \
-                char   buf[8192];                                  \
-                size_t num = backtrace(arr, 128);                  \
-                snprintf(buf, 8192, __VA_ARGS__);                  \
-                                                                   \
-                warnx("Fatal error in func %s in %s, line "        \
-                      "%d\n%sSTACKTRACE: ",                        \
-                      FUNC_NAME, __FILE__, __LINE__, buf);         \
-                fflush(stderr);                                    \
-                backtrace_symbols_fd(arr, num, 2);                 \
-                abort();                                           \
+#  define FATAL_ERROR(...)                                   \
+        __extension__({                                      \
+                void * arr[128];                             \
+                char   buf[8192];                            \
+                size_t num = backtrace(arr, 128);            \
+                snprintf(buf, 8192, __VA_ARGS__);            \
+                fflush(stderr);                              \
+                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                backtrace_symbols_fd(arr, num, 2);           \
+                fsync(2);                                    \
+                abort();                                     \
         })
 #else
-#  define FATAL_ERROR(...)                                    \
-        do {                                                \
-                warnx("Fatal error in func %s in %s, line " \
-                      "%d\n%sSTACKTRACE: ",                 \
-                      FUNC_NAME, __FILE__, __LINE__, buf);  \
-                fflush(stderr);                             \
+#  define FATAL_ERROR(...)                                   \
+        do {                                                 \
+                fflush(stderr);                              \
+                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                fsync(2);                                    \
+                abort();                                     \
         } while (0)
 #  define SHOW_STACKTRACE(...)
 #endif
@@ -164,7 +163,7 @@ basename(char *path)
 
 #define ERRSTACKSIZE (6384)
 void
-err_(UNUSED const int status, const bool print_err, const char *const __restrict fmt, ...)
+err_(UNUSED const int status, const bool print_err, const char *const restrict fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
@@ -186,8 +185,11 @@ err_(UNUSED const int status, const bool print_err, const char *const __restrict
 
 extern FILE *echo_log;
 void
-warn_(const bool print_err, const char *const __restrict fmt, ...)
+warn_(const bool print_err, const bool force, const char *const restrict fmt, ...)
 {
+        if (!settings.verbose && !force)
+                return;
+
         va_list ap1, ap2;
         va_start(ap1, fmt);
         va_start(ap2, fmt);
@@ -299,9 +301,11 @@ get_command_output(const char *command, char *const *const argv, bstring *input)
 
         if (input)
                 b_write(fds[0][WRITE_FD], input);
+
         close(fds[0][READ_FD]);
         close(fds[1][WRITE_FD]);
         close(fds[0][WRITE_FD]);
+
         waitpid(pid, &status, 0);
         bstring *rd = b_read_fd(fds[1][READ_FD]);
         close(fds[1][READ_FD]);

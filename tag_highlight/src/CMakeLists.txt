@@ -59,13 +59,15 @@ add_library(thl-util OBJECT
 ################################################################################
 # Libraries
 
+# string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,-rdynamic")
+
 if (MINGW)
     target_link_libraries(tag_highlight
         -lstdc++ #-latomic
     )
 else()
     target_link_libraries(tag_highlight
-        -lrt -pthread -lunwind
+        -lrt -lunwind -pthread
         ${LIBEV_LIBRARIES}
     )
 endif()
@@ -81,7 +83,13 @@ target_link_libraries(tag_highlight
 )
 
 if (LZMA_SUPPORT)
-    target_link_libraries(tag_highlight ${LIBLZMA_LIBRARIES})
+    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-static")
+    target_link_libraries(tag_highlight
+        LibLZMA::LibLZMA
+        # -Wl,-static
+        # ${LIBLZMA_LIBRARIES}
+        # "/usr/local/lib/liblzma.a"
+    )
 endif()
 
 if (USE_JEMALLOC)

@@ -78,9 +78,41 @@ extern bstring * _nvim_get_notification();
 /* Convenience Macros */
 #define nvim_out_write(MES) _nvim_write(NW_STANDARD, (MES))
 #define nvim_err_write(MES) _nvim_write(NW_ERROR, (MES))
+
+#if 0
+#define echo(FMT_, ...)                                                                  \
+        ((settings.verbose) ? nvim_printf(0, "tag_highlight: " FMT_ "\n", ##__VA_ARGS__) \
+                            : NOP)                                                        
+#endif
+
+
+#define echo(...)                                                                                                       \
+        do {                                                                                                            \
+                if (settings.verbose) {                                                                                 \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                              \
+                        (nvim_out_write(B("echo1 -- tag_highlight: " __VA_ARGS__ "\n")))                                 \
+                        (nvim_printf("echo2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                                       \
+        } while (0)
+
+#define ECHO(...)                                                                                                             \
+        do {                                                                                                                  \
+                if (settings.verbose) {                                                                                       \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                                    \
+                        (nvim_out_write(B("ECHO1 -- tag_highlight: " __VA_ARGS__ "\n")))                                      \
+                        (nvim_b_printf(B("ECHO2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                                             \
+        } while (0)
+
+#if 0
+#define echo(...) P99_IF_EQ_1(P99_NARG(__VA_ARGS__))\
+        (nvim_out_write(B("echo1-- tag_highlight: " __VA_ARGS__ "\n")))\
+        (nvim_printf("echo2-- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__)))
+
 #define ECHO(FMT_, ...)                                                                       \
         ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
-                            : (void)0)
+                            : NOP)
+#endif
 #undef APRINTF
 
 #define NVIM_GET_FUTEX_EXPECT(FD, CNT) (((unsigned)((uint8_t)(FD) << 030) | ((unsigned)(CNT) & 0x00FFFFFFu)) + 1u)

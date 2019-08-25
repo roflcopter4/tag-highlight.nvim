@@ -38,6 +38,7 @@ struct go_output {
 static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, const bstring *tok);
+static int b_list_remove_dups_2(b_list **listp);
 
 /*======================================================================================*/
 
@@ -73,6 +74,7 @@ highlight_go(Buffer *bdata)
         char *const      argv[]    = {BS(go_binary), BS(bdata->name.full), buf, (char *)0};
         bstring         *rd        = get_command_output(BS(go_binary), argv, tmp);
         b_list          *data      = separate_and_sort(rd);
+        echo("Have %u strings...\n", data->qty);
 
         parse_go_output(bdata, info, data);
         b_destroy_all(tmp, rd);
@@ -135,11 +137,26 @@ separate_and_sort(bstring *output)
 {
         uint8_t *bak = output->data;
         b_list  *ret = b_list_create();
-        bstring *tok = BSTR_NULL_INIT;
-        while (b_memsep(tok, output, '\n'))
-                b_list_append(&ret, b_refblk(tok->data, tok->slen));
-        b_list_remove_dups(&ret);
+        bstring  tok = {0, 0, NULL, 0};
+        while (b_memsep(&tok, output, '\n')) {
+                bstring *tmp = b_refblk(tok.data, tok.slen);
+
+                if (b_list_append(&ret, tmp) != BSTR_OK)
+                        errx(1, "Fatal BSTRING runtime error");
+        }
+
+        if (b_list_remove_dups_2(&ret) != BSTR_OK)
+                errx(1, "Fatal BSTRING runtime error");
+
+#if 0
+        ECHO("Sorted. List is now %u in size\n", ret->qty);
+        for (unsigned i = 0; i < ret->qty; ++i) {
+                eprintf("%s\n", BS(ret->lst[i]));
+        }
+#endif
         output->data = bak;
+        /* xfree(output); */
+        /* xfree(bak); */
         return ret;
 }
 
@@ -149,4 +166,36 @@ ident_is_ignored(Buffer *bdata, const bstring *tok)
         if (!bdata->ft->ignored_tags)
                 return false;
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tok) != NULL;
+}
+
+
+static int
+b_list_remove_dups_2(b_list **listp)
+{
+        if (!listp || !*listp || !(*listp)->lst || (*listp)->qty == 0)
+                return (-1);
+
+        b_list *toks = *listp;
+
+        qsort(toks->lst, toks->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
+
+        b_list *uniq = b_list_create_alloc(toks->qty);
+        uniq->lst[0] = toks->lst[0];
+        uniq->qty    = 1;
+        b_writeprotect(uniq->lst[0]);
+
+        for (unsigned i = 1; i < toks->qty; ++i) {
+                if (!b_iseq(toks->lst[i], toks->lst[i-1])) {
+                        uniq->lst[uniq->qty] = toks->lst[i];
+                        b_writeprotect(uniq->lst[uniq->qty]);
+                        ++uniq->qty;
+                }
+        }
+
+        /* b_list_destroy(toks); */
+        for (unsigned i = 0; i < uniq->qty; ++i)
+                b_writeallow(uniq->lst[i]);
+
+        *listp = uniq;
+        return BSTR_OK;
 }

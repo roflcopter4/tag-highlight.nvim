@@ -91,9 +91,8 @@ mpack_decode_stream(int32_t fd)
                         mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
                 }
-                eprintf("For some incomprehensible reason the pack's type is \"%s\" (%d).\n",
-                        m_type_names[mpack_type(ret)], mpack_type(ret));
-                abort();
+                errx(1, "For some incomprehensible reason the pack's type is %d.\n",
+                     mpack_type(ret));
         }
         pthread_mutex_unlock(mut);
 
@@ -113,9 +112,8 @@ mpack_decode_obj(bstring *buf)
                         mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
                 }
-                eprintf("For some incomprehensible reason the pack's type is %d.\n",
-                        mpack_type(ret));
-                abort();
+                errx(1, "For some incomprehensible reason the pack's type is %d.\n",
+                     mpack_type(ret));
         }
         return ret;
 }

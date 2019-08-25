@@ -82,7 +82,7 @@ _nvim_create_socket(void)
         add_nvim_connection(fd, NVIM_SOCKET);
 #endif
 
-        b_free(name);
+        b_destroy(name);
         return fd;
 }
 
@@ -96,7 +96,7 @@ int
         if (name)
                 *name = tmp;
         else
-                b_free(tmp);
+                b_destroy(tmp);
         return ret;
 }
 

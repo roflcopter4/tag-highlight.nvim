@@ -91,7 +91,7 @@ io_open_src_real(struct xz_file *file)
         file->fd = open(file->name, flags);
 
         if (file->fd == -1) {
-                assert(errno != EINTR);
+                ALWAYS_ASSERT(errno != EINTR);
                 warn("%s:", file->name);
                 return true;
         }
@@ -139,7 +139,7 @@ io_open_src(const char *name)
 static bool
 io_seek_src(struct xz_file *file, off_t pos)
 {
-        assert(pos >= 0);
+        ALWAYS_ASSERT(pos >= 0);
 
         if (lseek(file->fd, pos, SEEK_SET) != pos) {
                 warn("%s: Error seeking the file", file->name);
@@ -193,7 +193,7 @@ parse_indexes(struct xz_file *file, xz_file_info *xfi)
                 case LZMA_SEEK_NEEDED:
                         // The cast is safe because liblzma won't ask us to seek past
                         // the known size of the input file which did fit into off_t.
-                        assert(strm->seek_pos <= (uint64_t)(file->st.st_size));
+                        ALWAYS_ASSERT(strm->seek_pos <= (uint64_t)(file->st.st_size));
                         if (io_seek_src(file, (off_t)(strm->seek_pos))) {
                                 warnx("%d, %s: %s\n", ret, file->name,
                                       lzma_message_strm(ret));

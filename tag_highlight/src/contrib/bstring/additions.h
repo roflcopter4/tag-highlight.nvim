@@ -130,10 +130,6 @@ BSTR_PUBLIC bstring *b_clone(const bstring *src);
  * the original, but you want to keep its data.
  */
 BSTR_PUBLIC bstring *b_clone_swap(bstring *src);
-BSTR_PUBLIC bstring *b_ll2str(const long long value);
-BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB);
-BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB);
-
 
 /**
  * Allocates a bstring object that references the supplied memory. The memory is
@@ -288,6 +284,8 @@ BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, char delim);
 BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *delim, int refonly);
 BSTR_PUBLIC b_list *b_split_char(bstring *split, int delim, bool destroy);
 
+BSTR_PUBLIC int b_advance(bstring *bstr, unsigned n);
+
 /*--------------------------------------------------------------------------------------*/
 
 BSTR_PUBLIC int64_t b_strpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
@@ -297,8 +295,8 @@ BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstr
 
 BSTR_PUBLIC bstring   *b_dirname(const bstring *path);
 BSTR_PUBLIC bstring   *b_basename(const bstring *path);
-BSTR_PUBLIC bstring   *b_regularize_path(bstring *path);
 
+BSTR_PUBLIC int        b_regularize_path(bstring *path);
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
@@ -325,6 +323,10 @@ BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list a
 
 #define b_printf(...)  b_fprintf(stdout, __VA_ARGS__)
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)
+
+BSTR_PUBLIC bstring *b_ll2str(const long long value);
+BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB);
+BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB);
 
 /*--------------------------------------------------------------------------------------*/
 

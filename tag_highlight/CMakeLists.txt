@@ -183,7 +183,7 @@ if (MINGW)
         " -Wl,--allow-multiple-definition"
     )
 else()
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib -rdynamic")
 endif()
 
 add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)

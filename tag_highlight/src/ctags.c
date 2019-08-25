@@ -120,6 +120,9 @@ update_taglist(Buffer *bdata, const enum update_taglist_opts opts)
         if (!run_ctags(bdata, opts))
                 warnx("Ctags exited with errors; trying to continue anyway.");
 
+        b_list_destroy(bdata->topdir->tags);
+        bdata->topdir->tags = b_list_create();
+
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
                 ECHO("Failed to read file");
                 ret = false;
@@ -254,20 +257,17 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
 #endif
         int pid, status;
 
-#ifdef HAVE_POSIX_SAWNP
+#ifdef HAVE_POSIX_SPAWNP
         if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
                 err(1, "Exec failed");
 #else
-        if ((pid = vfork()) == 0)
+        if ((pid = fork()) == 0)
                 if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
-                        _Exit(1);
-                        /* err(1, "Exec failed"); */
+                        err(1, "Exec failed");
 #endif
 
         waitpid(pid, &status, 0);
-        status <<= 8;
         argv_destroy(argv);
-        echo("Status is %d", status);
-        return status;
+        return status << 8;
 }
 #endif

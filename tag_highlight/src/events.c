@@ -23,7 +23,6 @@
 static pthread_t loop_thread;
 #endif
 
-typedef volatile p99_futex vfutex_t;
 P44_DECLARE_FIFO(event_node);
 P99_DECLARE_STRUCT(event_id);
 
@@ -42,15 +41,16 @@ static noreturn void  *post_nvim_response  (void *vdata);
 static noreturn void  *nvim_event_handler  (void *unused);
 static const event_id *id_event            (mpack_obj *event);
 
-extern vfutex_t             _nvim_wait_futex;
-extern FILE                *main_log;
-static pthread_mutex_t      event_loop_cb_mutex      = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t      handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t      nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t      vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
-       vfutex_t             event_loop_futex         = P99_FUTEX_INITIALIZER(0);
-       _Atomic(mpack_obj *) event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
-       FILE                *api_buffer_log;
+extern volatile p99_futex _nvim_wait_futex;
+extern FILE *main_log;
+
+static   pthread_mutex_t event_loop_cb_mutex      = PTHREAD_MUTEX_INITIALIZER;
+static   pthread_mutex_t handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
+static   pthread_mutex_t nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER;
+static   pthread_mutex_t vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
+volatile p99_futex       event_loop_futex         = P99_FUTEX_INITIALIZER(0);
+_Atomic(mpack_obj *)     event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
+         FILE *          api_buffer_log;
 
 struct event_node {
         mpack_obj  *obj;
@@ -210,6 +210,7 @@ event_loop_init(const int fd)
         ev_signal_start(loop, &signal_watcher[2]);
         ev_signal_start(loop, &signal_watcher[3]);
 
+        /* This actually runs the show. */
         ev_run(loop, 0);
 }
 
@@ -232,6 +233,9 @@ event_loop_sighandler(int signum)
 }
 #  endif
 
+/*
+ * Very sophisticated loop.
+ */
 static noreturn void
 event_loop(const int fd)
 {
@@ -283,8 +287,9 @@ handle_nvim_event(void *vdata)
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                START_DETACHED_PTHREAD(vimscript_message, (void *)((uintptr_t)arr->items[0]->data.str->data[0]));
-                /* vimscript_message((int)arr->items[0]->data.str->data[0]); */
+                /* Ugly but it works. Usually. */
+                void *hack = (void *)((uintptr_t)arr->items[0]->data.str->data[0]);
+                START_DETACHED_PTHREAD(vimscript_message, hack);
         } else {
                 const int bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 Buffer   *bdata  = find_buffer(bufnum);
@@ -309,7 +314,7 @@ handle_nvim_event(void *vdata)
                 case EVENT_BUF_DETACH:
                         clear_highlight(bdata);
                         destroy_bufdata(&bdata);
-                        eprintf("Detaching from buffer %d\n", bufnum);
+                        warnx("Detaching from buffer %d", bufnum);
                         break;
                 default:
                         abort();
@@ -461,7 +466,7 @@ replace_line(Buffer *bdata, b_list *repl_list,
         repl_list->lst[replno] = NULL;
 }
 
-/** 
+/*
  * Handles a neovim line update event in which we received at least one string in a buffer
  * that is not empty. If diff is non-zero, we first delete the lines in the range 
  * `first + diff`, and then insert the new line(s) after `first` if it is now the last
@@ -500,7 +505,7 @@ line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 
 /*======================================================================================*/
 
-/**
+/*
  * Handle an update from the small vimscript plugin. Updates are recieved upon
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
  * response to the user calling the provided clear command.
@@ -508,14 +513,14 @@ line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 static noreturn void *
 vimscript_message(void *vdata)
 {
-        const  int        val    = (int)((uintptr_t)(vdata));
+        assert((uintptr_t)vdata < INT_MAX);
+        const  int        val    = (int)((uintptr_t)vdata);
         static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
         struct timer     *t      = TIMER_INITIALIZER;
-        int               num = 0;
+        int               num    = 0;
 
-        if (val != 'H') {
+        if (val != 'H')
                 echo("Recieved \"%c\"; waking up!", val);
-        }
 
         switch (val) {
         /*
@@ -611,7 +616,6 @@ vimscript_message(void *vdata)
                 break;
         }
         default:
-                echo("Hmm, nothing to do...");
                 break;
         }
 
@@ -624,9 +628,9 @@ static const event_id *
 id_event(mpack_obj *event)
 {
         const event_id *type     = NULL;
-        bstring        *typename = event->data.arr->items[1]->data.str;
+        bstring        *typename = event->DAI[1]->data.str;
 
-        for (unsigned i = 0; i < ARRSIZ(event_list); ++i) {
+        for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i) {
                 if (b_iseq(typename, &event_list[i].name)) {
                         type = &event_list[i];
                         break;

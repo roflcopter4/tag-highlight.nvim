@@ -122,7 +122,7 @@ gz_getlines(b_list *tags, const bstring *filename)
         uint8_t      *out_buf = xmalloc(size.uncompressed + 1);
         const int64_t numread = gzread(gfp, out_buf, size.uncompressed);
 
-        assert (numread == 0 || numread == (int64_t)size.uncompressed);
+        ALWAYS_ASSERT(numread == 0 || numread == (int64_t)size.uncompressed);
         gzclose(gfp);
 
         out_buf[size.uncompressed] = '\0';

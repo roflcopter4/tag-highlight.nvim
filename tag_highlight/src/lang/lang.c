@@ -48,7 +48,7 @@ destroy_struct_info(struct cmd_info *info)
 {
         if (info) {
                 for (unsigned i = 0, e = info[0].num; i < e; ++i)
-                        b_free(info[i].group);
+                        b_destroy(info[i].group);
                 xfree(info);
         }
 }

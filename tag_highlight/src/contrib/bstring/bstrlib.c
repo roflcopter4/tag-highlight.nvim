@@ -197,11 +197,13 @@ int
 b_free(bstring *bstr)
 {
         if (!bstr)
-                return BSTR_ERR;
-                /* RUNTIME_ERROR(); */
-        if (!(bstr->flags & BSTR_WRITE_ALLOWED) && !IS_CLONE(bstr))
-                return BSTR_ERR;
-                /* RUNTIME_ERROR(); */
+                RUNTIME_ERROR();
+                /* FATAL_ERROR("bstring runtime error: Attempt to free NULL bstring"); */
+
+        if ((!(bstr->flags & BSTR_WRITE_ALLOWED) ||
+              (bstr->flags & BSTR_BASE_MOVED)) && !IS_CLONE(bstr))
+                RUNTIME_ERROR();
+                /* FATAL_ERROR("bstring runtime error: Attempt to free non-writable which is not a clone"); */
 
         if (bstr->data && (bstr->flags & BSTR_DATA_FREEABLE))
                 xfree(bstr->data);
@@ -210,8 +212,8 @@ b_free(bstring *bstr)
         bstr->slen = bstr->mlen = (-1);
 
         if (!(bstr->flags & BSTR_FREEABLE))
-                return BSTR_ERR;
-                /* RUNTIME_ERROR(); */
+                RUNTIME_ERROR();
+                /* FATAL_ERROR("bstring runtime error: Attempt to free non-freeable bstring"); */
 
         xfree(bstr);
         return BSTR_OK;

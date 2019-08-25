@@ -183,10 +183,8 @@ _b_free_all(bstring **bstr, ...)
                 if (bstr && *bstr) {
                         if ((*bstr)->flags & BSTR_LIST_END)
                                 break;
-                        if ((*bstr)->data) {
+                        if ((*bstr)->data)
                                 b_destroy(*bstr);
-                                *bstr = NULL;
-                        }
                 }
         }
         va_end(va);
@@ -353,7 +351,7 @@ b_refblk(void *blk, const unsigned len)
             .slen  = len,
             .mlen  = len,
             .data  = (uchar *)blk,
-            .flags = BSTR_WRITE_ALLOWED | BSTR_FREEABLE
+            .flags = BSTR_WRITE_ALLOWED | BSTR_FREEABLE /* | BSTR_CLONE */,
         };
         return ret;
 }
@@ -366,13 +364,17 @@ b_clone(const bstring *const src)
                 RETURN_NULL();
 
         bstring *ret = xmalloc(sizeof *ret);
+        memcpy(ret, src, sizeof(bstring));
+#if 0
         *ret = (bstring){.slen  = src->slen,
                          .mlen  = src->mlen,
                          .flags = (src->flags & (~((uint8_t)BSTR_DATA_FREEABLE))),
                          .data  = src->data};
+#endif
+        ret->flags &= (~((uint8_t)BSTR_DATA_FREEABLE));
         ret->flags |= BSTR_CLONE;
-
         b_writeprotect(ret);
+
         return ret;
 }
 
@@ -384,10 +386,13 @@ b_clone_swap(bstring *src)
                 RETURN_NULL();
 
         bstring *ret = xmalloc(sizeof *ret);
+        memcpy(ret, src, sizeof(bstring));
+#if 0
         *ret = (bstring){.slen  = src->slen,
                          .mlen  = src->mlen,
                          .flags = src->flags,
                          .data  = src->data};
+#endif
 
         src->flags &= (~((uint8_t)BSTR_DATA_FREEABLE));
         src->flags |= BSTR_CLONE;
@@ -432,8 +437,7 @@ b_list_append(b_list **listp, bstring *bstr)
                 RUNTIME_ERROR();
 
         if ((*listp)->qty >= ((*listp)->mlen)) {
-                bstring **tmp = xrealloc((*listp)->lst,
-                                         ((*listp)->mlen *= 2) * sizeof(bstring *));
+                bstring **tmp = xreallocarray((*listp)->lst, ((*listp)->mlen *= 2), sizeof(bstring *));
                 (*listp)->lst = tmp;
         }
         (*listp)->lst[(*listp)->qty++] = bstr;
@@ -720,6 +724,22 @@ b_strrpbrk_pos(const bstring *bstr, const unsigned pos, const bstring *delim)
 }
 
 
+int
+b_advance(bstring *bstr, const unsigned n)
+{
+        if (n == 0)
+                return BSTR_OK;
+        if (INVALID(bstr) || NO_WRITE(bstr) || n > bstr->slen)
+                RUNTIME_ERROR();
+
+        bstr->slen  += n;
+        bstr->data  += n;
+        bstr->flags |= BSTR_BASE_MOVED;
+
+        return BSTR_OK;
+}
+
+
 /*============================================================================*/
 /* Path operations */
 /*============================================================================*/
@@ -769,11 +789,11 @@ b_basename(const bstring *path)
 }
 
 
-bstring *
+int
 b_regularize_path(bstring *path)
 {
         if (INVALID(path) || NO_WRITE(path))
-                RETURN_NULL();
+                RUNTIME_ERROR();
         
 #if defined(_WIN32) || defined(_WIN64)
         for (unsigned i = 0; i < path->slen; ++i)
@@ -781,7 +801,7 @@ b_regularize_path(bstring *path)
                         path->data[i] = '\\';
 #endif
 
-        return path;
+        return BSTR_OK;
 }
 
 

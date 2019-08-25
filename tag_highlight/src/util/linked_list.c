@@ -31,6 +31,10 @@ STATIC_INLINE void resolve_negative_index(int *index, int base);
 
 /* static pthread_mutex_t list->lock = PTHREAD_MUTEX_INITIALIZER; */
 
+#ifdef NDEBUG
+#  undef assert
+#  define assert ALWAYS_ASSERT
+#endif
 
 linked_list *
 ll_make_new(void)
@@ -121,7 +125,7 @@ ll_insert_after(linked_list *list, ll_node *at, bstring *data)
                 list->tail = node;
 
         /* This shuts up clang's whining about a potential memory leak. */
-        assert((at && at->next == node) || list->tail == node);
+        ALWAYS_ASSERT((at && at->next == node) || list->tail == node);
         ++list->qty;
         pthread_mutex_unlock(&list->lock);
 }
@@ -150,7 +154,7 @@ ll_insert_before(linked_list *list, ll_node *at, bstring *data)
                 list->tail = node;
 
         /* This shuts up clang's whining about a potential memory leak. */
-        assert((at && at->prev == node) || list->head == node);
+        ALWAYS_ASSERT((at && at->prev == node) || list->head == node);
         ++list->qty;
         pthread_mutex_unlock(&list->lock);
 }
@@ -464,7 +468,7 @@ ll_find_bstring(const linked_list *const list, const bstring *const find)
 STATIC_INLINE void
 free_data(ll_node *node)
 {
-        b_free(node->data);
+        b_destroy(node->data);
 }
 
 STATIC_INLINE void

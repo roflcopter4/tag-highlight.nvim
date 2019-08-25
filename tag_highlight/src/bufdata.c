@@ -39,7 +39,7 @@ static void     log_prev_file(const bstring *filename);
 static Top_Dir *init_topdir(Buffer *bdata);
 static void     init_filetype(Filetype *ft);
 static bool     check_norecurse_directories(const bstring *dir);
-static bstring *check_project_directories(bstring *dir);
+static bstring *check_project_directories(bstring *dir, const bstring *ft);
 static void     bufdata_constructor(void) __attribute__((__constructor__));
 
 static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
@@ -148,7 +148,7 @@ destroy_bufdata(Buffer **bdata)
 
         if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
-                eprintf("??1\n");
+                eprintf("whatthe?\n");
         }
         const int index = find_buffer_ind((*bdata)->num);
 
@@ -280,28 +280,33 @@ have_seen_file(const bstring *filename)
 static Top_Dir *
 init_topdir(Buffer *bdata)
 {
-        int      ret       = (-1);
-        bstring *dir       = b_strcpy(bdata->name.path);
-        dir                = check_project_directories(dir);
-        const bool recurse = check_norecurse_directories(dir);
-        const bool is_c    = bdata->ft->is_c;
-        bstring   *base    = (!recurse /* || is_c */) ? b_strcpy(bdata->name.full) : dir;
+        bstring    *dir     = check_project_directories(b_strcpy(bdata->name.path), &bdata->ft->vim_name);
+        const bool  recurse = check_norecurse_directories(dir);
+        bstring    *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
         ECHO("fname: %s, dir: %s, base: %s\n", bdata->name.full, dir, base);
 
+        /* Search to see if this topdir is already open. */
         pthread_mutex_lock(&top_dirs->mut);
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                if (!top_dirs->lst[i] || !((Top_Dir *)top_dirs->lst[i])->pathname)
-                        continue;
+                Top_Dir *cur = top_dirs->lst[i];
 
-                if (b_iseq(((Top_Dir *)top_dirs->lst[i])->pathname, base)) {
-                        ((Top_Dir *)top_dirs->lst[i])->refs++;
+                if (!cur || !cur->pathname)
+                        continue;
+                if (cur->ftid != bdata->ft->id) {
+                        echo("cur->ftid (%d - %s) does not equal the current ft (%d - %s), skipping\n",
+                             cur->ftid, BTS(ftdata[cur->ftid].vim_name),
+                             bdata->ft->id, BTS(bdata->ft->vim_name));
+                        continue;
+                }
+
+                if (b_iseq(cur->pathname, base)) {
+                        cur->refs++;
                         b_destroy(base);
-                        echo("returning with topdir %s\n",
-                             BS(((Top_Dir *)(top_dirs->lst[i]))->pathname));
+                        ECHO("Returning with existing topdir %s\n", cur->pathname);
                         pthread_mutex_unlock(&top_dirs->mut);
-                        return top_dirs->lst[i];
+                        return cur;
                 }
         }
         pthread_mutex_unlock(&top_dirs->mut);
@@ -346,15 +351,14 @@ init_topdir(Buffer *bdata)
         ECHO("got %s", tdir->gzfile);
 
         if (settings.comp_type == COMP_GZIP)
-                ret = b_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
+                b_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
         else if (settings.comp_type == COMP_LZMA)
-                ret = b_sprintfa(tdir->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
+                b_sprintfa(tdir->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
         else
-                ret = b_sprintfa(tdir->gzfile, ".%s.tags", &bdata->ft->vim_name);
+                b_sprintfa(tdir->gzfile, ".%s.tags", &bdata->ft->vim_name);
 
-        assert(ret == BSTR_OK);
         genlist_append(top_dirs, tdir);
-        if (!recurse/*  || is_c */)
+        if (!recurse)
                 b_destroy(base);
 
         return tdir;
@@ -379,26 +383,49 @@ check_norecurse_directories(const bstring *const dir)
 }
 
 /**
- * Check the file `~/.vim_tags/tag_highlight.txt' for any directories the
- * user has specified to be `project' directories. Anything under them in
- * the directory tree will use that directory as its base.
+ * Check the file `tag_highlight.txt' for any directories the user has specified
+ * to be `project' directories. Anything under them in the directory tree will
+ * use that directory as its base.
  */
 static bstring *
-check_project_directories(bstring *dir)
+check_project_directories(bstring *dir, const bstring *const ft)
 {
         FILE *fp = fopen(BS(settings.settings_file), "rb");
         if (!fp)
                 return dir;
 
-        b_list * candidates = b_list_create();
+        b_list  *candidates = b_list_create();
         bstring *tmp;
         b_regularize_path(dir);
 
         while ((tmp = B_GETS(fp, '\n', false))) {
-                if (strstr(BS(dir), BS(b_regularize_path(tmp))))
+                echo("Looking at \"%s\"\n", BS(tmp));
+                int64_t n = b_strchr(tmp, '\t');
+                if (n < 0) {
+                        echo("Got %ld from strchr, skipping \"%s\"\n", n, BS(tmp));
+                        goto next;
+                }
+
+                tmp->data[n]      = '\0';
+                tmp->slen         = (unsigned)n;
+                const char *tmpft = (char *)(tmp->data + n + 1);
+                if (strcmp(tmpft, BS(ft)) != 0) {
+                        ECHO("line \"%s\" has ft \"%n\" -- rejecting (needs ft \"%s\")\n", tmp, tmpft, ft);
+                        goto next;
+                }
+
+                b_regularize_path(tmp);
+
+                if (strstr(BS(dir), BS(tmp))) {
+                        ECHO("Success! Matched \"%s\" and its ft \"%n\"\n", tmp, tmpft);
                         b_list_append(&candidates, tmp);
-                else
-                        b_destroy(tmp);
+                        continue;
+                }
+
+                ECHO("Failed to match \"%s\" with ft \"%n\" at all\n", tmp, ft);
+
+        next:
+                b_destroy(tmp);
         }
         fclose(fp);
         if (candidates->qty == 0) {
@@ -571,15 +598,25 @@ get_restore_cmds(b_list *restored_groups)
                 if (!output)
                         continue;
 
-                cmd       = b_alloc_null(64u + output->slen);
                 char *ptr = strstr(BS(output), "xxx");
                 if (!ptr) {
                         b_destroy(output);
                         continue;
                 }
+                cmd = b_alloc_null(64u + output->slen);
+#if 0
+                const int64_t loc = b_strstr(output, B("xxx"), 0);
+                if (loc < 0) {
+                        b_destroy(output);
+                        continue;
+                }
+
+                bstring *cln = b_clone(output);
+                b_advance(cln, 4);
+#endif
 
                 ptr += 4;
-                assert(!isblank(*ptr));
+                ALWAYS_ASSERT(!isblank(*ptr));
                 b_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
 
                 b_list *toks = b_list_create();
@@ -608,7 +645,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_list_destroy(toks);
 
                         const size_t n = strlcpy(link_name, (ptr += 9), 1024);
-                        assert(n > 0);
+                        ALWAYS_ASSERT(n > 0);
                         b_sprintfa(cmd, " | hi! link %s %s",
                                    restored_groups->lst[i], btp_fromcstr(link_name));
 

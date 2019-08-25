@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -12,7 +11,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -36,7 +34,6 @@ func main() {
 	var (
 		buf, err1      = ioutil.ReadAll(os.Stdin)
 		filename, err2 = filepath.Abs(os.Args[1])
-		// buf           = QuickRead(&QuickReadInfo{"", os.Stdin, xatoi(os.Args[2])})
 	)
 	if err1 != nil {
 		panic(err1)
@@ -151,11 +148,8 @@ func highlight(filename string, ast_files []*ast.File) {
 		conf = types.Config{
 			Importer: importer.Default(),
 			Error:    func(error) {}, // Ignore errors so we can support packages that import "C"
-			// FakeImportC: true,
 		}
 		info = &types.Info{
-			// Types:     make(map[ast.Expr]types.TypeAndValue),
-			// Implicits: make(map[ast.Node]types.Object),
 			Defs: make(map[*ast.Ident]types.Object),
 			Uses: make(map[*ast.Ident]types.Object),
 		}
@@ -259,56 +253,4 @@ func eprintf(format string, a ...interface{}) {
 func errx(code int, format string, a ...interface{}) {
 	eprintf(format, a...)
 	os.Exit(code)
-}
-func xatoi(str string) int {
-	ret, err := strconv.Atoi(str)
-	if err != nil {
-		panic(err)
-	}
-	return ret
-}
-func xopen(fname string) *os.File {
-	f, e := os.Open(fname)
-	if e != nil {
-		panic("fail")
-	}
-	return f
-}
-
-func read_bytes(info *QuickReadInfo) []byte {
-	buf := make([]byte, info.Bytes_To_Read)
-	if _, err := info.Fp.Read(buf); err != nil {
-		panic(err)
-	}
-	return buf
-}
-
-func QuickRead(input interface{}) []byte {
-	var f *os.File
-	switch x := input.(type) {
-	case string:
-		f = xopen(x)
-		defer f.Close()
-	case *os.File:
-		f = x
-	case *QuickReadInfo:
-		if x.Fp == nil {
-			x.Fp = xopen(x.Filename)
-			defer x.Fp.Close()
-		}
-		if x.Bytes_To_Read > 0 {
-			// If we need to read only a pre-determined number of bytes,
-			// we return early to avoid the "read everything" code below.
-			return read_bytes(x)
-		}
-		f = x.Fp
-	default:
-		panic("Invalid argument.")
-	}
-
-	var buf bytes.Buffer
-	if _, err := buf.ReadFrom(f); err != nil {
-		panic(err)
-	}
-	return buf.Bytes()
 }

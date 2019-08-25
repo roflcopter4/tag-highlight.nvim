@@ -153,11 +153,11 @@ static inline int dprintf(int fd, char *fmt, ...)
 /* #define X_ERROR */
 
 #ifdef X_ERROR
-#  define BSTR_INTERN_NULL_ACTION abort();
-#  define BSTR_INTERN_INT_ACTION abort();
+#  define BSTR_INTERN_NULL_ACTION errx(1, "bstring -> runtime error (ptr)")
+#  define BSTR_INTERN_INT_ACTION  errx(1, "bstring -> runtime error (int)")
 #else
-#  define BSTR_INTERN_NULL_ACTION return NULL;
-#  define BSTR_INTERN_INT_ACTION  return BSTR_ERR;
+#  define BSTR_INTERN_INT_ACTION  return BSTR_ERR
+#  define BSTR_INTERN_NULL_ACTION return NULL
 #endif
 
 #undef DEBUG
@@ -173,7 +173,7 @@ static inline int dprintf(int fd, char *fmt, ...)
                 char buf[8192];                                                            \
                 snprintf(buf, 8192, __VA_ARGS__);                                          \
                                                                                            \
-                warn("Fatal error in func %s in bstrlib.c, line %d", FUNC_NAME, __LINE__); \
+                warnx("Fatal error in func %s in bstrlib.c, line %d", FUNC_NAME, __LINE__); \
                 fprintf(stderr, "%s\n", buf);                                              \
                 fputs("STACKTRACE: \n", stderr);                                           \
                 backtrace_symbols_fd(arr, num, 2);                                         \
@@ -183,14 +183,104 @@ static inline int dprintf(int fd, char *fmt, ...)
 #define FATAL_ERROR(...) errx(1, __VA_ARGS__)
 #endif
 
-#define RUNTIME_ERROR() return BSTR_ERR
-#define RETURN_NULL()   return NULL
+#define RUNTIME_ERROR() BSTR_INTERN_INT_ACTION
+#define RETURN_NULL()   BSTR_INTERN_NULL_ACTION
 
 
 /*============================================================================*/
 
 #define USE_XMALLOC
 
+#ifdef USE_XMALLOC
+#  define ALWAYS_INLINE __always_inline
+
+__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1)))
+__attribute__((visibility("hidden")))
+ALWAYS_INLINE void *
+BSTR_xmalloc(const size_t size)
+{
+        void *tmp = malloc(size);
+        if (tmp == NULL)
+                err(100, "Malloc call failed - attempted %zu bytes", size);
+        return tmp;
+}
+
+__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1, 2)))
+__attribute__((visibility("hidden")))
+ALWAYS_INLINE  void *
+BSTR_xcalloc(const size_t num, const size_t size)
+{
+        void *tmp = calloc(num, size);
+        if (tmp == NULL)
+                err(101, "Calloc call failed - attempted %zu bytes", size);
+        return tmp;
+}
+
+#  define xmalloc BSTR_xmalloc
+#  define xcalloc BSTR_xcalloc
+
+
+#  ifdef HAVE_VASPRINTF
+__attribute__((format(__gnu_printf__, 2, 0), nothrow, warn_unused_result, nonnull(1, 2)))
+__attribute__((visibility("hidden")))
+ALWAYS_INLINE int
+BSTR_xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
+{
+        int ret = vasprintf(ptr, fmt, va);
+        if (ret == (-1)) {
+                warn("Asprintf failed to allocate memory");
+                abort();
+        }
+        return ret;
+}
+
+#  define xvasprintf BSTR_xvasprintf
+#  endif
+#else
+#  define xmalloc malloc
+#  define xcalloc calloc
+#  ifdef HAVE_VASPRINTF
+#    define xvasprintf vasprintf
+#  endif
+#endif
+
+__attribute__((nothrow, warn_unused_result, alloc_size(2)))
+__attribute__((visibility("hidden")))
+ALWAYS_INLINE void *
+BSTR_xrealloc(void *ptr, const size_t size)
+{
+        void *tmp = realloc(ptr, size);
+        if (tmp == NULL)
+                err(102, "Realloc call failed - attempted %zu bytes", size);
+        return tmp;
+}
+
+#define xrealloc BSTR_xrealloc
+
+#if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
+__attribute__((nothrow, warn_unused_result, alloc_size(2, 3)))
+__attribute__((visibility("hidden")))
+ALWAYS_INLINE void *
+BSTR_xreallocarray(void *ptr, size_t num, size_t size)
+{
+        void *tmp = reallocarray(ptr, num, size);
+        if (tmp == NULL)
+                err(103, "Realloc call failed - attempted %zu bytes", size);
+        return tmp;
+}
+
+#  define xreallocarray              BSTR_xreallocarray
+#  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
+#  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
+#else
+#  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#endif
+
+#define xfree(PTR) free(PTR)
+#define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+
+#if 0
 /* 
  * These make the code neater and save the programmer from having to check for
  * NULL returns at the cost of crashing the program at any allocation failure. I
@@ -251,6 +341,7 @@ xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 #endif
 
 #define xfree free
+#endif
 
 /*============================================================================*/
 

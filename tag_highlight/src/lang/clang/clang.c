@@ -328,8 +328,8 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                         tok = (*next) ? next : NULL;
                 }
 
-                b_free(contents);
-                b_free(file);
+                b_destroy(contents);
+                b_destroy(file);
         }
 }
 
@@ -461,7 +461,8 @@ get_backup_commands(Buffer *bdata)
 static CXCompileCommands
 get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 {
-        bstring *newnam = b_regularize_path(bdata->name.full);
+        bstring *newnam = b_strcpy(bdata->name.full);
+        b_regularize_path(newnam);
         /* CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full)); */
         CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(newnam));
         const unsigned    num  = clang_CompileCommands_getSize(comp);
@@ -476,7 +477,7 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
                 if (file) {
                         ECHO("Found %s!\n", file);
                         comp = clang_CompilationDatabase_getCompileCommands(*db, BS(file));
-                        b_free(file);
+                        b_destroy(file);
                 } else {
                         ECHO("Found nothing.\n");
                         comp = NULL;
@@ -509,7 +510,7 @@ destroy_struct_translationunit(struct translationunit *stu)
         if (stu->cxtokens && stu->num)
                 clang_disposeTokens(stu->tu, stu->cxtokens, stu->num);
         genlist_destroy(stu->tokens);
-        b_free(stu->buf);
+        b_destroy(stu->buf);
         xfree(stu->cxcursors);
         xfree(stu);
 }
@@ -529,7 +530,7 @@ destroy_clangdata(Buffer *bdata)
 
         if (cdata->info) {
                 for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)
-                        b_free(cdata->info[i].group);
+                        b_destroy(cdata->info[i].group);
                 xfree(cdata->info);
         }
 

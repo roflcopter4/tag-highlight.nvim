@@ -104,81 +104,7 @@ extern char * basename(char *path);
 extern char *HOME;
 
 /*===========================================================================*/
-/* Generic Macros */
-
-#ifndef O_BINARY
-#  define O_BINARY (0)
-#endif
-#ifndef O_DSYNC
-#  define O_DSYNC (0)
-#endif
-#ifndef O_DIRECTORY
-#  define O_DIRECTORY (0)
-#endif
-
-#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
-        do {                                                                   \
-                pthread_attr_init((ATTR_));                                    \
-                pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
-        } while (0)
-
-#define START_DETACHED_PTHREAD(...)                                             \
-        do {                                                                    \
-                pthread_t       m_pid_;                                         \
-                pthread_attr_t m_attr_;                                         \
-                pthread_attr_init(&m_attr_);                                    \
-                pthread_attr_setdetachstate(&m_attr_, PTHREAD_CREATE_DETACHED); \
-                pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
-        } while (0)
-
-#define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
-#define ASSERT(COND, ...)  ((!!(COND)) ? ((void)0) : err(50,  __VA_ARGS__))
-#define ASSERTX(COND, ...) ((!!(COND)) ? ((void)0) : errx(50, __VA_ARGS__))
-#define DIE_UNLESS(COND)   ((!!(COND)) ? ((void)0) : err(55, "%s", (#COND)))
-#define DIE_UNLESSX(COND)  ((!!(COND)) ? ((void)0) : errx(55, "%s", (#COND)))
-#define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
-#define MODULO(iA, iB)     (((iA) % (iB) + (iB)) % (iB))
-#define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
-#define SLS(STR)           ("" STR ""), LSLEN(STR)
-#define STRINGIFY(VAR)     #VAR
-
-#define __aMAL       __attribute__((__malloc__))
-#define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
-#define __aNNA       __attribute__((__nonnull__))
-#define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
-#define __aNT        __attribute__((__nothrow__))
-
-#ifndef __always_inline
-#  define __always_inline extern __inline__ __attribute__((__always_inline__))
-#endif
-#define ALWAYS_INLINE __always_inline
-#define STATIC_INLINE __attribute__((__always_inline__)) static inline
-
-#ifdef __clang__
-#  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
-#else
-#  define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
-#endif
-
-#if defined(__GNUC__)
-#  if defined(__clang__) || defined(__cplusplus)
-#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
-#  else
-extern const char * ret_func_name__(const char *const function, size_t size);
-#    define FUNC_NAME \
-        (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
-#  endif
-#  define auto_type   __extension__ __auto_type
-#  define Auto        __extension__ __auto_type
-#  define MAX(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
-#  define MIN(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
-#else
-#  define FUNC_NAME   (__func__)
-#  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
-#  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
-#endif
-
-/*===========================================================================*/
+/* Some system/compiler specific config/setup */
 
 #ifndef noreturn
 #  if defined(_MSC_VER)
@@ -243,8 +169,6 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  endif
 #endif
 
-/*===========================================================================*/
-
 #ifdef realpath
 #  undef realpath
 #endif
@@ -255,9 +179,6 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
-#  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
-#else
-#  define eprintf(...) fprintf(stderr, "tag_highlight: " __VA_ARGS__)
 #endif
 #if defined(__MINGW__) || !defined(DOSISH)
 #  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
@@ -265,34 +186,120 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define fsleep(VAL)  Sleep((long long)((double)(VAL) * (1000.0L)))
 #endif
 
-/*===========================================================================*/
-
-void          warn_(bool print_err, const char *fmt, ...) __aFMT(2, 3);
-noreturn void err_ (int status, bool print_err, const char *fmt, ...) __aFMT(3, 4);
-
-#define err(EVAL, ...)  err_((EVAL), true, __VA_ARGS__)
-#define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
-/* #define warn(...)       warn_(true, __VA_ARGS__) */
-/* #define warnx(...)      warn_(false, __VA_ARGS__) */
-#define warn  eprintf
-#define warnx eprintf
-
-#define echo warnx
-#ifdef DEBUG
-#  define SHOUT(...) warn_(false, __VA_ARGS__)
-#  define echo       warnx
-#else
-#  undef eprintf
-#  define eprintf(...)
-#  define SHOUT(...)  warn_(false, __VA_ARGS__)
+#ifndef O_BINARY
+#  define O_BINARY (0)
 #endif
+#ifndef O_DSYNC
+#  define O_DSYNC (0)
+#endif
+#ifndef O_DIRECTORY
+#  define O_DIRECTORY (0)
+#endif
+
+/*===========================================================================*/
+/* Attribute aliases and jump like MIN, MAX, NOP, etc */
+
+#define __aMAL       __attribute__((__malloc__))
+#define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
+#define __aNNA       __attribute__((__nonnull__))
+#define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
+#define __aNT        __attribute__((__nothrow__))
+
+#ifdef __clang__
+#  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
+#else
+#  define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
+#endif
+
+#if defined(__GNUC__)
+#  if defined(__clang__) || defined(__cplusplus)
+#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#  else
+extern const char * ret_func_name__(const char *const function, size_t size);
+#    define FUNC_NAME \
+        (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+#  endif
+#  define auto_type   __extension__ __auto_type
+#  define Auto        __extension__ __auto_type
+#  define MAX(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
+#  define MIN(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
+#else
+#  define FUNC_NAME   (__func__)
+#  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
+#  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
+#endif
+
+#ifndef __always_inline
+#  define __always_inline extern __inline__ __attribute__((__always_inline__))
+#endif
+#define ALWAYS_INLINE __always_inline
+#define STATIC_INLINE __attribute__((__always_inline__)) static inline
+
+#ifndef NOP
+#  define NOP ((void)0)
+#endif
+
+/*===========================================================================*/
+/* Generic Macros */
+
+#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
+        do {                                                                   \
+                pthread_attr_init((ATTR_));                                    \
+                pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
+        } while (0)
+
+#define START_DETACHED_PTHREAD(...)                                             \
+        do {                                                                    \
+                pthread_t       m_pid_;                                         \
+                pthread_attr_t m_attr_;                                         \
+                pthread_attr_init(&m_attr_);                                    \
+                pthread_attr_setdetachstate(&m_attr_, PTHREAD_CREATE_DETACHED); \
+                pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
+        } while (0)
+
+#define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
+#define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
+#define MODULO(iA, iB)     (((iA) % (iB) + (iB)) % (iB))
+#define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
+#define SLS(STR)           ("" STR ""), LSLEN(STR)
+#define STRINGIFY_HLP(...) #__VA_ARGS__
+#define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
+
+#define ASSERT(COND, ...)   ((!!(COND)) ? NOP : err(50,  __VA_ARGS__))
+#define ASSERTX(COND, ...)  ((!!(COND)) ? NOP : errx(50, __VA_ARGS__))
+#define DIE_UNLESS(COND)    ((!!(COND)) ? NOP : err(55, "%s", (#COND)))
+#define DIE_UNLESSX(COND)   ((!!(COND)) ? NOP : errx(55, "%s", (#COND)))
+
+#define ALWAYS_ASSERT(COND)                                                                           \
+        (!!(COND) ? NOP                                                                               \
+                  : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
+                         STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
+
+#define err(EVAL, ...)  err_((EVAL), true,  __VA_ARGS__)
+#define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
+#define warn(...)       warn_(true,  false, __VA_ARGS__)
+#define warnx(...)      warn_(false, false, __VA_ARGS__)
+#define SHOUT(...)      warn_(false, true,  __VA_ARGS__)
+
+#ifdef DEBUG
+#  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
+/* #  define echo         warnx */
+#else
+#  define eprintf(...) ((void)0)
+/* #  define echo(...)    ((void)0)   */
+#endif
+
+extern          void warn_(bool print_err, bool force, const char *restrict fmt, ...) __aFMT(3, 4);
+extern noreturn void err_ (int status, bool print_err, const char *restrict fmt, ...) __aFMT(3, 4);
 
 /*===========================================================================*/
 
 #include "util/util.h"
 
 #ifdef USE_XMALLOC
-__aNT __aWUR __aMAL __aALSZ(1) ALWAYS_INLINE void *
+/* __aNT __aWUR __aMAL __aALSZ(1) */
+__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1)))
+ALWAYS_INLINE void *
 xmalloc(const size_t size)
 {
         void *tmp = malloc(size);
@@ -301,7 +308,9 @@ xmalloc(const size_t size)
         return tmp;
 }
 
-__aNT __aWUR __aMAL __aALSZ(1, 2) ALWAYS_INLINE  void *
+/* __aNT __aWUR __aMAL __aALSZ(1, 2) */
+__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1, 2)))
+ALWAYS_INLINE  void *
 xcalloc(const size_t num, const size_t size)
 {
         void *tmp = calloc(num, size);
@@ -314,7 +323,9 @@ xcalloc(const size_t num, const size_t size)
 #  define xcalloc calloc
 #endif
 
-__aNT __aWUR __aALSZ(2) ALWAYS_INLINE void *
+/* __aNT __aWUR __aALSZ(2) */
+__attribute__((nothrow, warn_unused_result, alloc_size(2)))
+ALWAYS_INLINE void *
 xrealloc(void *ptr, const size_t size)
 {
         void *tmp = realloc(ptr, size);
@@ -324,7 +335,9 @@ xrealloc(void *ptr, const size_t size)
 }
 
 #if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-__aNT __aWUR __aALSZ(2, 3) ALWAYS_INLINE void *
+/* __aNT __aWUR __aALSZ(2, 3) */
+__attribute__((nothrow, warn_unused_result, alloc_size(2, 3)))
+ALWAYS_INLINE void *
 xreallocarray(void *ptr, size_t num, size_t size)
 {
         void *tmp = reallocarray(ptr, num, size);

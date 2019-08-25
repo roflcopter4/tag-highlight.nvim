@@ -42,7 +42,7 @@ nvim_printf(const char *const restrict fmt, ...)
         va_end(ap);
 
         nvim_out_write(tmp);
-        b_free(tmp);
+        b_destroy(tmp);
 }
 
 void
@@ -50,7 +50,7 @@ void
 {
         bstring *tmp = b_vformat(fmt, args);
         nvim_out_write(tmp);
-        b_free(tmp);
+        b_destroy(tmp);
 }
 
 void
@@ -61,7 +61,8 @@ nvim_b_printf(const bstring *fmt, ...)
         bstring *tmp = _b_vsprintf(fmt, ap);
         va_end(ap);
         nvim_out_write(tmp);
-        b_free(tmp);
+        if (tmp)
+                b_destroy(tmp);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -76,7 +77,7 @@ retval_t
         va_end(ap);
 
         retval_t ret = nvim_get_var(varname, expect);
-        b_free(varname);
+        b_destroy(varname);
         return ret;
 }
 
@@ -191,7 +192,7 @@ retval_t
         mpack_obj *result = generic_call(&fn, buf, function, &ap);
         va_end(ap);
 
-        b_free(buf);
+        b_destroy(buf);
         return m_expect_intern(result, expect);
 }
 
@@ -258,7 +259,7 @@ nvim_set_var(const bstring *varname, const bstring *fmt, ...)
         mpack_obj *result = generic_call(&fn, tmp, varname, &ap);
         va_end(ap);
 
-        b_free(tmp);
+        b_destroy(tmp);
         return mpack_type(m_index(result, 2)) == MPACK_NIL;
 }
 
@@ -388,7 +389,7 @@ void
 
         mpack_print_object(logfp, result);
         mpack_destroy_object(result);
-        b_free(fmt);
+        b_destroy(fmt);
 #ifdef DEBUG
         fclose(logfp);
 #endif

@@ -155,7 +155,7 @@ mpack_destroy_object(mpack_obj *root)
         pthread_mutex_lock(&mpack_rw_lock);
         if (!(root->flags & MPACK_ENCODE)) {
                 if (root->flags & MPACK_HAS_PACKED)
-                        b_free(*root->packed);
+                        b_destroy(*root->packed);
                 /* This gcc specific warning is a false positive. Non-heap
                  * objects all have the `phony' flag and won't be free'd. */
                 PRAGMA_NO_NONHEAP();
@@ -192,7 +192,7 @@ mpack_destroy_object(mpack_obj *root)
                                 break;
                         case MPACK_STRING:
                                 if (cur->data.str)
-                                        b_free(cur->data.str);
+                                        b_destroy(cur->data.str);
                                 break;
                         case MPACK_EXT:
                                 if (cur->data.ext)
@@ -204,7 +204,7 @@ mpack_destroy_object(mpack_obj *root)
                 }
 
                 if (cur->flags & MPACK_HAS_PACKED)
-                        b_free(*cur->packed);
+                        b_destroy(*cur->packed);
                 if (!(cur->flags & MPACK_PHONY))
                         xfree(cur);
         }
@@ -324,7 +324,7 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
                                 ++x;
                                 break;
                         case 's': case 'S':
-                                b_free(calls->args[i][x].str); ++x;
+                                b_destroy(calls->args[i][x].str); ++x;
                                 break;
                         }
                 }

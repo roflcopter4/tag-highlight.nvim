@@ -175,16 +175,23 @@ function! s:Add_Remove_Project(operation, ...)
     endif
 endfunction
 
+func! s:Do_Add(path, str)
+    echom 'Adding project dir "' . a:path . '" for language `' . &filetype . "'"
+    call writefile([a:str], g:tag_highlight#settings_file, 'a')
+endf
+
 function! s:Add_Project(path)
+    let l:str = a:path . "\t" . &filetype
+
     if file_readable(g:tag_highlight#settings_file)
         let l:lines = readfile(g:tag_highlight#settings_file)
-        if index(l:lines, a:path) ==# (-1)
-            echom 'Adding project dir "'.a:path.'"'
-            call writefile([a:path], g:tag_highlight#settings_file, 'a')
+        if index(l:lines, l:str) ==# (-1)
+            call s:Do_Add(a:path, l:str)
+        else
+            echoerr 'Project dir "' . a:path . '" for language `' . &filetype . "' is already recorded."
         endif
     else
-        echom 'Adding project dir "'.a:path.'"'
-        call writefile([a:path], g:tag_highlight#settings_file)
+        call s:Do_Add(a:path, l:str)
     endif
 endfunction
 
@@ -196,13 +203,17 @@ function! s:Remove_Project(path)
             let l:ln = substitute(l:ln, "\n\|\r", '', '')
         endfor
 
-        let l:index = index(l:lines, a:path)
+        let l:str   = a:path . "\t" . &filetype
+        let l:index = index(l:lines, l:str)
+
         if l:index !=# (-1)
-            echom 'Removing project dir "'.a:path.'"'
+            echom 'Removing ' . &filetype . ' language project dir "'.a:path.'"'
             echom string(l:lines)
             call remove(l:lines, l:index)
             echom string(l:lines)
             call writefile(l:lines, g:tag_highlight#settings_file)
+        else
+            echoerr 'Project dir "' . a:path . '" for language `' . &filetype . "' is not recorded."
         endif
     endif
 endfunction

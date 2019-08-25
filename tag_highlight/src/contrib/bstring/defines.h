@@ -66,7 +66,7 @@ enum BSTR_flags {
         BSTR_DATA_FREEABLE = 0x04U,
         BSTR_LIST_END      = 0x08U,
         BSTR_CLONE         = 0x10U,
-        BSTR_MASK_USR3     = 0x20U,
+        BSTR_BASE_MOVED    = 0x20U,
         BSTR_MASK_USR2     = 0x40U,
         BSTR_MASK_USR1     = 0x80U,
 };

@@ -189,9 +189,9 @@ write_lzma(struct top_dir *topdir)
         assert(write(fd, out_buf, size) == (ssize_t)size);
         close(fd); */
 
-        assert(strstr(BS(topdir->gzfile), ".tags.xz"));
+        ALWAYS_ASSERT(strstr(BS(topdir->gzfile), ".tags.xz"));
         FILE *fp = safe_fopen(BS(topdir->gzfile), "wb");
-        assert(fwrite(out_buf, 1, strm.total_out, fp) == strm.total_out);
+        ALWAYS_ASSERT(fwrite(out_buf, 1, strm.total_out, fp) == strm.total_out);
         fclose(fp);
 
         lzma_end(&strm);

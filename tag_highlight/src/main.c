@@ -156,6 +156,7 @@ get_settings(void)
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
+        echo("settings.verbose is %s", settings.verbose ? "true" : "false");
 }
 
 /*======================================================================================*/
