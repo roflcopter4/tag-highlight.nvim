@@ -7,10 +7,10 @@
 #include "util/list.h"
 
 static void do_typeswitch(Buffer                  *bdata,
-                          struct mpack_arg_array   *calls,
+                          struct mpack_arg_array  *calls,
                           struct token            *tok,
                           struct cmd_info         *info,
-                          const b_list            *enumerators,
+                          /* const b_list            *enumerators, */
                           enum CXCursorKind *const last_kind);
 
 static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
@@ -18,24 +18,25 @@ static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
 static void tokvisitor(struct token *tok);
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
-#define ADD_CALL(CH)                                                                \
-        do {                                                                        \
-                if ((group = find_group(bdata->ft, info, info->num, (CH))))         \
-                        add_hl_call(calls, bdata->num, bdata->hl_id, group,         \
-                                    &(line_data){tok->line, tok->col1, tok->col2}); \
+
+#define ADD_CALL(CH)                                                                   \
+        do {                                                                           \
+                if ((group = find_group(bdata->ft, info, info->num, (CH))))            \
+                        add_hl_call(calls, bdata->num, bdata->hl_id, group,            \
+                                    (line_data[]){{tok->line, tok->col1, tok->col2}}); \
         } while (0)
 
 /*======================================================================================*/
 
 #define B_QUICK_DUMP(LST, FNAME)                                                                \
         do {                                                                                    \
-                FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/%s.log", "wb", HOME, (FNAME)); \
+                FILE *fp = safe_fopen_fmt("%s/%s.log", "wb", BS(settings.cache_dir), (FNAME)); \
                 b_list_dump(fp, LST);                                                           \
                 fclose(fp);                                                                     \
         } while (0)
 
 mpack_arg_array *
-type_id(Buffer *bdata, struct translationunit *stu)
+create_nvim_calls(Buffer *bdata, struct translationunit *stu)
 {
         enum CXCursorKind last  = 1;
         mpack_arg_array  *calls = new_arg_array();
@@ -48,14 +49,30 @@ type_id(Buffer *bdata, struct translationunit *stu)
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
-        B_QUICK_DUMP(bdata->ft->ignored_tags, "ignored");
+        /* B_QUICK_DUMP(bdata->ft->ignored_tags, "ignored"); */
+
+        lc_index_file(bdata, stu, calls);
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
-                if ((int)tok->line == (-1) || tok_in_skip_list(bdata, tok))
+                if ((int64_t)tok->line == INT64_C(-1))
                         continue;
+                if (tok_in_skip_list(bdata, tok)) {
+                        /* SHOUT("Skipping verboten token \"%s\"\n", BTS(tok->text)); */
+                        continue;
+                }
+
+#if 0
+                if (b_strstr(&tok->text, B("main"), 0) >= 0) {
+                        SHOUT("Allowed verboten token \"%s\"\n", BTS(tok->text));
+                }
+#endif
+
+                /* if ((int)tok->line == (-1) || tok_in_skip_list(bdata, tok)) */
+                        /* continue; */
                 /* tokvisitor(tok); */
-                do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last);
+                /* do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last); */
+                do_typeswitch(bdata, calls, tok, CLD(bdata)->info, &last);
         }
 
         return calls;
@@ -68,7 +85,7 @@ static void do_typeswitch(Buffer                   *bdata,
                           struct mpack_arg_array   *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          const b_list             *enumerators,
+                          /* const b_list             *enumerators, */
                           enum CXCursorKind *const  last_kind)
 {
         extern char        LOGDIR[];
@@ -85,6 +102,9 @@ retry:
         switch (cursor.kind) {
         case CXCursor_TypedefDecl:
                 /* An actual typedef */
+                ADD_CALL(CTAGS_TYPE);
+                break;
+        case CXCursor_TypeAliasDecl:
                 ADD_CALL(CTAGS_TYPE);
                 break;
         case CXCursor_TypeRef: {
@@ -229,20 +249,14 @@ retry:
                 case CXType_FunctionProto:
                         ADD_CALL(CTAGS_FUNCTION);
                         break;
+#if 0
                 case CXType_Int: {
                         bstring *tmp = &tok->text;
-#if 0
-                        B_LIST_FOREACH_2 (enumerators, cur, i)
-                                if (b_iseq(cur, tmp)) {
-                                        ADD_CALL(CTAGS_ENUMCONST);
-                                        break;
-                                }
-#endif
-
                         if (B_LIST_BSEARCH_FAST(enumerators, tmp))
                                 ADD_CALL(CTAGS_ENUMCONST);
                         break;
                 }
+#endif
                 default:
                         break;
                 }

@@ -1,5 +1,4 @@
 #include "Common.h"
-
 #include "highlight.h"
 #include "my_p99_common.h"
 #include <signal.h>
@@ -531,6 +530,7 @@ get_ignored_tags(Filetype *ft)
                 b_list_destroy(restored_groups);
         }
 
+        B_LIST_SORT_FAST(ft->ignored_tags);
         ft->restore_cmds_initialized = true;
 }
 
@@ -581,8 +581,6 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
 
                 b_destroy(output);
         }
-
-        B_LIST_SORT_FAST(ft->ignored_tags);
 }
 
 static bstring *

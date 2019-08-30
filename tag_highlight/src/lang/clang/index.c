@@ -5,11 +5,11 @@
 /* static int my_abortQuery(CXClientData data, void *reserved); */
 /* static void my_diagnostic(CXClientData data, CXDiagnosticSet dgset, void *reserved); */
 /* static CXIdxClientFile my_enteredMainFile(CXClientData data, CXFile file, void *reserved); */
-static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info);
+/* static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info); */
 /* static CXIdxClientASTFile my_importedASTFile(CXClientData data, const CXIdxImportedASTFileInfo *info); */
 /* static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved); */
-static void my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info);
-static void my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo *info);
+/* static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *clang_info); */
+static void my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info);
 
 static const char *const idx_entity_kind_repr[] = {
     "Unexposed",
@@ -41,54 +41,76 @@ static const char *const idx_entity_kind_repr[] = {
     "CXXInterface",
 };
 
+#define ADD_CALL(CH)                                                                                  \
+        do {                                                                                          \
+                if ((group = find_group(data->bdata->ft, data->cdata->info, data->cdata->info->num, (CH)))) \
+                        add_hl_call(data->calls, data->bdata->num, data->bdata->hl_id, group,                           \
+                                    &ldata);                \
+        } while (0)
+
 /*======================================================================================*/
 
 struct idx_data {
-        genlist          *tok_list;
-        Buffer   *bdata;
-        struct clangdata *cdata;
-        FILE             *fp;
-        unsigned          cnt;
+        Buffer                 *bdata;
+        struct clangdata       *cdata;
+        struct translationunit *stu;
+        mpack_arg_array        *calls;
+        genlist                *tok_list;
+        FILE                   *fp;
+        unsigned                cnt;
 };
 
-#define LOG(...)    fprintf(((struct idx_data *)data)->fp, __VA_ARGS__)
+#define LOG(...)    fprintf(data->fp, __VA_ARGS__)
 #define MY_IDX_MASK (O_TRUNC|O_CREAT|O_WRONLY), (0644)
-#define DAT(D)      ((struct idx_data *)(D))
+#define DAT(data)      ((struct idx_data *)(data))
 
 void
-lc_index_file(Buffer *bdata, struct translationunit *stu)
+lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls)
 {
-        FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/idx.log", "wb", HOME);
-        struct idx_data  data = {genlist_create(), bdata, CLD(bdata), fp, 0};
-        CXIndexAction    iact = clang_IndexAction_create(CLD(bdata)->idx);
+        FILE *fp = safe_fopen_fmt("%s/idx.log", "wb", BS(settings.cache_dir));
+
+        struct idx_data  data = {bdata, CLD(bdata), stu, calls, NULL /* genlist_create() */, fp, 0};
+        CXIndexAction    iact = clang_IndexAction_create(data.cdata->idx);
+
+        IndexerCallbacks cb;
+        memset(&cb, 0, sizeof(cb));
+        cb.indexEntityReference = &my_indexEntityReference;
+#if 0
         IndexerCallbacks cb   = {/* .abortQuery             = &my_abortQuery, */
                                  /* .diagnostic             = &my_diagnostic, */
                                  /* .enteredMainFile        = &my_enteredMainFile, */
-                                 .ppIncludedFile         = &my_ppIncludedFile,
+                                 /* .ppIncludedFile         = &my_ppIncludedFile, */
                                  /* .importedASTFile        = &my_importedASTFile, */
                                  /* .startedTranslationUnit = &my_startedTranslationUnit, */
-                                 .indexDeclaration       = &my_indexDeclaration,
+                                 /* .indexDeclaration       = &my_indexDeclaration, */
                                  .indexEntityReference   = &my_indexEntityReference};
+#endif
 
+#if 0
         if (!bdata->headers)
                 bdata->headers = b_list_create();
+#endif
 
         const int r = clang_indexTranslationUnit(iact, &data, &cb, sizeof(cb),
                                                  CXIndexOpt_IndexFunctionLocalSymbols,
-                                                 CLD(bdata)->tu);
+                                                 data.cdata->tu);
         if (r != 0)
-                errx(1, "Clang failed with error %d", r);
+                errx(1, "Clang failed with error %data", r);
 
+#if 0
         stu->tokens = data.tok_list;
-
         mpack_arg_array *calls = type_id(bdata, stu);
         nvim_call_atomic(calls);
         mpack_destroy_arg_array(calls);
+#endif
 
+#if 0
         if (bdata->headers->qty > 0)
                 b_list_remove_dups(&bdata->headers);
-        fclose(fp);
+#endif
+
         clang_IndexAction_dispose(iact);
+        fclose(fp);
 }
 
 /*======================================================================================*/
@@ -96,7 +118,7 @@ lc_index_file(Buffer *bdata, struct translationunit *stu)
 static struct token *
 mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_range *rng)
 {
-        size_t        len = strlen(CS(*dispname)) + 1llu;
+        size_t        len = strlen(CS(*dispname)) + 1LLU;
         struct token *ret = xmalloc(offsetof(struct token, raw) + len);
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
@@ -110,13 +132,16 @@ mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_ra
         return ret;
 }
 
-#define log_idx_location(...) P99_CALL_DEFARG(log_idx_location, 4, __VA_ARGS__)
-#define log_idx_location_defarg_3() data
+static inline void
+fuuuck(Buffer *bdata, struct clangdata *cdata, struct resolved_range *rng)
+{
+        
+}
 
-static void(log_idx_location)(const CXCursor         cursor,
-                              const CXIdxEntityInfo *ref,
-                              const CXIdxLoc         loc,
-                              struct idx_data       *data)
+static void log_idx_location(const CXCursor         cursor,
+                             const CXIdxEntityInfo *ref,
+                             const CXIdxLoc         loc,
+                             struct idx_data       *data)
 {
         struct { CXFile file; unsigned line, column, offset; } linfo;
         clang_indexLoc_getFileLocation(loc, NULL, &linfo.file, &linfo.line,
@@ -135,20 +160,79 @@ static void(log_idx_location)(const CXCursor         cursor,
             CS(dispname), CS(curstype_spell), CS(typekind_spell),
             idx_entity_kind_repr[ref->kind], ref->name, ref->USR);
 
-        struct resolved_range *rng = &(struct resolved_range){0, 0, 0, 0, 0};
-        resolve_range(clang_getCursorExtent(cursor), rng);
-        genlist_append(data->tok_list, mktok(&cursor, &dispname, rng));
+        struct resolved_range rng = {0, 0, 0, 0, 0, 0, NULL};
+        resolve_range(clang_getCursorExtent(cursor), &rng);
+        /* genlist_append(data->tok_list, mktok(&cursor, &dispname, rng)); */
 
-        if (clang_File_isEqual(data->cdata->mainfile, rng->file)) {
+#if 0
+        CXCursor parent          = clang_getCursorSemanticParent(cursor);
+        CXType   pcurstype       = clang_getCursorType(parent);
+        CXString pdispname       = clang_getCursorDisplayName(parent);
+        CXString pkind_spell     = clang_getCursorKindSpelling(parent.kind);
+        CXString pcurstype_spell = clang_getTypeSpelling(pcurstype);
+        CXString ptypekind_spell = clang_getTypeKindSpelling(pcurstype.kind);
+
+        LOG("The cursor's parent's dispname is \"%s\" - and it is of type \"%s\" - typekind \"%s\" - kind \"%s\"\n",
+            CS(pdispname), CS(pcurstype_spell), CS(ptypekind_spell), CS(pkind_spell));
+#endif
+
+        if (clang_File_isEqual(data->cdata->mainfile, rng.file)) {
                 LOG("Also the above is on line: %u, column: %u to %u - offset %u.\n"
                     "That is ,      %s -- line: %u, column: %u       - offset %u.\n"
                     "---------------------------------------------\n",
-                    rng->line, rng->start, rng->end, rng->offset/* , BS(tmp) */,
+                    rng.line, rng.start, rng.end, rng.offset1/* , BS(tmp) */,
                     CS(fname), linfo.line, linfo.column, linfo.offset);
         }
 
         LOG("---------------------------------------------\n");
         free_cxstrings(dispname, curstype_spell, typekind_spell, fname);
+        /* free_cxstrings(pdispname, pcurstype_spell, ptypekind_spell); */
+}
+
+/*======================================================================================*/
+
+static int
+get_line_data (const struct translationunit *stu,
+               const CXCursor                cursor,
+               const CXIdxLoc                loc,
+               struct idx_data              *data,
+               struct line_data             *ldata)
+{
+        struct { CXFile file; unsigned line, column, offset; } fileinfo;
+        clang_indexLoc_getFileLocation(loc, NULL, &fileinfo.file, &fileinfo.line,
+                                       &fileinfo.column, &fileinfo.offset);
+
+        if (!clang_File_isEqual(fileinfo.file, data->cdata->mainfile))
+                return 0;
+
+        struct resolved_range rng = {0, 0, 0, 0, 0};
+        resolve_range(clang_getCursorExtent(cursor), &rng);
+
+        if (rng.line == 0 || rng.start == rng.end || rng.end == 0)
+                return 0;
+
+        /*
+         * Whenever a cursor appears within a macro definition clang will consider that
+         * cursor to appear in the source wherever the macro is used. Since it's not
+         * literally in the original source file, clang returns the location as being the
+         * whole macro call. This would mean highlighting the whole call very incorrectly
+         * in the color of a token that isn't there. So we check the actual text at the
+         * given range to see if it is the same as the actual text of the cursor itself.
+         *
+         * This took like 2 days to figure out and solve. I swear I'm an idiot.
+         */
+        CXString   dispname = clang_getCursorDisplayName(cursor);
+        bstring    realtok  = bt_fromblk(&stu->buf->data[rng.offset1], rng.len);
+        const bool eq       = b_iseq_cstr(&realtok, CS(dispname));
+        clang_disposeString(dispname);
+        if (!eq)
+                return 0;
+
+        ldata->line  = rng.line - 1;
+        ldata->start = rng.start - 1;
+        ldata->end   = rng.end - 1;
+
+        return 1;
 }
 
 /*======================================================================================*/
@@ -175,6 +259,7 @@ my_enteredMainFile(CXClientData data, UNUSED CXFile file, UNUSED void *reserved)
 }
 #endif
 
+#if 0
 static CXIdxClientFile
 my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info)
 {
@@ -190,6 +275,7 @@ my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info)
 
         return NULL;
 }
+#endif
 
 #if 0
 static CXIdxClientASTFile
@@ -207,18 +293,40 @@ my_startedTranslationUnit(CXClientData data, UNUSED void *reserved)
 }
 #endif
 
+#if 0
 static void
-my_indexDeclaration(CXClientData data, const CXIdxDeclInfo *info)
+my_indexDeclaration(CXClientData rawdata, const CXIdxDeclInfo *info)
 {
+        struct idx_data *data = rawdata;
         LOG("This node is an \033[1;32mINDEX DECLARATION\033[0m.\n");
-        log_idx_location(info->cursor, info->entityInfo, info->loc);
-
-
+        log_idx_location(info->cursor, info->entityInfo, info->loc, data);
 }
+#endif
 
 static void
-my_indexEntityReference(CXClientData data, const CXIdxEntityRefInfo *info)
+my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
 {
+        struct line_data   ldata;
+        const bstring     *group;
+        struct idx_data   *data = raw_data;
+
+        if (!get_line_data(data->stu, info->cursor, info->loc, data, &ldata))
+                return;
+
+        switch (info->referencedEntity->kind) {
+        case CXIdxEntity_CXXTypeAlias:
+                if (data->bdata->ft->id == FT_CXX)
+                        ADD_CALL(CTAGS_TYPE);
+                break;
+        case CXIdxEntity_EnumConstant:
+                ADD_CALL(CTAGS_ENUMCONST);
+                break;
+        default:
+                return;
+        }
+
+#if 0
         LOG("This node is an \033[1;36mENTITY REFERENCE\033[0m.\n");
-        log_idx_location(info->cursor, info->referencedEntity, info->loc);
+        log_idx_location(info->cursor, info->referencedEntity, info->loc, data);
+#endif
 }

@@ -51,11 +51,11 @@ void
                                 break;
                         case ENOENT:
                         case ENOEXEC:
-                                echo("Parser not found, falling back to ctags: %s\n",
+                                SHOUT("Parser not found, falling back to ctags: %s\n",
                                      strerror(ret));
                                 goto parser_failed;
                         default:
-                                echo("Unexpected parser error: %s\n", strerror(ret));
+                                SHOUT("Unexpected parser error: %s\n", strerror(ret));
                                 goto parser_failed;
                         }
                         

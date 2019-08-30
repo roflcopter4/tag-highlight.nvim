@@ -22,8 +22,10 @@ resolve_range(CXSourceRange r, struct resolved_range *res)
         unsigned         rng[2][3];
         CXFile           file;
 
-        clang_getExpansionLocation(start, &file, &rng[0][0], &rng[0][1], &rng[0][2]);
-        clang_getExpansionLocation(end,   NULL,  &rng[1][0], &rng[1][1], NULL);
+        /* clang_getExpansionLocation(start, &file, &rng[0][0], &rng[0][1], &rng[0][2]); */
+        /* clang_getExpansionLocation(end,   NULL,  &rng[1][0], &rng[1][1], NULL); */
+        clang_getFileLocation(start, &file, &rng[0][0], &rng[0][1], &rng[0][2]);
+        clang_getFileLocation(end,   NULL,  &rng[1][0], &rng[1][1], &rng[1][2]);
 
         if (rng[0][0] != rng[1][0])
                 return false;
@@ -31,7 +33,9 @@ resolve_range(CXSourceRange r, struct resolved_range *res)
         res->line   = rng[0][0];
         res->start  = rng[0][1];
         res->end    = rng[1][1];
-        res->offset = rng[0][2];
+        res->len    = res->end - res->start;
+        res->offset1 = rng[0][2];
+        res->offset2 = rng[1][2];
         res->file   = file;
         return true;
 }

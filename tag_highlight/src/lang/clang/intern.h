@@ -51,7 +51,7 @@ struct token {
 };
 
 struct resolved_range {
-        unsigned line, start, end, offset;
+        unsigned line, start, end, offset1, offset2, len;
         CXFile   file;
 };
 
@@ -59,10 +59,10 @@ struct resolved_range {
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
-INTERN mpack_arg_array *type_id(Buffer *bdata, struct translationunit *stu);
+INTERN mpack_arg_array *create_nvim_calls(Buffer *bdata, struct translationunit *stu);
 
 INTERN IndexerCallbacks *make_cb_struct(void);
-INTERN void              lc_index_file(Buffer *bdata, struct translationunit *stu);
+INTERN void              lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls);
 
 INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
 INTERN void get_tmp_path(char *buf);
@@ -73,7 +73,6 @@ INTERN void get_tmp_path(char *buf);
 #include "my_p99_common.h"
 #define P01_FREE_CXSTRING(STR) clang_disposeString(STR)
 #define free_cxstrings(...) P99_BLOCK(P99_SEP(P01_FREE_CXSTRING, __VA_ARGS__);)
-
 
 /*======================================================================================*/
 #ifdef __cplusplus

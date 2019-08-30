@@ -3,11 +3,13 @@
 
 #include "Common.h"
 
+#include "mpack/mpack.h"
 #include "my_p99_common.h"
-#include "p99/p99_count.h"
-#include "p99/p99_fifo.h"
-#include "p99/p99_futex.h"
-#include "p99/p99_lifo.h"
+
+#include "contrib/p99/p99_count.h"
+#include "contrib/p99/p99_fifo.h"
+#include "contrib/p99/p99_futex.h"
+#include "contrib/p99/p99_lifo.h"
 
 typedef volatile p99_futex vfutex_t;
 

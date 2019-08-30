@@ -138,7 +138,7 @@ if (SANITIZE)
 endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
-set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu11 -fdiagnostics-color=always")
+set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu17 -fdiagnostics-color=always")
 
 #####################################################################################################
 if (CLANG_STR_SEARCH EQUAL -1)

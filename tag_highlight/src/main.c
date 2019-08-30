@@ -96,6 +96,8 @@ open_logs(void)
         cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
         echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
         main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
+
+        /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
 #endif
 }
 
@@ -140,6 +142,8 @@ main_initialization(UNUSED void *arg)
 static void
 get_settings(void)
 {
+        settings.cache_dir = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
+
         settings.enabled        = nvim_get_var(B(PKG "enabled"),   E_BOOL  ).num;
         settings.cache_dir      = nvim_get_var(B(PKG "directory"), E_STRING).ptr;
         settings.ctags_bin      = nvim_get_var(B(PKG "ctags_bin"), E_STRING).ptr;

@@ -1,6 +1,5 @@
 #include "Common.h"
 #include "highlight.h"
-
 #include "lang/clang/clang.h"
 #include "lang/clang/intern.h"
 #include "util/find.h"
@@ -16,7 +15,7 @@
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_Incomplete                  \
          | CXTranslationUnit_CreatePreambleOnFirstParse  \
-         /* | CXTranslationUnit_IncludeAttributedTypes */ )
+         | CXTranslationUnit_IncludeAttributedTypes )
 #define INIT_ARGV   (32)
 #define DUMPDATASIZ ((int64_t)((double)SAFE_PATH_MAX * 1.5))
 
@@ -69,6 +68,8 @@ static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, 
 void
 (libclang_highlight)(Buffer *bdata, const int first, const int last, const int type)
 {
+        static pthread_mutex_t lc_mutex = PTHREAD_MUTEX_INITIALIZER;
+
         if (!bdata || !bdata->initialized)
                 return;
         if (!P44_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
@@ -85,16 +86,16 @@ void
         pthread_mutex_unlock(&bdata->lock.ctick);
 
         struct translationunit *stu;
-        int64_t                 startend[2];
-        static pthread_mutex_t  lc_mutex = PTHREAD_MUTEX_INITIALIZER;
-        bstring                *joined   = NULL;
-        unsigned                cnt_val  = p99_count_inc(&bdata->lock.num_workers);
+        int64_t   startend[2];
+        uint32_t  cnt_val = p99_count_inc(&bdata->lock.num_workers);
+        bstring  *joined  = NULL;
 
         if (cnt_val >= 2) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return;
         }
 
+        /* pthread_mutex_lock(&bdata->lock.update); */
         pthread_mutex_lock(&lc_mutex);
         {
                 pthread_mutex_lock(&bdata->lines->lock);
@@ -120,19 +121,20 @@ void
         CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
 
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
-        mpack_arg_array *calls = type_id(bdata, stu);
+        mpack_arg_array *calls = create_nvim_calls(bdata, stu);
         nvim_call_atomic(calls);
 
         mpack_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&lc_mutex);
+        /* pthread_mutex_lock(&bdata->lock.update); */
 }
 
 void *
 libclang_threaded_highlight(void *vdata)
 {
-        libclang_highlight((Buffer *)vdata);
+        libclang_highlight((Buffer *)vdata, 0, -1, HIGHLIGHT_NORMAL);
         pthread_exit();
 }
 
@@ -216,6 +218,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         stu->buf = buf;
         stu->tu  = CLD(bdata)->tu;
 
+#if 0
         /* Get all enumerators in the translation unit separately, because clang
          * doesn't expose them as such, only as normal integers (in C). */
         struct enum_data enumlist = {CLD(bdata)->tu, b_list_create(), buf};
@@ -225,6 +228,9 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         DUMPDATA();
 
         CLD(bdata)->enumerators = enumlist.enumerators;
+#endif
+
+        CLD(bdata)->enumerators = NULL;
         CLD(bdata)->argv        = comp_cmds;
         CLD(bdata)->info        = getinfo(bdata);
         memcpy(CLD(bdata)->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
@@ -309,7 +315,7 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                                 len   = PSUB(next, tok);
                         }
 
-                        unquote(&(bstring){len, 0, (uchar *)tok, 0});
+                        unquote((bstring[]){{len, 0, (uchar *)tok, 0}});
                         argv_append(ret, "-I", true);
                         tok += 2;
                         char *abspath;
@@ -346,7 +352,23 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
 #else
 #  define ARGV_APPEND_FILE(VAR, STR) \
         argv_append((VAR), (STR), true)
+
+static inline void
+handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
+{
+        if (cstr[0] != '/' /* P44_STREQ_ANY(cstr, ".", "..") || strncmp(cstr, "../", 3) == 0 */) {
+                char *buf = NULL;
+                asprintf(&buf, "%s/%s", CS(directory), cstr);
+                argv_append(lst, buf, false);
+        } else {
+                argv_append(lst, cstr, true);
+        }
+}
 #endif
+
+/*======================================================================================*/
+
+enum allow_next_arg { NE_NORMAL, NE_DISALLOW, NE_FILE_ALLOW, NE_LANG_ALLOW };
 
 static str_vector *
 get_compile_commands(Buffer *bdata)
@@ -378,31 +400,49 @@ get_compile_commands(Buffer *bdata)
          * reaches it. This happens fairly often when editing a file. */
         argv_append(ret, "-ferror-limit=0", true);
 
+        extern FILE *clang_log_file;
+
         for (unsigned i = 0; i < ncmds; ++i) {
-                CXCompileCommand command = clang_CompileCommands_getCommand(cmds, i);
-                const unsigned   nargs   = clang_CompileCommand_getNumArgs(command);
-                bool             fileok  = false;
+                CXCompileCommand command   = clang_CompileCommands_getCommand(cmds, i);
+                CXString         directory = clang_CompileCommand_getDirectory(command);
+                const unsigned   nargs     = clang_CompileCommand_getNumArgs(command);
+                int              arg_allow = NE_NORMAL;
 
                 for (unsigned x = 0; x < nargs; ++x) {
-                        bool        next_fileok = false;
-                        CXString    tmp         = clang_CompileCommand_getArg(command, x);
-                        const char *cstr        = CS(tmp);
+                        int next_arg_allow = NE_NORMAL;
+                        CXString    tmp  = clang_CompileCommand_getArg(command, x);
+                        const char *cstr = CS(tmp);
 
-                        if (strcmp(cstr, "-o") == 0) {
-                                ++x;
-                        } else if (cstr[0] == '-') {
-                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include", "x")) {
-                                        next_fileok = true;
+                        if (arg_allow != NE_NORMAL) {
+                                switch (arg_allow) {
+                                case NE_FILE_ALLOW:
+                                        handle_include_compile_command(ret, cstr+2, directory);
+                                        break;
+                                case NE_LANG_ALLOW:
                                         argv_append(ret, cstr, true);
-                                } else if (P44_STREQ_ANY(cstr+1, "MMD")) {
+                                        break;
+                                case NE_DISALLOW:
+                                default:
+                                        break;
+                                }
+                        } else if (cstr[0] == '-' && cstr[1]) {
+                                if (P44_STREQ_ANY(cstr+1, "I", "isystem", "include")) {
+                                        argv_append(ret, cstr, true);
+                                        next_arg_allow = NE_FILE_ALLOW;
+                                } else if (strcmp(cstr+1, "x") == 0) {
+                                        argv_append(ret, cstr, true);
+                                        next_arg_allow = NE_LANG_ALLOW;
+                                } else if (strcmp(cstr+1, "o") == 0) {
+                                        next_arg_allow = NE_DISALLOW;
+                                } else if (P44_STREQ_ANY(cstr+1, "MMD", "MP", "MD", "MT", "MF")) {
                                         /* Nothing */
                                 } else {
                                         switch (cstr[1]) {
-                                        case 'f': case 'c': case 'W':
+                                        case 'f': case 'c': case 'W': case 'o':
                                                 break;
                                         case 'I':
                                                 argv_append(ret, "-I", true);
-                                                ARGV_APPEND_FILE(ret, cstr+2);
+                                                handle_include_compile_command(ret, cstr+2, directory);
                                                 break;
                                         default:
                                                 argv_append(ret, cstr, true);
@@ -412,31 +452,17 @@ get_compile_commands(Buffer *bdata)
                         } else if (cstr[0] == '@') {
                                 handle_win32_command_script(bdata, cstr, ret);
 #endif
-                        } else if (fileok) {
-                                ARGV_APPEND_FILE(ret, cstr);
                         }
                                 
                         clang_disposeString(tmp);
-                        fileok = next_fileok;
+                        arg_allow = next_arg_allow;
                 }
+
+                clang_disposeString(directory);
         }
 
         argv_append(ret, "-I", true);
         argv_append(ret, BS(bdata->name.path), true);
-#if 0
-#ifdef DOSISH
-        bstring *fixbs = b_strcpy(bdata->name.path);
-        b_replace_ch(fixbs, '\\', '/');
-        argv_append(ret, BS(fixbs), false);
-        xfree(fixbs);
-#else
-        argv_append(ret, BS(bdata->name.path), true);
-#endif
-#endif
-
-#if 0
-        argv_append(ret, "-stdlib=libstdc++", true);
-#endif
 
         clang_CompileCommands_dispose(cmds);
         clang_CompilationDatabase_dispose(db);
@@ -466,7 +492,6 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
         /* CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full)); */
         CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(newnam));
         const unsigned    num  = clang_CompileCommands_getSize(comp);
-        ECHO("num is %u for %s\n", num, newnam);
         b_destroy(newnam);
 
         if (num == 0) {
@@ -584,7 +609,8 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
             !resolve_range(clang_getTokenExtent(*tu, *tok), &res))
                 return NULL;
 
-        CXString dispname = clang_getCursorDisplayName(*cursor);
+        /* CXString dispname = clang_getCursorDisplayName(*cursor); */
+        CXString dispname = clang_getCursorSpelling(*cursor);
         size_t   len      = strlen(CS(dispname)) + UINTMAX_C(1);
         ret               = xmalloc(offsetof(struct token, raw) + len);
         ret->token        = *tok;
@@ -630,5 +656,3 @@ tokenize_range(struct translationunit *stu, CXFile *file, const int64_t first, c
                 if ((t = get_token_data(&stu->tu, &toks[i], &cursors[i])))
                         genlist_append(stu->tokens, t);
 }
-
-

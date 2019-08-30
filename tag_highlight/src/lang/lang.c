@@ -82,15 +82,17 @@ add_hl_call(struct mpack_arg_array *calls,
                 calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
         }
 
-        calls->fmt[calls->qty]         = STRDUP("s[dd,s,ddd]");
-        calls->args[calls->qty]        = nmalloc(7, sizeof(mpack_argument));
-        calls->args[calls->qty][0].str = b_fromlit("nvim_buf_add_highlight");
-        calls->args[calls->qty][1].num = bufnum;
-        calls->args[calls->qty][2].num = hl_id;
-        calls->args[calls->qty][3].str = b_strcpy(group);
-        calls->args[calls->qty][4].num = data->line;
-        calls->args[calls->qty][5].num = data->start;
-        calls->args[calls->qty][6].num = data->end;
+        mpack_argument *arg = nmalloc(7, sizeof(mpack_argument));
+        arg[0].str = b_fromlit("nvim_buf_add_highlight");
+        arg[1].num = bufnum;
+        arg[2].num = hl_id;
+        arg[3].str = b_strcpy(group);
+        arg[4].num = data->line;
+        arg[5].num = data->start;
+        arg[6].num = data->end;
+
+        calls->fmt[calls->qty]  = STRDUP("s[dd,s,ddd]");
+        calls->args[calls->qty] = arg;
 
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %u, %u, %u)\n",
@@ -112,13 +114,15 @@ add_clr_call(struct mpack_arg_array *calls,
                 calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
         }
 
-        calls->fmt[calls->qty]         = STRDUP("s[dddd]");
-        calls->args[calls->qty]        = nmalloc(5, sizeof(mpack_argument));
-        calls->args[calls->qty][0].str = b_fromlit("nvim_buf_clear_highlight");
-        calls->args[calls->qty][1].num = bufnum;
-        calls->args[calls->qty][2].num = hl_id;
-        calls->args[calls->qty][3].num = line;
-        calls->args[calls->qty][4].num = end;
+        mpack_argument *arg = nmalloc(5, sizeof(mpack_argument));
+        arg[0].str = b_fromlit("nvim_buf_clear_highlight");
+        arg[1].num = bufnum;
+        arg[2].num = hl_id;
+        arg[3].num = line;
+        arg[4].num = end;
+
+        calls->fmt[calls->qty]  = STRDUP("s[dddd]");
+        calls->args[calls->qty] = arg;
 
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n",
