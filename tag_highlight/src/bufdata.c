@@ -110,7 +110,7 @@ end:
 Buffer *
 get_bufdata(const int bufnum, Filetype *ft)
 {
-        Buffer *bdata    = xcalloc(1, sizeof(Buffer));
+        Buffer *bdata    = calloc(1, sizeof(Buffer));
         bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
@@ -186,7 +186,7 @@ destroy_bufdata(Buffer **bdata)
         pthread_mutex_unlock(&(*bdata)->lock.update);
         pthread_mutex_destroy(&(*bdata)->lock.update);
 
-        xfree(*bdata);
+        free(*bdata);
         *bdata = NULL;
 
         pthread_mutex_lock(&buffers.lock);
@@ -308,7 +308,7 @@ init_topdir(Buffer *bdata)
         pthread_mutex_unlock(&top_dirs->mut);
         ECHO("Initializing new topdir \"%s\"\n", dir);
 
-        Top_Dir *tdir   = xcalloc(1, sizeof(Top_Dir));
+        Top_Dir *tdir   = calloc(1, sizeof(Top_Dir));
         tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
         tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
         tdir->gzfile    = b_fromcstr_alloc(dir->mlen * 3, HOME);
@@ -493,13 +493,13 @@ init_filetype(Filetype *ft)
                         b_writeprotect(toadd);
                         mpack_destroy_object(equiv->entries[i]->key);
                         mpack_destroy_object(equiv->entries[i]->value);
-                        xfree(equiv->entries[i]);
+                        free(equiv->entries[i]);
                         b_writeallow(toadd);
                         b_list_append(&ft->equiv, toadd);
                 }
 
-                xfree(equiv->entries);
-                xfree(equiv);
+                free(equiv->entries);
+                free(equiv);
         } else {
                 ft->equiv = NULL;
         }

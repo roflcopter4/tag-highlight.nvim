@@ -24,7 +24,7 @@ static noreturn void *main_initialization (void *arg);
 extern void           event_loop_init     (int fd);
 
 #define WAIT_TIME  (3.0)
-#define eputs(str) fwrite(("" str ""), 1, (sizeof(str) - 1), stderr)
+#define eputs(str) fwrite(("tag_highlight: " str "\n"), 1, (sizeof(str) + 16 - 1), stderr)
 
 /*======================================================================================*/
 
@@ -41,7 +41,7 @@ main(UNUSED int argc, char *argv[])
          * returns and we clean everything up. We don't do this when Neovim exits because
          * it freezes until all child processes have stopped. This delay is noticeable and
          * annoying, so normally we just call quick_exit or _Exit instead. */
-        eputs("Right, cleaning up!\n");
+        eputs("Right, cleaning up!");
         return EXIT_SUCCESS;
 }
 
@@ -104,12 +104,13 @@ open_logs(void)
 static noreturn void *
 main_initialization(UNUSED void *arg)
 {
-        int initial_buf = 0;
+        int initial_buf;
         get_settings();
 
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
          * recognize a buffer, the wait time between tries is modestly long. */
+#if 0
         for (int attempts = 0; buffers.mkr == 0; ++attempts) {
                 if (attempts > 0) {
                         if (buffers.bad_bufs.qty)
@@ -120,6 +121,17 @@ main_initialization(UNUSED void *arg)
                 initial_buf = nvim_get_current_buf();
                 if (new_buffer(initial_buf))
                         break;
+        }
+#endif
+        for (;;) {
+                initial_buf = nvim_get_current_buf();
+                if (new_buffer(initial_buf))
+                        break;
+
+                /* Buffer not identified. Reset the "bad buffers" list just in
+                 * case and wait for a while before trying again. */
+                buffers.bad_bufs.qty = 0;
+                fsleep(WAIT_TIME);
         }
 
         Buffer *bdata = find_buffer(initial_buf);
@@ -142,13 +154,11 @@ main_initialization(UNUSED void *arg)
 static void
 get_settings(void)
 {
-        settings.cache_dir = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
-
         settings.enabled        = nvim_get_var(B(PKG "enabled"),   E_BOOL  ).num;
-        settings.cache_dir      = nvim_get_var(B(PKG "directory"), E_STRING).ptr;
         settings.ctags_bin      = nvim_get_var(B(PKG "ctags_bin"), E_STRING).ptr;
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
+        settings.cache_dir      = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
         settings.comp_type      = get_compression_type();
         settings.comp_level     = nvim_get_var(B(PKG "compression_level"), E_NUM       ).num;
         settings.ctags_args     = nvim_get_var(B(PKG "ctags_args"),        E_STRLIST   ).ptr;
@@ -177,8 +187,8 @@ get_initial_lines(Buffer *bdata)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
 
-        xfree(tmp->lst);
-        xfree(tmp);
+        free(tmp->lst);
+        free(tmp);
         bdata->initialized = true;
         pthread_mutex_unlock(&bdata->lock.total);
 }
@@ -205,8 +215,8 @@ exit_cleanup(void)
                 destroy_bufdata(buffers.lst + i);
 
         if (top_dirs) {
-                xfree(top_dirs->lst);
-                xfree(top_dirs);
+                free(top_dirs->lst);
+                free(top_dirs);
         }
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
@@ -217,8 +227,8 @@ exit_cleanup(void)
                                 for (unsigned x = 0; x < igt->qty; ++x)
                                         if (igt->lst[x]->flags & BSTR_MASK_USR1)
                                                 b_destroy(igt->lst[x]);
-                                xfree(igt->lst);
-                                xfree(igt);
+                                free(igt->lst);
+                                free(igt);
                         }
                         b_list_destroy(ft->equiv);
                         b_destroy(ft->order);
@@ -253,24 +263,23 @@ get_compression_type(void)
         bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
-        if (b_iseq(tmp, B("gzip"))) {
+        if (b_iseq_lit(tmp, "gzip")) {
                 ret = COMP_GZIP;
-        } else if (b_iseq(tmp, B("lzma"))) {
+        } else if (b_iseq_lit(tmp, "lzma")) {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
-                warnx("Compression type is set to 'lzma', but only gzip is "
+                eputs("Compression type is set to 'lzma', but only gzip is "
                       "supported in this build.");
                 ret = COMP_GZIP;
 #endif
-        } else if (b_iseq(tmp, B("none"))) {
+        } else if (b_iseq_lit(tmp, "none")) {
                 ret = COMP_NONE;
         } else {
                 eprintf("Warning: unrecognized compression type \"%s\", "
                         "defaulting to no compression.", BS(tmp));
         }
 
-        eprintf("Comp type is %s", BS(tmp));
         b_destroy(tmp);
         return ret;
 }

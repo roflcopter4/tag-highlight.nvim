@@ -62,7 +62,7 @@ struct timer {
 #define STRDUP(STR)                                                     \
         __extension__({                                                 \
                 static const char strng_[]   = ("" STR "");             \
-                char *            strng_cpy_ = xmalloc(sizeof(strng_)); \
+                char *            strng_cpy_ = malloc(sizeof(strng_)); \
                 memcpy(strng_cpy_, strng_, sizeof(strng_));             \
                 strng_cpy_;                                             \
         })

@@ -11,6 +11,7 @@ Include the required alpha (and therefore uncommon) liblzma version as a static\
 library, and use bundled BSD extensions instead of libbsd even if it is available.")
 option(STATIC_LIBS_ONLY "Build with only static libraries.")
 option(SANITIZE "Enable sanitizers")
+option(USE_JEMALLOC "Use jemalloc")
 
 ###############################################################################
 # Libraries
@@ -49,6 +50,9 @@ find_package (LibClang REQUIRED)
 if (NOT MINGW)
     find_package (LibEv REQUIRED)
 endif ()
+if (USE_JEMALLOC STREQUAL "YES")
+    find_package (Jemalloc REQUIRED)
+endif()
 
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 

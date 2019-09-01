@@ -49,7 +49,7 @@ destroy_struct_info(struct cmd_info *info)
         if (info) {
                 for (unsigned i = 0, e = info[0].num; i < e; ++i)
                         b_destroy(info[i].group);
-                xfree(info);
+                free(info);
         }
 }
 
@@ -60,7 +60,7 @@ destroy_struct_info(struct cmd_info *info)
 struct mpack_arg_array *
 new_arg_array(void)
 {
-        struct mpack_arg_array *calls = xmalloc(sizeof(struct mpack_arg_array));
+        struct mpack_arg_array *calls = malloc(sizeof(struct mpack_arg_array));
         calls->mlen = INIT_ACALL_SIZE;
         calls->fmt  = nmalloc(calls->mlen, sizeof(char *));
         calls->args = nmalloc(calls->mlen, sizeof(mpack_argument *));

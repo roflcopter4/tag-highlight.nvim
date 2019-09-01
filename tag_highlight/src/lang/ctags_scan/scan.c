@@ -5,7 +5,6 @@
 #  define CONST__
 #  define SEPCHAR ';'
 #else
-#  include <alloca.h>
 #  define CONST__ const
 #  define SEPCHAR ':'
 #endif
@@ -116,16 +115,22 @@ remove_duplicate_tags(struct taglist **taglist_p)
 {
 #define TAG1 (list->lst[i])
 #define TAG2 (list->lst[i - 1])
-        struct taglist *list    = *taglist_p;
-        struct taglist *to_free = &(struct taglist){
-                .lst  = nalloca(list->qty, sizeof(struct tag *)),
-                .qty  = 0,
-                .mlen = list->qty};
-        struct taglist *repl = xmalloc(sizeof(struct taglist));
-        *repl                = (struct taglist){
-                .lst  = nmalloc(sizeof(struct tag *), list->qty),
-                .qty  = 0,
-                .mlen = list->qty};
+
+        struct taglist *list = *taglist_p;
+        struct taglist *repl = malloc(sizeof(struct taglist));
+        struct tag     *to_free_lst[list->qty];
+
+        struct taglist *to_free = (struct taglist[]){{
+                .lst = to_free_lst,
+                .qty = 0,
+                .mlen = list->qty
+        }};
+        *repl = (struct taglist){
+                .lst = nmalloc((list->qty > 0) ? list->qty : 1,
+                                sizeof(struct tag *)),
+                .qty = 0,
+                .mlen = list->qty
+        };
 
         repl->lst[repl->qty++] = list->lst[0];
 
@@ -138,12 +143,12 @@ remove_duplicate_tags(struct taglist **taglist_p)
 
         for (unsigned i = 0; i < to_free->qty; ++i) {
                 b_destroy(to_free->lst[i]->b);
-                xfree(to_free->lst[i]);
+                free(to_free->lst[i]);
                 to_free->lst[i] = NULL;
         }
 
-        xfree(list->lst);
-        xfree(list);
+        free(list->lst);
+        free(list);
         *taglist_p = repl;
 #undef TAG1
 #undef TAG2
@@ -213,7 +218,7 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
         /* Launch the actual search in separate threads, with each handling as
          * close to an equal number of tags as the math allows. */
         for (unsigned i = 0; i < num_threads; ++i) {
-                struct pdata *tmp = xmalloc(sizeof(*tmp));
+                struct pdata *tmp = malloc(sizeof(*tmp));
                 unsigned quot = tags->qty / num_threads;
                 unsigned num  = (i == num_threads - 1)
                                    ? (tags->qty - ((num_threads - 1) * quot))
@@ -237,8 +242,8 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
         for (unsigned i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
-        xfree(uniq->lst);
-        xfree(uniq);
+        free(uniq->lst);
+        free(uniq);
         unsigned total = 0, offset = 0;
 
         for (unsigned T = 0; T < num_threads; ++T)
@@ -246,15 +251,15 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
                         total += out[T]->qty;
         if (total == 0) {
                 warnx("No tags found in buffer.");
-                xfree(tid);
-                xfree(out);
+                free(tid);
+                free(out);
                 return NULL;
         }
 
         /* Combine the returned data from all threads into one array, which is
          * then sorted and returned. */
-        struct tag    **alldata = xcalloc(total, sizeof(struct tag *));
-        struct taglist *ret     = xmalloc(sizeof(*ret));
+        struct tag    **alldata = calloc(total, sizeof(struct tag *));
+        struct taglist *ret     = malloc(sizeof(*ret));
         *ret = (struct taglist){ alldata, total, total };
 
         for (unsigned T = 0; T < num_threads; ++T) {
@@ -264,8 +269,8 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
                                        out[T]->qty * sizeof(*out));
                                 offset += out[T]->qty;
                         }
-                        xfree(out[T]->lst);
-                        xfree(out[T]);
+                        free(out[T]->lst);
+                        free(out[T]);
                 }
         }
 
@@ -274,8 +279,8 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
         remove_duplicate_tags(&ret);
         ECHO("Now there are %u tags...", ret->qty);
 
-        xfree(tid);
-        xfree(out);
+        free(tid);
+        free(out);
         return ret;
 }
 
@@ -290,7 +295,7 @@ do_tok_search(void *vdata)
         if (data->num == 0) {
                 pthread_exit(NULL);
         }
-        struct taglist *ret  = xmalloc(sizeof(*ret));
+        struct taglist *ret  = malloc(sizeof(*ret));
         *ret = (struct taglist){
                 .lst = nmalloc(INIT_MAX, sizeof(*ret->lst)),
                 .qty = 0, .mlen = INIT_MAX
@@ -338,8 +343,8 @@ do_tok_search(void *vdata)
                 }
 
                 if (!kind || !match_lang[0].data) {
-                        xfree(cpy_data);
-                        xfree(cpy);
+                        free(cpy_data);
+                        free(cpy);
                         continue;
                 }
 
@@ -361,7 +366,7 @@ do_tok_search(void *vdata)
                               sizeof(bstring *), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
-                        struct tag *tag = xmalloc(sizeof(*tag));
+                        struct tag *tag = malloc(sizeof(*tag));
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
@@ -388,16 +393,16 @@ do_tok_search(void *vdata)
                         LOG("Accepting tag %c - %-20s - %-40s\n",
                             kind, BS(match_lang), BS(name));
                         bstring    *tmp = b_fromblk(name->data, name->slen);
-                        struct tag *tag = xmalloc(sizeof(*tag));
+                        struct tag *tag = malloc(sizeof(*tag));
                         *tag            = (struct tag){.b = tmp, .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
 #endif
-                xfree(cpy_data);
-                xfree(cpy);
+                free(cpy_data);
+                free(cpy);
         }
 
-        xfree(vdata);
+        free(vdata);
 
 #ifndef DOSISH
         pthread_exit(ret);

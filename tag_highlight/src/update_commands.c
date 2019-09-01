@@ -115,10 +115,10 @@ retry:
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_destroy(tags->lst[i]->b);
-                        xfree(tags->lst[i]);
+                        free(tags->lst[i]);
                 }
-                xfree(tags->lst);
-                xfree(tags);
+                free(tags->lst);
+                free(tags);
 
                 if (bdata->ft->restore_cmds) {
                         LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
@@ -143,8 +143,8 @@ retry:
 static mpack_arg_array *
 update_commands(Buffer *bdata, struct taglist *tags)
 {
-        const unsigned   ngroups = bdata->ft->order->slen;
-        struct cmd_info *info    = nalloca(ngroups, sizeof(*info));
+        const unsigned  ngroups = bdata->ft->order->slen;
+        struct cmd_info info[ngroups];
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 const int     ch   = bdata->ft->order->data[i];
@@ -283,11 +283,11 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
 {
 #define CALLS (*calls)
         if (!CALLS) {
-                CALLS        = xmalloc(sizeof(mpack_arg_array));
+                CALLS        = malloc(sizeof(mpack_arg_array));
                 CALLS->qty   = 0;
                 CALLS->mlen  = 16;
-                CALLS->fmt   = xcalloc(CALLS->mlen, sizeof(char *));
-                CALLS->args  = xcalloc(CALLS->mlen, sizeof(mpack_argument *));
+                CALLS->fmt   = calloc(CALLS->mlen, sizeof(char *));
+                CALLS->args  = calloc(CALLS->mlen, sizeof(mpack_argument *));
         } else if (CALLS->qty >= CALLS->mlen-1) {
                 CALLS->mlen *= 2;
                 CALLS->fmt   = nrealloc(CALLS->fmt,  CALLS->mlen, sizeof(char *));

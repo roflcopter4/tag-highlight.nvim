@@ -26,7 +26,7 @@ write_plain(struct top_dir *topdir)
         if (fstat(topdir->tmpfd, &st) != 0)
                 err(1, "stat failed");
 
-        uint8_t      *buf    = xcalloc(st.st_size + 1, 1);
+        uint8_t      *buf    = calloc(st.st_size + 1, 1);
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
         const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
@@ -38,7 +38,7 @@ write_plain(struct top_dir *topdir)
         lseek(topdir->tmpfd, 0, SEEK_SET);
         assert(write(topdir->tmpfd, buf, (size_t)(st.st_size + 1)) == (ssize_t)(st.st_size + 1));
 
-        xfree(buf);
+        free(buf);
         fsync(topdir->tmpfd);
 #endif
 
@@ -57,7 +57,7 @@ write_gzip(struct top_dir *topdir)
         if (fstat(topdir->tmpfd, &st) != 0)
                 err(1, "stat failed");
 
-        uint8_t *buf = xmalloc(st.st_size);
+        uint8_t *buf = malloc(st.st_size);
         /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
 
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
@@ -70,7 +70,7 @@ write_gzip(struct top_dir *topdir)
         gzwrite(gfp, buf, st.st_size);
         gzclose(gfp);
 
-        xfree(buf);
+        free(buf);
 }
 
 #ifdef LZMA_SUPPORT
@@ -95,7 +95,7 @@ write_lzma(struct top_dir *topdir)
         /* struct stat st; */
         /* assert(fstat(topdir->tmpfd, &st) == 0); */
 
-        /* uint8_t *in_buf = xmalloc(st.st_size); */
+        /* uint8_t *in_buf = malloc(st.st_size); */
 
         /* warnx("trying to read file"); */
 
@@ -136,7 +136,7 @@ write_lzma(struct top_dir *topdir)
                 err(1, "stat failed");
 
         const size_t   size   = (size_t)st.st_size;
-        uint8_t       *in_buf = xcalloc(size + 1, 1);
+        uint8_t       *in_buf = calloc(size + 1, 1);
         FILE          *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
         const size_t   nread  = fread(in_buf, 1, size + 1, readfp);
         fclose(readfp);
@@ -153,8 +153,8 @@ write_lzma(struct top_dir *topdir)
         if (ret != LZMA_OK)
                 errx(1, "LZMA error: %s", lzma_message_strm(ret));
 
-        /* uint8_t *out_buf = xcalloc(st.st_size, 1); */
-        uint8_t *out_buf = xcalloc(size, 1);
+        /* uint8_t *out_buf = calloc(st.st_size, 1); */
+        uint8_t *out_buf = calloc(size, 1);
 
         strm.next_out  = out_buf;
         strm.next_in   = in_buf;
@@ -177,7 +177,7 @@ write_lzma(struct top_dir *topdir)
                       __LINE__, __FILE__, ret, lzma_message_strm(ret));
 
 #if 0
-        struct write_wrapper_data *data = xmalloc(sizeof *data);
+        struct write_wrapper_data *data = malloc(sizeof *data);
         *data = (struct write_wrapper_data){ topdir, out_buf, (size_t)st.st_size };
         /* pthread_t tid;
         pthread_create(&tid, NULL, &write_wrapper, data); */
@@ -195,8 +195,8 @@ write_lzma(struct top_dir *topdir)
         fclose(fp);
 
         lzma_end(&strm);
-        xfree(in_buf);
-        xfree(out_buf);
+        free(in_buf);
+        free(out_buf);
         /* b_free(asswipe); */
 }
 #endif

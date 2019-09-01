@@ -264,7 +264,7 @@ free_all__(void *ptr, ...)
         va_list ap;
         va_start(ap, ptr);
 
-        do xfree(ptr);
+        do free(ptr);
         while ((ptr = va_arg(ap, void *)) != NULL);
 
         va_end(ap);

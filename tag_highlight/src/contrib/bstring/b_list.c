@@ -51,8 +51,8 @@
 b_list *
 b_list_create(void)
 {
-        b_list *sl = xmalloc(sizeof(b_list));
-        sl->lst    = xcalloc(4, sizeof(bstring *));
+        b_list *sl = malloc(sizeof(b_list));
+        sl->lst    = calloc(4, sizeof(bstring *));
         sl->qty    = 0;
         sl->mlen   = 1;
         if (!sl->lst)
@@ -66,8 +66,8 @@ b_list_create_alloc(const uint msz)
 {
         const int safesize = (msz == 0) ? 1 : msz;
 
-        b_list *sl = xmalloc(sizeof(b_list));
-        sl->lst    = xmalloc(safesize * sizeof(bstring *));
+        b_list *sl = malloc(sizeof(b_list));
+        sl->lst    = malloc(safesize * sizeof(bstring *));
         sl->qty    = 0;
         sl->mlen   = safesize;
         sl->lst[0] = NULL;
@@ -87,9 +87,9 @@ b_list_destroy(b_list *sl)
 
         sl->qty  = 0;
         sl->mlen = 0;
-        xfree(sl->lst);
+        free(sl->lst);
         sl->lst  = NULL;
-        xfree(sl);
+        free(sl);
 
         return BSTR_OK;
 }
@@ -112,7 +112,7 @@ b_list_alloc(b_list *sl, const uint msz)
         if (nsz < (size_t)smsz)
                 RUNTIME_ERROR();
 
-        blen = xrealloc(sl->lst, nsz);
+        blen = realloc(sl->lst, nsz);
 #if 0
         blen = realloc(sl->lst, nsz);
         if (!blen) {
@@ -180,7 +180,7 @@ b_scb(void *parm, const uint ofs, const uint len)
                         mlen += mlen;
                 }
 
-                tbl         = xrealloc(g->bl->lst, sizeof(bstring *) * mlen);
+                tbl         = realloc(g->bl->lst, sizeof(bstring *) * mlen);
                 g->bl->lst  = tbl;
                 g->bl->mlen = mlen;
         }
@@ -199,9 +199,9 @@ b_split(const bstring *str, uchar splitChar)
         if (INVALID(str))
                 RETURN_NULL();
 
-        g.bl       = xmalloc(sizeof(b_list));
+        g.bl       = malloc(sizeof(b_list));
         g.bl->mlen = 4;
-        g.bl->lst  = xmalloc(g.bl->mlen * sizeof(bstring *));
+        g.bl->lst  = malloc(g.bl->mlen * sizeof(bstring *));
         g.bstr     = (bstring *)str;
         g.bl->qty  = 0;
 
@@ -222,9 +222,9 @@ b_splitstr(const bstring *str, const bstring *splitStr)
         if (INVALID(str))
                 RETURN_NULL();
 
-        g.bl       = xmalloc(sizeof(b_list));
+        g.bl       = malloc(sizeof(b_list));
         g.bl->mlen = 4;
-        g.bl->lst  = xmalloc(g.bl->mlen * sizeof(bstring *));
+        g.bl->lst  = malloc(g.bl->mlen * sizeof(bstring *));
         g.bstr     = (bstring *)str;
         g.bl->qty  = 0;
 
@@ -244,9 +244,9 @@ b_splits(const bstring *str, const bstring *splitStr)
         if (INVALID(str) || INVALID(splitStr))
                 RETURN_NULL();
 
-        g.bl       = xmalloc(sizeof(b_list));
+        g.bl       = malloc(sizeof(b_list));
         g.bl->mlen = 4;
-        g.bl->lst  = xmalloc(g.bl->mlen * sizeof(bstring *));
+        g.bl->lst  = malloc(g.bl->mlen * sizeof(bstring *));
         g.bstr     = (bstring *)str;
         g.bl->qty  = 0;
 
@@ -277,11 +277,11 @@ b_join(const b_list *bl, const bstring *sep)
         if (sep)
                 total += (bl->qty - 1) * sep->slen;
 
-        bstring *bstr = xmalloc(sizeof(bstring));
+        bstring *bstr = malloc(sizeof(bstring));
 
         bstr->mlen  = total;
         bstr->slen  = total - 1;
-        bstr->data  = xmalloc(total);
+        bstr->data  = malloc(total);
         bstr->flags = BSTR_STANDARD;
         total       = 0;
 
@@ -314,10 +314,10 @@ b_join_quote(const b_list *bl, const bstring *sep, const int ch)
         if (total > UINT32_MAX)
                 RETURN_NULL();
 
-        bstring *bstr = xmalloc(sizeof(bstring));
+        bstring *bstr = malloc(sizeof(bstring));
         bstr->mlen    = total - (2 * sepsize);
         bstr->slen    = 0;
-        bstr->data    = xmalloc(total);
+        bstr->data    = malloc(total);
         bstr->flags   = BSTR_STANDARD;
 
         B_LIST_FOREACH(bl, cur, i) {

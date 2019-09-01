@@ -155,8 +155,8 @@ separate_and_sort(bstring *output)
         }
 #endif
         output->data = bak;
-        /* xfree(output); */
-        /* xfree(bak); */
+        /* free(output); */
+        /* free(bak); */
         return ret;
 }
 

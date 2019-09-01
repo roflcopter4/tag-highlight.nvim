@@ -330,7 +330,7 @@ b_steal(void *blk, const unsigned len)
 {
         if (!blk || len == 0)
                 RETURN_NULL();
-        bstring *ret = xmalloc(sizeof *ret);
+        bstring *ret = malloc(sizeof *ret);
         *ret = (bstring){
             .slen  = len,
             .mlen  = len + 1,
@@ -346,7 +346,7 @@ b_refblk(void *blk, const unsigned len)
 {
         if (!blk || len == 0)
                 RETURN_NULL();
-        bstring *ret = xmalloc(sizeof *ret);
+        bstring *ret = malloc(sizeof *ret);
         *ret = (bstring){
             .slen  = len,
             .mlen  = len,
@@ -363,7 +363,7 @@ b_clone(const bstring *const src)
         if (INVALID(src))
                 RETURN_NULL();
 
-        bstring *ret = xmalloc(sizeof *ret);
+        bstring *ret = malloc(sizeof *ret);
         memcpy(ret, src, sizeof(bstring));
 #if 0
         *ret = (bstring){.slen  = src->slen,
@@ -385,7 +385,7 @@ b_clone_swap(bstring *src)
         if (INVALID(src) || NO_WRITE(src))
                 RETURN_NULL();
 
-        bstring *ret = xmalloc(sizeof *ret);
+        bstring *ret = malloc(sizeof *ret);
         memcpy(ret, src, sizeof(bstring));
 #if 0
         *ret = (bstring){.slen  = src->slen,
@@ -437,7 +437,7 @@ b_list_append(b_list **listp, bstring *bstr)
                 RUNTIME_ERROR();
 
         if ((*listp)->qty >= ((*listp)->mlen)) {
-                bstring **tmp = xreallocarray((*listp)->lst, ((*listp)->mlen *= 2), sizeof(bstring *));
+                bstring **tmp = reallocarray((*listp)->lst, ((*listp)->mlen *= 2), sizeof(bstring *));
                 (*listp)->lst = tmp;
         }
         (*listp)->lst[(*listp)->qty++] = bstr;
@@ -549,15 +549,15 @@ b_list_merge(b_list **dest, b_list *src, const int flags)
 
         const unsigned size = ((*dest)->qty + src->qty);
         if ((*dest)->mlen < size)
-                (*dest)->lst = xrealloc((*dest)->lst,
+                (*dest)->lst = realloc((*dest)->lst,
                                 (size_t)((*dest)->mlen = size) * sizeof(bstring *));
 
         for (unsigned i = 0; i < src->qty; ++i)
                 (*dest)->lst[(*dest)->qty++] = src->lst[i];
 
         if (flags & BSTR_M_DEL_SRC) {
-                xfree(src->lst);
-                xfree(src);
+                free(src->lst);
+                free(src);
         }
         if (flags & BSTR_M_DEL_DUPS)
                 b_list_remove_dups(dest);
@@ -584,8 +584,8 @@ b_list_remove_dups(b_list **listp)
                         continue;
                 for (unsigned x = 0; x < tmp->qty; ++x)
                         b_list_append(&toks, tmp->lst[x]);
-                xfree(tmp->lst);
-                xfree(tmp);
+                free(tmp->lst);
+                free(tmp);
         }
 
         b_list_destroy(*listp);
@@ -846,7 +846,7 @@ static size_t
 getstdin(char **dest, FILE *fp)
 {
         size_t  total = 0;
-        char   *buf   = xmalloc(INIT_READ+1LLU);
+        char   *buf   = malloc(INIT_READ+1LLU);
         
         for (;;) {
                 size_t nread = fread(buf + total, 1, INIT_READ, fp);
@@ -874,7 +874,7 @@ b_read_fd(const int fd)
         size_t total = getstdin(&buf, fp);
         fclose(fp);
 
-        bstring *ret = xmalloc(sizeof *ret);
+        bstring *ret = malloc(sizeof *ret);
         *ret = (bstring){total, total+1, (uchar *)buf, BSTR_STANDARD};
         return ret;
 }
@@ -919,8 +919,8 @@ b_read_fd(const int fd)
         /* size_t   total = 0; */
         bstring *ret   = b_alloc_null(INIT_READ+1LLU);
         /* FILE    *fp    = fdopen(fd, "rb"); */
-        /* bstring *ret   = xmalloc(sizeof *ret); */
-        /* *ret = (bstring){0, INIT_READ+1LLU, xcalloc(1, INIT_READ+1LLU), BSTR_STANDARD}; */
+        /* bstring *ret   = malloc(sizeof *ret); */
+        /* *ret = (bstring){0, INIT_READ+1LLU, calloc(1, INIT_READ+1LLU), BSTR_STANDARD}; */
 
         int ch = 0;
         while (read(fd, &ch, 1) != EOF)
@@ -1453,10 +1453,10 @@ _b_vsprintfa(bstring *dest, const bstring *fmt, va_list args)
         if (dest->mlen >= newlen) {
                 memcpy(dest->data + dest->slen, app->data, app->slen);
         } else {
-                uchar *buf = xmalloc(newlen);
+                uchar *buf = malloc(newlen);
                 memcpy(buf, dest->data, dest->slen);
                 memcpy(buf + dest->slen, app->data, app->slen);
-                xfree(dest->data);
+                free(dest->data);
                 dest->data = buf;
         }
 

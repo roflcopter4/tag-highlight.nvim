@@ -118,7 +118,7 @@ retval_t
                         goto error;
                 ret.ptr = mpack_array_to_blist(obj->data.arr, destroy);
                 if (destroy) {
-                        xfree(obj);
+                        free(obj);
                         destroy = false;
                 }
                 break;
@@ -127,7 +127,7 @@ retval_t
                 abort();
                         
         default:
-                errx(1, "Invalid type given to %s()\n", __func__);
+                errx(1, "Invalid type given to %s()\n", FUNC_NAME);
         }
 
         if (destroy) {
@@ -156,11 +156,13 @@ mpack_destroy_object(mpack_obj *root)
         if (!(root->flags & MPACK_ENCODE)) {
                 if (root->flags & MPACK_HAS_PACKED)
                         b_destroy(*root->packed);
+
                 /* This gcc specific warning is a false positive. Non-heap
                  * objects all have the `phony' flag and won't be free'd. */
                 PRAGMA_NO_NONHEAP();
+
                 if (!(root->flags & MPACK_PHONY))
-                        xfree(root);
+                        free(root);
                 PRAGMA_NO_NONHEAP_POP();
                 pthread_mutex_unlock(&mpack_rw_lock);
                 return;
@@ -177,17 +179,17 @@ mpack_destroy_object(mpack_obj *root)
                         switch (mpack_type(cur)) {
                         case MPACK_ARRAY:
                                 if (cur->data.arr) {
-                                        xfree(cur->DAI);
-                                        xfree(cur->data.arr);
+                                        free(cur->DAI);
+                                        free(cur->data.arr);
                                 }
                                 break;
                         case MPACK_DICT:
                                 if (cur->data.dict) {
                                         unsigned j = 0;
                                         while (j < cur->data.dict->qty)
-                                                xfree(cur->DDE[j++]);
-                                        xfree(cur->DDE);
-                                        xfree(cur->data.dict);
+                                                free(cur->DDE[j++]);
+                                        free(cur->DDE);
+                                        free(cur->data.dict);
                                 }
                                 break;
                         case MPACK_STRING:
@@ -196,7 +198,7 @@ mpack_destroy_object(mpack_obj *root)
                                 break;
                         case MPACK_EXT:
                                 if (cur->data.ext)
-                                        xfree(cur->data.ext);
+                                        free(cur->data.ext);
                                 break;
                         default:
                                 break;
@@ -206,10 +208,10 @@ mpack_destroy_object(mpack_obj *root)
                 if (cur->flags & MPACK_HAS_PACKED)
                         b_destroy(*cur->packed);
                 if (!(cur->flags & MPACK_PHONY))
-                        xfree(cur);
+                        free(cur);
         }
 
-        xfree(tofree.items);
+        free(tofree.items);
         pthread_mutex_unlock(&mpack_rw_lock);
 }
 
@@ -288,8 +290,7 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
 retval_t
 dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key)
 {
-        if (!dict || !key)
-                abort();
+        assert(dict && key);
 
         mpack_obj *tmp = find_key_value(dict, key);
         if (!tmp)
@@ -328,12 +329,12 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
                                 break;
                         }
                 }
-                xfree(calls->args[i]);
-                xfree(calls->fmt[i]);
+                free(calls->args[i]);
+                free(calls->fmt[i]);
         }
-        xfree(calls->args);
-        xfree(calls->fmt);
-        xfree(calls);
+        free(calls->args);
+        free(calls->fmt);
+        free(calls);
 }
 
 /*======================================================================================*/
@@ -364,6 +365,14 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 
 #define STACK_CTR(STACK) (STACK##_ctr)
 
+#ifdef DEBUG
+#  define POP_DEBUG  POP
+#  define PUSH_DEBUG PUSH
+#else
+#  define POP_DEBUG(STACK)       ((void)0)
+#  define PUSH_DEBUG(STACK, VAL) ((void)0)
+#endif
+
 
 /*
  * Ugly macros to simplify the code below.
@@ -389,20 +398,20 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
                 }                                                             \
         } while (0)
 
-#define NEXT_VALIST_ONLY(VAR_, TYPE_NAME_)                  \
-        do {                                                \
-                switch (next_type) {                        \
-                case OWN_VALIST:                            \
-                        (VAR_) = va_arg(args, TYPE_NAME_);  \
-                        break;                              \
-                case OTHER_VALIST:                          \
-                        assert(ref != NULL);                \
-                        (VAR_) = va_arg(*ref, TYPE_NAME_);  \
-                        break;                              \
-                case ARG_ARRAY:                             \
-                default:                                    \
-                        abort();                            \
-                }                                           \
+#define NEXT_VALIST_ONLY(VAR_, TYPE_NAME_)                 \
+        do {                                               \
+                switch (next_type) {                       \
+                case OWN_VALIST:                           \
+                        (VAR_) = va_arg(args, TYPE_NAME_); \
+                        break;                             \
+                case OTHER_VALIST:                         \
+                        assert(ref != NULL);               \
+                        (VAR_) = va_arg(*ref, TYPE_NAME_); \
+                        break;                             \
+                case ARG_ARRAY:                            \
+                default:                                   \
+                        abort();                           \
+                }                                          \
         } while (0)
 
 #define ENCODE_FMT_ARRSIZE 128
@@ -447,19 +456,23 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
 {
         assert(fmt != NULL && *fmt != '\0');
         const unsigned arr_size = (size_hint)
-                                ? ENCODE_FMT_ARRSIZE + (size_hint * 6)
-                                : ENCODE_FMT_ARRSIZE;
-        int             ch;
-        va_list         args;
-        va_list        *ref         = NULL;
-        mpack_argument **a_args      = NULL;
-        unsigned       *sub_lengths = nalloca(arr_size, sizeof(unsigned));
-        const char     *ptr         = fmt;
-        unsigned       *cur_len     = &sub_lengths[0];
-        unsigned        len_ctr     = 1;
-        int             next_type   = OWN_VALIST;
-        *cur_len                    = 0;
+                                    ? ENCODE_FMT_ARRSIZE + (size_hint * 6U)
+                                    : ENCODE_FMT_ARRSIZE;
 
+        unsigned         sub_lengths[arr_size];
+        int              ch;
+        va_list          args;
+        va_list         *ref         = NULL;
+        mpack_argument **a_args      = NULL;
+        const char      *ptr         = fmt;
+        unsigned        *cur_len     = &sub_lengths[0];
+        unsigned         len_ctr     = 1;
+        int              next_type   = OWN_VALIST;
+        *cur_len                     = 0;
+
+#ifdef DEBUG
+        memset(sub_lengths, 0, (size_t)arr_size * sizeof(*sub_lengths));
+#endif
         NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);
 
@@ -511,24 +524,20 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
         }
 
 #ifdef DEBUG
-        mpack_obj *pack = mpack_make_new(sub_lengths[0], true);
+        mpack_obj  *pack    = mpack_make_new(sub_lengths[0], true);
+        mpack_obj **cur_obj = &pack;
 #else
-        mpack_obj *pack = mpack_make_new(sub_lengths[0], false);
+        mpack_obj  *pack    = mpack_make_new(sub_lengths[0], false);
+        mpack_obj **cur_obj = NULL;
 #endif
-        mpack_obj **cur_obj      = NULL;
-        unsigned   *sub_ctrlist  = nalloca(len_ctr + 1, sizeof(unsigned));
-        unsigned   *cur_ctr      = sub_ctrlist;
-        unsigned    subctr_ctr   = 1;
-        unsigned    a_arg_ctr    = 0;
-        unsigned    a_arg_subctr = 0;
-        len_ctr                  = 1;
-        ptr                      = fmt;
-        *cur_ctr                 = 1;
-#ifdef DEBUG
-        cur_obj                  = &pack;
-#else
-        cur_obj                  = NULL;
-#endif
+        unsigned  sub_ctrlist[len_ctr + 1];
+        unsigned *cur_ctr      = sub_ctrlist;
+        unsigned  subctr_ctr   = 1;
+        unsigned  a_arg_ctr    = 0;
+        unsigned  a_arg_subctr = 0;
+        len_ctr                = 1;
+        ptr                    = fmt;
+        *cur_ctr               = 1;
 
         RESET(len_stack);
         NEW_STACK(unsigned char, dict_stack);
@@ -589,9 +598,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         mpack_encode_array(pack, cur_obj, sub_lengths[len_ctr]);
                         PUSH(dict_stack, 0);
                         PUSH(len_stack, cur_ctr);
-#ifdef DEBUG
-                        PUSH(obj_stack, *cur_obj);
-#endif
+                        PUSH_DEBUG(obj_stack, *cur_obj);
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
                         *cur_ctr = 0;
@@ -602,9 +609,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         mpack_encode_dictionary(pack, cur_obj, (sub_lengths[len_ctr] / 2));
                         PUSH(dict_stack, 1);
                         PUSH(len_stack, cur_ctr);
-#ifdef DEBUG
-                        PUSH(obj_stack, *cur_obj);
-#endif
+                        PUSH_DEBUG(obj_stack, *cur_obj);
                         ++len_ctr;
                         cur_ctr  = &sub_ctrlist[subctr_ctr++];
                         *cur_ctr = 0;
@@ -614,9 +619,7 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                 case '}':
                         (void)POP(dict_stack);
                         cur_ctr = POP(len_stack);
-#ifdef DEBUG
-                        (void)POP(obj_stack);
-#endif
+                        (void)POP_DEBUG(obj_stack);
                         break;
 
                 /* The following use `continue' to skip incrementing the counter */

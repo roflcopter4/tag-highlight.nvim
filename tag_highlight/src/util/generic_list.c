@@ -53,8 +53,8 @@ snapUpSize(unsigned i)
 genlist *
 genlist_create(void)
 {
-        genlist *list = xmalloc(sizeof(genlist));
-        list->lst     = xmalloc(2 * sizeof(void *));
+        genlist *list = malloc(sizeof(genlist));
+        list->lst     = malloc(2 * sizeof(void *));
         list->qty     = 0;
         list->mlen    = 2;
         pthread_mutexattr_t attr;
@@ -73,8 +73,8 @@ genlist *
 genlist_create_alloc(const unsigned msz)
 {
         const unsigned size = (msz <= 2) ? 2 : msz;
-        genlist *list = xmalloc(sizeof(genlist));
-        list->lst     = xmalloc(size * sizeof(void *));
+        genlist *list = malloc(sizeof(genlist));
+        list->lst     = malloc(size * sizeof(void *));
         list->qty     = 0;
         list->mlen    = size;
         pthread_mutexattr_t attr;
@@ -99,13 +99,13 @@ genlist_destroy(genlist *list)
 
         for (unsigned i = 0; i < list->qty; ++i)
                 if (list->lst[i])
-                        xfree(list->lst[i]);
+                        free(list->lst[i]);
 
         list->qty  = 0;
         list->mlen = 0;
-        xfree(list->lst);
+        free(list->lst);
         list->lst = NULL;
-        xfree(list);
+        free(list);
 
         /* pthread_mutex_unlock(&list->lock); */
         return 0;
@@ -134,7 +134,7 @@ genlist_alloc(genlist *list, const unsigned msz)
                 RUNTIME_ERROR();
         }
 
-        ptr = xrealloc(list->lst, nsz);
+        ptr = realloc(list->lst, nsz);
 
         list->mlen = smsz;
         list->lst  = ptr;
@@ -151,7 +151,7 @@ genlist_alloc(genlist *list, const unsigned msz)
 /*                 RUNTIME_ERROR();                                                  */
 /*                                                                                   */
 /*         if ((*list)->qty == ((*list)->mlen - 1))                                */
-/*                 (*list)->lst = xrealloc((*list)->lst, ((*list)->mlen *= 2) *   */
+/*                 (*list)->lst = realloc((*list)->lst, ((*list)->mlen *= 2) *   */
 /*                                                          sizeof(*(*list)->lst)); */
 /*         (*list)->lst[(*list)->qty++] = item;                                    */
 /*                                                                                   */
@@ -173,10 +173,10 @@ int
         pthread_mutex_lock(&list->mut);
 
         if (list->qty == (list->mlen - 1))
-                list->lst = xrealloc(list->lst, (list->mlen *= 2) * sizeof(void *));
+                list->lst = realloc(list->lst, (list->mlen *= 2) * sizeof(void *));
 
         if (copy) {
-                list->lst[list->qty] = xmalloc(size);
+                list->lst[list->qty] = malloc(size);
                 memcpy(list->lst[list->qty++], item, size);
         } else {
                 list->lst[list->qty++] = item;
@@ -202,7 +202,7 @@ genlist_remove(genlist *list, const void *obj)
 
         for (unsigned i = 0; i < list->qty; ++i) {
                 if (list->lst[i] == obj) {
-                        xfree(list->lst[i]);
+                        free(list->lst[i]);
                         list->lst[i] = NULL;
 
                         if (i == list->qty - 1)
@@ -232,7 +232,7 @@ genlist_remove_index(genlist *list, const unsigned index)
                 pthread_mutex_lock(&list->lock); */
         pthread_mutex_lock(&list->mut);
 
-        xfree(list->lst[index]);
+        free(list->lst[index]);
         list->lst[index] = NULL;
 
         if (index == list->qty - 1)
@@ -326,7 +326,7 @@ genlist_dequeue(genlist *list)
 struct argument_vector *
 argv_create(const unsigned len)
 {
-        struct argument_vector *argv = xmalloc(sizeof(struct argument_vector));
+        struct argument_vector *argv = malloc(sizeof(struct argument_vector));
         argv->lst                    = nmalloc(((len) ? len : 1), sizeof(char *));
         argv->qty                    = 0;
         argv->mlen                   = len;
@@ -361,7 +361,7 @@ argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
 #else
         bstring *tmp = b_vformat(fmt, _ap);
         _buf         = BS(tmp);
-        xfree(tmp);
+        free(tmp);
 #endif
         va_end(_ap);
 
@@ -374,9 +374,9 @@ argv_destroy(struct argument_vector *argv)
 {
         for (unsigned i = 0; i < argv->qty; ++i)
                 if (argv->lst[i])
-                        xfree(argv->lst[i]);
-        xfree(argv->lst);
-        xfree(argv);
+                        free(argv->lst[i]);
+        free(argv->lst);
+        free(argv);
 }
 
 

@@ -92,6 +92,6 @@ if (LZMA_SUPPORT)
     )
 endif()
 
-if (USE_JEMALLOC)
+if (USE_JEMALLOC STREQUAL "YES")
    target_link_libraries(tag_highlight -ljemalloc -ldl)
 endif()

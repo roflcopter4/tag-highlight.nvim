@@ -296,11 +296,12 @@ extern noreturn void err_ (int status, bool print_err, const char *restrict fmt,
 
 #include "util/util.h"
 
+#if 0
 /* #ifdef USE_XMALLOC */
 #if 0
 __aNT __aWUR __aMAL __aALSZ(1)
 ALWAYS_INLINE void *
-xmalloc(const size_t size)
+malloc(const size_t size)
 {
         void *tmp = malloc(size);
         if (tmp == NULL)
@@ -310,7 +311,7 @@ xmalloc(const size_t size)
 
 __aNT __aWUR __aMAL __aALSZ(1, 2)
 ALWAYS_INLINE  void *
-xcalloc(const size_t num, const size_t size)
+calloc(const size_t num, const size_t size)
 {
         void *tmp = calloc(num, size);
         if (tmp == NULL)
@@ -320,7 +321,7 @@ xcalloc(const size_t num, const size_t size)
 
 __aNT __aWUR __aALSZ(2)
 ALWAYS_INLINE void *
-xrealloc(void *ptr, const size_t size)
+realloc(void *ptr, const size_t size)
 {
         void *tmp = realloc(ptr, size);
         if (tmp == NULL)
@@ -331,37 +332,40 @@ xrealloc(void *ptr, const size_t size)
 #  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
 __aNT __aWUR __aALSZ(2, 3)
 ALWAYS_INLINE void *
-xreallocarray(void *ptr, size_t num, size_t size)
+reallocarray(void *ptr, size_t num, size_t size)
 {
         void *tmp = reallocarray(ptr, num, size);
         if (tmp == NULL)
                 err(103, "Realloc call failed - attempted %zu bytes", size);
         return tmp;
 }
-#    define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
-#    define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
+#    define nmalloc(NUM_, SIZ_)        reallocarray(NULL, (NUM_), (SIZ_))
+#    define nrealloc(PTR_, NUM_, SIZ_) reallocarray((PTR_), (NUM_), (SIZ_))
 #  else
-#    define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#    define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#    define xreallocarray              nrealloc
+#    define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#    define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#    define reallocarray              nrealloc
 #  endif
 #else /* ! USE_XMALLOC */
-#  define xmalloc  malloc
-#  define xcalloc  calloc
-#  define xrealloc realloc
+#  define malloc  malloc
+#  define calloc  calloc
+#  define realloc realloc
 
 #  define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 
 #  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-#    define xreallocarray reallocarray
+#    define reallocarray reallocarray
 #  else
-#    define xreallocarray nrealloc
+#    define reallocarray nrealloc
 #  endif
 #endif
+#define free(PTR) free(PTR)
+#endif
 
-#define xfree(PTR) free(PTR)
-#define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#define nalloca(NUM_, SIZ_)        alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 
 /*===========================================================================*/
 #ifdef __cplusplus

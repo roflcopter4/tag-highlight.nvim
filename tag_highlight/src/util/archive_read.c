@@ -58,7 +58,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
                 b_list_append(&tags, b_fromblk(tok, (char *)(buf) - tok - 1));
         }
 
-        xfree(bak);
+        free(bak);
 }
 
 
@@ -85,7 +85,7 @@ plain_getlines(b_list *tags, const bstring *filename)
         struct stat st;
 
         SAFE_STAT(BS(filename), &st);
-        uint8_t *buffer = xmalloc(st.st_size + 1LL);
+        uint8_t *buffer = malloc(st.st_size + 1LL);
 
         if (fread(buffer, 1, st.st_size, fp) != (size_t)st.st_size || ferror(fp))
                 err(1, "Error reading file %s", BS(filename));
@@ -119,7 +119,7 @@ gz_getlines(b_list *tags, const bstring *filename)
         }
 
         /* Magic macros to the rescue. */
-        uint8_t      *out_buf = xmalloc(size.uncompressed + 1);
+        uint8_t      *out_buf = malloc(size.uncompressed + 1);
         const int64_t numread = gzread(gfp, out_buf, size.uncompressed);
 
         ALWAYS_ASSERT(numread == 0 || numread == (int64_t)size.uncompressed);
@@ -148,8 +148,8 @@ xz_getlines(b_list *tags, const bstring *filename)
                 return 0;
         report_size(&size);
 
-        uint8_t *in_buf  = xmalloc(size.archive + 1);
-        uint8_t *out_buf = xmalloc(size.uncompressed + 1);
+        uint8_t *in_buf  = malloc(size.archive + 1);
+        uint8_t *out_buf = malloc(size.uncompressed + 1);
 
         /* Setup the stream and initialize the decoder */
         lzma_stream *strm = &(lzma_stream)LZMA_STREAM_INIT;
@@ -190,7 +190,7 @@ xz_getlines(b_list *tags, const bstring *filename)
         out_buf[size.uncompressed] = '\0';
         fclose(fp);
         lzma_end(strm);
-        xfree(in_buf);
+        free(in_buf);
 
         ll_strsep(tags, out_buf);
         return 1;

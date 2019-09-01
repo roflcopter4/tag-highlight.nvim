@@ -115,7 +115,7 @@ static void sanity_check(mpack_obj *root, mpack_obj **item, unsigned check, bool
 mpack_obj *
 mpack_make_new(UNUSED const unsigned len, const bool encode)
 {
-        mpack_obj *root = xmalloc((offsetof(mpack_obj, packed) +
+        mpack_obj *root = malloc((offsetof(mpack_obj, packed) +
                                    sizeof(bstring *)));
         root->flags     = (uint8_t)(encode ? MPACK_ENCODE : 0) |
                           (uint8_t)MPACK_HAS_PACKED;
@@ -132,7 +132,7 @@ mpack_encode_array(mpack_obj       *root,
         sanity_check(root, item, 64, false);
 
         if (item && (root->flags & MPACK_ENCODE)) {
-                (*item)->data.arr        = xmalloc(sizeof(mpack_array_t));
+                (*item)->data.arr        = malloc(sizeof(mpack_array_t));
                 (*item)->data.arr->items = nmalloc(len, sizeof(mpack_obj *));
                 (*item)->data.arr->qty   = len;
                 (*item)->data.arr->max   = len;
@@ -163,14 +163,14 @@ mpack_encode_dictionary(mpack_obj       *root,
         sanity_check(root, item, 64, false);
 
         if (item && (root->flags & MPACK_ENCODE)) {
-                (*item)->data.dict          = xmalloc(sizeof(mpack_dict_t));
+                (*item)->data.dict          = malloc(sizeof(mpack_dict_t));
                 (*item)->data.dict->entries = nmalloc(len, sizeof(struct dict_ent *));
                 (*item)->data.dict->qty     = len;
                 (*item)->data.dict->max     = len;
                 (*item)->flags             |= (uint8_t)MPACK_DICT;
 
                 for (unsigned i = 0; i < len; ++i) {
-                        (*item)->DDE[i]        = xmalloc(sizeof(struct dict_ent));
+                        (*item)->DDE[i]        = malloc(sizeof(struct dict_ent));
                         (*item)->DDE[i]->key   = NULL;
                         (*item)->DDE[i]->value = NULL;
                 }
@@ -337,7 +337,7 @@ sanity_check(mpack_obj       *root,
              const bool       force)
 {
         if (item && !(*item) && (force || (root->flags & MPACK_ENCODE))) {
-                (*item)        = xmalloc(sizeof(mpack_obj));
+                (*item)        = malloc(sizeof(mpack_obj));
                 (*item)->flags = 0;
         }
 

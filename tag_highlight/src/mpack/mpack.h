@@ -33,21 +33,24 @@ enum mpack_expect_types {
         E_DICT2ARR
 };
 
-#define MPACK_HAS_PACKED  0x80U
-#define MPACK_ENCODE      0x40U
-#define MPACK_PHONY       0x20U
-#define MPACK_SPARE_DATA  0x10U
+enum mpack_flag_values {
+        MPACK_SPARE_DATA = 0x10U,
+        MPACK_PHONY      = 0x20U,
+        MPACK_ENCODE     = 0x40U,
+        MPACK_HAS_PACKED = 0x80U,
+};
+
 #define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0FU)
 #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
 #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
 
-typedef   enum mpack_types        mpack_type_t;
-typedef   enum mpack_expect_types mpack_expect_t;
 typedef struct mpack_object       mpack_obj;
 typedef struct mpack_ext          mpack_ext_t;
 typedef struct mpack_array        mpack_array_t;
 typedef struct mpack_dictionary   mpack_dict_t;
 typedef struct dict_ent           mpack_dict_ent_t;
+typedef   enum mpack_types        mpack_type_t;
+typedef   enum mpack_expect_types mpack_expect_t;
 
 #pragma pack(push, 1)
 
@@ -61,7 +64,7 @@ struct mpack_object {
                 mpack_dict_t  *dict;
                 mpack_ext_t   *ext;
         } data;
-        uint8_t flags;
+        uint8_t  flags;
         bstring *packed[];
 };
 
@@ -87,11 +90,12 @@ struct mpack_ext {
 
 #pragma pack(pop)
 
-typedef struct mpack_arg_array mpack_arg_array;
-typedef union mpack_argument   mpack_argument;
+typedef struct mpack_arg_array  mpack_arg_array;
+typedef union  mpack_argument   mpack_argument;
+typedef union  retval           retval_t;
 
 struct mpack_arg_array {
-        char    **fmt;
+        char **fmt;
         union mpack_argument {
                 bool     boolean;
                 int64_t  num;
@@ -106,25 +110,25 @@ struct mpack_arg_array {
 
 struct item_free_stack {
         mpack_obj **items;
-        unsigned    qty;
-        unsigned    max;
+        uint32_t    qty;
+        uint32_t    max;
 };
 
-typedef union retval {
+union retval {
         void    *ptr;
         uint64_t num;
-} retval_t;
+};
 
 extern const char *const m_message_type_repr[4];
 extern const char *const m_type_names[];
 
 /*============================================================================*/
 /* Decode and Destroy */
-extern void        mpack_print_object  (FILE *fp, const mpack_obj *result);
-extern void        mpack_destroy_object(mpack_obj *root);
-extern mpack_obj * mpack_decode_stream (int fd);
-extern mpack_obj * mpack_decode_obj    (bstring *buf);
-
+extern void        mpack_print_object     (FILE *fp, const mpack_obj *result);
+extern void        mpack_destroy_object   (mpack_obj *root);
+extern void        mpack_destroy_arg_array(mpack_arg_array *calls);
+extern mpack_obj * mpack_decode_stream    (int fd);
+extern mpack_obj * mpack_decode_obj       (bstring *buf);
 
 /* Encode */
 extern mpack_obj * mpack_make_new         (unsigned len, bool encode);
@@ -140,15 +144,13 @@ extern mpack_obj * mpack_encode_fmt       (unsigned size_hint, const char *fmt, 
 /*============================================================================*/
 /* Type conversions and Misc */
 
-extern b_list * mpack_array_to_blist(mpack_array_t *array, bool destroy);
-extern retval_t dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
-extern retval_t m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
+extern b_list   * mpack_array_to_blist(mpack_array_t *array, bool destroy);
+extern retval_t   dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
+extern retval_t   m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
-/* extern b_list * blist_from_var_fmt  (int fd, const char *fmt, ...) __attribute__((format(printf, 2, 3))); */
-/* extern void   * get_expect          (mpack_obj *result, mpack_type_t expect, bool destroy, bool is_retval); */
-/* void      * m_expect    (mpack_obj *obj, mpack_expect_t type, bool destroy); */
+extern pthread_mutex_t mpack_rw_lock;
 
-__always_inline void
+ALWAYS_INLINE void
 destroy_mpack_dict(mpack_dict_t *dict)
 {
         mpack_obj tmp;
@@ -157,7 +159,7 @@ destroy_mpack_dict(mpack_dict_t *dict)
         mpack_destroy_object(&tmp);
 }
 
-__always_inline void
+ALWAYS_INLINE void
 destroy_mpack_array(mpack_array_t *array)
 {
         mpack_obj tmp;
@@ -166,25 +168,16 @@ destroy_mpack_array(mpack_array_t *array)
         mpack_destroy_object(&tmp);
 }
 
-extern pthread_mutex_t mpack_rw_lock;
-__always_inline mpack_obj *
+ALWAYS_INLINE mpack_obj *
 m_index(mpack_obj *obj, const unsigned index)
 {
+        mpack_obj *ret = NULL;
         pthread_mutex_lock(&mpack_rw_lock);
-        if (mpack_type(obj) != MPACK_ARRAY) {
-                pthread_mutex_unlock(&mpack_rw_lock);
-                return NULL;
-        }
-        if (obj->data.arr->qty < index) {
-                pthread_mutex_unlock(&mpack_rw_lock);
-                return NULL;
-        }
-
+        if (mpack_type(obj) == MPACK_ARRAY && obj->data.arr->qty >= index)
+                ret = obj->data.arr->items[index];
         pthread_mutex_unlock(&mpack_rw_lock);
-        return obj->data.arr->items[index];
+        return ret;
 }
-
-extern void mpack_destroy_arg_array(struct mpack_arg_array *calls);
 
 /* I am very lazy. */
 #define DAI data.arr->items

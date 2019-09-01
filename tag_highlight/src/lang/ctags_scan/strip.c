@@ -42,7 +42,7 @@ strip_comments(Buffer *bdata)
 
         /* warnx("Buffer size is %u", bytenum); */
         bstring *joined = b_alloc_null(bytenum);
-        /* xfree(bytenum); */
+        /* free(bytenum); */
 
         LL_FOREACH_F (bdata->lines, line) {
                 b_concat(joined, line->data);
@@ -108,7 +108,7 @@ handle_cstyle(bstring *vim_buf)
         uchar *buf, *buf_orig;
 
         double_q = single_q = slash = escape = skip = header = false;
-        buf_orig = buf = xmalloc(vim_buf->slen + 32);
+        buf_orig = buf = malloc(vim_buf->slen + 32);
 
         if (!*pos) {
                 warnx("whole buf \"%s\"", pos);
@@ -207,7 +207,7 @@ handle_cstyle(bstring *vim_buf)
 
         *buf = '\0';
 
-        xfree(vim_buf->data);
+        free(vim_buf->data);
         vim_buf->data = buf_orig;
         vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
 }
@@ -237,7 +237,7 @@ handle_cstyle(bstring **vim_bufp)
         unsigned short  want    = 0;
 
         while (data && *data->data && b_memsep(tok, data, '\n')) {
-                char     *repl  = xmalloc(tok->slen + 2ll);
+                char     *repl  = malloc(tok->slen + 2ll);
                 char     *line  = (char *)tok->data;
                 unsigned  len   = tok->slen;
                 unsigned  i     = 0;
@@ -343,12 +343,12 @@ handle_cstyle(bstring **vim_bufp)
                         repl[x]   = '\0';
                         b_list_append(&list, b_steal(repl, x));
                 } else {
-                        xfree(repl);
+                        free(repl);
                 }
         }
 
-        xfree(bak);
-        xfree(*vim_bufp);
+        free(bak);
+        free(*vim_bufp);
         *vim_bufp = b_list_join(list, NULL);
 
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
@@ -429,7 +429,7 @@ handle_python(bstring *vim_buf)
         uchar *buf, *buf_orig;
         bool escape, comment, skip;
 
-        buf    = buf_orig = xmalloc(vim_buf->slen + 2LLU);
+        buf    = buf_orig = malloc(vim_buf->slen + 2LLU);
         escape = comment  = skip = false;
 
         if (*pos == '\0')
@@ -517,7 +517,7 @@ handle_python(bstring *vim_buf)
 
         *buf = '\0';
 
-        xfree(vim_buf->data);
+        free(vim_buf->data);
         vim_buf->data = buf_orig;
         vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
 }

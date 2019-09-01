@@ -115,7 +115,7 @@ b_alloc(bstring *bstr, const unsigned olen)
 
                         if (bstr->slen)
                                 memcpy(tmp, bstr->data, bstr->slen);
-                        xfree(bstr->data);
+                        free(bstr->data);
                 }
 
                 bstr->data             = tmp;
@@ -148,15 +148,15 @@ b_alloc(bstring *bstr, const unsigned olen)
                 if (7 * bstr->mlen < 8 * bstr->slen) {
                         /* If slen is close to mlen in size then use realloc
                          * to reduce the memory defragmentation */
-                        tmp = xrealloc(bstr->data, len);
+                        tmp = realloc(bstr->data, len);
                 } else {
                         /* If slen is not close to mlen then avoid the penalty
                          * of copying the extra bytes that are allocated, but
                          * not considered part of the string */
-                        tmp = xmalloc(len);
+                        tmp = malloc(len);
                         if (bstr->slen)
                                 memcpy(tmp, bstr->data, bstr->slen);
-                        xfree(bstr->data);
+                        free(bstr->data);
                 }
 
                 bstr->data             = tmp;
@@ -182,7 +182,7 @@ b_allocmin(bstring *bstr, unsigned len)
                 len = bstr->slen + 1;
 
         if (len != bstr->mlen) {
-                uchar *buf      = xrealloc(bstr->data, (size_t)len);
+                uchar *buf      = realloc(bstr->data, (size_t)len);
                 buf[bstr->slen] = (uchar)'\0';
                 bstr->data      = buf;
                 bstr->mlen      = len;
@@ -206,7 +206,7 @@ b_free(bstring *bstr)
                 /* FATAL_ERROR("bstring runtime error: Attempt to free non-writable which is not a clone"); */
 
         if (bstr->data && (bstr->flags & BSTR_DATA_FREEABLE))
-                xfree(bstr->data);
+                free(bstr->data);
 
         bstr->data = NULL;
         bstr->slen = bstr->mlen = (-1);
@@ -215,7 +215,7 @@ b_free(bstring *bstr)
                 RUNTIME_ERROR();
                 /* FATAL_ERROR("bstring runtime error: Attempt to free non-freeable bstring"); */
 
-        xfree(bstr);
+        free(bstr);
         return BSTR_OK;
 }
 
@@ -232,10 +232,10 @@ b_fromcstr(const char *const str)
         if (max <= size)
                 RETURN_NULL();
 
-        bstring *bstr = xmalloc(sizeof *bstr);
+        bstring *bstr = malloc(sizeof *bstr);
         bstr->slen    = size;
         bstr->mlen    = max;
-        bstr->data    = xmalloc(bstr->mlen);
+        bstr->data    = malloc(bstr->mlen);
         bstr->flags   = BSTR_STANDARD;
 
         memcpy(bstr->data, str, size + 1);
@@ -255,13 +255,13 @@ b_fromcstr_alloc(const unsigned mlen, const char *const str)
         if (max <= size)
                 RETURN_NULL();
 
-        bstring *bstr = xmalloc(sizeof *bstr);
+        bstring *bstr = malloc(sizeof *bstr);
         bstr->slen    = size;
         if (max < mlen)
                 max = mlen;
 
         bstr->mlen  = max;
-        bstr->data  = xmalloc(bstr->mlen);
+        bstr->data  = malloc(bstr->mlen);
         bstr->flags = BSTR_STANDARD;
 
         memcpy(bstr->data, str, size + 1);
@@ -275,10 +275,10 @@ b_fromblk(const void *blk, const unsigned len)
         if (!blk)
                 RETURN_NULL();
 
-        bstring *bstr = xmalloc(sizeof *bstr);
+        bstring *bstr = malloc(sizeof *bstr);
         bstr->slen    = len;
         bstr->mlen    = snapUpSize(len + (2 - (len != 0)));;
-        bstr->data    = xmalloc(bstr->mlen);
+        bstr->data    = malloc(bstr->mlen);
         bstr->flags   = BSTR_STANDARD;
 
         if (len > 0)
@@ -293,11 +293,11 @@ bstring *
 b_alloc_null(const unsigned len)
 {
         uint safelen  = len + 1;
-        bstring *bstr = xmalloc(sizeof *bstr);
+        bstring *bstr = malloc(sizeof *bstr);
         bstr->slen    = 0;
         bstr->mlen    = safelen;
         bstr->flags   = BSTR_STANDARD;
-        bstr->data    = xmalloc(safelen);
+        bstr->data    = malloc(safelen);
         bstr->data[0] = (uchar)'\0';
 
         return bstr;
@@ -309,7 +309,7 @@ b_bstr2cstr(const bstring *bstr, const char nul)
 {
         if (INVALID(bstr))
                 RETURN_NULL();
-        char *buf = xmalloc(bstr->slen + 1);
+        char *buf = malloc(bstr->slen + 1);
 
         if (nul == 0) {
                 /* Don't bother trying to replace nul characters with anything,
@@ -329,7 +329,7 @@ b_bstr2cstr(const bstring *bstr, const char nul)
 int
 b_cstrfree(char *buf)
 {
-        xfree(buf);
+        free(buf);
         return BSTR_OK;
 }
 
@@ -438,13 +438,13 @@ b_strcpy(const bstring *bstr)
         if (INVALID(bstr))
                 RETURN_NULL();
 
-        bstring  *b0   = xmalloc(sizeof(bstring));
+        bstring  *b0   = malloc(sizeof(bstring));
         unsigned  size = snapUpSize(bstr->slen + 1);
-        b0->data       = xmalloc(size);
+        b0->data       = malloc(size);
 
         if (!b0->data) {
                 size     = bstr->slen + 1;
-                b0->data = xmalloc(size);
+                b0->data = malloc(size);
         }
         b0->mlen  = size;
         b0->slen  = bstr->slen;
@@ -1001,8 +1001,8 @@ b_vformat(const char *const fmt, va_list arglist)
 
 #ifdef HAVE_VASPRINTF
         char *tmp   = NULL;
-        total       = xvasprintf(&tmp, fmt, arglist);
-        buff        = xmalloc(sizeof *buff);
+        total       = vasprintf(&tmp, fmt, arglist);
+        buff        = malloc(sizeof *buff);
         buff->data  = (uchar *)tmp;
         buff->slen  = total;
         buff->mlen  = total + 1;

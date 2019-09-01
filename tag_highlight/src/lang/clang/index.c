@@ -121,7 +121,7 @@ static struct token *
 mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_range *rng)
 {
         size_t        len = strlen(CS(*dispname)) + 1LLU;
-        struct token *ret = xmalloc(offsetof(struct token, raw) + len);
+        struct token *ret = malloc(offsetof(struct token, raw) + len);
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
         ret->line         = rng->line - 1;

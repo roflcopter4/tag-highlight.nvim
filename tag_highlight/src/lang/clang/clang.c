@@ -164,7 +164,7 @@ lines2bytes(Buffer *bdata, int64_t *startend, const int first, const int last)
 static struct translationunit *
 recover_compilation_unit(Buffer *bdata, bstring *buf)
 {
-        struct translationunit *stu = xmalloc(sizeof(struct translationunit));
+        struct translationunit *stu = malloc(sizeof(struct translationunit));
         stu->tu  = CLD(bdata)->tu;
         stu->buf = buf;
 
@@ -207,7 +207,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         argv_dump(stderr, comp_cmds);
 #endif
 
-        bdata->clangdata = xmalloc(sizeof(struct clangdata));
+        bdata->clangdata = malloc(sizeof(struct clangdata));
         CLD(bdata)->idx  = clang_createIndex(0, 0);
         CLD(bdata)->tu   = NULL;
 
@@ -216,7 +216,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         if (!CLD(bdata)->tu || clerror != 0)
                 errx(1, "libclang error: %d", clerror);
 
-        struct translationunit *stu = xmalloc(sizeof(struct translationunit));
+        struct translationunit *stu = malloc(sizeof(struct translationunit));
         stu->buf = buf;
         stu->tu  = CLD(bdata)->tu;
 
@@ -249,7 +249,7 @@ stupid_windows_bullshit(const char *const path)
         if (len < 3 || !isalpha(path[1]) || path[2] != '/')
                 return NULL;
 
-        char *ret = xmalloc(len + 3);
+        char *ret = malloc(len + 3);
         char *ptr = ret;
         *ptr++    = path[1];
         *ptr++    = ':';
@@ -325,7 +325,7 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                         if (tok[0] == '/') {
                                 char *tmp = stupid_windows_bullshit(tok);
                                 abspath = realpath(tmp, buf);
-                                xfree(tmp);
+                                free(tmp);
                         } else {
                                 abspath = realpath(tok, buf);
                         }
@@ -350,19 +350,39 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
                         argv_append((VAR), (STR), true);                 \
                 }                                                        \
         } while (0)
-#else
+
+static inline void
+handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
+{
+        bool  do_fix_path = cstr[0] == '/';
+        char *fixed_path  = (do_fix_path) ? fixed_path = stupid_windows_bullshit(STR)
+                                          : fixed_path = cstr;
+
+        if (isalpha(fixed_path[0]) && fixed_path[1] == ':') {
+                argv_append(lst, fixed_path, do_fix_path);
+        } else {
+                char *buf = NULL;
+                asprintf(&buf, "%s\\%s", CS(directory), fixed_path);
+                argv_append(lst, buf, false);
+                if (do_fix_path)
+                        free(do_fix_path);
+        }
+}
+
+#else /* ! defined DOSISH */
+
 #  define ARGV_APPEND_FILE(VAR, STR) \
         argv_append((VAR), (STR), true)
 
 static inline void
 handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
 {
-        if (cstr[0] != '/' /* P44_STREQ_ANY(cstr, ".", "..") || strncmp(cstr, "../", 3) == 0 */) {
+        if (cstr[0] == '/') {
+                argv_append(lst, cstr, true);
+        } else {
                 char *buf = NULL;
                 asprintf(&buf, "%s/%s", CS(directory), cstr);
                 argv_append(lst, buf, false);
-        } else {
-                argv_append(lst, cstr, true);
         }
 }
 #endif
@@ -490,7 +510,6 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 {
         bstring *newnam = b_strcpy(bdata->name.full);
         b_regularize_path(newnam);
-        /* CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(bdata->name.full)); */
         CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(newnam));
         const unsigned    num  = clang_CompileCommands_getSize(comp);
         b_destroy(newnam);
@@ -537,8 +556,8 @@ destroy_struct_translationunit(struct translationunit *stu)
                 clang_disposeTokens(stu->tu, stu->cxtokens, stu->num);
         genlist_destroy(stu->tokens);
         b_destroy(stu->buf);
-        xfree(stu->cxcursors);
-        xfree(stu);
+        free(stu->cxcursors);
+        free(stu);
 }
 
 void
@@ -549,19 +568,19 @@ destroy_clangdata(Buffer *bdata)
                 return;
 
         for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
-                xfree(cdata->argv->lst[i]);
-        xfree(cdata->argv->lst);
-        xfree(cdata->argv);
+                free(cdata->argv->lst[i]);
+        free(cdata->argv->lst);
+        free(cdata->argv);
 
         if (cdata->info) {
                 for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)
                         b_destroy(cdata->info[i].group);
-                xfree(cdata->info);
+                free(cdata->info);
         }
 
         clang_disposeTranslationUnit(cdata->tu);
         clang_disposeIndex(cdata->idx);
-        xfree(cdata);
+        free(cdata);
         bdata->clangdata = NULL;
 }
 
@@ -614,7 +633,7 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         /* CXString dispname = clang_getCursorDisplayName(*cursor); */
         CXString dispname = clang_getCursorSpelling(*cursor);
         size_t   len      = strlen(CS(dispname)) + UINTMAX_C(1);
-        ret               = xmalloc(offsetof(struct token, raw) + len);
+        ret               = malloc(offsetof(struct token, raw) + len);
         ret->token        = *tok;
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);

@@ -95,7 +95,7 @@ post_nvim_response(void *vdata)
         _nvim_wait_node   *node;
         if (fd == 0)
                 ++fd;
-        xfree(data);
+        free(data);
 
         for (;;) {
                 node = P99_FIFO_POP(&_nvim_wait_queue);
@@ -123,7 +123,7 @@ nvim_event_handler(UNUSED void *unused)
                 errx(1, "Impossible, shut up clang.");
         handle_nvim_event(node->obj);
 
-        xfree(node);
+        free(node);
         pthread_mutex_unlock(&nvim_event_handler_mutex);
         pthread_exit();
 }
@@ -136,14 +136,14 @@ handle_message(const int fd, mpack_obj *obj)
 
         switch (mtype) {
         case MES_NOTIFICATION: {
-                event_node *node = xcalloc(1, sizeof(event_node));
+                event_node *node = calloc(1, sizeof(event_node));
                 node->obj        = obj;
                 P99_FIFO_APPEND(&nvim_event_queue, node);
                 START_DETACHED_PTHREAD(nvim_event_handler);
                 break;
         }
         case MES_RESPONSE: {
-                struct event_data *data = xmalloc(sizeof(struct event_data));
+                struct event_data *data = malloc(sizeof(struct event_data));
                 *data = (struct event_data){fd, obj};
                 START_DETACHED_PTHREAD(post_nvim_response, data);
                 break;
@@ -401,7 +401,7 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
         const int diff      = last - first;
         b_list   *repl_list = m_expect(arr->items[4], E_STRLIST).ptr;
         bool      empty     = false;
-        arr->items[4]->data.arr  = NULL;
+        arr->items[4]->data.arr = NULL;
 
         pthread_mutex_lock(&bdata->lines->lock);
 
@@ -443,8 +443,8 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
 
         /* LINE_EVENT_DEBUG(); */
 
-        xfree(repl_list->lst);
-        xfree(repl_list);
+        free(repl_list->lst);
+        free(repl_list);
         pthread_mutex_unlock(&bdata->lines->lock);
 
         if (!empty && bdata->ft->has_parser) {
@@ -549,7 +549,7 @@ vimscript_message(void *vdata)
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
 
-                        update_highlight(bdata);
+                        update_highlight(bdata, HIGHLIGHT_NORMAL);
                         TIMER_REPORT(t, "update");
                 }
 
@@ -627,18 +627,11 @@ vimscript_message(void *vdata)
 static const event_id *
 id_event(mpack_obj *event)
 {
-        const event_id *type     = NULL;
-        bstring        *typename = event->DAI[1]->data.str;
+        const bstring *typename = event->DAI[1]->data.str;
 
-        for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i) {
-                if (b_iseq(typename, &event_list[i].name)) {
-                        type = &event_list[i];
-                        break;
-                }
-        }
+        for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i)
+                if (b_iseq(typename, &event_list[i].name))
+                        return &event_list[i];
 
-        if (!type)
-                errx(1, "Failed to identify event type.\n");
-
-        return type;
+        errx(1, "Failed to identify event type \"%s\".\n", BS(typename));
 }

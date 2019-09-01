@@ -151,7 +151,7 @@ do_decode(const read_fn READ, void *src)
 static mpack_obj *
 decode_array(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
+        mpack_obj *item    = malloc(sizeof *item);
         uint32_t   size    = 0;
 
         if (mask->fixed) {
@@ -174,7 +174,7 @@ decode_array(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *
         }
 
         item->flags           = MPACK_ARRAY | MPACK_ENCODE;
-        item->data.arr        = xmalloc(sizeof(mpack_array_t));
+        item->data.arr        = malloc(sizeof(mpack_array_t));
         item->data.arr->items = nmalloc(size, sizeof(mpack_obj *));
         item->data.arr->max   = size;
         item->data.arr->qty   = 0;
@@ -191,7 +191,7 @@ decode_array(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *
 static mpack_obj *
 decode_dictionary(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item = xmalloc(sizeof *item);
+        mpack_obj *item = malloc(sizeof *item);
         uint32_t   size = 0;
 
 
@@ -215,12 +215,12 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t ch, const mpack_m
         }
 
         item->flags              = MPACK_DICT | MPACK_ENCODE;
-        item->data.dict          = xmalloc(sizeof(mpack_dict_t));
+        item->data.dict          = malloc(sizeof(mpack_dict_t));
         item->data.dict->entries = nmalloc(size, sizeof(struct dict_ent *));
         item->data.dict->qty     = item->data.dict->max = size;
 
         for (uint32_t i = 0; i < item->data.arr->max; ++i) {
-                item->DDE[i]        = xmalloc(sizeof(struct dict_ent));
+                item->DDE[i]        = malloc(sizeof(struct dict_ent));
                 item->DDE[i]->key   = do_decode(READ, src);
                 item->DDE[i]->value = do_decode(READ, src);
         }
@@ -232,7 +232,7 @@ decode_dictionary(const read_fn READ, void *src, const uint8_t ch, const mpack_m
 static mpack_obj *
 decode_string(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
+        mpack_obj *item    = malloc(sizeof *item);
         uint32_t   size    = 0;
 
         if (mask->fixed) {
@@ -274,7 +274,7 @@ decode_string(const read_fn READ, void *src, const uint8_t ch, const mpack_mask 
 static mpack_obj *
 decode_integer(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
+        mpack_obj *item    = malloc(sizeof *item);
         int64_t    value   = 0;
 
         if (mask->fixed) {
@@ -318,7 +318,7 @@ decode_integer(const read_fn READ, void *src, const uint8_t ch, const mpack_mask
 static mpack_obj *
 decode_unsigned(const read_fn READ, void *src, const uint8_t ch, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
+        mpack_obj *item    = malloc(sizeof *item);
         uint64_t   value   = 0;
 
         if (mask->fixed) {
@@ -358,7 +358,7 @@ decode_unsigned(const read_fn READ, void *src, const uint8_t ch, const mpack_mas
 static mpack_obj *
 decode_ext(const read_fn READ, void *src, const mpack_mask *mask)
 {
-        mpack_obj *item    = xmalloc(sizeof *item);
+        mpack_obj *item    = malloc(sizeof *item);
         uint32_t   value   = 0;
         uint8_t    word32[4] = {0, 0, 0, 0};
         uint8_t    type;
@@ -384,7 +384,7 @@ decode_ext(const read_fn READ, void *src, const mpack_mask *mask)
         }
 
         item->flags          = MPACK_EXT | MPACK_ENCODE;
-        item->data.ext       = xmalloc(sizeof(mpack_ext_t));
+        item->data.ext       = malloc(sizeof(mpack_ext_t));
         item->data.ext->type = type;
         item->data.ext->num  = value;
 
@@ -395,7 +395,7 @@ decode_ext(const read_fn READ, void *src, const mpack_mask *mask)
 static mpack_obj *
 decode_bool(const mpack_mask *mask)
 {
-        mpack_obj *item = xmalloc(sizeof *item);
+        mpack_obj *item = malloc(sizeof *item);
         item->flags     = MPACK_BOOL | MPACK_ENCODE;
 
         switch (mask->type) {
@@ -411,7 +411,7 @@ decode_bool(const mpack_mask *mask)
 static mpack_obj *
 decode_nil(void)
 {
-        mpack_obj *item = xmalloc(sizeof *item);
+        mpack_obj *item = malloc(sizeof *item);
         item->flags     = MPACK_NIL | MPACK_ENCODE;
         item->data.nil  = M_MASK_NIL;
 

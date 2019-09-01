@@ -39,7 +39,7 @@ STATIC_INLINE void resolve_negative_index(int *index, int base);
 linked_list *
 ll_make_new(void)
 {
-        linked_list *list = xmalloc(sizeof *list);
+        linked_list *list = malloc(sizeof *list);
         list->head        = NULL;
         list->tail        = NULL;
         list->qty         = 0;
@@ -63,7 +63,7 @@ ll_prepend(linked_list *list, bstring *data)
         pthread_mutex_lock(&list->lock);
         assert(list);
         assert(data && data->data);
-        ll_node *node = xmalloc(sizeof *node);
+        ll_node *node = malloc(sizeof *node);
 
         if (list->head)
                 list->head->prev = node;
@@ -84,7 +84,7 @@ ll_append(linked_list *list, bstring *data)
 {
         assert(list);
         assert(data && data->data);
-        ll_node *node = xmalloc(sizeof *node);
+        ll_node *node = malloc(sizeof *node);
 
         if (list->tail)
                 list->tail->next = node;
@@ -107,7 +107,7 @@ ll_insert_after(linked_list *list, ll_node *at, bstring *data)
 {
         pthread_mutex_lock(&list->lock);
         assert(list);
-        ll_node *node = xmalloc(sizeof *node);
+        ll_node *node = malloc(sizeof *node);
         node->data    = data;
         node->prev    = at;
 
@@ -136,7 +136,7 @@ ll_insert_before(linked_list *list, ll_node *at, bstring *data)
 {
         pthread_mutex_lock(&list->lock);
         assert(list);
-        ll_node *node = xmalloc(sizeof *node);
+        ll_node *node = malloc(sizeof *node);
         node->data    = data;
         node->next    = at;
 
@@ -170,7 +170,7 @@ create_nodes(const int start, const int end, int i,
         for (int x = (start + 1); x < end; ++x, ++i) {
                 assert((unsigned)i < blist->qty);
                 assert(blist->lst[x]);
-                tmp[i]         = xmalloc(sizeof **tmp);
+                tmp[i]         = malloc(sizeof **tmp);
                 tmp[i]->data   = blist->lst[x];
                 tmp[i]->prev   = tmp[i-1];
                 tmp[i-1]->next = tmp[i];
@@ -198,7 +198,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         pthread_mutex_lock(&list->lock);
 
         ll_node **tmp  = nmalloc(diff, sizeof *tmp);
-        tmp[0]         = xmalloc(sizeof **tmp);
+        tmp[0]         = malloc(sizeof **tmp);
         tmp[0]->data   = blist->lst[start];
         tmp[0]->prev   = at;
         ++list->qty;
@@ -217,7 +217,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
         if (!list->tail || at == list->tail)
                 list->tail = tmp[last];
 
-        xfree(tmp);
+        free(tmp);
         pthread_mutex_unlock(&list->lock);
 }
 
@@ -239,7 +239,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         pthread_mutex_lock(&list->lock);
 
         ll_node **tmp   = nmalloc(diff, sizeof *tmp);
-        tmp[0]          = xmalloc(sizeof **tmp);
+        tmp[0]          = malloc(sizeof **tmp);
         tmp[0]->data    = blist->lst[start];
         ++list->qty;
         const int last  = create_nodes(start, end, 1, list, tmp, blist) - 1;
@@ -258,7 +258,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
         if (!list->tail)
                 list->tail = tmp[last];
 
-        xfree(tmp);
+        free(tmp);
         pthread_mutex_unlock(&list->lock);
 }
 
@@ -286,7 +286,7 @@ ll_delete_range(linked_list *list, ll_node *at, const int range)
         for (int i = 0; i < range && current; ++i) {
                 next = current->next;
                 free_data(current);
-                xfree(current);
+                free(current);
                 current = next;
                 --list->qty;
         }
@@ -363,19 +363,19 @@ ll_destroy(linked_list *list)
                 else
                         current = list->head;
                 free_data(current);
-                xfree(current);
+                free(current);
         } else if (list->qty > 1) {
                 ll_node *current = list->head;
                 do {
                         ll_node *tmp = current;
                         current      = current->next;
                         free_data(tmp);
-                        xfree(tmp);
+                        free(tmp);
                 } while (current);
         }
 
         pthread_mutex_unlock(&list->lock);
-        xfree(list);
+        free(list);
 }
 
 
@@ -401,7 +401,7 @@ ll_delete_node(linked_list *list, ll_node *node)
         }
 
         --list->qty;
-        xfree(node);
+        free(node);
         pthread_mutex_unlock(&list->lock);
 }
 

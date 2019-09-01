@@ -102,7 +102,7 @@ mpack_obj *
         mpack_print_object(logfp, pack);
 #endif
 
-        _nvim_wait_node *node = xcalloc(1, sizeof(*node));
+        _nvim_wait_node *node = calloc(1, sizeof(*node));
         node->fd    = 1;
         node->count = count;
         p99_futex_init(&node->fut, 0);
@@ -116,7 +116,7 @@ mpack_obj *
 
         mpack_destroy_object(pack);
         mpack_obj *ret = await_package(node);
-        xfree(node);
+        free(node);
         return ret;
 }
 

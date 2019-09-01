@@ -103,7 +103,7 @@ int
 static void
 add_nvim_connection(const int fd, const enum nvim_connection_type type)
 {
-        struct nvim_connection *con = xmalloc(sizeof(struct nvim_connection));
+        struct nvim_connection *con = malloc(sizeof(struct nvim_connection));
         *con = (struct nvim_connection){fd, 0, type};
         genlist_append(nvim_connections, con);
 }
