@@ -44,14 +44,11 @@ static void     bufdata_constructor(void) __attribute__((__constructor__));
 static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-__attribute__((__constructor__)) static void
-mutex_constructor(void)
+__attribute__((constructor)) static void mutex_constructor(void)
 {
         pthread_mutex_init(&ftdata_mutex);
         pthread_mutex_init(&destruction_mutex);
 }
-
-/* #include "my_p99_common.h" */
 
 /*======================================================================================*/
 
@@ -513,24 +510,26 @@ init_filetype(Filetype *ft)
 static void
 get_ignored_tags(Filetype *ft)
 {
-        mpack_dict_t *tmp = nvim_get_var(B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
-        b_list *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
-
-        if (restored_groups)
-                b_list_writeprotect(restored_groups);
-        destroy_mpack_dict(tmp);
+        mpack_dict_t *tmp             = nvim_get_var(B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
+        b_list       *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
 
         if (restored_groups) {
+                b_list_writeprotect(restored_groups);
+                destroy_mpack_dict(tmp);
                 b_list_writeallow(restored_groups);
-                if (ft->has_parser)
+
+                if (ft->has_parser) {
                         get_tags_from_restored_groups(ft, restored_groups);
-                else
+                        B_LIST_SORT_FAST(ft->ignored_tags);
+                } else {
                         ft->restore_cmds = get_restore_cmds(restored_groups);
+                }
 
                 b_list_destroy(restored_groups);
+        } else {
+                destroy_mpack_dict(tmp);
         }
 
-        B_LIST_SORT_FAST(ft->ignored_tags);
         ft->restore_cmds_initialized = true;
 }
 

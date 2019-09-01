@@ -10,7 +10,6 @@ static void do_typeswitch(Buffer                  *bdata,
                           struct mpack_arg_array  *calls,
                           struct token            *tok,
                           struct cmd_info         *info,
-                          /* const b_list            *enumerators, */
                           enum CXCursorKind *const last_kind);
 
 static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
@@ -51,7 +50,7 @@ create_nvim_calls(Buffer *bdata, struct translationunit *stu)
 
         /* B_QUICK_DUMP(bdata->ft->ignored_tags, "ignored"); */
 
-        lc_index_file(bdata, stu, calls);
+        /* lc_index_file(bdata, stu, calls); */
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
@@ -71,9 +70,10 @@ create_nvim_calls(Buffer *bdata, struct translationunit *stu)
                 /* if ((int)tok->line == (-1) || tok_in_skip_list(bdata, tok)) */
                         /* continue; */
                 /* tokvisitor(tok); */
-                /* do_typeswitch(bdata, calls, tok, CLD(bdata)->info, CLD(bdata)->enumerators, &last); */
                 do_typeswitch(bdata, calls, tok, CLD(bdata)->info, &last);
         }
+
+        lc_index_file(bdata, stu, calls);
 
         return calls;
 }
@@ -85,7 +85,6 @@ static void do_typeswitch(Buffer                   *bdata,
                           struct mpack_arg_array   *calls,
                           struct token             *tok,
                           struct cmd_info          *info,
-                          /* const b_list             *enumerators, */
                           enum CXCursorKind *const  last_kind)
 {
         extern char        LOGDIR[];
@@ -162,8 +161,8 @@ retry:
                 ADD_CALL(CTAGS_UNION);
                 break;
         case CXCursor_ClassDecl:
-                /* ADD_CALL(CTAGS_CLASS); */
-                ADD_CALL(CTAGS_TYPE);
+                ADD_CALL(CTAGS_CLASS);
+                /* ADD_CALL(CTAGS_TYPE); */
                 break;
         case CXCursor_EnumDecl:
                 /* An enumeration. */

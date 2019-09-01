@@ -36,11 +36,13 @@
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
 char              libclang_tmp_path[SAFE_PATH_MAX];
 
+#if 0
 struct enum_data {
         CXTranslationUnit tu;
         b_list           *enumerators;
         const bstring    *buf;
 };
+#endif
 
 static void                    destroy_struct_translationunit(struct translationunit *stu);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata);
@@ -50,9 +52,9 @@ static struct token           *get_token_data(CXTranslationUnit *tu, CXToken *to
 static struct translationunit *init_compilation_unit(Buffer *bdata, bstring *buf);
 static struct translationunit *recover_compilation_unit(Buffer *bdata, bstring *buf);
 static inline void             lines2bytes(Buffer *bdata, int64_t *startend, int first, int last);
-static void                    tagfinder(struct enum_data *data, CXCursor cursor);
 static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
-static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data);
+/* static void                    tagfinder(strucgt enum_data *data, CXCursor cursor); */
+/* static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data); */
 
 #ifndef TIME_CLANG
 #  undef TIMER_START
@@ -230,7 +232,6 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         CLD(bdata)->enumerators = enumlist.enumerators;
 #endif
 
-        CLD(bdata)->enumerators = NULL;
         CLD(bdata)->argv        = comp_cmds;
         CLD(bdata)->info        = getinfo(bdata);
         memcpy(CLD(bdata)->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
@@ -546,7 +547,6 @@ destroy_clangdata(Buffer *bdata)
         struct clangdata *cdata = bdata->clangdata;
         if (!cdata)
                 return;
-        b_list_destroy(cdata->enumerators);
 
         for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
                 xfree(cdata->argv->lst[i]);
@@ -567,6 +567,7 @@ destroy_clangdata(Buffer *bdata)
 
 /*======================================================================================*/
 
+#if 0
 static void
 tagfinder(struct enum_data *data, CXCursor cursor)
 {
@@ -595,6 +596,7 @@ visit_continue(CXCursor cursor, UNUSED CXCursor parent, void *client_data)
         tagfinder(client_data, cursor);
         return CXChildVisit_Recurse;
 }
+#endif
 
 /*======================================================================================*/
 

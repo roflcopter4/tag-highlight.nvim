@@ -21,7 +21,6 @@ extern "C" {
 #define CS(CXSTR) (clang_getCString(CXSTR))
 
 struct clangdata {
-        b_list             *enumerators;
         str_vector         *argv;
         struct cmd_info    *info;
         CXIndex             idx;

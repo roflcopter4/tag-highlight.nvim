@@ -10,21 +10,21 @@ extern "C" {
 #    endif
 #  include "mingw_config.h"
 #endif
-#ifdef _MSC_VER /* Microsoft sure likes to complain... */
-#  pragma warning(disable : 4668) // undefined macros in ifdefs
-#  pragma warning(disable : 4820) // padding
-#  pragma warning(disable : 4996) // stupid deprications
-#  pragma warning(disable : 5045) // spectre
+#ifdef _MSC_VER
 #  define _CRT_SECURE_NO_WARNINGS
 #  define _CRT_NONSTDC_NO_WARNINGS
 #endif
 #ifndef __GNUC__
+#  error "GCC or equivalent is required."
 #  define __attribute__(...)
 #endif
 #if defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"
 #elif defined(HAVE_CONFIG_H)
 #  include "config.h"
+#else
+#  define _GNU_SOURCE
+#  define __USE_GNU
 #endif
 #ifdef USE_JEMALLOC
 #  include <jemalloc/jemalloc.h>
@@ -215,7 +215,7 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  if defined(__clang__) || defined(__cplusplus)
 #    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
 #  else
-extern const char * ret_func_name__(const char *const function, size_t size);
+     extern const char *ret_func_name__(const char *function, size_t size);
 #    define FUNC_NAME \
         (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
@@ -233,7 +233,7 @@ extern const char * ret_func_name__(const char *const function, size_t size);
 #  define __always_inline extern __inline__ __attribute__((__always_inline__))
 #endif
 #define ALWAYS_INLINE __always_inline
-#define STATIC_INLINE __attribute__((__always_inline__)) static inline
+#define STATIC_INLINE static inline __attribute__((__always_inline__)) 
 
 #ifndef NOP
 #  define NOP ((void)0)
@@ -296,9 +296,9 @@ extern noreturn void err_ (int status, bool print_err, const char *restrict fmt,
 
 #include "util/util.h"
 
-#ifdef USE_XMALLOC
-/* __aNT __aWUR __aMAL __aALSZ(1) */
-__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1)))
+/* #ifdef USE_XMALLOC */
+#if 0
+__aNT __aWUR __aMAL __aALSZ(1)
 ALWAYS_INLINE void *
 xmalloc(const size_t size)
 {
@@ -308,8 +308,7 @@ xmalloc(const size_t size)
         return tmp;
 }
 
-/* __aNT __aWUR __aMAL __aALSZ(1, 2) */
-__attribute__((nothrow, warn_unused_result, malloc, alloc_size(1, 2)))
+__aNT __aWUR __aMAL __aALSZ(1, 2)
 ALWAYS_INLINE  void *
 xcalloc(const size_t num, const size_t size)
 {
@@ -318,13 +317,8 @@ xcalloc(const size_t num, const size_t size)
                 err(101, "Calloc call failed - attempted %zu bytes", size);
         return tmp;
 }
-#else
-#  define xmalloc malloc
-#  define xcalloc calloc
-#endif
 
-/* __aNT __aWUR __aALSZ(2) */
-__attribute__((nothrow, warn_unused_result, alloc_size(2)))
+__aNT __aWUR __aALSZ(2)
 ALWAYS_INLINE void *
 xrealloc(void *ptr, const size_t size)
 {
@@ -334,9 +328,8 @@ xrealloc(void *ptr, const size_t size)
         return tmp;
 }
 
-#if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-/* __aNT __aWUR __aALSZ(2, 3) */
-__attribute__((nothrow, warn_unused_result, alloc_size(2, 3)))
+#  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
+__aNT __aWUR __aALSZ(2, 3)
 ALWAYS_INLINE void *
 xreallocarray(void *ptr, size_t num, size_t size)
 {
@@ -345,12 +338,28 @@ xreallocarray(void *ptr, size_t num, size_t size)
                 err(103, "Realloc call failed - attempted %zu bytes", size);
         return tmp;
 }
-#  define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
-#  define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
-#else
-#  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#    define nmalloc(NUM_, SIZ_)        xreallocarray(NULL, (NUM_), (SIZ_))
+#    define nrealloc(PTR_, NUM_, SIZ_) xreallocarray((PTR_), (NUM_), (SIZ_))
+#  else
+#    define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#    define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#    define xreallocarray              nrealloc
+#  endif
+#else /* ! USE_XMALLOC */
+#  define xmalloc  malloc
+#  define xcalloc  calloc
+#  define xrealloc realloc
+
+#  define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+
+#  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
+#    define xreallocarray reallocarray
+#  else
+#    define xreallocarray nrealloc
+#  endif
 #endif
+
 #define xfree(PTR) free(PTR)
 #define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 

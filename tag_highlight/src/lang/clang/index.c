@@ -41,11 +41,13 @@ static const char *const idx_entity_kind_repr[] = {
     "CXXInterface",
 };
 
-#define ADD_CALL(CH)                                                                                  \
-        do {                                                                                          \
-                if ((group = find_group(data->bdata->ft, data->cdata->info, data->cdata->info->num, (CH)))) \
-                        add_hl_call(data->calls, data->bdata->num, data->bdata->hl_id, group,                           \
-                                    &ldata);                \
+#define ADD_CALL(CH)                                                                   \
+        do {                                                                           \
+                const bstring *group;                                                  \
+                if ((group = find_group(data->bdata->ft, data->cdata->info,            \
+                                        data->cdata->info->num, (CH))))                \
+                        add_hl_call(data->calls, data->bdata->num, data->bdata->hl_id, \
+                                    group, &line_data);                                \
         } while (0)
 
 /*======================================================================================*/
@@ -132,12 +134,6 @@ mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_ra
         return ret;
 }
 
-static inline void
-fuuuck(Buffer *bdata, struct clangdata *cdata, struct resolved_range *rng)
-{
-        
-}
-
 static void log_idx_location(const CXCursor         cursor,
                              const CXIdxEntityInfo *ref,
                              const CXIdxLoc         loc,
@@ -191,25 +187,28 @@ static void log_idx_location(const CXCursor         cursor,
 
 /*======================================================================================*/
 
+#define LINE_DATA_FAIL    (0)
+#define LINE_DATA_SUCEESS (1)
+
 static int
 get_line_data (const struct translationunit *stu,
                const CXCursor                cursor,
                const CXIdxLoc                loc,
                struct idx_data              *data,
-               struct line_data             *ldata)
+               struct line_data             *line_data)
 {
         struct { CXFile file; unsigned line, column, offset; } fileinfo;
         clang_indexLoc_getFileLocation(loc, NULL, &fileinfo.file, &fileinfo.line,
                                        &fileinfo.column, &fileinfo.offset);
 
         if (!clang_File_isEqual(fileinfo.file, data->cdata->mainfile))
-                return 0;
+                return LINE_DATA_FAIL;
 
-        struct resolved_range rng = {0, 0, 0, 0, 0};
+        struct resolved_range rng = {0, 0, 0, 0, 0, 0, NULL};
         resolve_range(clang_getCursorExtent(cursor), &rng);
 
         if (rng.line == 0 || rng.start == rng.end || rng.end == 0)
-                return 0;
+                return LINE_DATA_FAIL;
 
         /*
          * Whenever a cursor appears within a macro definition clang will consider that
@@ -226,13 +225,13 @@ get_line_data (const struct translationunit *stu,
         const bool eq       = b_iseq_cstr(&realtok, CS(dispname));
         clang_disposeString(dispname);
         if (!eq)
-                return 0;
+                return LINE_DATA_FAIL;
 
-        ldata->line  = rng.line - 1;
-        ldata->start = rng.start - 1;
-        ldata->end   = rng.end - 1;
+        line_data->line  = rng.line - 1;
+        line_data->start = rng.start - 1;
+        line_data->end   = rng.end - 1;
 
-        return 1;
+        return LINE_DATA_SUCEESS;
 }
 
 /*======================================================================================*/
@@ -306,20 +305,29 @@ my_indexDeclaration(CXClientData rawdata, const CXIdxDeclInfo *info)
 static void
 my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
 {
-        struct line_data   ldata;
-        const bstring     *group;
-        struct idx_data   *data = raw_data;
+        struct idx_data  *data = raw_data;
+        struct line_data  line_data;
 
-        if (!get_line_data(data->stu, info->cursor, info->loc, data, &ldata))
+        if (!get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
                 return;
 
         switch (info->referencedEntity->kind) {
+        case CXIdxEntity_EnumConstant:
+                ADD_CALL(CTAGS_ENUMCONST);
+                break;
+#if 0
+        case CXIdxEntity_CXXClass:
+                if (data->bdata->ft->id == FT_CXX)
+                        ADD_CALL(CTAGS_CLASS);
+                break;
+#endif
         case CXIdxEntity_CXXTypeAlias:
                 if (data->bdata->ft->id == FT_CXX)
                         ADD_CALL(CTAGS_TYPE);
                 break;
-        case CXIdxEntity_EnumConstant:
-                ADD_CALL(CTAGS_ENUMCONST);
+        case CXIdxEntity_CXXNamespaceAlias:
+                if (data->bdata->ft->id == FT_CXX)
+                        ADD_CALL(CTAGS_NAMESPACE);
                 break;
         default:
                 return;

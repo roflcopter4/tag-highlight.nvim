@@ -191,7 +191,8 @@ static inline int dprintf(int fd, char *fmt, ...)
 
 #define USE_XMALLOC
 
-#ifdef USE_XMALLOC
+/* #ifdef USE_XMALLOC */
+#if 0
 #  define ALWAYS_INLINE __always_inline
 
 __attribute__((nothrow, warn_unused_result, malloc, alloc_size(1)))
@@ -236,13 +237,6 @@ BSTR_xvasprintf(char **ptr, const char *const restrict fmt, va_list va)
 
 #  define xvasprintf BSTR_xvasprintf
 #  endif
-#else
-#  define xmalloc malloc
-#  define xcalloc calloc
-#  ifdef HAVE_VASPRINTF
-#    define xvasprintf vasprintf
-#  endif
-#endif
 
 __attribute__((nothrow, warn_unused_result, alloc_size(2)))
 __attribute__((visibility("hidden")))
@@ -276,7 +270,23 @@ BSTR_xreallocarray(void *ptr, size_t num, size_t size)
 #  define nmalloc(NUM_, SIZ_)        xmalloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #  define nrealloc(PTR_, NUM_, SIZ_) xrealloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
 #endif
+#else
+#  define xmalloc  malloc
+#  define xcalloc  calloc
+#  define xrealloc realloc
 
+#  define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+
+#  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
+#    define xreallocarray reallocarray
+#  else
+#    define xreallocarray nrealloc
+#  endif
+#  ifdef HAVE_VASPRINTF
+#    define xvasprintf vasprintf
+#  endif
+#endif
 #define xfree(PTR) free(PTR)
 #define nalloca(NUM_, SIZ_) alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
 
