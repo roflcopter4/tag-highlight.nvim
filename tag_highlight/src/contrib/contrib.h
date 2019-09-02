@@ -1,30 +1,20 @@
 #ifndef SRC_CONTRIB_CONTRIB_H
 #define SRC_CONTRIB_CONTRIB_H
 
+#include "Common.h"
+
 #ifdef __cplusplus
    extern "C" {
 #endif
-
-#include "Common.h"
-
-#include <stdint.h>
-#include <string.h>
-#ifdef HAVE_TOPCONFIG_H
-#  include "topconfig.h"
-#endif
-
-/* #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__) */
-   /* char *strsep(char **stringp, const char *delim); */
-/* #endif */
 
 #ifndef HAVE_STRSEP
    extern char *strsep(char **stringp, const char *delim);
 #endif
 #ifndef HAVE_STRLCPY
-   extern size_t strlcpy(char * __restrict dst, const char * __restrict src, size_t dst_size);
+   extern size_t strlcpy(char *restrict dst, const char *restrict src, size_t dst_size);
 #endif
 #ifndef HAVE_STRLCAT
-   extern size_t strlcat(char * __restrict dst, const char * __restrict src, size_t dst_size);
+   extern size_t strlcat(char *restrict dst, const char *restrict src, size_t dst_size);
 #endif
 #ifndef HAVE_STRTONUM
    extern int64_t strtonum(const char *numstr, long long minval, long long maxval, const char **errstrp);
@@ -38,45 +28,30 @@
 
 #ifdef DOSISH
 #  include <WinSock2.h>
-extern int dprintf(const SOCKET fd, const char *__restrict fmt, ...);
+extern int dprintf(const SOCKET fd, const char *restrict fmt, ...);
 #endif
 
-#ifndef HAVE_GETTIMEOFDAY
-#  if 0 && defined(_WIN32) || defined(__MINGW32__)
-#    define WIN32_LEAN_AND_MEAN
-//#  include <WinSock2.h>
-#    include <Windows.h>
-   
-     struct timeval {
-             int64_t tv_sec;
-             int64_t tv_usec;
-     };
-   
-     struct timezone {
-             int tz_minuteswest;
-             int tz_dsttime;
-     };
-     extern int gettimeofday(struct timeval * tp, struct timezone * tzp);
-#  endif
-#endif 
+INLINE size_t
+thl_strlcpy(char         *const restrict dst,
+            char   const *const restrict src,
+            size_t const                 dst_size)
+{
+        const size_t src_size = strlen(src);
 
-//#if defined(HAVE_GETTIMEOFDAY) && defined(_WIN32) && defined(__GNUC__)
-////#  define gettimeofday(...) mingw_gettimeofday(__VA_ARGS__)
-//#   include <unistd.h>
-//     struct timeval {
-//             int64_t tv_sec;
-//             int64_t tv_usec;
-//     };
-//   
-//     struct timezone {
-//             int tz_minuteswest;
-//             int tz_dsttime;
-//     };
-//     extern int gettimeofday(struct timeval * tp, struct timezone * tzp);
-//#endif
+        if (dst_size) {
+                memcpy(dst, src, dst_size);
+                if (dst_size < src_size)
+                        dst[dst_size - 1] = '\0';
+        }
+
+        return src_size;
+}
+
+/* size_t my_strlcpy(char *restrict dst, const char *restrict src, size_t dst_size); */
+#define my_strlcpy thl_strlcpy
+
 
 #ifdef __cplusplus
    }
 #endif
-
 #endif /* contrib.h */

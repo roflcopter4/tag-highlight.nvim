@@ -99,6 +99,18 @@ extern char * basename(char *path);
 #define MPACK_USE_P99
 
 #include "contrib/bstring/bstring.h"
+
+#include "contrib/p99/p99.h"
+#include "contrib/p99/p99_compiler.h"
+
+/* #define ALWAYS_INLINE __attribute__((__gnu_inline__, __always_inline__)) extern inline  */
+/* #define STATIC_INLINE __attribute__((__gnu_inline__, __always_inline__)) static inline  */
+/* #define INLINE        __attribute__((__gnu_inline__)) extern inline */
+
+#define ALWAYS_INLINE p99_inline
+#define INLINE        p99_inline
+#define STATIC_INLINE static inline
+
 #include "contrib/contrib.h"
 
 extern char *HOME;
@@ -230,10 +242,9 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #endif
 
 #ifndef __always_inline
-#  define __always_inline extern __inline__ __attribute__((__always_inline__))
+/* #  define __always_inline extern __inline__ __attribute__((__always_inline__)) */
+#  undef __always_inline
 #endif
-#define ALWAYS_INLINE __always_inline
-#define STATIC_INLINE static inline __attribute__((__always_inline__)) 
 
 #ifndef NOP
 #  define NOP ((void)0)

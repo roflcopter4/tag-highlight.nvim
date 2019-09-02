@@ -13,6 +13,8 @@
 #  define SEPSTR "/"
 #endif
 
+#define STREQ(sa, sb) (strcmp((sa), (sb)) == 0)
+
 #define NEXT_MKR(STRUCT_)                                                              \
         do {                                                                           \
                 const int init_ = (STRUCT_).mkr++;                                     \
@@ -38,8 +40,8 @@ static void     log_prev_file(const bstring *filename);
 static Top_Dir *init_topdir(Buffer *bdata);
 static void     init_filetype(Filetype *ft);
 static bool     check_norecurse_directories(const bstring *dir);
-static bstring *check_project_directories(bstring *dir, const bstring *ft);
-static void     bufdata_constructor(void) __attribute__((__constructor__));
+static bstring *check_project_directories(bstring *dir, const Filetype *ft);
+static void     bufdata_constructor(void) __attribute__((constructor));
 
 static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -276,7 +278,7 @@ have_seen_file(const bstring *filename)
 static Top_Dir *
 init_topdir(Buffer *bdata)
 {
-        bstring    *dir     = check_project_directories(b_strcpy(bdata->name.path), &bdata->ft->vim_name);
+        bstring    *dir     = check_project_directories(b_strcpy(bdata->name.path), bdata->ft);
         const bool  recurse = check_norecurse_directories(dir);
         bstring    *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
 
@@ -300,13 +302,13 @@ init_topdir(Buffer *bdata)
                 if (b_iseq(cur->pathname, base)) {
                         cur->refs++;
                         b_destroy(base);
-                        ECHO("Returning with existing topdir %s\n", cur->pathname);
+                        SHOUT("Using already initialized project directory \"%s\"\n", BS(cur->pathname));
                         pthread_mutex_unlock(&top_dirs->mut);
                         return cur;
                 }
         }
         pthread_mutex_unlock(&top_dirs->mut);
-        ECHO("Initializing new topdir \"%s\"\n", dir);
+        SHOUT("Initializing project directory \"%s\"\n", BS(dir));
 
         Top_Dir *tdir   = calloc(1, sizeof(Top_Dir));
         tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
@@ -383,8 +385,9 @@ check_norecurse_directories(const bstring *const dir)
  * to be `project' directories. Anything under them in the directory tree will
  * use that directory as its base.
  */
+
 static bstring *
-check_project_directories(bstring *dir, const bstring *const ft)
+check_project_directories(bstring *dir, const Filetype *ft)
 {
         FILE *fp = fopen(BS(settings.settings_file), "rb");
         if (!fp)
@@ -405,11 +408,22 @@ check_project_directories(bstring *dir, const bstring *const ft)
                 tmp->data[n]      = '\0';
                 tmp->slen         = (unsigned)n;
                 const char *tmpft = (char *)(tmp->data + n + 1);
-                if (strcmp(tmpft, BS(ft)) != 0) {
-                        ECHO("line \"%s\" has ft \"%n\" -- rejecting (needs ft \"%s\")\n", tmp, tmpft, ft);
-                        goto next;
+
+                if (ft->id == FT_C || ft->id == FT_CXX) {
+                        if (!STREQ(tmpft, "c") && !STREQ(tmpft, "cpp")) {
+                                ECHO("line \"%s\" has ft \"%s\" -- rejecting (needs ft \"c\" or \"cpp\")\n",
+                                     tmp, tmpft);
+                                goto next;
+                        }
+                } else {
+                        if (!STREQ(tmpft, BTS(ft->vim_name))) {
+                                ECHO("line \"%s\" has ft \"%s\" -- rejecting (needs ft \"%s\")\n",
+                                     tmp, tmpft, &ft->vim_name);
+                                goto next;
+                        }
                 }
 
+                ECHO("line \"%s\" has ft matching ft \"%n\"\n", tmp, tmpft);
                 b_regularize_path(tmp);
 
                 if (strstr(BS(dir), BS(tmp))) {
@@ -418,11 +432,12 @@ check_project_directories(bstring *dir, const bstring *const ft)
                         continue;
                 }
 
-                ECHO("Failed to match \"%s\" with ft \"%n\" at all\n", tmp, ft);
+                ECHO("Failed to match \"%s\" with ft \"%s\" at all\n", tmp, &ft->vim_name);
 
         next:
                 b_destroy(tmp);
         }
+
         fclose(fp);
         if (candidates->qty == 0) {
                 b_list_destroy(candidates);
@@ -641,8 +656,9 @@ get_restore_cmds(b_list *restored_groups)
                         }
                         b_list_destroy(toks);
 
-                        const size_t n = strlcpy(link_name, (ptr += 9), 1024);
+                        const size_t n = my_strlcpy(link_name, (ptr += 9), sizeof(link_name));
                         ALWAYS_ASSERT(n > 0);
+                        /* strcpy(link_name, (ptr += 9)); */
                         b_sprintfa(cmd, " | hi! link %s %s",
                                    restored_groups->lst[i], btp_fromcstr(link_name));
 

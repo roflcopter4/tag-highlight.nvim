@@ -31,6 +31,7 @@ extern void           event_loop_init     (int fd);
 int
 main(UNUSED int argc, char *argv[])
 {
+        SHOUT("--> '%s'\n", P99_STRINGIFY(p99_inline));
         TIMER_START(&main_timer);
         init(argv);
 
@@ -39,8 +40,8 @@ main(UNUSED int argc, char *argv[])
 
         /* If the user explicitly gives the vim command to stop the plugin, the loop
          * returns and we clean everything up. We don't do this when Neovim exits because
-         * it freezes until all child processes have stopped. This delay is noticeable and
-         * annoying, so normally we just call quick_exit or _Exit instead. */
+         * it freezes until all child processes have stopped. This delay is noticeable
+         * and annoying, so normally we just call quick_exit or _Exit instead. */
         eputs("Right, cleaning up!");
         return EXIT_SUCCESS;
 }

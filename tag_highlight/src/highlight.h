@@ -178,7 +178,7 @@ extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
 extern void _b_list_dump_nvim  (const b_list *list, const char *listname);
 
-__always_inline Buffer *find_current_buffer(void)
+ALWAYS_INLINE Buffer *find_current_buffer(void)
 {
         return find_buffer(nvim_get_current_buf());
 }

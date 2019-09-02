@@ -99,6 +99,8 @@ BSTR_PUBLIC bstring *b_fromcstr_alloc(unsigned mlen, const char *str);
  */
 BSTR_PUBLIC bstring *b_alloc_null(unsigned len);
 
+#define b_empty_string() b_alloc_null(0)
+
 /**
  * Create a bstring whose contents are described by the contiguous buffer
  * pointing to by blk with a length of len bytes.

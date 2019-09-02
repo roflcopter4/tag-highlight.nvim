@@ -40,27 +40,26 @@
  * Returns strlen(src); if retval >= dst_size, truncation occurred.
  */
 size_t
-strlcpy(char *__restrict dst, const char *__restrict src, size_t dst_size)
+strlcpy(char *restrict dst, const char *restrict src, const size_t dst_size)
 {
         const char *orig_src = src;
         size_t      nleft    = dst_size;
 
         /* Copy as many bytes as will fit */
-        if (nleft != 0)
-                while (--nleft != 0) /* Break when nleft is 1 */
-                        if ((*dst++ = *src++) == '\0')
+        if (nleft > 0)
+                while (--nleft > 0)
+                        if (!(*dst++ = *src++))
                                 break;
 
-        /* If not enough room in dst, add NUL and traverse rest of src to find
-         * its remaining length. */
+        /* Not enough room in dst, add NUL and traverse rest of src. */
         if (nleft == 0) {
-                if (dst_size != 0)
-                        *dst = '\0'; /* NUL-terminate dst */
-                while (*src++ != '\0')
+                if (dst_size > 0)
+                        *dst = '\0';  /* NUL-terminate dst */
+                while (*src++)
                         ;
         }
 
-        return (src - orig_src - 1); /* count does not include NUL */
+        return (src - orig_src - 1);  /* count does not include NUL */
 }
 
 #endif
@@ -94,7 +93,7 @@ strlcpy(char *__restrict dst, const char *__restrict src, size_t dst_size)
  * If retval >= dst_size, truncation occurred.
  */
 size_t
-strlcat(char *__restrict dst, const char *__restrict src, size_t dst_size)
+strlcat(char *restrict dst, const char *restrict src, size_t dst_size)
 {
         const char *orig_dst = dst;
         const char *orig_src = src;
@@ -404,7 +403,7 @@ gettimeofday(struct timeval *tp, struct timezone *tzp)
 /*============================================================================*/
 /*============================================================================*/
 #ifdef DOSISH
-int dprintf(const SOCKET fd, const char *const __restrict fmt, ...)
+int dprintf(const SOCKET fd, const char *const restrict fmt, ...)
 {
         int          fdx = _open_osfhandle(fd, 0);
         int          ret;

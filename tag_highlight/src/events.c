@@ -32,9 +32,9 @@ extern void *highlight_go_pthread_wrapper(void *vdata);
 
 extern          void   update_line         (Buffer *bdata, int first, int last);
 static          void   handle_line_event   (Buffer *bdata, mpack_array_t *arr);
-STATIC_INLINE   void   handle_message      (int fd, mpack_obj *obj);
-STATIC_INLINE   void   replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
-STATIC_INLINE   void   line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
+static inline   void   handle_message      (int fd, mpack_obj *obj);
+static inline   void   replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
+static inline   void   line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
 static          void   handle_nvim_event   (void *vdata);
 static noreturn void  *vimscript_message   (void *vdata);
 static noreturn void  *post_nvim_response  (void *vdata);
@@ -128,7 +128,7 @@ nvim_event_handler(UNUSED void *unused)
         pthread_exit();
 }
 
-STATIC_INLINE void
+static inline void
 handle_message(const int fd, mpack_obj *obj)
 {
         const nvim_message_type mtype = (nvim_message_type)m_expect(m_index(obj, 0),
@@ -287,7 +287,7 @@ handle_nvim_event(void *vdata)
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
-                /* Ugly but it works. Usually. */
+                /* Ugly and possibly undefined (?) but it works. Usually. */
                 void *hack = (void *)((uintptr_t)arr->items[0]->data.str->data[0]);
                 START_DETACHED_PTHREAD(vimscript_message, hack);
         } else {
@@ -436,12 +436,10 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
         /* Neovim always considers there to be at least one line in any buffer.
          * An empty buffer therefore must have one empty line. */
         if (bdata->lines->qty == 0)
-                ll_append(bdata->lines, b_fromcstr(""));
+                ll_append(bdata->lines, b_empty_string());
 
         if (!bdata->initialized && !empty)
                 bdata->initialized = true;
-
-        /* LINE_EVENT_DEBUG(); */
 
         free(repl_list->lst);
         free(repl_list);
@@ -456,7 +454,7 @@ handle_line_event(Buffer *bdata, mpack_array_t *arr)
         pthread_mutex_unlock(&handle_mutex);
 }
 
-STATIC_INLINE void
+static inline void
 replace_line(Buffer *bdata, b_list *repl_list,
              const int lineno, const int replno)
 {
@@ -472,7 +470,7 @@ replace_line(Buffer *bdata, b_list *repl_list,
  * `first + diff`, and then insert the new line(s) after `first` if it is now the last
  * line in the file, and before it otherwise.
  */
-STATIC_INLINE void
+static inline void
 line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 {
         const int olen  = bdata->lines->qty;

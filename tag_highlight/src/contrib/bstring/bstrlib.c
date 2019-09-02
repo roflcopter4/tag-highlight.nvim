@@ -292,12 +292,11 @@ b_fromblk(const void *blk, const unsigned len)
 bstring *
 b_alloc_null(const unsigned len)
 {
-        uint safelen  = len + 1;
         bstring *bstr = malloc(sizeof *bstr);
         bstr->slen    = 0;
-        bstr->mlen    = safelen;
+        bstr->mlen    = len + 1;
         bstr->flags   = BSTR_STANDARD;
-        bstr->data    = malloc(safelen);
+        bstr->data    = malloc(len + 1);
         bstr->data[0] = (uchar)'\0';
 
         return bstr;
