@@ -7,8 +7,8 @@
 #  include <wait.h>
 #endif
 
-extern void get_tmp_path(char *buf);
-static void clean_tmpdir();
+/* extern void get_tmp_path(char *buf); */
+/* static void clean_tmpdir(); */
 
 static const char *cleanup_path;
 
@@ -63,6 +63,7 @@ get_tmp_path(char *buf)
         cleanup_path = buf;
 }
 
+#if 0
 static void
 clean_tmpdir(void)
 {
@@ -82,7 +83,6 @@ clean_tmpdir(void)
 #endif
 }
 
-#if 0
 void
 locate_extent(bstring *dest, Buffer *bdata, const struct resolved_range *const res)
 {

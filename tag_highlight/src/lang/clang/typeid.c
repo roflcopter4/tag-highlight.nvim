@@ -14,7 +14,7 @@ static void do_typeswitch(Buffer                  *bdata,
 
 static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
 /* static void report_cursor(FILE *fp, CXCursor cursor); */
-static void tokvisitor(struct token *tok);
+/* static void tokvisitor(struct token *tok); */
 
 #define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
 
@@ -87,11 +87,10 @@ static void do_typeswitch(Buffer                   *bdata,
                           struct cmd_info          *info,
                           enum CXCursorKind *const  last_kind)
 {
-        extern char        LOGDIR[];
-        const bstring     *group;
+        const bstring *group;
+        CXCursor       cursor = tok->cursor;
         int goto_safety_count = 0;
         /* static atomic_flag flg    = ATOMIC_FLAG_INIT; */
-        CXCursor           cursor = tok->cursor;
 
 retry:
         if (goto_safety_count < 2)
@@ -281,6 +280,7 @@ tok_in_skip_list(Buffer *bdata, struct token *tok)
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tmp) != NULL;
 }
 
+#if 0
 static void
 report_parent(FILE *fp, CXCursor cursor)
 {
@@ -296,7 +296,6 @@ report_parent(FILE *fp, CXCursor cursor)
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
 
-#if 0
 static void
 report_cursor(FILE *fp, CXCursor cursor)
 {
@@ -312,6 +311,7 @@ report_cursor(FILE *fp, CXCursor cursor)
 }
 #endif
 
+#if 0
 static void
 tokvisitor(struct token *tok)
 {
@@ -331,3 +331,4 @@ tokvisitor(struct token *tok)
         fclose(toklog);
         free_cxstrings(typespell, typekindrepr, curs_kindspell);
 }
+#endif

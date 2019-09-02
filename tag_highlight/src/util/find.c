@@ -15,7 +15,7 @@
 #define CNULL ((char *)0)
 
 static bstring *run_find(const char *path, const char *search);
-static void unquote(bstring *orig);
+/* static void unquote(bstring *orig); */
 
 /*======================================================================================*/
 
@@ -122,6 +122,7 @@ run_find(const char *path, const char *search)
         return ret;
 }
 
+#if 0
 static void
 unquote(bstring *str)
 {
@@ -141,3 +142,4 @@ unquote(bstring *str)
                 str->slen    = x;
         }
 }
+#endif

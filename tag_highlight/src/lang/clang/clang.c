@@ -421,8 +421,6 @@ get_compile_commands(Buffer *bdata)
          * reaches it. This happens fairly often when editing a file. */
         argv_append(ret, "-ferror-limit=0", true);
 
-        extern FILE *clang_log_file;
-
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command   = clang_CompileCommands_getCommand(cmds, i);
                 CXString         directory = clang_CompileCommand_getDirectory(command);

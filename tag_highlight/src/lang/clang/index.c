@@ -11,6 +11,7 @@
 /* static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *clang_info); */
 static void my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info);
 
+__attribute__((used))
 static const char *const idx_entity_kind_repr[] = {
     "Unexposed",
     "Typedef",
@@ -117,6 +118,7 @@ lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls
 
 /*======================================================================================*/
 
+#if 0
 static struct token *
 mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_range *rng)
 {
@@ -184,6 +186,7 @@ static void log_idx_location(const CXCursor         cursor,
         free_cxstrings(dispname, curstype_spell, typekind_spell, fname);
         /* free_cxstrings(pdispname, pcurstype_spell, ptypekind_spell); */
 }
+#endif
 
 /*======================================================================================*/
 
