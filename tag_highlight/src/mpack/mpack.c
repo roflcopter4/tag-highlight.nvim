@@ -9,9 +9,6 @@ static void       free_stack_push(struct item_free_stack *list, void *item);
 
 FILE  *mpack_log;
 
-#ifdef _MSC_VER
-#  define restrict __restrict
-#endif
 #if defined __GNUC__ && !defined __clang__
 #  define PRAGMA_NO_NONHEAP()           \
         _Pragma("GCC diagnostic push"); \

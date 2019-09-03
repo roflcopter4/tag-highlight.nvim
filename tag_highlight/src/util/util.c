@@ -175,9 +175,11 @@ err_(UNUSED const int status, const bool print_err, const char *const restrict f
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
         vfprintf(stderr, buf, ap);
+        fflush(stderr);
         va_end(ap);
 
         SHOW_STACKTRACE();
+        fflush(stderr);
 
         abort();
         /* exit(status); */
@@ -190,9 +192,11 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         if (!settings.verbose && !force)
                 return;
 
-        va_list ap1, ap2;
+        /* va_list ap1, ap2;   */
+        /* va_start(ap1, fmt); */
+        /* va_start(ap2, fmt); */
+        va_list ap1;
         va_start(ap1, fmt);
-        va_start(ap2, fmt);
         char buf[ERRSTACKSIZE];
 
         if (print_err)
@@ -201,6 +205,7 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
                 snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
 
         vfprintf(stderr, buf, ap1);
+        fflush(stderr);
 
 /* #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);
@@ -208,7 +213,7 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
 #endif */
 
         va_end(ap1);
-        va_end(ap2);
+        /* va_end(ap2); */
 }
 
 unsigned

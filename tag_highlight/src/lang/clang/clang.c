@@ -294,7 +294,8 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
 
         bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST);
         if (file) {
-                bstring *contents = b_quickread("%s", BS(b_regularize_path(file)));
+                b_regularize_path(file);
+                bstring *contents = b_quickread("%s", BS(file));
                 assert(contents);
                 eprintf("Read %s\n", BS(contents));
                 char *tok = strstr((char *)contents->data, "-I");
@@ -354,18 +355,21 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
 static inline void
 handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
 {
-        bool  do_fix_path = cstr[0] == '/';
-        char *fixed_path  = (do_fix_path) ? fixed_path = stupid_windows_bullshit(STR)
-                                          : fixed_path = cstr;
+        /* bool  do_fix_path = isalpha(cstr[0]) && cstr[1] == ':'; */
+        /* char *fixed_path  = (do_fix_path) ? stupid_windows_bullshit(cstr) */
+        /*                                   : (char *)cstr;                 */
+        /* char *fixed_path  = (do_fix_path) ? stupid_windows_bullshit(cstr) */
+        
+        const char *fixed_path = cstr;
 
-        if (isalpha(fixed_path[0]) && fixed_path[1] == ':') {
-                argv_append(lst, fixed_path, do_fix_path);
+        if (isalpha(fixed_path[0]) && fixed_path[1] == ':' && (fixed_path[2] == '/' || fixed_path[2] == '\\')) {
+                argv_append(lst, fixed_path, false);
         } else {
                 char *buf = NULL;
                 asprintf(&buf, "%s\\%s", CS(directory), fixed_path);
                 argv_append(lst, buf, false);
-                if (do_fix_path)
-                        free(do_fix_path);
+                //if (do_fix_path)
+                //        free(fixed_path);
         }
 }
 

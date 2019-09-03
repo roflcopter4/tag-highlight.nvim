@@ -31,7 +31,6 @@ extern void           event_loop_init     (int fd);
 int
 main(UNUSED int argc, char *argv[])
 {
-        SHOUT("--> '%s'\n", P99_STRINGIFY(p99_inline));
         TIMER_START(&main_timer);
         init(argv);
 

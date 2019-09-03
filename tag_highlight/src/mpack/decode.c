@@ -458,8 +458,8 @@ stream_read(void *restrict src, uint8_t *restrict dest, const size_t nbytes)
         while (nread < nbytes) {
                 int n = read(fd, dest, nbytes - nread);
                 if (n < 0)
-                        err(1, "read() error")
-                /* nread += (n > 0) ? n : 0; */
+                        err(1, "read() error");
+                nread += (size_t)n;
         }
 #else
         const int n = recv(fd, dest, nbytes, MSG_WAITALL);

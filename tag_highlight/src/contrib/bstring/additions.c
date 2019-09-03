@@ -437,7 +437,7 @@ b_list_append(b_list **listp, bstring *bstr)
                 RUNTIME_ERROR();
 
         if ((*listp)->qty >= ((*listp)->mlen)) {
-                bstring **tmp = reallocarray((*listp)->lst, ((*listp)->mlen *= 2), sizeof(bstring *));
+                bstring **tmp = nrealloc((*listp)->lst, ((*listp)->mlen *= 2), sizeof(bstring *));
                 (*listp)->lst = tmp;
         }
         (*listp)->lst[(*listp)->qty++] = bstr;
@@ -795,7 +795,8 @@ b_regularize_path(bstring *path)
         if (INVALID(path) || NO_WRITE(path))
                 RUNTIME_ERROR();
         
-#if defined(_WIN32) || defined(_WIN64)
+/* #if defined(_WIN32) || defined(_WIN64) */
+#if 0
         for (unsigned i = 0; i < path->slen; ++i)
                 if (path->data[i] == '/')
                         path->data[i] = '\\';

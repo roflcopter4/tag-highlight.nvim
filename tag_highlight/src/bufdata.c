@@ -303,6 +303,8 @@ init_topdir(Buffer *bdata)
                         cur->refs++;
                         b_destroy(base);
                         SHOUT("Using already initialized project directory \"%s\"\n", BS(cur->pathname));
+                        ECHO("Using already initialized project directory \"%s\"\n", cur->pathname);
+                        fprintf(stderr, "----> \"%s\"\n", (char *)cur->pathname->data); fflush(stderr);
                         pthread_mutex_unlock(&top_dirs->mut);
                         return cur;
                 }
