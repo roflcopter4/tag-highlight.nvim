@@ -165,22 +165,26 @@ basename(char *path)
 void
 err_(UNUSED const int status, const bool print_err, const char *const restrict fmt, ...)
 {
+        const int e = errno;
         va_list ap;
         va_start(ap, fmt);
-        char buf[ERRSTACKSIZE];
+        /* char buf[ERRSTACKSIZE]; */
 
+        //if (print_err)
+        //        snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
+        //else
+        //        snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
+
+
+
+        fprintf(stderr, "%s: ", program_invocation_short_name);
+        vfprintf(stderr, fmt, ap);
         if (print_err)
-                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
-        else
-                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
-
-        vfprintf(stderr, buf, ap);
-        fflush(stderr);
+                fprintf(stderr, "%s: ", strerror(e));
         va_end(ap);
 
         SHOW_STACKTRACE();
         fflush(stderr);
-
         abort();
         /* exit(status); */
 }
@@ -192,27 +196,34 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         if (!settings.verbose && !force)
                 return;
 
+        const int e = errno;
+        va_list ap;
+        va_start(ap, fmt);
+
+        fprintf(stderr, "%s: ", program_invocation_short_name);
+        vfprintf(stderr, fmt, ap);
+        if (print_err)
+                fprintf(stderr, "%s: ", strerror(e));
+        va_end(ap);
+
+        fflush(stderr);
+
         /* va_list ap1, ap2;   */
         /* va_start(ap1, fmt); */
         /* va_start(ap2, fmt); */
-        va_list ap1;
-        va_start(ap1, fmt);
-        char buf[ERRSTACKSIZE];
+        /* char buf[ERRSTACKSIZE]; */
 
-        if (print_err)
-                snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
-        else
-                snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
+        /* if (print_err)                                                                                            */
+        /*         snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno)); */
+        /* else                                                                                                      */
+        /*         snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);                      */
 
-        vfprintf(stderr, buf, ap1);
-        fflush(stderr);
 
 /* #ifdef DEBUG
         vfprintf(echo_log, buf, ap2);
         fflush(echo_log);
 #endif */
 
-        va_end(ap1);
         /* va_end(ap2); */
 }
 

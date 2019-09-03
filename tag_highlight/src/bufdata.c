@@ -146,7 +146,6 @@ destroy_bufdata(Buffer **bdata)
 
         if (!process_exiting) {
                 log_prev_file((*bdata)->name.full);
-                eprintf("whatthe?\n");
         }
         const int index = find_buffer_ind((*bdata)->num);
 
@@ -302,7 +301,8 @@ init_topdir(Buffer *bdata)
                 if (b_iseq(cur->pathname, base)) {
                         cur->refs++;
                         b_destroy(base);
-                        SHOUT("Using already initialized project directory \"%s\"\n", BS(cur->pathname));
+                        /* SHOUT("Using already initialized project directory \"%s\"\n", (char *)(cur->pathname->data)); */
+                        warnx("Using already initialized project directory \"%s\"\n", (char *)(cur->pathname->data));
                         ECHO("Using already initialized project directory \"%s\"\n", cur->pathname);
                         fprintf(stderr, "----> \"%s\"\n", (char *)cur->pathname->data); fflush(stderr);
                         pthread_mutex_unlock(&top_dirs->mut);
