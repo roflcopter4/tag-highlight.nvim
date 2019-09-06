@@ -69,7 +69,8 @@ INTERN void get_tmp_path(char *buf);
 /*======================================================================================*/
 /* P99 */
 
-#include "my_p99_common.h"
+#include "contrib/p99/p99_block.h"
+#include "contrib/p99/p99_for.h"
 #define P01_FREE_CXSTRING(STR) clang_disposeString(STR)
 #define free_cxstrings(...) P99_BLOCK(P99_SEP(P01_FREE_CXSTRING, __VA_ARGS__);)
 

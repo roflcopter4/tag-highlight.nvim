@@ -195,6 +195,28 @@ function! s:Add_Project(path)
     endif
 endfunction
 
+function! s:Index_Path_And_Lang(lines, path)
+    let l:lst   = []
+    let l:index = (-1)
+
+    if &filetype ==# 'c'
+        let l:lst = [a:path . "\tc", a:path . "\tcpp"]
+    elseif &filetype ==# 'cpp'
+        let l:lst = [a:path . "\tcpp", a:path . "\tc"]
+    else
+        let l:lst = [a:path . "\t" . &filetype]
+    endif
+
+    for l:str in l:lst
+        let l:index = index(a:lines, l:str)
+        if l:index !=# (-1)
+            break
+        endif
+    endfor
+
+    return l:index
+endfunction
+
 function! s:Remove_Project(path)
     if file_readable(g:tag_highlight#settings_file)
         let l:lines = readfile(g:tag_highlight#settings_file)
@@ -203,14 +225,11 @@ function! s:Remove_Project(path)
             let l:ln = substitute(l:ln, "\n\|\r", '', '')
         endfor
 
-        let l:str   = a:path . "\t" . &filetype
-        let l:index = index(l:lines, l:str)
+        let l:index = s:Index_Path_And_Lang(l:lines, a:path)
 
         if l:index !=# (-1)
             echom 'Removing ' . &filetype . ' language project dir "'.a:path.'"'
-            echom string(l:lines)
             call remove(l:lines, l:index)
-            echom string(l:lines)
             call writefile(l:lines, g:tag_highlight#settings_file)
         else
             echoerr 'Project dir "' . a:path . '" for language `' . &filetype . "' is not recorded."
@@ -283,13 +302,23 @@ function! s:Wait()
 endfunction
 
 "===============================================================================
+"
+let s:msg_types = {
+            \         'BufNew':          0,
+            \         'BufChanged':      1,
+            \         'SyntaxChanged':   2,
+            \         'UpdateTags':      3,
+            \         'UpdateTagsForce': 4,
+            \         'ClearBuffer':     5,
+            \         'Stop':            6,
+            \     }
 
 function! s:NewBuf()
     call s:Wait()
     if g:tag_highlight#pid >=# 0
         let l:buf = nvim_get_current_buf()
         if index(s:new_bufs, l:buf) == (-1)
-            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'A')
+            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
             call add(s:new_bufs, l:buf)
         endif
     endif
@@ -299,43 +328,56 @@ function! s:BufChanged()
     call s:Wait()
     let l:buf = nvim_get_current_buf()
     if index(s:new_bufs, l:buf) == (-1)
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'A')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
         call add(s:new_bufs, l:buf)
         call add(s:seen_bufs, l:buf)
     elseif index(s:seen_bufs, l:buf) ==# (-1)
         call add(s:seen_bufs, l:buf)
     elseif g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'D')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufChanged'])
     endif
 endfunction
 
 function! s:UpdateTags()
     if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'B')
-    endif
-endfunction
-
-function! s:StopTagHighlight()
-    if g:tag_highlight#pid >= 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'C')
-    endif
-endfunction
-
-function! s:ClearBuffer()
-    if g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'E')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['UpdateTags'])
     endif
 endfunction
 
 function! s:ForceUpdateTags()
     if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'F')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['UpdateTagsForce'])
     endif
 endfunction
 
-function! s:ModeChange()
+function! s:ClearBuffer()
     if g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'M')
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['ClearBuffer'])
+    endif
+endfunction
+
+" function! s:ModeChange()
+"     if g:tag_highlight#pid >=# 0
+"         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'M')
+"     endif
+" endfunction
+
+function! s:DeleteBuf()
+    let l:buf = nvim_get_current_buf()
+    let l:ind = index(s:new_bufs, l:buf)
+    if l:ind !=# (-1)
+        call remove(s:new_bufs, l:ind)
+    endif
+
+    let l:ind = index(s:seen_bufs, l:buf)
+    if l:ind !=# (-1)
+        call remove(s:seen_bufs, l:ind)
+    endif
+endfunction
+
+function! s:StopTagHighlight()
+    if g:tag_highlight#pid >= 0
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['Stop'])
     endif
 endfunction
 
@@ -409,8 +451,10 @@ endif
 
 augroup TagHighlightAu
     autocmd BufAdd * call s:NewBuf()
+    " autocmd BufRead * call s:NewBuf()
     autocmd BufWritePost * call s:UpdateTags()
     autocmd BufEnter * call s:BufChanged()
+    autocmd BufDelete * call s:DeleteBuf()
     autocmd VimLeavePre * call s:ExitKill()
 augroup END
 

@@ -93,12 +93,16 @@ extern char * basename(char *path);
 #  undef I
 #endif
 
+/* Guarentee that this typedef exists. */
+typedef int error_t;
+
 /*===========================================================================*/
 
 #define USE_XMALLOC
 #define MPACK_USE_P99
 
 #include "contrib/bstring/bstring.h"
+#include "my_p99_common.h"
 
 #include "contrib/p99/p99.h"
 #include "contrib/p99/p99_compiler.h"
@@ -209,7 +213,7 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #endif
 
 /*===========================================================================*/
-/* Attribute aliases and jump like MIN, MAX, NOP, etc */
+/* Attribute aliases and junk like MIN, MAX, NOP, etc */
 
 #define __aMAL       __attribute__((__malloc__))
 #define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
@@ -231,14 +235,16 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #    define FUNC_NAME \
         (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
-#  define auto_type   __extension__ __auto_type
-#  define Auto        __extension__ __auto_type
-#  define MAX(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
-#  define MIN(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
+#  define auto_type      __extension__ __auto_type
+#  define Auto           __extension__ __auto_type
+#  define MAX(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
+#  define MIN(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
+#  define MODULO(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia % ib + ib) % ib;})
 #else
-#  define FUNC_NAME   (__func__)
-#  define MAX(iA, iB) (((iA) > (iB)) ? (iA) : (iB))
-#  define MIN(iA, iB) (((iA) < (iB)) ? (iA) : (iB))
+#  define FUNC_NAME      (__func__)
+#  define MAX(iA, iB)    (((iA) > (iB)) ? (iA) : (iB))
+#  define MIN(iA, iB)    (((iA) < (iB)) ? (iA) : (iB))
+#  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
 #endif
 
 #ifndef __always_inline
@@ -270,7 +276,6 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 
 #define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
 #define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
-#define MODULO(iA, iB)     (((iA) % (iB) + (iB)) % (iB))
 #define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
 #define SLS(STR)           ("" STR ""), LSLEN(STR)
 #define STRINGIFY_HLP(...) #__VA_ARGS__

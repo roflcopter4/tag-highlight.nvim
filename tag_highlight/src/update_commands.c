@@ -30,7 +30,7 @@ extern FILE *cmd_log;
 /*======================================================================================*/
 
 void
-(update_highlight)(Buffer *bdata, const int type)
+(update_highlight)(Buffer *bdata, const enum update_highlight_type type)
 {
         struct timer *t = TIMER_INITIALIZER;
         TIMER_START(t);
@@ -78,10 +78,8 @@ static void
 update_c_like(Buffer *bdata, const int type)
 {
         libclang_highlight(bdata,,,type);
-        if (!bdata->topdir->tags && !bdata->initialized) {
+        if (!bdata->topdir->tags && bdata->initialized)
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
-                bdata->initialized = true;
-        }
 }
 
 static void

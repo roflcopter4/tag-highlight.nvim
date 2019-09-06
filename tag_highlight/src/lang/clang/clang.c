@@ -36,14 +36,6 @@
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
 char              libclang_tmp_path[SAFE_PATH_MAX];
 
-#if 0
-struct enum_data {
-        CXTranslationUnit tu;
-        b_list           *enumerators;
-        const bstring    *buf;
-};
-#endif
-
 static void                    destroy_struct_translationunit(struct translationunit *stu);
 static CXCompileCommands       get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata);
 static str_vector             *get_backup_commands(Buffer *bdata);
@@ -53,8 +45,6 @@ static struct translationunit *init_compilation_unit(Buffer *bdata, bstring *buf
 static struct translationunit *recover_compilation_unit(Buffer *bdata, bstring *buf);
 static inline void             lines2bytes(Buffer *bdata, int64_t *startend, int first, int last);
 static void                    tokenize_range(struct translationunit *stu, CXFile *file, int64_t first, int64_t last);
-/* static void                    tagfinder(strucgt enum_data *data, CXCursor cursor); */
-/* static enum CXChildVisitResult visit_continue(CXCursor cursor, CXCursor parent, void *client_data); */
 
 #ifndef TIME_CLANG
 #  undef TIMER_START
@@ -129,6 +119,7 @@ void
         mpack_destroy_arg_array(calls);
         destroy_struct_translationunit(stu);
         p99_count_dec(&bdata->lock.num_workers);
+
         pthread_mutex_unlock(&lc_mutex);
         /* pthread_mutex_lock(&bdata->lock.update); */
 }
@@ -189,6 +180,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         int          tmpfd, tmplen;
         char         tmp[SAFE_PATH_MAX];
         str_vector  *comp_cmds = get_compile_commands(bdata);
+
 #ifdef HAVE_MKOSTEMPS
         tmplen = snprintf(tmp, SAFE_PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
         tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
@@ -211,29 +203,23 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         CLD(bdata)->idx  = clang_createIndex(0, 0);
         CLD(bdata)->tu   = NULL;
 
-        unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx, tmp, (const char **)comp_cmds->lst,
-                                                       (int)comp_cmds->qty, NULL, 0, TUFLAGS, &CLD(bdata)->tu);
+        unsigned clerror = clang_parseTranslationUnit2(CLD(bdata)->idx,
+                                                       tmp,
+                                                       (const char **)comp_cmds->lst,
+                                                       (int)comp_cmds->qty,
+                                                       NULL,
+                                                       0,
+                                                       TUFLAGS,
+                                                       &CLD(bdata)->tu);
+
         if (!CLD(bdata)->tu || clerror != 0)
                 errx(1, "libclang error: %d", clerror);
 
         struct translationunit *stu = malloc(sizeof(struct translationunit));
-        stu->buf = buf;
-        stu->tu  = CLD(bdata)->tu;
-
-#if 0
-        /* Get all enumerators in the translation unit separately, because clang
-         * doesn't expose them as such, only as normal integers (in C). */
-        struct enum_data enumlist = {CLD(bdata)->tu, b_list_create(), buf};
-        clang_visitChildren(clang_getTranslationUnitCursor(CLD(bdata)->tu), visit_continue, &enumlist);
-        B_LIST_SORT_FAST(enumlist.enumerators);
-
-        DUMPDATA();
-
-        CLD(bdata)->enumerators = enumlist.enumerators;
-#endif
-
-        CLD(bdata)->argv        = comp_cmds;
-        CLD(bdata)->info        = getinfo(bdata);
+        stu->buf         = buf;
+        stu->tu          = CLD(bdata)->tu;
+        CLD(bdata)->argv = comp_cmds;
+        CLD(bdata)->info = getinfo(bdata);
         memcpy(CLD(bdata)->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
 
         return stu;
@@ -242,6 +228,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
 /*======================================================================================*/
 
 #ifdef DOSISH
+
 static char *
 stupid_windows_bullshit(const char *const path)
 {
@@ -341,25 +328,9 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
         }
 }
 
-#  define ARGV_APPEND_FILE(VAR, STR)                                     \
-        do {                                                             \
-                if ((STR)[0] == '/') {                                   \
-                        char *fixed_path = stupid_windows_bullshit(STR); \
-                        if (fixed_path)                                  \
-                                argv_append((VAR), fixed_path, false);   \
-                } else {                                                 \
-                        argv_append((VAR), (STR), true);                 \
-                }                                                        \
-        } while (0)
-
 static inline void
 handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
 {
-        /* bool  do_fix_path = isalpha(cstr[0]) && cstr[1] == ':'; */
-        /* char *fixed_path  = (do_fix_path) ? stupid_windows_bullshit(cstr) */
-        /*                                   : (char *)cstr;                 */
-        /* char *fixed_path  = (do_fix_path) ? stupid_windows_bullshit(cstr) */
-        
         const char *fixed_path = cstr;
 
         if (isalpha(fixed_path[0]) && fixed_path[1] == ':' && (fixed_path[2] == '/' || fixed_path[2] == '\\')) {
@@ -368,15 +339,10 @@ handle_include_compile_command(str_vector *lst, const char *cstr, CXString direc
                 char *buf = NULL;
                 asprintf(&buf, "%s\\%s", CS(directory), fixed_path);
                 argv_append(lst, buf, false);
-                //if (do_fix_path)
-                //        free(fixed_path);
         }
 }
 
 #else /* ! defined DOSISH */
-
-#  define ARGV_APPEND_FILE(VAR, STR) \
-        argv_append((VAR), (STR), true)
 
 static inline void
 handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
@@ -389,7 +355,8 @@ handle_include_compile_command(str_vector *lst, const char *cstr, CXString direc
                 argv_append(lst, buf, false);
         }
 }
-#endif
+
+#endif /* defined DOSISH */
 
 /*======================================================================================*/
 
@@ -439,7 +406,7 @@ get_compile_commands(Buffer *bdata)
                         if (arg_allow != NE_NORMAL) {
                                 switch (arg_allow) {
                                 case NE_FILE_ALLOW:
-                                        handle_include_compile_command(ret, cstr+2, directory);
+                                        handle_include_compile_command(ret, cstr, directory);
                                         break;
                                 case NE_LANG_ALLOW:
                                         argv_append(ret, cstr, true);
@@ -585,39 +552,6 @@ destroy_clangdata(Buffer *bdata)
         free(cdata);
         bdata->clangdata = NULL;
 }
-
-/*======================================================================================*/
-
-#if 0
-static void
-tagfinder(struct enum_data *data, CXCursor cursor)
-{
-        if (cursor.kind != CXCursor_EnumConstantDecl)
-                return;
-
-        CXSourceLocation loc   = clang_getCursorLocation(cursor);
-        CXToken         *cxtok = clang_getToken(data->tu, loc);
-        if (!cxtok)
-                return;
-
-        if (clang_getTokenKind(*cxtok) == CXToken_Identifier) {
-                CXString  dispname = clang_getCursorDisplayName(cursor);
-                bstring  *str      = b_fromcstr(CS(dispname));
-                if (str && str->slen > 0)
-                        b_list_append(&data->enumerators, str);
-                clang_disposeString(dispname);
-        }
-
-        clang_disposeTokens(data->tu, cxtok, 1);
-}
-
-static enum CXChildVisitResult
-visit_continue(CXCursor cursor, UNUSED CXCursor parent, void *client_data)
-{
-        tagfinder(client_data, cursor);
-        return CXChildVisit_Recurse;
-}
-#endif
 
 /*======================================================================================*/
 

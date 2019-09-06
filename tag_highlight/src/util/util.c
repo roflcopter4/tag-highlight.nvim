@@ -165,7 +165,7 @@ basename(char *path)
 void
 err_(UNUSED const int status, const bool print_err, const char *const restrict fmt, ...)
 {
-        const int e = errno;
+        const error_t e = errno;
         va_list ap;
         va_start(ap, fmt);
         /* char buf[ERRSTACKSIZE]; */
@@ -196,17 +196,53 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         if (!settings.verbose && !force)
                 return;
 
-        const int e = errno;
-        va_list ap;
-        va_start(ap, fmt);
+        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
-        fprintf(stderr, "%s: ", program_invocation_short_name);
-        vfprintf(stderr, fmt, ap);
+        va_list       ap;
+        const error_t e = errno;
+
+#if 0
+        bstring  *new_fmt;
+
+        /* if (print_err) */
+        /*         new_fmt = b_sprintf("%n: %n: %n\n", program_invocation_short_name, fmt, strerror(e)); */
+        /* else */
+        /*         new_fmt = b_sprintf("%n: %n\n", program_invocation_short_name, fmt); */
         if (print_err)
-                fprintf(stderr, "%s: ", strerror(e));
+                new_fmt = b_format("%s: %s: %s\n", program_invocation_short_name, fmt, strerror(e));
+        else
+                new_fmt = b_format("%s: %s\n", program_invocation_short_name, fmt);
+
+        if (!new_fmt)
+                return;
+
+        va_start(ap, fmt);
+        /* bstring *msg = _b_vsprintf(new_fmt, ap); */
+        bstring *msg = b_format(BS(new_fmt), ap);
         va_end(ap);
 
+        b_free(new_fmt);
+
+        if (msg)
+                nvim_out_write(msg);
+        else
+                b_free(msg);
+#endif
+
+        pthread_mutex_lock(&mut);
+
+        fprintf(stderr, "%s: ", program_invocation_short_name);
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        va_end(ap);
+        if (print_err)
+                fprintf(stderr, "%s: \n", strerror(e));
+        else
+                fputc('\n', stderr);
+
         fflush(stderr);
+
+        pthread_mutex_unlock(&mut);
 
         /* va_list ap1, ap2;   */
         /* va_start(ap1, fmt); */

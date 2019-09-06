@@ -4,7 +4,8 @@
  * to include this file in its build. */
 #include "Common.h"
 #include "lang/lang.h"
-#include "my_p99_common.h"
+
+#include "contrib/p99/p99_count.h"
 #include <sys/stat.h>
 
 extern void try_go_crap(Buffer *bdata);

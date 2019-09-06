@@ -1,10 +1,9 @@
 #include "Common.h"
-#include "contrib/p99/p99_atomic.h"
-#include "contrib/p99/p99_fifo.h"
-#include "contrib/p99/p99_futex.h"
 #include "highlight.h"
 #include "lang/clang/clang.h"
-#include "my_p99_common.h"
+#include "nvim_api/wait_node.h"
+
+#include "contrib/p99/p99_atomic.h"
 #include <signal.h>
 
 #define BT bt_init
@@ -149,8 +148,11 @@ handle_message(const int fd, mpack_obj *obj)
                 break;
         }
         case MES_REQUEST:
+                errx(1, "Recieved request in %s somehow. "
+                        "This should be \"impossible\"?\n", FUNC_NAME);
         default:
-                abort();
+                errx(1, "Recieved invalid object type from neovim. "
+                        "This should be \"impossible\"?\n");
         }
 }
 
@@ -158,10 +160,12 @@ handle_message(const int fd, mpack_obj *obj)
 /*
  * Using libev
  */
+
 #if USE_EVENT_LIB == EVENT_LIB_EV
 
 #  include <ev.h>
 #  define UEVP_ __attribute__((__unused__)) EV_P
+
 static struct ev_io     input_watcher;
 static struct ev_signal signal_watcher[4];
 
@@ -218,6 +222,7 @@ event_loop_init(const int fd)
 /*
  * Using no event library
  */
+
 #elif USE_EVENT_LIB == EVENT_LIB_NONE
 
 #  ifndef DOSISH
@@ -251,24 +256,22 @@ event_loop_init(const int fd)
         /* I wanted to use pthread_once but it requires a function that takes no
          * arguments. Getting around that would defeat the whole point. */
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
+
         if (!atomic_flag_test_and_set(&event_loop_called)) {
-#  ifdef DOSISH
-                event_loop(fd);
-#  else
+#  ifndef DOSISH
                 loop_thread = pthread_self();
-
-                if (setjmp(event_loop_jmp_buf) == 0) {
-                        struct sigaction act;
-                        memset(&act, 0, sizeof(act));
-                        act.sa_handler = event_loop_sighandler;
-                        sigaction(SIGUSR1, &act, NULL);
-                        sigaction(SIGTERM, &act, NULL);
-                        sigaction(SIGPIPE, &act, NULL);
-                        sigaction(SIGINT, &act, NULL);
-
-                        event_loop(fd);
-                }
+                if (setjmp(event_loop_jmp_buf) != 0)
+                        return;
+                struct sigaction act;
+                memset(&act, 0, sizeof(act));
+                act.sa_handler = event_loop_sighandler;
+                sigaction(SIGUSR1, &act, NULL);
+                sigaction(SIGTERM, &act, NULL);
+                sigaction(SIGPIPE, &act, NULL);
+                sigaction(SIGINT, &act, NULL);
 #  endif
+
+                event_loop(fd);
         }
 }
 
@@ -288,7 +291,7 @@ handle_nvim_event(void *vdata)
 
         if (type->id == EVENT_VIM_UPDATE) {
                 /* Ugly and possibly undefined (?) but it works. Usually. */
-                void *hack = (void *)((uintptr_t)arr->items[0]->data.str->data[0]);
+                void *hack = (void *)((uintptr_t)arr->items[0]->data.num);
                 START_DETACHED_PTHREAD(vimscript_message, hack);
         } else {
                 const int bufnum = (int)m_expect(arr->items[0], E_NUM).num;
@@ -503,6 +506,17 @@ line_event_multi_op(Buffer *bdata, b_list *repl_list, const int first, int diff)
 
 /*======================================================================================*/
 
+P99_DECLARE_ENUM(vimscript_message_type,
+        VIML_BUF_NEW,
+        VIML_BUF_CHANGED,
+        VIML_BUF_SYNTAX_CHANGED,
+        VIML_UPDATE_TAGS,
+        VIML_UPDATE_TAGS_FORCE,
+        VIML_CLEAR_BUFFER,
+        VIML_STOP
+);
+P99_DEFINE_ENUM(vimscript_message_type);
+
 /*
  * Handle an update from the small vimscript plugin. Updates are recieved upon
  * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
@@ -512,20 +526,22 @@ static noreturn void *
 vimscript_message(void *vdata)
 {
         assert((uintptr_t)vdata < INT_MAX);
-        const  int        val    = (int)((uintptr_t)vdata);
-        static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
-        struct timer     *t      = TIMER_INITIALIZER;
-        int               num    = 0;
+        static atomic_int      bufnum = ATOMIC_VAR_INIT(-1);
+        vimscript_message_type val    = (int)((uintptr_t)vdata);
+        struct timer          *t      = TIMER_INITIALIZER;
 
-        if (val != 'H')
-                echo("Recieved \"%c\"; waking up!", val);
+        int  num    = 0;
+        /* bool is_new = false; */
+
+        echo("Recieved \"%s\" (%d): waking up!", vimscript_message_type_getname(val), val);
 
         switch (val) {
         /*
          * New buffer was opened or current buffer changed.
          */
-        case 'A':  /* FIXME These damn letters have gotten totally out of order. */
-        case 'D': {
+        case VIML_BUF_NEW:
+                /* is_new = true; */
+        case VIML_BUF_CHANGED: {
                 num            = nvim_get_current_buf();
                 const int prev = atomic_exchange(&bufnum, num);
                 TIMER_START_BAR(t);
@@ -535,13 +551,15 @@ vimscript_message(void *vdata)
                 try_attach:
                         if (new_buffer(num)) {
                                 nvim_buf_attach(num);
-                                bdata = find_buffer(num);
+                                Buffer *bdata2 = find_buffer(num);
 
-                                get_initial_lines(bdata);
-                                get_initial_taglist(bdata);
-                                update_highlight(bdata, HIGHLIGHT_UPDATE);
+                                get_initial_lines(bdata2);
+                                get_initial_taglist(bdata2);
+                                update_highlight(bdata2, HIGHLIGHT_UPDATE);
 
                                 TIMER_REPORT(t, "initialization");
+                        } else {
+                                ECHO("Failed to attach to buffer number %d.", num);
                         }
                 } else if (prev != num) {
                         if (!bdata->calls)
@@ -553,19 +571,26 @@ vimscript_message(void *vdata)
 
                 break;
         }
+
+        case VIML_BUF_SYNTAX_CHANGED: {
+                /* TODO */
+                break;
+        }
+
         /*
          * Buffer was written, or filetype/syntax was changed.
          */
-        case 'B': {
+        case VIML_UPDATE_TAGS: {
                 TIMER_START_BAR(t);
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
                 Buffer *bdata = find_buffer(num);
 
                 if (!bdata) {
-                        echo("Failed to find buffer! %d -> p: %p\n",
+                        echo("Failed to find buffer! %d -> p: %p",
                              num, (void *)bdata);
-                        goto try_attach;
+                        /* goto try_attach; */
+                        break;
                 }
 
                 if (update_taglist(bdata, (val == 'F'))) {
@@ -579,7 +604,7 @@ vimscript_message(void *vdata)
         /*
          * User called the kill command.
          */
-        case 'C': {
+        case VIML_STOP: {
                 clear_highlight();
                 pthread_mutex_unlock(&vs_mutex);
 #ifdef DOSISH
@@ -593,26 +618,23 @@ vimscript_message(void *vdata)
         /*
          * User called the clear highlight command.
          */
-        case 'E':
+        case VIML_CLEAR_BUFFER:
                 clear_highlight();
                 break;
         /* 
          * Force an update.
          */
-        case 'F': {
+        case VIML_UPDATE_TAGS_FORCE: {
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
                 Buffer *bdata = find_buffer(num);
+                if (!bdata)
+                        goto try_attach;
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
                 update_highlight(bdata, HIGHLIGHT_UPDATE);
                 break;
         }
-        /* 
-         * 
-         */
-        case 'M': {
-                break;
-        }
+
         default:
                 break;
         }

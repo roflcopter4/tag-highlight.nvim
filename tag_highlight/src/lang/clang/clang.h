@@ -4,6 +4,8 @@
 #include "Common.h"
 #include "highlight.h"
 
+#include "contrib/p99/p99_defarg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -1,11 +1,14 @@
 #include "Common.h"
 #include "highlight.h"
 
+#include "contrib/p99/p99_futex.h"
+
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change " STREAM "to binary mode.")
 const char *program_invocation_short_name;
 #endif
+#define WAIT_TIME  (3.0)
 
 extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
 static struct timer main_timer               = TIMER_STATIC_INITIALIZER;
@@ -23,25 +26,25 @@ static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
 extern void           event_loop_init     (int fd);
 
-#define WAIT_TIME  (3.0)
-#define eputs(str) fwrite(("tag_highlight: " str "\n"), 1, (sizeof(str) + 16 - 1), stderr)
-
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
         TIMER_START(&main_timer);
+
+        /* This function will ultimately spawn an asynchronous thread that will try to
+         * attach to the current buffer, if possible. */
         init(argv);
 
         /* This actually runs the event loop and does not normally return. */
         event_loop_init(STDIN_FILENO);
 
-        /* If the user explicitly gives the vim command to stop the plugin, the loop
+        /* If the user explicitly gives the Vim command to stop the plugin, the loop
          * returns and we clean everything up. We don't do this when Neovim exits because
          * it freezes until all child processes have stopped. This delay is noticeable
          * and annoying, so normally we just call quick_exit or _Exit instead. */
-        eputs("Right, cleaning up!");
+        eprintf("Right, cleaning up!");
         return EXIT_SUCCESS;
 }
 
@@ -80,7 +83,7 @@ platform_init(char **argv)
 #endif
 }
 
-/**
+/*
  * Open debug logs
  */
 static void
@@ -107,22 +110,10 @@ main_initialization(UNUSED void *arg)
         int initial_buf;
         get_settings();
 
+#if 0
         /* Try to initialize a buffer. If the current one isn't recognized, keep
          * trying periodically until we see one that is. In case we never
          * recognize a buffer, the wait time between tries is modestly long. */
-#if 0
-        for (int attempts = 0; buffers.mkr == 0; ++attempts) {
-                if (attempts > 0) {
-                        if (buffers.bad_bufs.qty)
-                                buffers.bad_bufs.qty = 0;
-                        fsleep(WAIT_TIME);
-                }
-
-                initial_buf = nvim_get_current_buf();
-                if (new_buffer(initial_buf))
-                        break;
-        }
-#endif
         for (;;) {
                 initial_buf = nvim_get_current_buf();
                 if (new_buffer(initial_buf))
@@ -133,6 +124,11 @@ main_initialization(UNUSED void *arg)
                 buffers.bad_bufs.qty = 0;
                 fsleep(WAIT_TIME);
         }
+#endif
+
+        initial_buf = nvim_get_current_buf();
+        if (!new_buffer(initial_buf))
+                pthread_exit();
 
         Buffer *bdata = find_buffer(initial_buf);
         nvim_buf_attach(bdata->num);
@@ -148,7 +144,7 @@ main_initialization(UNUSED void *arg)
         pthread_exit();
 }
 
-/**
+/*
  * Grab user settings defined their .vimrc or the vimscript plugin.
  */
 static void
@@ -173,27 +169,37 @@ get_settings(void)
         echo("settings.verbose is %s", settings.verbose ? "true" : "false");
 }
 
-/*======================================================================================*/
-
-/**
- * Does what it says on the tin.
- */
-void
-get_initial_lines(Buffer *bdata)
+static comp_type_t
+get_compression_type(void)
 {
-        pthread_mutex_lock(&bdata->lock.total);
-        b_list *tmp = nvim_buf_get_lines(bdata->num);
-        if (bdata->lines->qty == 1)
-                ll_delete_node(bdata->lines, bdata->lines->head);
-        ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
+        bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
+        comp_type_t ret = COMP_NONE;
 
-        free(tmp->lst);
-        free(tmp);
-        bdata->initialized = true;
-        pthread_mutex_unlock(&bdata->lock.total);
+        if (b_iseq_lit(tmp, "gzip"))
+                ret = COMP_GZIP;
+        else if (b_iseq_lit(tmp, "lzma"))
+        {
+#ifdef LZMA_SUPPORT
+                ret = COMP_LZMA;
+#else
+                eprintf("Compression type is set to 'lzma', but only gzip is "
+                        "supported in this build. Defaulting to 'gzip'.");
+                ret = COMP_GZIP;
+#endif
+        }
+        else if (b_iseq_lit(tmp, "none"))
+                ret = COMP_NONE;
+        else
+                eprintf("Warning: unrecognized compression type \"%s\", "
+                        "defaulting to no compression.", BS(tmp));
+
+        b_destroy(tmp);
+        return ret;
 }
 
-/**
+/*======================================================================================*/
+
+/*
  * Free everything at exit for debugging purposes.
  */
 static void
@@ -255,31 +261,4 @@ quick_cleanup(void)
                 fclose(main_log);
         if (echo_log)
                 fclose(echo_log);
-}
-
-static comp_type_t
-get_compression_type(void)
-{
-        bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
-        comp_type_t ret = COMP_NONE;
-
-        if (b_iseq_lit(tmp, "gzip")) {
-                ret = COMP_GZIP;
-        } else if (b_iseq_lit(tmp, "lzma")) {
-#ifdef LZMA_SUPPORT
-                ret = COMP_LZMA;
-#else
-                eputs("Compression type is set to 'lzma', but only gzip is "
-                      "supported in this build.");
-                ret = COMP_GZIP;
-#endif
-        } else if (b_iseq_lit(tmp, "none")) {
-                ret = COMP_NONE;
-        } else {
-                eprintf("Warning: unrecognized compression type \"%s\", "
-                        "defaulting to no compression.", BS(tmp));
-        }
-
-        b_destroy(tmp);
-        return ret;
 }

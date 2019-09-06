@@ -49,6 +49,10 @@ get_initial_taglist(Buffer *bdata)
         struct stat  st;
         struct timer *t  = TIMER_INITIALIZER;
         int          ret = 0;
+
+        if (bdata->topdir->tags)
+                return update_taglist(bdata, UPDATE_TAGLIST_FORCE);
+
         TIMER_START(t);
         bdata->topdir->tags = b_list_create();
 

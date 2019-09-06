@@ -1,14 +1,12 @@
-#pragma once
 #ifndef NVIM_API_API_H_
 #define NVIM_API_API_H_
 
 #include "Common.h"
 #include "highlight.h"
-#include "my_p99_common.h"
 
 #include "contrib/p99/p99_defarg.h"
-#include "contrib/p99/p99_futex.h"
-#include "contrib/p99/p99_fifo.h"
+#include "contrib/p99/p99_if.h"
+#include "contrib/p99/p99_list.h"
 #include "mpack/mpack.h"
 #include "util/list.h"
 
@@ -130,16 +128,6 @@ extern int _nvim_create_socket(void);
 extern void _nvim_init(void) __attribute__((__constructor__));
 
 extern int _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
-
-P44_DECLARE_FIFO(_nvim_wait_node);
-struct _nvim_wait_node {
-        int              fd;
-        unsigned         count;
-        p99_futex        fut;
-        mpack_obj       *obj;
-        _nvim_wait_node_ptr p99_fifo;
-};
-P99_FIFO(_nvim_wait_node_ptr) _nvim_wait_queue;
 
 /*============================================================================*/
 extern int _nvim_api_read_fd;

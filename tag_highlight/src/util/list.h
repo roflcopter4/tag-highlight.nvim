@@ -27,17 +27,18 @@
 #  define INTERN __attribute__((__visibility__("hidden"))) extern
 #endif
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*======================================================================================================*/
 
 typedef struct linked_list_s linked_list;
 typedef struct ll_node_s     ll_node;
 
 struct linked_list_s {
-        ll_node *head;
-        ll_node *tail;
-        int qty;
-        /* pthread_rwlock_t lock; */
+        ll_node        *head;
+        ll_node        *tail;
+        int             qty;
         pthread_mutex_t lock;
 };
 
@@ -88,13 +89,13 @@ LLDECL bstring *ll_join            (linked_list *list, int sepchar) __aWUR;
 /*======================================================================================================*/
 /* Generic list */
 
-typedef struct generic_list {
-        void **  lst;
-        unsigned qty;
-        unsigned mlen;
-        /* pthread_rwlock_t lock; */
+typedef struct generic_list genlist;
+struct generic_list {
+        void          **lst;
+        unsigned        qty;
+        unsigned        mlen;
         pthread_mutex_t mut;
-} genlist;
+};
 
 typedef int (*genlist_copy_func)(void **dest, void *item);
 
@@ -118,19 +119,20 @@ LLDECL genlist *genlist_copy         (genlist *list, const genlist_copy_func cpy
 /*======================================================================================================*/
 /* Simple char * list. */
 
-typedef struct argument_vector {
+typedef struct argument_vector str_vector;
+struct argument_vector {
         char   **lst;
         unsigned qty;
         unsigned mlen;
-} str_vector;
+};
 
-LLDECL str_vector *argv_create(const unsigned len) __aWUR;
-LLDECL void argv_append       (str_vector *argv, const char *str, const bool cpy);
-LLDECL void argv_destroy      (str_vector *argv);
-LLDECL void argv_fmt          (str_vector *argv, const char *const __restrict fmt, ...) __aFMT(2, 3);
+LLDECL str_vector *argv_create (const unsigned len) __aWUR;
+LLDECL void        argv_append (str_vector *argv, const char *str, const bool cpy);
+LLDECL void        argv_destroy(str_vector *argv);
+LLDECL void        argv_fmt    (str_vector *argv, const char *const __restrict fmt, ...) __aFMT(2, 3);
 
-INTERN void argv_dump__(FILE *fp, const struct argument_vector *argv, const char *listname, const char *, int);
-INTERN void argv_dump_fd__(int fd, const struct argument_vector *argv, const char *listname, const char *, int);
+INTERN void argv_dump__   (FILE *fp, const str_vector *argv, const char *listname, const char *, int);
+INTERN void argv_dump_fd__(int fd, const str_vector *argv, const char *listname, const char *, int);
 
 #define argv_dump(FP, ARGV)    (argv_dump__((FP), (ARGV), #ARGV, __FILE__, __LINE__))
 #define argv_dump_fd(FD, ARGV) (argv_dump_fd__((FD), (ARGV), #ARGV, __FILE__, __LINE__))
@@ -138,5 +140,7 @@ INTERN void argv_dump_fd__(int fd, const struct argument_vector *argv, const cha
 #undef INTERN
 
 /*======================================================================================================*/
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif
 #endif /* list.h */

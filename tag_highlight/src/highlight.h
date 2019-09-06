@@ -1,13 +1,11 @@
-#ifndef HIGHLIGHT_H_
-#define HIGHLIGHT_H_
+#ifndef THL_HIGHLIGHT_H_
+#define THL_HIGHLIGHT_H_
 
 #include "Common.h"
 #include "mpack/mpack.h"
 #include "nvim_api/api.h"
 #include "util/list.h"
 
-#include "my_p99_common.h"
-#include "contrib/p99/p99.h"
 #include "contrib/p99/p99_count.h"
 #include "contrib/p99/p99_defarg.h"
 
@@ -18,7 +16,7 @@ extern "C" {
 /* Old "data.h" */
 /*===========================================================================*/
 
-typedef volatile p99_futex vfutex_t;
+/* typedef volatile p99_futex vfutex_t; */
 
 #define DATA_ARRSIZE 4096
 
@@ -119,11 +117,13 @@ struct bufdata {
         
 struct buffer_list {
         Buffer *lst[DATA_ARRSIZE];
+#if 0
         struct bad_bufs_s {
                 int      lst[DATA_ARRSIZE];
                 uint16_t qty;
                 uint16_t mlen;
         } bad_bufs;
+#endif
 
         uint16_t        mkr;
         uint16_t        mlen;
@@ -148,7 +148,7 @@ extern const size_t        ftdata_len;
 extern bool    have_seen_file   (const bstring *filename);
 extern bool    new_buffer       (int bufnum);
 extern int     find_buffer_ind  (int bufnum);
-extern bool    is_bad_buffer    (int bufnum);
+/* extern bool    is_bad_buffer    (int bufnum); */
 extern void    destroy_bufdata  (Buffer **bdata);
 extern Buffer *find_buffer      (int bufnum);
 extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
@@ -167,11 +167,11 @@ enum update_taglist_opts {
         UPDATE_TAGLIST_FORCE_LANGUAGE,
 };
 
-enum { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
+enum update_highlight_type { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
 
 extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);
-extern void update_highlight   (Buffer *bdata, int type);
+extern void update_highlight   (Buffer *bdata, enum update_highlight_type type);
 extern int  get_initial_taglist(Buffer *bdata);
 extern void clear_highlight    (Buffer *bdata);
 extern void get_initial_lines  (Buffer *bdata);
@@ -185,9 +185,11 @@ ALWAYS_INLINE Buffer *find_current_buffer(void)
 
 #define update_highlight(...)       P99_CALL_DEFARG(update_highlight, 2, __VA_ARGS__)
 #define update_highlight_defarg_0() (find_current_buffer())
-#define update_highlight_defarg_1() (UPDATE_TAGLIST_NORMAL)
+#define update_highlight_defarg_1() (HIGHLIGHT_NORMAL)
 #define clear_highlight(...)        P99_CALL_DEFARG(clear_highlight, 1, __VA_ARGS__)
 #define clear_highlight_defarg_0()  (find_current_buffer())
+/* #define new_buffer(...)             P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__) */
+/* #define new_buffer_defarg_1()       (false) */
 
 #define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
 

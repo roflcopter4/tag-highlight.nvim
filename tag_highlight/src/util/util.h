@@ -3,7 +3,9 @@
 
 #include "Common.h"
 
-__BEGIN_DECLS
+#ifdef __cplusplus
+extern "C" {
+#endif
 /*======================================================================================*/
 
 /* 
@@ -62,7 +64,7 @@ struct timer {
 #define STRDUP(STR)                                                     \
         __extension__({                                                 \
                 static const char strng_[]   = ("" STR "");             \
-                char *            strng_cpy_ = malloc(sizeof(strng_)); \
+                char *            strng_cpy_ = malloc(sizeof(strng_));  \
                 memcpy(strng_cpy_, strng_, sizeof(strng_));             \
                 strng_cpy_;                                             \
         })
@@ -107,5 +109,7 @@ extern bstring *get_command_output(const char *command, char *const *const argv,
 extern bstring *_win32_get_command_output(char *argv, bstring *input);
 #endif
 
-__END_DECLS
+#ifdef __cplusplus
+}
+#endif
 #endif /* util.h */

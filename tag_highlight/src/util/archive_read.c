@@ -1,23 +1,23 @@
 #include "archive.h"
 #ifdef HAVE_TOPCONFIG_H
-#  include "Common.h"
+#include "Common.h"
 #else
-#  include "util.h"
+#include "util.h"
 #endif
 #include <sys/stat.h>
 
-#define SAFE_STAT(PATH, ST)                                     \
-     do {                                                       \
-             if ((stat((PATH), (ST)) != 0))                     \
-                     err(1, "Failed to stat file '%s", (PATH)); \
-     } while (0)
+#define SAFE_STAT(PATH, ST)                                        \
+        do {                                                       \
+                if ((stat((PATH), (ST)) != 0))                     \
+                        err(1, "Failed to stat file '%s", (PATH)); \
+        } while (0)
 
 
-static void ll_strsep      (b_list *tags, uint8_t *buf);
-static int plain_getlines (b_list *tags, const bstring *filename);
-static int gz_getlines    (b_list *tags, const bstring *filename);
+static void ll_strsep(b_list *tags, uint8_t *buf);
+static int  plain_getlines(b_list *tags, const bstring *filename);
+static int  gz_getlines(b_list *tags, const bstring *filename);
 #ifdef LZMA_SUPPORT
-static int xz_getlines    (b_list *tags, const bstring *filename);
+static int xz_getlines(b_list *tags, const bstring *filename);
 #endif
 
 /* ========================================================================== */
@@ -49,13 +49,13 @@ getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 static void
 ll_strsep(b_list *tags, uint8_t *buf)
 {
-        char    *tok;
+        char *   tok;
         uint8_t *bak = buf;
 
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
                 if (*tok == '\0')
                         continue;
-                b_list_append(&tags, b_fromblk(tok, (char *)(buf) - tok - 1));
+                b_list_append(&tags, b_fromblk(tok, (char *)(buf)-tok - 1));
         }
 
         free(bak);
@@ -63,14 +63,15 @@ ll_strsep(b_list *tags, uint8_t *buf)
 
 
 #if defined(DEBUG) && defined(POINTLESS_DEBUG)
-    static inline void
-    report_size(struct archive_size *size)
-    {
-            __extension__ warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
-                  size->uncompressed, size->archive);
-    }
+static inline void
+report_size(struct archive_size *size)
+{
+        __extension__ warnx(
+            "Using a buffer of size %'zu for output; filesize is %'zu\n",
+            size->uncompressed, size->archive);
+}
 #else
-#   define report_size(...)
+#define report_size(...)
 #endif
 
 
@@ -81,7 +82,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
 static int
 plain_getlines(b_list *tags, const bstring *filename)
 {
-        FILE *fp = safe_fopen(BS(filename), "rb");
+        FILE *      fp = safe_fopen(BS(filename), "rb");
         struct stat st;
 
         SAFE_STAT(BS(filename), &st);
@@ -119,7 +120,7 @@ gz_getlines(b_list *tags, const bstring *filename)
         }
 
         /* Magic macros to the rescue. */
-        uint8_t      *out_buf = malloc(size.uncompressed + 1);
+        uint8_t *     out_buf = malloc(size.uncompressed + 1);
         const int64_t numread = gzread(gfp, out_buf, size.uncompressed);
 
         ALWAYS_ASSERT(numread == 0 || numread == (int64_t)size.uncompressed);
@@ -135,7 +136,7 @@ gz_getlines(b_list *tags, const bstring *filename)
 /* XZ */
 
 #ifdef LZMA_SUPPORT
-#   include <lzma.h>
+#include <lzma.h>
 /* extern const char * message_strm(lzma_ret); */
 
 
@@ -158,17 +159,18 @@ xz_getlines(b_list *tags, const bstring *filename)
 
         lzma_ret ret = lzma_stream_decoder(strm, UINT64_MAX, 0);
         if (ret != LZMA_OK)
-                errx(1, "%s\n", ret == LZMA_MEM_ERROR ?
-                     strerror(ENOMEM) : "Internal error (bug)");
+                errx(1, "%s\n",
+                     ret == LZMA_MEM_ERROR ? strerror(ENOMEM)
+                                           : "Internal error (bug)");
 
         /* avail_in is the number of bytes read from a file to the strm that
          * have not yet been decoded. avail_out is the number of bytes remaining
          * in the output buffer in which to place decoded bytes.*/
-        strm->next_out     = out_buf;
-        strm->next_in      = in_buf;
-        strm->avail_out    = size.uncompressed;
-        strm->avail_in     = 0;
-        FILE *fp           = safe_fopen(BS(filename), "rb");
+        strm->next_out  = out_buf;
+        strm->next_in   = in_buf;
+        strm->avail_out = size.uncompressed;
+        strm->avail_in  = 0;
+        FILE *fp        = safe_fopen(BS(filename), "rb");
 
         /* We must read the size of the input buffer + 1 in order to
          * trigger an EOF condition.*/
