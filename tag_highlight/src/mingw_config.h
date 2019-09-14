@@ -11,7 +11,7 @@
 # define snprintf(buf, siz, ...)  __mingw_snprintf((buf), (siz), __VA_ARGS__)
 # define sprintf(buf, ...)        __mingw_sprintf((buf), __VA_ARGS__)
 # define vasprintf(buf, ...)      __mingw_vasprintf((buf), __VA_ARGS__)
-# define vfprintf(strm, ...)      __mingw_fprintf((strm), __VA_ARGS__)
+# define vfprintf(strm, ...)      __mingw_vfprintf((strm), __VA_ARGS__)
 # define vsnprintf(buf, siz, ...) __mingw_vsnprintf((buf), (siz), __VA_ARGS__)
 # define vsprintf(strm, ...)      __mingw_vsprintf((strm), __VA_ARGS__)
 

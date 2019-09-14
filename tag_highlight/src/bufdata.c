@@ -329,10 +329,7 @@ init_topdir(Buffer *bdata)
                 if (b_iseq(cur->pathname, base)) {
                         cur->refs++;
                         b_destroy(base);
-                        /* SHOUT("Using already initialized project directory \"%s\"\n", (char *)(cur->pathname->data)); */
-                        warnx("Using already initialized project directory \"%s\"\n", (char *)(cur->pathname->data));
-                        ECHO("Using already initialized project directory \"%s\"", cur->pathname);
-                        /* fprintf(stderr, "----> \"%s\"\n", (char *)cur->pathname->data); fflush(stderr); */
+                        SHOUT("Using already initialized project directory \"%s\"", BS(cur->pathname));
                         pthread_mutex_unlock(&top_dirs->mut);
                         return cur;
                 }
@@ -427,17 +424,16 @@ check_project_directories(bstring *dir, const Filetype *ft)
         bstring *tmp;
         b_regularize_path(dir);
 
-        /* while ( ( b_destroy(tmp), (tmp = B_GETS(fp, '\n', false)) ) ) { */
-
         for (tmp = NULL; ( tmp = B_GETS(fp, '\n', false) ); b_destroy(tmp))
         {
                 ECHO("Looking at \"%s\"", tmp);
                 int64_t n = b_strchr(tmp, '\t');
                 if (n < 0) {
                         echo("Got %"PRId64" from strchr, skipping \"%s\"", n, BS(tmp));
-                        /* goto next; */
                         continue;
                 }
+                if (n > UINT_MAX)
+                        errx(1, "Index %"PRId64" is too large.", n);
 
                 tmp->data[n]      = '\0';
                 tmp->slen         = (unsigned)n;
