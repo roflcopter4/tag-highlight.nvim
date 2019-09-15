@@ -544,6 +544,10 @@ vimscript_message(void *vdata)
         case VIML_BUF_CHANGED: {
                 num            = nvim_get_current_buf();
                 const int prev = atomic_exchange(&bufnum, num);
+
+                if (prev == num) 
+                        break;
+
                 TIMER_START_BAR(t);
                 Buffer *bdata = find_buffer(num);
 
@@ -561,7 +565,7 @@ vimscript_message(void *vdata)
                         } else {
                                 ECHO("Failed to attach to buffer number %d.", num);
                         }
-                } else if (prev != num) {
+                } else  {
                         if (!bdata->calls)
                                 get_initial_taglist(bdata);
 

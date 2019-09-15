@@ -342,20 +342,28 @@ init_topdir(Buffer *bdata)
 
         Top_Dir *tdir   = calloc(1, sizeof(Top_Dir));
         tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
-        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
-        tdir->gzfile    = b_fromcstr_alloc(dir->mlen * 3, HOME);
+        tdir->gzfile    = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
         tdir->ftid      = bdata->ft->id;
         tdir->index     = top_dirs->qty;
         tdir->pathname  = dir;
         tdir->recurse   = recurse;
         tdir->refs      = 1;
         tdir->timestamp = (time_t)UINTMAX_C(0);
+        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
 
-        tdir->pathname->flags |= BSTR_DATA_FREEABLE;
-        b_catlit(tdir->gzfile, SEPSTR ".vim_tags" SEPSTR);
         if (tdir->tmpfd == (-1))
                 errx(1, "Failed to open temporary file!");
 
+        tdir->pathname->flags |= BSTR_DATA_FREEABLE;
+        b_catlit(tdir->gzfile, SEPSTR "tags" SEPSTR);
+
+        { /* Make sure the ctags cache directory exists. */
+                struct stat st;
+                if (stat(BS(tdir->gzfile), &st) != 0)
+                        if (mkdir(BS(tdir->gzfile), 0755) != 0)
+                                err(1, "Failed to create cache directory");
+
+        }
         { /* Set the vim 'tags' option. */
                 char buf[8192];
                 size_t n = snprintf(buf, 8192, "set tags+=%s", BS(tdir->tmpfname));
@@ -380,8 +388,10 @@ init_topdir(Buffer *bdata)
 
         if (settings.comp_type == COMP_GZIP)
                 b_sprintfa(tdir->gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
+#ifdef LZMA_SUPPORT
         else if (settings.comp_type == COMP_LZMA)
                 b_sprintfa(tdir->gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
+#endif
         else
                 b_sprintfa(tdir->gzfile, ".%s.tags", &bdata->ft->vim_name);
 
@@ -553,7 +563,7 @@ init_filetype(Filetype *ft)
 static void
 get_ignored_tags(Filetype *ft)
 {
-        mpack_dict_t *tmp             = nvim_get_var(B("tag_highlight#restored_groups"), E_MPACK_DICT).ptr;
+        mpack_dict_t *tmp             = nvim_get_var(B(PKG "restored_groups"), E_MPACK_DICT).ptr;
         b_list       *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
 
         if (restored_groups) {

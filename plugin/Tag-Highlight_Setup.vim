@@ -314,7 +314,7 @@ let s:msg_types = {
             \     }
 
 function! s:NewBuf()
-    call s:Wait()
+    " call s:Wait()
     if g:tag_highlight#pid >=# 0
         let l:buf = nvim_get_current_buf()
         if index(s:new_bufs, l:buf) == (-1)
@@ -325,7 +325,7 @@ function! s:NewBuf()
 endfunction
 
 function! s:BufChanged()
-    call s:Wait()
+    " call s:Wait()
     let l:buf = nvim_get_current_buf()
     if index(s:new_bufs, l:buf) == (-1)
         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])

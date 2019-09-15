@@ -180,10 +180,11 @@ err_(UNUSED const int status, const bool print_err, const char *const restrict f
         fprintf(stderr, "%s: ", program_invocation_short_name);
         vfprintf(stderr, fmt, ap);
         if (print_err)
-                fprintf(stderr, "%s: ", strerror(e));
+                fprintf(stderr, ": %s", strerror(e));
         va_end(ap);
 
         SHOW_STACKTRACE();
+        fputc('\n', stderr);
         fflush(stderr);
         abort();
         /* exit(status); */

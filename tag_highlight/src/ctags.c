@@ -35,7 +35,7 @@ run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
         int status = exec_ctags(bdata, ((bdata->ft->is_c) ? bdata->headers : NULL), opts);
 
         if (status != 0)
-                warnx("ctags failed with status \"%d\"\n", status);
+                ECHO("ctags failed with status \"%d\"\n", status);
         else
                 ECHO("Ctags finished successfully.");
 
@@ -98,7 +98,7 @@ get_initial_taglist(Buffer *bdata)
                 write_gzfile(bdata->topdir);
 
                 if (stat(BS(bdata->topdir->gzfile), &st) != 0)
-                        err(1, "Failed to stat gzfile");
+                        err(1, "Failed to stat gzfile \"%s\"", BS(bdata->topdir->gzfile));
 
                 ret += getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname);
         }
@@ -242,23 +242,6 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
 
         argv_append(argv, (const char *)0, false);
 
-#ifdef DEBUG
-        {
-                bstring *cmd = b_alloc_null(2048);
-                for (char **tmp = argv->lst; *tmp; ++tmp)
-                        b_sprintfa(cmd, "\"%n\", ", *tmp);
-                cmd->data[cmd->slen -= 2] = '\0';
-                ECHO("Running command 'ctags' with args [%s]\n", cmd);
-                b_destroy(cmd);
-
-                FILE *fp = safe_fopen_fmt(
-                    "%s/.tag_highlight_log/ctags_arguments.log", "wb", HOME);
-                fprintf(fp, "%s\n", BS(settings.ctags_bin));
-                for (char **tmp = argv->lst; *tmp; ++tmp)
-                        fprintf(fp, "%s\n", *tmp);
-                fclose(fp);
-        }
-#endif
         int pid, status;
 
 #ifdef HAVE_POSIX_SPAWNP
