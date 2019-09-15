@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "highlight.h"
 #include <signal.h>
+#include <sys/stat.h>
 
 #ifdef DOSISH
 #  define SEPCHAR '\\'
