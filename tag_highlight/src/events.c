@@ -22,40 +22,46 @@
 static pthread_t loop_thread;
 #endif
 
-P44_DECLARE_FIFO(event_node);
-P99_DECLARE_STRUCT(event_id);
-
 /*======================================================================================*/
 
-extern void *highlight_go_pthread_wrapper(void *vdata);
-
-extern          void   update_line         (Buffer *bdata, int first, int last);
-static          void   handle_line_event   (Buffer *bdata, mpack_array_t *arr);
-static inline   void   handle_message      (int fd, mpack_obj *obj);
-static inline   void   replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
-static inline   void   line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
-static          void   handle_nvim_event   (void *vdata);
-static noreturn void  *vimscript_message   (void *vdata);
-static noreturn void  *post_nvim_response  (void *vdata);
-static noreturn void  *nvim_event_handler  (void *unused);
-static const event_id *id_event            (mpack_obj *event);
-
-extern volatile p99_futex _nvim_wait_futex;
-extern FILE *main_log;
-
-static   pthread_mutex_t event_loop_cb_mutex      = PTHREAD_MUTEX_INITIALIZER;
-static   pthread_mutex_t handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
-static   pthread_mutex_t nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER;
-static   pthread_mutex_t vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
-volatile p99_futex       event_loop_futex         = P99_FUTEX_INITIALIZER(0);
-_Atomic(mpack_obj *)     event_loop_mpack_obj     = ATOMIC_VAR_INIT(NULL);
-         FILE *          api_buffer_log;
+P44_DECLARE_FIFO(event_node);
+P99_DECLARE_STRUCT(event_id);
 
 struct event_node {
         mpack_obj  *obj;
         event_node *p99_fifo;
 };
+
+struct event_data {
+        int        fd;
+        mpack_obj *obj;
+};
+
+/*======================================================================================*/
+
+extern void *highlight_go_pthread_wrapper(void *vdata);
+extern void  update_line                 (Buffer *bdata, int first, int last);
+
+static inline   void      handle_message      (int fd, mpack_obj *obj);
+static inline   void      replace_line        (Buffer *bdata, b_list *repl_list, int lineno, int replno);
+static inline   void      line_event_multi_op (Buffer *bdata, b_list *repl_list, int first, int diff);
+static          void      handle_line_event   (Buffer *bdata, mpack_array_t *arr);
+static          void      handle_nvim_event   (void *vdata);
+static noreturn void     *vimscript_message   (void *vdata);
+static noreturn void     *post_nvim_response  (void *vdata);
+static noreturn void     *nvim_event_handler  (void *unused);
+static const    event_id *id_event            (mpack_obj *event);
+
+extern FILE               *main_log;
+extern FILE               *api_buffer_log;
+extern p99_futex volatile  _nvim_wait_futex;
+extern p99_futex volatile  event_loop_futex;
+       p99_futex volatile  event_loop_futex = P99_FUTEX_INITIALIZER(0);
+       FILE               *api_buffer_log   = NULL;
+
 P99_FIFO(event_node_ptr) nvim_event_queue;
+
+/*======================================================================================*/
 
 static const struct event_id {
         const bstring          name;
@@ -67,17 +73,19 @@ static const struct event_id {
     { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
 
-struct event_data {
-        int        fd;
-        mpack_obj *obj;
-};
+static pthread_mutex_t event_loop_cb_mutex      = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t handle_mutex             = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t nvim_event_handler_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t vs_mutex                 = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((__constructor__))
-static void events_mutex_initializer(void) {
-        pthread_mutex_init(&handle_mutex);
-        pthread_mutex_init(&vs_mutex);
+static void events_mutex_initializer(void)
+{
         pthread_mutex_init(&event_loop_cb_mutex);
+        pthread_mutex_init(&handle_mutex);
         pthread_mutex_init(&nvim_event_handler_mutex);
+        pthread_mutex_init(&vs_mutex);
+        p99_futex_init((p99_futex *)&event_loop_futex, 0);
 }
 
 /*======================================================================================* 
@@ -258,6 +266,8 @@ event_loop_init(const int fd)
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
 
         if (!atomic_flag_test_and_set(&event_loop_called)) {
+
+        /* Don't bother handling signals at all on Windows. */
 #  ifndef DOSISH
                 loop_thread = pthread_self();
                 if (setjmp(event_loop_jmp_buf) != 0)
@@ -271,6 +281,7 @@ event_loop_init(const int fd)
                 sigaction(SIGINT, &act, NULL);
 #  endif
 
+                /* Run the show. */
                 event_loop(fd);
         }
 }
@@ -286,7 +297,7 @@ handle_nvim_event(void *vdata)
 {
         mpack_obj      *event = vdata;
         mpack_array_t  *arr   = m_expect(m_index(event, 2), E_MPACK_ARRAY).ptr;
-        const event_id *type  = id_event(event);
+        event_id const *type  = id_event(event);
         mpack_print_object(api_buffer_log, event);
 
         if (type->id == EVENT_VIM_UPDATE) {
@@ -294,7 +305,7 @@ handle_nvim_event(void *vdata)
                 void *hack = (void *)((uintptr_t)arr->items[0]->data.num);
                 START_DETACHED_PTHREAD(vimscript_message, hack);
         } else {
-                const int bufnum = (int)m_expect(arr->items[0], E_NUM).num;
+                int const bufnum = (int)m_expect(arr->items[0], E_NUM).num;
                 Buffer   *bdata  = find_buffer(bufnum);
 
                 if (!bdata)
@@ -308,7 +319,7 @@ handle_nvim_event(void *vdata)
                         uint32_t new_tick, old_tick;
                         pthread_mutex_lock(&bdata->lock.ctick);
                         new_tick = (uint32_t)m_expect(arr->items[1], E_NUM).num;
-                        old_tick = atomic_load(&bdata->ctick);
+                        old_tick = (uint32_t)atomic_load(&bdata->ctick);
                         if (new_tick > old_tick)
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
@@ -328,62 +339,6 @@ handle_nvim_event(void *vdata)
 }
 
 /*======================================================================================*/
-
-#define TMP_SPRINTF(FMT, ...)                                          \
-        __extension__({                                                \
-                char tmp_[SAFE_PATH_MAX + 1];                          \
-                snprintf(tmp_, SAFE_PATH_MAX + 1, (FMT), __VA_ARGS__); \
-                tmp_;                                                  \
-        })
-
-#if defined(DEBUG) && defined(UNNECESSARY_OBSESSIVE_LOGGING)
-static void
-super_debug(Buffer *bdata)
-{
-        const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);
-        const unsigned n     = nvim_buf_line_count(0, bdata->num);
-        b_list        *lines = nvim_buf_get_lines(bdata->num);
-        bstring       *j1    = b_list_join(lines, B("\n"));
-        bstring       *j2    = ll_join(bdata->lines, '\n');
-
-        if (strcmp(BS(j1), BS(j2)) != 0) {
-                extern char LOGDIR[];
-                char *ch1 = TMP_SPRINTF("%s/vim_buffer.c", LOGDIR);
-                char *ch2 = TMP_SPRINTF("%s/my_buffer.c", LOGDIR);
-                unlink(ch1);
-                unlink(ch2);
-                FILE *vimbuf = fopen(ch1, "wb");
-                FILE *mybuf  = fopen(ch2, "wb");
-                b_fwrite(vimbuf, j1);
-                b_fwrite(mybuf, j2);
-                fclose(vimbuf);
-                fclose(mybuf);
-
-                eprintf("Internal buffer is not the same %u - %u (%d - %d)",
-                        j1->slen, j2->slen, bdata->ctick, ctick);
-        }
-
-        b_list_destroy(lines);
-        P99_SEQ(b_destroy, j1, j2);
-}
-#endif
-
-#if 1
-#define LINE_EVENT_DEBUG()                                                       \
-        do {                                                                     \
-                const unsigned ctick = nvim_buf_get_changedtick(0, bdata->num);  \
-                const unsigned n     = nvim_buf_line_count(0, bdata->num);       \
-                if (atomic_load(&bdata->ctick) == ctick) {                       \
-                        if (bdata->lines->qty != (int)n)                         \
-                                errx(1,                                          \
-                                     "Internal line count (%d) is incorrect. "   \
-                                     "Actual: %u -- %u vs %u. Aborting",         \
-                                     bdata->lines->qty, n, ctick, bdata->ctick); \
-                }                                                                \
-        } while (0)
-#else
-#  define LINE_EVENT_DEBUG()
-#endif
 
 static void
 handle_line_event(Buffer *bdata, mpack_array_t *arr)
@@ -529,18 +484,16 @@ vimscript_message(void *vdata)
         static atomic_int      bufnum = ATOMIC_VAR_INIT(-1);
         vimscript_message_type val    = (int)((uintptr_t)vdata);
         struct timer          *t      = TIMER_INITIALIZER;
+        int                    num    = 0;
 
-        int  num    = 0;
-        /* bool is_new = false; */
-
-        echo("Recieved \"%s\" (%d): waking up!", vimscript_message_type_getname(val), val);
+        echo("Recieved \"%s\" (%d): waking up!",
+             vimscript_message_type_getname(val), val);
 
         switch (val) {
         /*
          * New buffer was opened or current buffer changed.
          */
         case VIML_BUF_NEW:
-                /* is_new = true; */
         case VIML_BUF_CHANGED: {
                 num            = nvim_get_current_buf();
                 const int prev = atomic_exchange(&bufnum, num);

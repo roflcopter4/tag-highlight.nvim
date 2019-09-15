@@ -141,7 +141,7 @@ extern struct settings_s   settings;
 extern struct buffer_list  buffers;
 extern struct filetype     ftdata[];
 extern genlist            *top_dirs;
-extern const size_t        ftdata_len;
+extern size_t const        ftdata_len;
 
 /*===========================================================================*/
 

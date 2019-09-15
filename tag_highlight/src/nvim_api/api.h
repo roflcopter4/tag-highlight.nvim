@@ -101,6 +101,15 @@ extern bstring * _nvim_get_notification();
                         (nvim_b_printf(B("ECHO2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
                 }                                                                                                             \
         } while (0)
+                
+#if 0
+#define SHOUT(...)                                                                                                             \
+        do {                                                                                                                  \
+                P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                                    \
+                (nvim_out_write(B("ECHO1 -- tag_highlight: " __VA_ARGS__ "\n")))                                      \
+                (nvim_b_printf(B("ECHO2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
+        } while (0)
+#endif
 
 #if 0
 #define echo(...) P99_IF_EQ_1(P99_NARG(__VA_ARGS__))\

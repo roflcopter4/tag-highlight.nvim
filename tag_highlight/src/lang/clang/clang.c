@@ -329,15 +329,15 @@ handle_win32_command_script(Buffer *bdata, const char *cstr, str_vector *ret)
 }
 
 static inline void
-handle_include_compile_command(str_vector *lst, const char *cstr, CXString directory)
+handle_include_compile_command(str_vector *lst, const char *s, CXString directory)
 {
-        const char *fixed_path = cstr;
-
-        if (isalpha(fixed_path[0]) && fixed_path[1] == ':' && (fixed_path[2] == '/' || fixed_path[2] == '\\')) {
-                argv_append(lst, fixed_path, false);
+        if (isalpha(s[0]) && s[1] == ':' && (s[2] == '/' || s[2] == '\\')) {
+                argv_append(lst, s, true);
+        } else if (s[0] == '/') {
+                argv_append(lst, stupid_windows_bullshit(s), false);
         } else {
                 char *buf = NULL;
-                asprintf(&buf, "%s\\%s", CS(directory), fixed_path);
+                UNUSED int n = asprintf(&buf, "%s\\%s", CS(directory), s);
                 argv_append(lst, buf, false);
         }
 }
@@ -351,7 +351,7 @@ handle_include_compile_command(str_vector *lst, const char *cstr, CXString direc
                 argv_append(lst, cstr, true);
         } else {
                 char *buf = NULL;
-                asprintf(&buf, "%s/%s", CS(directory), cstr);
+                UNUSED int n = asprintf(&buf, "%s/%s", CS(directory), cstr);
                 argv_append(lst, buf, false);
         }
 }
@@ -374,6 +374,8 @@ get_compile_commands(Buffer *bdata)
                      BS(bdata->topdir->pathname));
                 return get_backup_commands(bdata);
         }
+
+        ECHO("Found compilation database for %s\n", bdata->topdir->pathname);
 
         CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
         if (!cmds) {

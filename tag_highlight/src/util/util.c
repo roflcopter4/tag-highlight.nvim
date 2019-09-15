@@ -54,6 +54,14 @@
 #endif
 
 static bool file_is_reg(const char *filename);
+static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((__constructor__))
+static void mutex_init(void)
+{
+        pthread_mutex_init(&mut);
+}
+
 
 FILE *
 safe_fopen(const char *filename, const char *mode)
@@ -233,9 +241,11 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         pthread_mutex_lock(&mut);
 
         fprintf(stderr, "%s: ", program_invocation_short_name);
+
         va_start(ap, fmt);
         vfprintf(stderr, fmt, ap);
         va_end(ap);
+
         if (print_err)
                 fprintf(stderr, "%s: \n", strerror(e));
         else
