@@ -12,26 +12,31 @@ extern "C" {
  * Timer structure
  */
 #if defined __MINGW__
+
 struct timer {
         struct timespec tv1, tv2;
 };
+
 #  define TIMER_START(T_)        ((void)0)
 #  define TIMER_START_BAR(T_)    ((void)0)
 #  define TIMER_REPORT(T_, MSG_) ((void)0)
+
 #elif defined HAVE_CLOCK_GETTIME
+
 struct timer {
         struct timespec tv1, tv2;
 };
+
 #  define TIMER_START(T_) (clock_gettime(CLOCK_REALTIME, &(T_)->tv1))
-#  define TIMER_START_BAR(T_)                             \
-        do {                                              \
+#  define TIMER_START_BAR(T_)                              \
+        do {                                               \
                 clock_gettime(CLOCK_REALTIME, &(T_)->tv1); \
-                SHOUT("----------------------");          \
+                SHOUT("----------------------");           \
         } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                               \
-        do {                                                                   \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                      \
-                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                     \
+#  define TIMER_REPORT(T_, MSG_)                                                 \
+        do {                                                                     \
+                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                       \
+                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                        \
                       (int)(35 - sizeof(MSG_)), SPECDIFF((T_)->tv1, (T_)->tv2)); \
         } while (0)
 
@@ -40,24 +45,27 @@ struct timer {
 struct timer {
         struct timeval tv1, tv2;
 };
+
 #  define TIMER_START(T_) (gettimeofday(&(T_)->tv1, NULL))
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
-                gettimeofday(&(T_)->tv1, NULL);   \
+                gettimeofday(&(T_)->tv1, NULL);  \
                 SHOUT("----------------------"); \
         } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                            \
-        do {                                                                \
-                gettimeofday(&(T_)->tv2, NULL);                              \
-                SHOUT("Time for \"%s\": % *fs", (MSG_),                    \
+#  define TIMER_REPORT(T_, MSG_)                                              \
+        do {                                                                  \
+                gettimeofday(&(T_)->tv2, NULL);                               \
+                SHOUT("Time for \"%s\": % *fs", (MSG_),                       \
                       (int)(30 - sizeof(MSG_)), TDIFF((T_)->tv1, (T_)->tv2)); \
         } while (0)
 #endif
+
 #if defined __MINGW__
 #  define TIMER_REPORT_RESTART(T, MSG) ((void)0)
 #else
 #  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
 #endif
+
 #define TIMER_INITIALIZER        (&(struct timer){{0, 0}, {0, 0}})
 #define TIMER_STATIC_INITIALIZER {{0, 0}, {0, 0}}
 

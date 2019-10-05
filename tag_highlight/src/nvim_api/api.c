@@ -333,13 +333,12 @@ void
         PRINT_AND_DESTROY(result);
 }
 
-b_list *
+void
 (nvim_buf_attach)(const int bufnum)
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,B,[]"), bufnum, false);
         PRINT_AND_DESTROY(result);
-        return NULL;
 }
 
 void

@@ -89,6 +89,11 @@
 #define P04_B_ISEQ_LIT(WHAT, X, I)   (b_iseq((WHAT), ((bstring[]){{(sizeof(X) - 1), 0, (uchar *)("" X ""), 0}})))
 #define P44_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_B_ISEQ_LIT, __VA_ARGS__)
 
+#define STREQ          P04_STREQ
+#define STREQ_ANY      P44_STREQ_ANY
+#define b_iseq_any     P44_B_ISEQ_ANY
+#define b_iseq_lit_any P44_B_ISEQ_LIT_ANY
+
 #define P44_DECLARE_FIFO(NAME)   \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \

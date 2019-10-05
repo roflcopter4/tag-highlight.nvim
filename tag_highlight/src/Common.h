@@ -295,14 +295,13 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
 #define warn(...)       warn_(true,  false, __VA_ARGS__)
 #define warnx(...)      warn_(false, false, __VA_ARGS__)
-#define SHOUT(...)      warn_(false, true,  __VA_ARGS__)
+/* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
+#define shout(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
 #ifdef DEBUG
-#  define eprintf(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
-/* #  define echo         warnx */
+#  define eprintf(...) shout(__VA_ARGS__)
 #else
 #  define eprintf(...) ((void)0)
-/* #  define echo(...)    ((void)0)   */
 #endif
 
 extern          void warn_(bool print_err, bool force, const char *restrict fmt, ...) __aFMT(3, 4);

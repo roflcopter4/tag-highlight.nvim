@@ -494,6 +494,7 @@ vimscript_message(void *vdata)
          * New buffer was opened or current buffer changed.
          */
         case VIML_BUF_NEW:
+                TIMER_START_BAR(t);
         case VIML_BUF_CHANGED: {
                 num            = nvim_get_current_buf();
                 const int prev = atomic_exchange(&bufnum, num);
@@ -501,7 +502,6 @@ vimscript_message(void *vdata)
                 if (prev == num) 
                         break;
 
-                TIMER_START_BAR(t);
                 Buffer *bdata = find_buffer(num);
 
                 if (!bdata) {
@@ -538,7 +538,6 @@ vimscript_message(void *vdata)
          * Buffer was written, or filetype/syntax was changed.
          */
         case VIML_UPDATE_TAGS: {
-                TIMER_START_BAR(t);
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
                 Buffer *bdata = find_buffer(num);
@@ -568,7 +567,6 @@ vimscript_message(void *vdata)
                 exit(0);
 #else
                 pthread_kill(loop_thread, KILL_SIG);
-                /* raise(KILL_SIG); */
                 pthread_exit();
 #endif
         }
@@ -582,6 +580,7 @@ vimscript_message(void *vdata)
          * Force an update.
          */
         case VIML_UPDATE_TAGS_FORCE: {
+                TIMER_START_BAR(t);
                 num = nvim_get_current_buf();
                 atomic_store(&bufnum, num);
                 Buffer *bdata = find_buffer(num);

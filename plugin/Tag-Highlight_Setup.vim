@@ -428,7 +428,6 @@ function! s:InitTagHighlight()
     endtry
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
-    echom 'Opening ' . l:binary . ' with pipe ' . s:pipe
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     
     sleep 500m " Don't do anything until we're sure everything's finished initializing

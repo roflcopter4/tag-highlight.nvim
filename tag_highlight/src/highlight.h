@@ -193,6 +193,45 @@ ALWAYS_INLINE Buffer *find_current_buffer(void)
 
 #define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
 
+ALWAYS_INLINE void _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
+{
+        nvim_buf_attach(bdata->num);
+}
+
+#define nvim_buf_attach(buf_)                                \
+        (                                                    \
+            (_Generic((buf_),                                \
+                      int:      nvim_buf_attach,             \
+                      unsigned: nvim_buf_attach,             \
+                      uint16_t: nvim_buf_attach,             \
+                      Buffer *: _nvim_buf_attach_bdata_wrap) \
+            )(buf_)                                          \
+        )
+
+#define echo(...)                                                                                               \
+        do {                                                                                                    \
+                if (P99_UNLIKELY(settings.verbose)) {                                                           \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                      \
+                        (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
+                        (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                               \
+        } while (0)
+
+#define ECHO(...)                                                                                                    \
+        do {                                                                                                         \
+                if (P99_UNLIKELY(settings.verbose)) {                                                                \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                           \
+                        (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                      \
+                        (nvim_b_printf(B("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                                    \
+        } while (0)
+ 
+#define SHOUT(...) \
+        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
+          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
+          (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+
+
 /*===========================================================================*/
 #ifdef __cplusplus
 }

@@ -5,7 +5,7 @@
 
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
-        err(1, "Failed to change " STREAM "to binary mode.")
+        err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
 const char *program_invocation_short_name;
 #endif
 #define WAIT_TIME  (3.0)
@@ -72,11 +72,11 @@ platform_init(char **argv)
         HOME = getenv("USERPROFILE");
 
         /* Set the standard streams to binary mode on Windows */
-        if (_setmode(0, O_BINARY) == (-1))
+        if (_setmode(STDIN_FILENO, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stdin");
-        if (_setmode(1, O_BINARY) == (-1))
+        if (_setmode(STDOUT_FILENO, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stdout");
-        if (_setmode(2, O_BINARY) == (-1))
+        if (_setmode(STDERR_FILENO, O_BINARY) == (-1))
                 WIN_BIN_FAIL("stderr");
 #else
         HOME = getenv("HOME");
@@ -109,6 +109,7 @@ main_initialization(UNUSED void *arg)
 {
         int initial_buf;
         get_settings();
+        nvim_set_client_info(B(PKG), 0, 4, B("alpha"));
 
 #if 0
         /* Try to initialize a buffer. If the current one isn't recognized, keep
@@ -127,25 +128,25 @@ main_initialization(UNUSED void *arg)
 #endif
 
         initial_buf = nvim_get_current_buf();
-        if (!new_buffer(initial_buf))
-                pthread_exit();
 
-        Buffer *bdata = find_buffer(initial_buf);
-        nvim_buf_attach(bdata->num);
-        get_initial_lines(bdata);
-        get_initial_taglist(bdata);
-        update_highlight(bdata);
+        if (new_buffer(initial_buf)) {
+                Buffer *bdata = find_buffer(initial_buf);
+                nvim_buf_attach(bdata->num);
+                get_initial_lines(bdata);
+                get_initial_taglist(bdata);
+                update_highlight(bdata);
 
-        TIMER_REPORT(&main_timer, "main initialization");
-        nvim_set_client_info(B(PKG), 0, 3, B("alpha"));
-        P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
-            true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
+                TIMER_REPORT(&main_timer, "main initialization");
+                P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value,
+                    true, 1U, 0U, P99_FUTEX_MAX_WAITERS);
+        }
 
         pthread_exit();
+
 }
 
 /*
- * Grab user settings defined their .vimrc or the vimscript plugin.
+ * Grab user settings defined their .vimrc and/or the defaults from the vimscript plugin.
  */
 static void
 get_settings(void)
@@ -166,7 +167,6 @@ get_settings(void)
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
-        echo("settings.verbose is %s", settings.verbose ? "true" : "false");
 }
 
 static comp_type_t
@@ -175,23 +175,23 @@ get_compression_type(void)
         bstring    *tmp = nvim_get_var(B(PKG "compression_type"), E_STRING).ptr;
         comp_type_t ret = COMP_NONE;
 
-        if (b_iseq_lit(tmp, "gzip"))
+        if (b_iseq_lit_any(tmp, "gzip", "gz"))
                 ret = COMP_GZIP;
-        else if (b_iseq_lit(tmp, "lzma"))
+        else if (b_iseq_lit_any(tmp, "lzma", "xz"))
         {
 #ifdef LZMA_SUPPORT
                 ret = COMP_LZMA;
 #else
-                eprintf("Compression type is set to 'lzma', but only gzip is "
-                        "supported in this build. Defaulting to 'gzip'.");
                 ret = COMP_GZIP;
+                shout("Compression type is set to '%s', but only gzip is "
+                      "supported in this build. Defaulting to 'gzip'.", BS(tmp));
 #endif
         }
         else if (b_iseq_lit(tmp, "none"))
-                ret = COMP_NONE;
+                NOP;
         else
-                eprintf("Warning: unrecognized compression type \"%s\", "
-                        "defaulting to no compression.", BS(tmp));
+                shout("Warning: unrecognized compression type \"%s\", "
+                      "defaulting to no compression.", BS(tmp));
 
         b_destroy(tmp);
         return ret;

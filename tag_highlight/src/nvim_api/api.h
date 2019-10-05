@@ -2,8 +2,6 @@
 #define NVIM_API_API_H_
 
 #include "Common.h"
-#include "highlight.h"
-
 #include "contrib/p99/p99_defarg.h"
 #include "contrib/p99/p99_if.h"
 #include "contrib/p99/p99_list.h"
@@ -45,7 +43,7 @@ extern retval_t       nvim_get_var_fmt        (mpack_expect_t expect, const char
 extern int            nvim_buf_add_highlight  (unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
 extern mpack_dict_t * nvim_get_hl_by_name     (const bstring *name, bool rgb) __aWUR;
 extern mpack_dict_t * nvim_get_hl_by_id       (int hlid, bool rgb) __aWUR;
-extern b_list       * nvim_buf_attach         (int bufnum);
+extern void           nvim_buf_attach         (int bufnum);
 extern void           nvim_buf_clear_highlight(unsigned bufnum, int hl_id, unsigned start, int end);
 extern unsigned       nvim_buf_get_changedtick(int bufnum);
 extern b_list       * nvim_buf_get_lines      (unsigned bufnum, int start, int end) __aWUR;
@@ -76,52 +74,6 @@ extern bstring * _nvim_get_notification();
 /* Convenience Macros */
 #define nvim_out_write(MES) _nvim_write(NW_STANDARD, (MES))
 #define nvim_err_write(MES) _nvim_write(NW_ERROR, (MES))
-
-#if 0
-#define echo(FMT_, ...)                                                                  \
-        ((settings.verbose) ? nvim_printf(0, "tag_highlight: " FMT_ "\n", ##__VA_ARGS__) \
-                            : NOP)                                                        
-#endif
-
-
-#define echo(...)                                                                                                       \
-        do {                                                                                                            \
-                if (settings.verbose) {                                                                                 \
-                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                              \
-                        (nvim_out_write(B("echo1 -- tag_highlight: " __VA_ARGS__ "\n")))                                 \
-                        (nvim_printf("echo2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
-                }                                                                                                       \
-        } while (0)
-
-#define ECHO(...)                                                                                                             \
-        do {                                                                                                                  \
-                if (settings.verbose) {                                                                                       \
-                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                                    \
-                        (nvim_out_write(B("ECHO1 -- tag_highlight: " __VA_ARGS__ "\n")))                                      \
-                        (nvim_b_printf(B("ECHO2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
-                }                                                                                                             \
-        } while (0)
-                
-#if 0
-#define SHOUT(...)                                                                                                             \
-        do {                                                                                                                  \
-                P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                                    \
-                (nvim_out_write(B("ECHO1 -- tag_highlight: " __VA_ARGS__ "\n")))                                      \
-                (nvim_b_printf(B("ECHO2 -- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
-        } while (0)
-#endif
-
-#if 0
-#define echo(...) P99_IF_EQ_1(P99_NARG(__VA_ARGS__))\
-        (nvim_out_write(B("echo1-- tag_highlight: " __VA_ARGS__ "\n")))\
-        (nvim_printf("echo2-- tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__)))
-
-#define ECHO(FMT_, ...)                                                                       \
-        ((settings.verbose) ? nvim_b_printf(0, B("tag_highlight: " FMT_ "\n"), ##__VA_ARGS__) \
-                            : NOP)
-#endif
-#undef APRINTF
-
 #define NVIM_GET_FUTEX_EXPECT(FD, CNT) (((unsigned)((uint8_t)(FD) << 030) | ((unsigned)(CNT) & 0x00FFFFFFu)) + 1u)
 
 /*============================================================================*/
@@ -132,11 +84,9 @@ extern bstring * _nvim_get_notification();
  * to it. Multiple connections can make multithreaded applications easier to
  * write safely.
  */
-extern int _nvim_create_socket(void);
-/* extern void _nvim_init(enum nvim_connection_type init_type, int init_fd); */
+extern int  _nvim_create_socket(void);
 extern void _nvim_init(void) __attribute__((__constructor__));
-
-extern int _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
+extern int  _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
 
 /*============================================================================*/
 extern int _nvim_api_read_fd;
