@@ -608,27 +608,7 @@ b_strncmp(const bstring *b0, const bstring *b1, const unsigned n)
 {
         if (INVALID(b0) || INVALID(b1))
                 return SHRT_MIN;
-
         const unsigned m = MIN(n, MIN(b0->slen, b1->slen));
-
-#if 0
-        if (b0->data != b1->data) {
-                for (unsigned i = 0; i < m; ++i) {
-                        int v = ((char)b0->data[i]) - ((char)b1->data[i]);
-                        if (v != 0)
-                                return v;
-                        if (b0->data[i] == (uchar)'\0')
-                                return 0;
-                }
-        }
-
-        if (n == m || b0->slen == b1->slen)
-                return 0;
-        if (b0->slen > m)
-                return 1;
-#endif
-
-        /* RUNTIME_ERROR(); */
         return memcmp(b0->data, b1->data, m);
 }
 

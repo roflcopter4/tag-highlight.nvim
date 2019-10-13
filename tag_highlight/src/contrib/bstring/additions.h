@@ -51,6 +51,7 @@ extern "C" {
                 .data  = (uchar *)("" CSTR ""),   \
                 .flags = 0x00U                    \
         }
+#define bt_fromlit bt_init
 
 /**
  * This useful macro creates a valid pointer to a static bstring object by
@@ -189,7 +190,8 @@ BSTR_PUBLIC bstring *b_read_fd(const int fd);
 /**
  * Signifies the end of a list of bstring varargs.
  */
-#define B_LIST_END_MARK ((bstring[]){{0, 0, NULL, BSTR_LIST_END}})
+#define B_LIST_END_MARK \
+        ((bstring[]){{.data = NULL, .slen = 0, .mlen = 0, .flags = BSTR_LIST_END}})
 
 
 /**
@@ -249,9 +251,9 @@ BSTR_PUBLIC void _b_list_dump_fd(int fd, const b_list *list, const char *listnam
                      ++(CTR))
 
 #define B_LIST_SORT(BLIST) \
-        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_wrap)
+        qsort((BLIST)->lst, (BLIST)->qty, sizeof((BLIST)->lst[0]), &b_strcmp_wrap)
 #define B_LIST_SORT_FAST(BLIST) \
-        qsort((BLIST)->lst, (BLIST)->qty, sizeof(*((BLIST)->lst)), &b_strcmp_fast_wrap)
+        qsort((BLIST)->lst, (BLIST)->qty, sizeof((BLIST)->lst[0]), &b_strcmp_fast_wrap)
 
 #define B_LIST_BSEARCH(BLIST, ITEM_) \
         bsearch(&(ITEM_), (BLIST)->lst, (BLIST)->qty, sizeof(bstring *), &b_strcmp_wrap)
@@ -279,7 +281,6 @@ BSTR_PUBLIC int b_list_writeallow(b_list *list);
 
 BSTR_PUBLIC bstring  *b_join_quote(const b_list *bl, const bstring *sep, int ch);
 
-BSTR_PUBLIC int64_t b_strstr(const bstring *haystack, const bstring *needle, unsigned pos);
 BSTR_PUBLIC int     b_memsep(bstring *dest, bstring *stringp, char delim);
 BSTR_PUBLIC b_list *b_strsep(bstring *ostr, const char *delim, int refonly);
 BSTR_PUBLIC b_list *b_split_char(bstring *split, int delim, bool destroy);
@@ -288,19 +289,24 @@ BSTR_PUBLIC int b_advance(bstring *bstr, unsigned n);
 
 /*--------------------------------------------------------------------------------------*/
 
+__attribute__((pure))
+BSTR_PUBLIC int64_t b_strstr(const bstring *haystack, const bstring *needle, unsigned pos);
+__attribute__((pure))
 BSTR_PUBLIC int64_t b_strpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
+__attribute__((pure))
 BSTR_PUBLIC int64_t b_strrpbrk_pos(const bstring *bstr, unsigned pos, const bstring *delim);
+__attribute__((pure))
+BSTR_PUBLIC _Bool   b_starts_with(const bstring *b0, const bstring *b1);
+
 #define b_strpbrk(BSTR_, DELIM_) b_strpbrk_pos((BSTR_), 0, (DELIM_))
 #define b_strrpbrk(BSTR_, DELIM_) b_strrpbrk_pos((BSTR_), ((BSTR_)->slen), (DELIM_))
 
+BSTR_PUBLIC int        b_regularize_path(bstring *path);
 BSTR_PUBLIC bstring   *b_dirname(const bstring *path);
 BSTR_PUBLIC bstring   *b_basename(const bstring *path);
-
-BSTR_PUBLIC int        b_regularize_path(bstring *path);
 BSTR_PUBLIC int        b_chomp(bstring *bstr);
 BSTR_PUBLIC int        b_replace_ch(bstring *bstr, int find, int replacement);
 BSTR_PUBLIC int        b_catblk_nonul(bstring *bstr, void *blk, unsigned len);
-BSTR_PUBLIC _Bool      b_starts_with(const bstring *b0, const bstring *b1);
 
 BSTR_PUBLIC bstring   *_b_sprintf  (const bstring *fmt, ...);
 BSTR_PUBLIC bstring   *_b_vsprintf (const bstring *fmt, va_list args);
@@ -325,8 +331,8 @@ BSTR_PUBLIC int        _b_vsprintfa(bstring *dest, const bstring *fmt, va_list a
 #define b_eprintf(...) b_fprintf(stderr, __VA_ARGS__)
 
 BSTR_PUBLIC bstring *b_ll2str(const long long value);
-BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB);
-BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB);
+BSTR_PUBLIC int      b_strcmp_fast_wrap(const void *vA, const void *vB) __attribute__((pure));
+BSTR_PUBLIC int      b_strcmp_wrap(const void *vA, const void *vB) __attribute__((pure));
 
 /*--------------------------------------------------------------------------------------*/
 

@@ -55,7 +55,7 @@ mpack_print_object(FILE *fp, const mpack_obj *result)
 {
         if (!fp || !result)
                 return;
-        if (!(result->flags & MPACK_ENCODE))
+        if (!(result->flags & MPACKFLG_ENCODE))
                 return;
         pthread_mutex_lock(&mpack_print_mutex);
 

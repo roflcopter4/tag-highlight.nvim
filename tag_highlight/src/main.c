@@ -24,7 +24,7 @@ static void           exit_cleanup        (void);
 static void           quick_cleanup       (void);
 static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
-extern void           event_loop_init     (int fd);
+extern void           run_event_loop      (int fd);
 
 /*======================================================================================*/
 
@@ -37,8 +37,8 @@ main(UNUSED int argc, char *argv[])
          * attach to the current buffer, if possible. */
         init(argv);
 
-        /* This actually runs the event loop and does not normally return. */
-        event_loop_init(STDIN_FILENO);
+        /* This normally does not return. */
+        run_event_loop(STDIN_FILENO);
 
         /* If the user explicitly gives the Vim command to stop the plugin, the loop
          * returns and we clean everything up. We don't do this when Neovim exits because
@@ -107,30 +107,13 @@ open_logs(void)
 static noreturn void *
 main_initialization(UNUSED void *arg)
 {
-        int initial_buf;
         get_settings();
         nvim_set_client_info(B(PKG), 0, 4, B("alpha"));
 
-#if 0
-        /* Try to initialize a buffer. If the current one isn't recognized, keep
-         * trying periodically until we see one that is. In case we never
-         * recognize a buffer, the wait time between tries is modestly long. */
-        for (;;) {
-                initial_buf = nvim_get_current_buf();
-                if (new_buffer(initial_buf))
-                        break;
+        int     initial_buf = nvim_get_current_buf();
+        Buffer *bdata       = new_buffer(initial_buf);
 
-                /* Buffer not identified. Reset the "bad buffers" list just in
-                 * case and wait for a while before trying again. */
-                buffers.bad_bufs.qty = 0;
-                fsleep(WAIT_TIME);
-        }
-#endif
-
-        initial_buf = nvim_get_current_buf();
-
-        if (new_buffer(initial_buf)) {
-                Buffer *bdata = find_buffer(initial_buf);
+        if (bdata) {
                 nvim_buf_attach(bdata->num);
                 get_initial_lines(bdata);
                 get_initial_taglist(bdata);
@@ -142,7 +125,6 @@ main_initialization(UNUSED void *arg)
         }
 
         pthread_exit();
-
 }
 
 /*
@@ -242,8 +224,8 @@ exit_cleanup(void)
                 }
         }
 
-        destroy_mpack_dict(settings.order);
-        destroy_mpack_dict(settings.ignored_tags);
+        mpack_dict_destroy(settings.order);
+        mpack_dict_destroy(settings.ignored_tags);
         quick_cleanup();
 }
 

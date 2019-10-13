@@ -13,11 +13,9 @@
 #  define SEPSTR "/"
 #endif
 
-#define STREQ(sa, sb) (strcmp((sa), (sb)) == 0)
-
 #define NEXT_MKR(STRUCT_)                                                              \
         do {                                                                           \
-                const int init_ = (STRUCT_).mkr++;                                     \
+                int const init_ = (STRUCT_).mkr++;                                     \
                                                                                        \
                 while ((STRUCT_).lst[(STRUCT_).mkr] != NULL && (STRUCT_).mkr != init_) \
                         (STRUCT_).mkr = ((STRUCT_).mkr + 1) % (STRUCT_).mlen;          \
@@ -36,41 +34,37 @@ typedef struct top_dir  Top_Dir;
 
 extern b_list *seen_files;
 
-static void     log_prev_file(const bstring *filename);
+static void     log_prev_file(bstring const *filename);
 static Top_Dir *init_topdir(Buffer *bdata);
 static void     init_filetype(Filetype *ft);
-static bool     check_norecurse_directories(const bstring *dir);
-static bstring *check_project_directories(bstring *dir, const Filetype *ft);
+static bool     check_norecurse_directories(bstring const *dir) __attribute__((pure));
+static bstring *check_project_directories(bstring *dir, Filetype const *ft);
 static void     bufdata_constructor(void) __attribute__((constructor));
 
-static pthread_mutex_t ftdata_mutex      = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t destruction_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t     ftdata_mutex;
+static p99_futex  volatile destruction_futex[DATA_ARRSIZE];
 
-__attribute__((constructor)) static void mutex_constructor(void)
+__attribute__((constructor)) static void
+mutex_constructor(void)
 {
         pthread_mutex_init(&ftdata_mutex);
-        pthread_mutex_init(&destruction_mutex);
+        for (int i = 0; i < DATA_ARRSIZE; ++i)
+                p99_futex_init((p99_futex *)&destruction_futex[i], 0);
 }
 
 /*======================================================================================*/
 
-bool
-new_buffer(const int bufnum)
+Buffer *
+new_buffer(int const bufnum)
 {
-        bool ret = false;
         pthread_mutex_lock(&buffers.lock);
-
-#if 0
-        if (!force) {
-                for (unsigned short i = 0; i < buffers.bad_bufs.qty; ++i) {
-                        if (bufnum == buffers.bad_bufs.lst[i]) {
-                                ECHO("Buffer %u is bad, bailing!", i);
-                                goto end;
-                        }
-                }
+        if (buffers.lst[bufnum]) {
+                pthread_mutex_unlock(&buffers.lock);
+                p99_futex_wait(&destruction_futex[bufnum]);
+                pthread_mutex_lock(&buffers.lock);
         }
-#endif
 
+        Buffer   *ret = NULL;
         Filetype *tmp = NULL;
         bstring  *ft  = nvim_buf_get_option(bufnum, B("ft"), E_STRING).ptr;
 
@@ -82,18 +76,16 @@ new_buffer(const int bufnum)
         }
         if (!tmp) {
                 ECHO("Can't identify buffer %d, (ft '%s') bailing!", bufnum, ft);
-                /* buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum; */
-                b_destroy(ft);
-                goto end;
+                goto skip_buffer;
         }
-        for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i) {
-                if (b_iseq(ft, settings.ignored_ftypes->lst[i])) {
-                        /* buffers.bad_bufs.lst[buffers.bad_bufs.qty++] = bufnum; */
-                        goto end;
-                }
+        if (bufnum >= buffers.mlen) {
+                SHOUT("Too many open buffers.");
+                goto skip_buffer;
         }
+        for (unsigned i = 0; i < settings.ignored_ftypes->qty; ++i)
+                if (b_iseq(ft, settings.ignored_ftypes->lst[i]))
+                        goto skip_buffer;
 
-        b_destroy(ft);
         Buffer *bdata = get_bufdata(bufnum, tmp);
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(bdata->ft);
@@ -104,16 +96,19 @@ new_buffer(const int bufnum)
                 pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
                 pthread_mutex_init(&bdata->lock.total, &attr);
                 pthread_mutex_init(&bdata->lock.ctick, &attr);
-                pthread_mutex_init(&bdata->lock.update, &attr);
-
-                p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
         }
 
+        p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
+        buffers.lst[bufnum] = bdata;
+#if 0
         buffers.lst[buffers.mkr] = bdata;
         NEXT_MKR(buffers);
-        ret = true;
-end:
+#endif
+        ret = bdata;
+
+skip_buffer:
         pthread_mutex_unlock(&buffers.lock);
+        b_destroy(ft);
         return ret;
 }
 
@@ -133,7 +128,7 @@ get_initial_lines(Buffer *bdata)
 }
 
 Buffer *
-get_bufdata(const int bufnum, Filetype *ft)
+get_bufdata(int const bufnum, Filetype *ft)
 {
         Buffer *bdata    = calloc(1, sizeof(Buffer));
         bdata->name.full = nvim_buf_get_name(bufnum);
@@ -157,30 +152,30 @@ get_bufdata(const int bufnum, Filetype *ft)
 }
 
 void
-destroy_bufdata(Buffer **bdata)
+destroy_bufdata(Buffer **bdata_p)
 {
-#define BDATA (*bdata)
-
-        extern void destroy_clangdata(Buffer *bdata);
+        extern void destroy_clangdata(Buffer * bdata);
         extern bool process_exiting;
-
-        if (!BDATA)
+        Buffer *bdata = *bdata_p;
+        if (!bdata)
                 return;
-        pthread_mutex_lock(&destruction_mutex);
-        pthread_mutex_lock(&BDATA->lock.update);
+        pthread_mutex_lock(&buffers.lock);
+        pthread_mutex_lock(&bdata->lock.total);
+        pthread_mutex_lock(&bdata->lock.ctick);
 
-        if (!process_exiting) {
-                log_prev_file(BDATA->name.full);
-        }
-        const int index = find_buffer_ind(BDATA->num);
+        if (!process_exiting)
+                log_prev_file(bdata->name.full);
+        /* int const index = find_buffer_ind(bdata->num); */
+        int const index  = bdata->num;
+        int const bufnum = bdata->num;
 
-        b_destroy(BDATA->name.full);
-        b_destroy(BDATA->name.base);
-        b_destroy(BDATA->name.path);
-        ll_destroy(BDATA->lines);
+        b_destroy(bdata->name.full);
+        b_destroy(bdata->name.base);
+        b_destroy(bdata->name.path);
+        ll_destroy(bdata->lines);
 
-        if (--BDATA->topdir->refs == 0) {
-                Top_Dir *topdir = BDATA->topdir;
+        if (--bdata->topdir->refs == 0) {
+                Top_Dir *topdir = bdata->topdir;
                 close(topdir->tmpfd);
                 unlink(BS(topdir->tmpfname));
 
@@ -197,81 +192,69 @@ destroy_bufdata(Buffer **bdata)
                 }
         }
 
-        pthread_mutex_destroy(&BDATA->lock.total);
-        pthread_mutex_destroy(&BDATA->lock.ctick);
-        pthread_mutex_unlock(&BDATA->lock.update);
-        pthread_mutex_destroy(&BDATA->lock.update);
-
-        if (BDATA->ft->is_c) {
-                if (BDATA->clangdata)
-                        destroy_clangdata(BDATA);
-                if (BDATA->headers)
-                        b_list_destroy(BDATA->headers);
+        if (bdata->ft->is_c) {
+                if (bdata->clangdata)
+                        destroy_clangdata(bdata);
+                if (bdata->headers)
+                        b_list_destroy(bdata->headers);
         } else {
-                if (BDATA->calls)
-                        mpack_destroy_arg_array(BDATA->calls);
+                if (bdata->calls)
+                        mpack_destroy_arg_array(bdata->calls);
         }
 
-        free(BDATA);
-        BDATA = NULL;
+        pthread_mutex_unlock(&bdata->lock.ctick);
+        pthread_mutex_destroy(&bdata->lock.ctick);
+        pthread_mutex_unlock(&bdata->lock.total);
+        pthread_mutex_destroy(&bdata->lock.total);
 
-        pthread_mutex_lock(&buffers.lock);
+        free(bdata);
+        bdata              = NULL;
         buffers.lst[index] = NULL;
         pthread_mutex_unlock(&buffers.lock);
-        pthread_mutex_unlock(&destruction_mutex);
-
-#undef BDATA
+        p99_futex_wakeup(&destruction_futex[bufnum]);
 }
 
 /*======================================================================================*/
 
 Buffer *
-find_buffer(const int bufnum)
+find_buffer(int const bufnum)
 {
         Buffer *ret = NULL;
         pthread_mutex_lock(&buffers.lock);
 
+#if 0
         for (unsigned i = 0; i < buffers.mlen; ++i) {
                 if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
                         ret = buffers.lst[i];
                         break;
                 }
         }
-
-        pthread_mutex_unlock(&buffers.lock);
-        return ret;
-}
-
-int
-find_buffer_ind(const int bufnum)
-{
-        int ret = (-1);
-        pthread_mutex_lock(&buffers.lock);
-
-        for (unsigned i = 0; i < buffers.mlen; ++i) {
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
-                        ret = (int)i;
-                        break;
-                }
-        }
+#endif
+        if (bufnum < buffers.mlen && buffers.lst[bufnum])
+                ret = buffers.lst[bufnum];
 
         pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
 
 #if 0
-bool
-is_bad_buffer(const int bufnum)
+int
+find_buffer_ind(int const bufnum)
 {
-        bool ret = false;
+        int ret = (-1);
         pthread_mutex_lock(&buffers.lock);
 
-        for (unsigned i = 0; i < buffers.bad_bufs.qty; ++i) {
-                if (bufnum == buffers.bad_bufs.lst[i]) {
-                        ret = true;
+        if (bufnum < buffers.mlen && buffers.lst[bufnum])
+                ret = bufnum;
+
+#if 0
+        for (unsigned i = 0; i < buffers.mlen; ++i) {
+                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
+                        ret = (int)i;
                         break;
                 }
         }
+#endif
 
         pthread_mutex_unlock(&buffers.lock);
         return ret;
@@ -279,7 +262,7 @@ is_bad_buffer(const int bufnum)
 #endif
 
 static void
-log_prev_file(const bstring *filename)
+log_prev_file(bstring const *filename)
 {
         if (have_seen_file(filename))
                 return;
@@ -287,12 +270,12 @@ log_prev_file(const bstring *filename)
 }
 
 bool
-have_seen_file(const bstring *filename)
+have_seen_file(bstring const *filename)
 {
         unsigned i;
         B_LIST_FOREACH (seen_files, file, i)
-                if (b_iseq(file, filename))
-                        return true;
+        if (b_iseq(file, filename))
+                return true;
         return false;
 }
 
@@ -307,7 +290,7 @@ static Top_Dir *
 init_topdir(Buffer *bdata)
 {
         bstring    *dir     = check_project_directories(b_strcpy(bdata->name.path), bdata->ft);
-        const bool  recurse = check_norecurse_directories(dir);
+        bool const  recurse = check_norecurse_directories(dir);
         bstring    *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
 
         assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
@@ -336,18 +319,19 @@ init_topdir(Buffer *bdata)
                 }
         }
         pthread_mutex_unlock(&top_dirs->mut);
+
         SHOUT("Initializing project directory \"%s\"", BS(dir));
 
         Top_Dir *tdir   = calloc(1, sizeof(Top_Dir));
         tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
-        tdir->gzfile    = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
+        tdir->gzfile    = b_strcpy(settings.cache_dir);
+        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT | O_RDWR | O_TRUNC | O_BINARY, 0600);
         tdir->ftid      = bdata->ft->id;
         tdir->index     = top_dirs->qty;
         tdir->pathname  = dir;
         tdir->recurse   = recurse;
         tdir->refs      = 1;
-        tdir->timestamp = (time_t)UINTMAX_C(0);
-        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_BINARY, 0600);
+        tdir->timestamp = (time_t)0;
 
         if (tdir->tmpfd == (-1))
                 errx(1, "Failed to open temporary file!");
@@ -374,12 +358,10 @@ init_topdir(Buffer *bdata)
          * to the string, but for an small operation like this it is better to
          * be safe than sorry. */
         for (unsigned i = 0; i < base->slen && i < tdir->gzfile->mlen; ++i) {
-                if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i])) {
-                        b_conchar(tdir->gzfile, '_');
-                        b_conchar(tdir->gzfile, '_');
-                } else {
+                if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i]))
+                        b_catlit(tdir->gzfile, "__");
+                else
                         b_conchar(tdir->gzfile, base->data[i]);
-                }
         }
 
         ECHO("got %s", tdir->gzfile);
@@ -398,6 +380,7 @@ init_topdir(Buffer *bdata)
                 b_destroy(base);
 
         return tdir;
+
 #undef DIRSTR
 }
 
@@ -409,7 +392,7 @@ init_topdir(Buffer *bdata)
  * and do not recurse ctags if we find a match.
  */
 static bool
-check_norecurse_directories(const bstring *const dir)
+check_norecurse_directories(bstring const *const dir)
 {
         for (unsigned i = 0; i < settings.norecurse_dirs->qty; ++i)
                 if (b_iseq(dir, settings.norecurse_dirs->lst[i]))
@@ -425,7 +408,7 @@ check_norecurse_directories(const bstring *const dir)
  */
 
 static bstring *
-check_project_directories(bstring *dir, const Filetype *ft)
+check_project_directories(bstring *dir, Filetype const *ft)
 {
         FILE *fp = fopen(BS(settings.settings_file), "rb");
         if (!fp)
@@ -435,8 +418,7 @@ check_project_directories(bstring *dir, const Filetype *ft)
         bstring *tmp;
         b_regularize_path(dir);
 
-        for (tmp = NULL; ( tmp = B_GETS(fp, '\n', false) ); b_destroy(tmp))
-        {
+        for (tmp = NULL; ( tmp = B_GETS(fp, '\n', false) ); b_destroy(tmp)) {
                 ECHO("Looking at \"%s\"", tmp);
                 int64_t n = b_strchr(tmp, '\t');
                 if (n < 0) {
@@ -448,7 +430,7 @@ check_project_directories(bstring *dir, const Filetype *ft)
 
                 tmp->data[n]      = '\0';
                 tmp->slen         = (unsigned)n;
-                const char *tmpft = (char *)(tmp->data + n + 1);
+                char const *tmpft = (char *)(tmp->data + n + 1);
 
                 if (ft->is_c) {
                         if (!STREQ(tmpft, "c") && !STREQ(tmpft, "cpp"))
@@ -476,7 +458,7 @@ check_project_directories(bstring *dir, const Filetype *ft)
                 return dir;
         }
 
-        
+
         /* Find the longest match */
         bstring *longest = candidates->lst[0];
         for (unsigned i = 0; i < candidates->qty; ++i)
@@ -517,42 +499,45 @@ init_filetype(Filetype *ft)
                 return;
         pthread_mutex_lock(&ftdata_mutex);
 
-        ft->initialized    = true;
-        ft->order          = (nvim_get_var_fmt)(E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
-        mpack_array_t *tmp = dict_get_key(settings.ignored_tags, E_MPACK_ARRAY, &ft->vim_name).ptr;
+        ft->initialized  = true;
+        ft->order        = nvim_get_var_fmt(E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
+        mpack_array *tmp = mpack_dict_get_key(settings.ignored_tags, E_MPACK_ARRAY,
+                                              &ft->vim_name).ptr;
+
         ECHO("Init filetype called for ft %s", &ft->vim_name);
 
         if (tmp) {
                 ft->ignored_tags = mpack_array_to_blist(tmp, false);
                 B_LIST_SORT_FAST(ft->ignored_tags);
-        } else {
+        } else
                 ft->ignored_tags = NULL;
-        }
 
         ft->restore_cmds = NULL;
         get_ignored_tags(ft);
 
-        mpack_dict_t *equiv = (nvim_get_var_fmt)(E_MPACK_DICT, PKG "%s#equivalent",
-                                                 BTS(ft->vim_name)).ptr;
+        mpack_dict *equiv = nvim_get_var_fmt(E_MPACK_DICT, PKG "%s#equivalent",
+                                             BTS(ft->vim_name)).ptr;
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
 
                 for (unsigned i = 0; i < equiv->qty; ++i) {
-                        bstring *toadd = equiv->entries[i]->key->data.str;
-                        b_concat(toadd, equiv->entries[i]->value->data.str);
+                        mpack_dict_ent *ent   = equiv->entries[i];
+                        bstring        *toadd = ent->key->data.str;
+                        b_concat(toadd, ent->value->data.str);
+
                         b_writeprotect(toadd);
-                        mpack_destroy_object(equiv->entries[i]->key);
-                        mpack_destroy_object(equiv->entries[i]->value);
-                        free(equiv->entries[i]);
+                        mpack_destroy_object(ent->key);
+                        mpack_destroy_object(ent->value);
+                        free(ent);
                         b_writeallow(toadd);
+
                         b_list_append(&ft->equiv, toadd);
                 }
 
                 free(equiv->entries);
                 free(equiv);
-        } else {
+        } else
                 ft->equiv = NULL;
-        }
 
         pthread_mutex_unlock(&ftdata_mutex);
 }
@@ -560,25 +545,23 @@ init_filetype(Filetype *ft)
 static void
 get_ignored_tags(Filetype *ft)
 {
-        mpack_dict_t *tmp             = nvim_get_var(B(PKG "restored_groups"), E_MPACK_DICT).ptr;
-        b_list       *restored_groups = dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
+        mpack_dict *tmp             = nvim_get_var(B(PKG "restored_groups"), E_MPACK_DICT).ptr;
+        b_list     *restored_groups = mpack_dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
 
         if (restored_groups) {
                 b_list_writeprotect(restored_groups);
-                destroy_mpack_dict(tmp);
+                mpack_dict_destroy(tmp);
                 b_list_writeallow(restored_groups);
 
                 if (ft->has_parser) {
                         get_tags_from_restored_groups(ft, restored_groups);
                         B_LIST_SORT_FAST(ft->ignored_tags);
-                } else {
+                } else
                         ft->restore_cmds = get_restore_cmds(restored_groups);
-                }
 
                 b_list_destroy(restored_groups);
-        } else {
-                destroy_mpack_dict(tmp);
-        }
+        } else
+                mpack_dict_destroy(tmp);
 
         ft->restore_cmds_initialized = true;
 }
@@ -592,43 +575,45 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
         ECHO("Getting ignored tags for ft %d", ft->id);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                char         cmd[2048];
-                const size_t len = snprintf(cmd, 2048, "syntax list %s",
+                char         cmd[2048], *ptr;
+                size_t const len = snprintf(cmd, 2048, "syntax list %s",
                                             BS(restored_groups->lst[i]));
                 bstring *output = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
+
                 if (!output)
                         continue;
-                const char *ptr = strstr(BS(output), "xxx");
-                if (!ptr) {
+                if (!(ptr = strstr(BS(output), "xxx"))) {
                         b_destroy(output);
                         continue;
                 }
-                ptr += 4;
-                bstring tmp = bt_fromblk(ptr, output->slen - PSUB(ptr, output->data));
-                b_writeallow(&tmp);
 
-                if (strncmp(ptr, SLS("match /")) != 0) {
-                        bstring *line = &(bstring){0, 0, NULL, BSTR_WRITE_ALLOWED};
+                uchar *bak    = output->data;
+                output->data  = (uchar *)(ptr += 4) /* Add 4 to skip the "xxx " */;
+                output->slen -= PSUB(ptr, bak);
 
-                        while (b_memsep(line, &tmp, '\n')) {
-                                while (isblank(*line->data)) {
-                                        ++line->data;
-                                        --line->slen;
+                if (!b_starts_with(output, B("match /"))) {
+                        bstring line = BSTR_WRITEABLE_STATIC_INIT;
+
+                        while (b_memsep(&line, output, '\n')) {
+                                while (isblank(*line.data)) {
+                                        ++line.data;
+                                        --line.slen;
                                 }
-                                if (strncmp(BS(line), SLS("links to ")) == 0)
+                                if (b_starts_with(&line, B("links to ")))
                                         break;
 
-                                bstring *tok = BSTR_NULL_INIT;
+                                bstring tok = BSTR_STATIC_INIT;
 
-                                while (b_memsep(tok, line, ' ')) {
-                                        bstring *toadd = b_fromblk(tok->data, tok->slen);
+                                while (b_memsep(&tok, &line, ' ')) {
+                                        bstring *toadd = b_fromblk(tok.data, tok.slen);
                                         toadd->flags  |= BSTR_MASK_USR1;
                                         b_list_append(&ft->ignored_tags, toadd);
                                 }
                         }
                 }
 
-                b_destroy(output);
+                free(bak);
+                free(output);
         }
 }
 
@@ -675,16 +660,15 @@ get_restore_cmds(b_list *restored_groups)
                         }
 
                         b_list_remove_dups(&toks);
-                        for (unsigned x = 0; x < toks->qty; ++x) {
-                                b_concat(cmd, toks->lst[x]);
-                                b_conchar(cmd, ' ');
-                        }
+                        for (unsigned x = 0; x < toks->qty; ++x)
+                                b_append_all(cmd, toks->lst[x], B(" "));
+
                         b_list_destroy(toks);
 
-                        const size_t n = my_strlcpy(link_name, (ptr += 9), sizeof(link_name));
+                        size_t const n = my_strlcpy(link_name, (ptr += 9), sizeof(link_name));
                         ALWAYS_ASSERT(n > 0);
-                        b_sprintfa(cmd, " | hi! link %s %s",
-                                   restored_groups->lst[i], btp_fromcstr(link_name));
+                        b_sprintfa(cmd, " | hi! link %s %n",
+                                   restored_groups->lst[i], link_name);
 
                         b_list_append(&allcmds, cmd);
                 }

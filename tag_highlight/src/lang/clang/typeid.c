@@ -12,7 +12,7 @@ static void do_typeswitch(Buffer                  *bdata,
                           struct cmd_info         *info,
                           enum CXCursorKind *const last_kind);
 
-static bool tok_in_skip_list(Buffer *bdata, struct token *tok);
+static bool tok_in_skip_list(Buffer *bdata, struct token *tok) __attribute__((pure));
 /* static void report_cursor(FILE *fp, CXCursor cursor); */
 /* static void tokvisitor(struct token *tok); */
 

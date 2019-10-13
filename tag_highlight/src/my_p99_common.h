@@ -61,7 +61,7 @@
                      )
 
 
-#define P44_IF_TYPE_ELSE(ITEM, TYPE, VAL, ELSE) \
+#define P99_IF_TYPE_ELSE(ITEM, TYPE, VAL, ELSE) \
         (_Generic((ITEM),                       \
                   TYPE : (VAL),                 \
                   const TYPE : (VAL),           \
@@ -70,36 +70,40 @@
 #endif
 
 
-#define P04_POINTLESS_MACRO(...) (__VA_ARGS__)
-#define P04_ANDALL(MACRO, ...) P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (&&), __VA_ARGS__)
-#define P04_ORALL(MACRO, ...)  P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (||), __VA_ARGS__)
+#define P01_POINTLESS_MACRO(...) (__VA_ARGS__)
+#define P01_ANDALL(MACRO, ...) P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (&&), __VA_ARGS__)
+#define P01_ORALL(MACRO, ...)  P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (||), __VA_ARGS__)
 
-#define P44_ANDALL(...) P04_ANDALL(P04_POINTLESS_MACRO, __VA_ARGS__)
-#define P44_ORALL(...)  P04_ORALL(P04_POINTLESS_MACRO, __VA_ARGS__)
+#define P99_ANDALL(...) P01_ANDALL(P01_POINTLESS_MACRO, __VA_ARGS__)
+#define P99_ORALL(...)  P01_ORALL(P01_POINTLESS_MACRO, __VA_ARGS__)
 
-#define P04_EQ(WHAT, X, I)   (X) == (WHAT)
-#define P44_EQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_EQ, __VA_ARGS__)
+#define P01_EQ(WHAT, X, I)   (X) == (WHAT)
+#define P99_EQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_EQ, __VA_ARGS__)
 
-#define P04_STREQ(WHAT, X, I)   (strcmp((WHAT), (X)) == 0)
-#define P44_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_STREQ, __VA_ARGS__)
+#define P01_STREQ(WHAT, X, I)   (strcmp((WHAT), (X)) == 0)
+#define P99_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_STREQ, __VA_ARGS__)
 
-#define P04_B_ISEQ(WHAT, X, I)   b_iseq((WHAT), (X))
-#define P44_B_ISEQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_B_ISEQ, __VA_ARGS__)
+#define P01_B_ISEQ(WHAT, X, I)   b_iseq((WHAT), (X))
+#define P99_B_ISEQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_B_ISEQ, __VA_ARGS__)
 
-#define P04_B_ISEQ_LIT(WHAT, X, I)   (b_iseq((WHAT), ((bstring[]){{(sizeof(X) - 1), 0, (uchar *)("" X ""), 0}})))
-#define P44_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P04_B_ISEQ_LIT, __VA_ARGS__)
+#define P01_B_ISEQ_LIT(WHAT, X, I)                                 \
+        (b_iseq((WHAT), ((bstring[]){{.data  = (uchar *)("" X ""), \
+                                      .slen  = (sizeof(X) - 1),    \
+                                      .mlen  = 0,                  \
+                                      .flags = 0}})))
+#define P99_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_B_ISEQ_LIT, __VA_ARGS__)
 
-#define STREQ          P04_STREQ
-#define STREQ_ANY      P44_STREQ_ANY
-#define b_iseq_any     P44_B_ISEQ_ANY
-#define b_iseq_lit_any P44_B_ISEQ_LIT_ANY
+#define STREQ(S1, S2)  (strcmp((S1), (S2)) == 0)
+/* #define STREQ_ANY      P99_STREQ_ANY */
+#define b_iseq_any     P99_B_ISEQ_ANY
+#define b_iseq_lit_any P99_B_ISEQ_LIT_ANY
 
-#define P44_DECLARE_FIFO(NAME)   \
+#define P99_DECLARE_FIFO(NAME)   \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \
         P99_FIFO_DECLARE(NAME##_ptr)
 
-#define P44_DECLARE_LIFO(NAME)   \
+#define P99_DECLARE_LIFO(NAME)   \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \
         P99_LIFO_DECLARE(NAME##_ptr)

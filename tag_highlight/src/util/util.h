@@ -27,11 +27,12 @@ struct timer {
         struct timespec tv1, tv2;
 };
 
-#  define TIMER_START(T_) (clock_gettime(CLOCK_REALTIME, &(T_)->tv1))
-#  define TIMER_START_BAR(T_)                              \
-        do {                                               \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv1); \
-                SHOUT("----------------------");           \
+#  define TIMER_START(T_) \
+        (clock_gettime(CLOCK_REALTIME, &(T_)->tv1))
+#  define TIMER_START_BAR(T_)                    \
+        do {                                     \
+                TIMER_START(T_);                 \
+                SHOUT("----------------------"); \
         } while (0)
 #  define TIMER_REPORT(T_, MSG_)                                                 \
         do {                                                                     \

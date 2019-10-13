@@ -18,7 +18,7 @@ static int         exec_ctags(Buffer *bdata, b_list *headers, enum update_taglis
 
 
 bool
-run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
+run_ctags(Buffer *bdata, enum update_taglist_opts const opts)
 {
         assert(bdata != NULL && bdata->topdir != NULL);
         if (!bdata->lines || !bdata->initialized) {
@@ -32,7 +32,9 @@ run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
                 bdata->calls = NULL;
         }
 
-        int status = exec_ctags(bdata, ((bdata->ft->is_c) ? bdata->headers : NULL), opts);
+        int status = exec_ctags(bdata,
+                                bdata->ft->is_c ? bdata->headers : NULL,
+                                opts);
 
         if (status != 0)
                 ECHO("ctags failed with status \"%d\"\n", status);
@@ -46,15 +48,16 @@ run_ctags(Buffer *bdata, const enum update_taglist_opts opts)
 int
 get_initial_taglist(Buffer *bdata)
 {
-        struct stat  st;
-        struct timer *t  = TIMER_INITIALIZER;
-        int          ret = 0;
+        struct stat     st;
+        struct timer   *t   = TIMER_INITIALIZER;
+        struct top_dir *top = bdata->topdir;
+        int             ret = 0;
 
-        if (bdata->topdir->tags)
+        if (top->tags)
                 return update_taglist(bdata, UPDATE_TAGLIST_FORCE);
 
         TIMER_START(t);
-        bdata->topdir->tags = b_list_create();
+        top->tags = b_list_create();
 
         if (have_seen_file(bdata->name.full)) {
                 ECHO("Seen file before, running ctags in case there was just a "
@@ -65,52 +68,45 @@ get_initial_taglist(Buffer *bdata)
         /* Read the compressed tags file if it exists, otherwise we run ctags
          * and read the file it creates. If there is a read error in the saved
          * file, run ctags as a backup. */
-        if (stat(BS(bdata->topdir->gzfile), &st) == 0) {
-                if (bdata->topdir->timestamp < st.st_mtime) {
-                        ret += getlines(bdata->topdir->tags, settings.comp_type,
-                                        bdata->topdir->gzfile);
+        if (stat(BS(top->gzfile), &st) == 0) {
+                if (top->timestamp < st.st_mtime) {
+                        ret += getlines(top->tags, settings.comp_type, top->gzfile);
                         if (ret) {
-                                ftruncate(bdata->topdir->tmpfd, 0);
-                                for (unsigned i = 0; i < bdata->topdir->tags->qty; ++i) {
-                                        errno = 0;
-                                        if (errno)
-                                                err(1, "ftruncate");
-                                        b_write(bdata->topdir->tmpfd,                 
-                                                bdata->topdir->tags->lst[i], B("\n"));
-                                }
-                                /* fsync(bdata->topdir->tmpfd); */
+                                if (ftruncate(top->tmpfd, 0) == (-1))
+                                        err(1, "ftruncate()");
+                                for (unsigned i = 0; i < top->tags->qty; ++i)
+                                        b_write(top->tmpfd, top->tags->lst[i], B("\n"));
                         } else {
                                 warnx("Could not read file. Running ctags.");
                                 if (!bdata->initialized)
                                         return 0;
-                                echo("linecount -> %d", bdata->lines->qty);
+                                ECHO("linecount -> %d", bdata->lines->qty);
                                 goto force_ctags;
                         }
                 }
         } else {
                 if (errno == ENOENT)
-                        ECHO("File \"%s\" not found, running ctags.\n",
-                             bdata->topdir->gzfile);
+                        ECHO("File \"%s\" not found, running ctags.\n", top->gzfile);
                 else
                         warn("Unexpected io error");
         force_ctags:
                 run_ctags(bdata, UPDATE_TAGLIST_FORCE);
-                write_gzfile(bdata->topdir);
+                write_gzfile(top);
 
-                if (stat(BS(bdata->topdir->gzfile), &st) != 0)
-                        err(1, "Failed to stat gzfile \"%s\"", BS(bdata->topdir->gzfile));
+                if (stat(BS(top->gzfile), &st) != 0)
+                        err(1, "Failed to stat gzfile \"%s\"", BS(top->gzfile));
 
-                ret += getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname);
+                ret += getlines(top->tags, COMP_NONE, top->tmpfname);
         }
 
-        bdata->topdir->timestamp = (time_t)st.st_mtime;
+        top->timestamp = (time_t)st.st_mtime;
         TIMER_REPORT(t, "initial taglist");
         return ret;
 }
 
 
 int
-update_taglist(Buffer *bdata, const enum update_taglist_opts opts)
+update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
 {
         if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
@@ -167,7 +163,7 @@ write_gzfile(struct top_dir *topdir)
 
 #ifdef DOSISH
 static int
-exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
+exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 {
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 
@@ -205,16 +201,15 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
  * calling fork/exec, even at the cost of a bunch of extra allocations and copying.
  */
 static int
-exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
+exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 {
         unsigned i;
         str_vector *argv = argv_create(128);
         argv_append(argv, BS(settings.ctags_bin), true);
 
-        B_LIST_FOREACH(settings.ctags_args, arg, i) {
+        B_LIST_FOREACH (settings.ctags_args, arg, i)
                 if (arg)
                         argv_append(argv, b_bstr2cstr(arg, 0), false);
-        }
 
         assert(bdata->topdir->tmpfname != NULL &&
                bdata->topdir->tmpfname->data != NULL &&
@@ -227,6 +222,7 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
                         argv_append(argv, "--languages=c,c++", true);
                 else
                         argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
+
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
         } else {
@@ -234,13 +230,15 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
                         argv_append(argv, "--languages=c,c++", true);
                 else
                         argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
+
                 argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);
+
                 if (headers)
                         B_LIST_FOREACH (headers, bstr, i)
                                 argv_append(argv, b_bstr2cstr(bstr, 0), false);
         }
 
-        argv_append(argv, (const char *)0, false);
+        argv_append(argv, (char const *)0, false);
 
         int pid, status;
 
@@ -249,12 +247,13 @@ exec_ctags(Buffer *bdata, b_list *headers, const enum update_taglist_opts opts)
                 err(1, "Exec failed");
 #else
         if ((pid = fork()) == 0)
-                if (execvp(BS(settings.ctags_bin), argv->lst) != 0)
+                if (execvpe(BS(settings.ctags_bin), argv->lst, environ) != 0)
                         err(1, "Exec failed");
 #endif
 
         waitpid(pid, &status, 0);
         argv_destroy(argv);
-        return status << 8;
+        return (status > 0) ? status << 8
+                            : status;
 }
 #endif

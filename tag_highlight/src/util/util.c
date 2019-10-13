@@ -19,36 +19,38 @@
                      err(1, "Failed to stat file '%s", (PATH)); \
      } while (0)
 
+#define SHUTUPGCC __attribute__((__unused__)) ssize_t n =
+
 #ifdef HAVE_EXECINFO_H
 #  include <execinfo.h>
-#  define SHOW_STACKTRACE()                                  \
-        __extension__({                                      \
-                void * arr[128];                             \
-                size_t num = backtrace(arr, 128);            \
-                fflush(stderr);                              \
-                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
-                backtrace_symbols_fd(arr, num, 2);           \
-                fsync(2);                                    \
+#  define SHOW_STACKTRACE()                                            \
+        __extension__({                                                \
+                void * arr[128];                                       \
+                size_t num = backtrace(arr, 128);                      \
+                fflush(stderr);                                        \
+                SHUTUPGCC write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                backtrace_symbols_fd(arr, num, 2);                     \
+                fsync(2);                                              \
         })
-#  define FATAL_ERROR(...)                                   \
-        __extension__({                                      \
-                void * arr[128];                             \
-                char   buf[8192];                            \
-                size_t num = backtrace(arr, 128);            \
-                snprintf(buf, 8192, __VA_ARGS__);            \
-                fflush(stderr);                              \
-                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
-                backtrace_symbols_fd(arr, num, 2);           \
-                fsync(2);                                    \
-                abort();                                     \
+#  define FATAL_ERROR(...)                                             \
+        __extension__({                                                \
+                void * arr[128];                                       \
+                char   buf[8192];                                      \
+                size_t num = backtrace(arr, 128);                      \
+                snprintf(buf, 8192, __VA_ARGS__);                      \
+                fflush(stderr);                                        \
+                SHUTUPGCC write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                backtrace_symbols_fd(arr, num, 2);                     \
+                fsync(2);                                              \
+                abort();                                               \
         })
 #else
-#  define FATAL_ERROR(...)                                   \
-        do {                                                 \
-                fflush(stderr);                              \
-                write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
-                fsync(2);                                    \
-                abort();                                     \
+#  define FATAL_ERROR(...)                                             \
+        do {                                                           \
+                fflush(stderr);                                        \
+                SHUTUPGCC write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                fsync(2);                                              \
+                abort();                                               \
         } while (0)
 #  define SHOW_STACKTRACE(...)
 #endif

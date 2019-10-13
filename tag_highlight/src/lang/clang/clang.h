@@ -19,7 +19,7 @@ extern "C" {
 
 /* enum libclang_update_type { LCUPDATE_NORMAL, LCUPDATE_FORCE }; */
 
-extern noreturn void *libclang_threaded_highlight(void *vdata);
+extern noreturn void *highlight_c_pthread_wrapper(void *vdata);
 
 extern void launch_libclang_waiter(void);
 extern void libclang_highlight(Buffer *bdata, int first, int last, int force);

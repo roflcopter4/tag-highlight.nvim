@@ -142,16 +142,19 @@ if (SANITIZE)
 endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
-set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} -std=gnu17 -fdiagnostics-color=always")
+set (EXTRA_FLAGS "-std=gnu17 -fdiagnostics-color=always")
 
 #####################################################################################################
 if (CLANG_STR_SEARCH EQUAL -1)
     string(CONCAT WARNS "${WARNS}" 
         " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
         " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
+    string (CONCAT WARNS "${WARNS}" " -Werror=designated-init")
+    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} ${EXTRA_FLAGS}")
+
     set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
 #----------------------------------------------------------------------------------------------------
 else() # CLANG
 #----------------------------------------------------------------------------------------------------
@@ -173,6 +176,7 @@ else() # CLANG
     # "-Rpass-analysis='.*'"
     # )
 
+    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} ${EXTRA_FLAGS}")
     set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt -fuse-ld=lld")

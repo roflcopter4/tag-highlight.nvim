@@ -2,13 +2,13 @@
 
 /*======================================================================================*/
 
-const bstring *
-find_group(struct filetype *ft, const struct cmd_info *info,
-           const unsigned num, const int ctags_kind)
+__attribute__((pure)) const bstring *
+find_group(struct filetype *ft, struct cmd_info const *info,
+           unsigned const num, int const ctags_kind)
 {
         if (b_strchr(ft->order, ctags_kind) < 0)
                 return NULL;
-        const bstring *ret = NULL;
+        bstring const *ret = NULL;
 
         for (unsigned i = 0; i < num; ++i) {
                 if (info[i].kind == ctags_kind) {
@@ -23,20 +23,20 @@ find_group(struct filetype *ft, const struct cmd_info *info,
 struct cmd_info *
 getinfo(Buffer *bdata)
 {
-        const unsigned   ngroups = bdata->ft->order->slen;
+        unsigned const   ngroups = bdata->ft->order->slen;
         struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
 
         for (unsigned i = 0; i < ngroups; ++i) {
-                const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(
+                int const   ch   = bdata->ft->order->data[i];
+                mpack_dict *dict = nvim_get_var_fmt(
                         E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind  = ch;
-                info[i].group = dict_get_key(dict, E_STRING, B("group")).ptr;
+                info[i].group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
                 info[i].num   = ngroups;
 
                 b_writeprotect(info[i].group);
-                destroy_mpack_dict(dict);
+                mpack_dict_destroy(dict);
                 b_writeallow(info[i].group);
         }
 
@@ -70,10 +70,10 @@ new_arg_array(void)
 
 void
 add_hl_call(struct mpack_arg_array *calls,
-            const int                 bufnum,
-            const int                 hl_id,
-            const bstring            *group,
-            const struct line_data   *data)
+            int const                 bufnum,
+            int const                 hl_id,
+            bstring const            *group,
+            struct line_data const   *data)
 {
         assert(calls);
         if (calls->qty >= calls->mlen-1) {
@@ -102,10 +102,10 @@ add_hl_call(struct mpack_arg_array *calls,
 
 void
 add_clr_call(struct mpack_arg_array *calls,
-             const int bufnum,
-             const int hl_id,
-             const int line,
-             const int end)
+             int const bufnum,
+             int const hl_id,
+             int const line,
+             int const end)
 {
         assert(calls);
         if (calls->qty >= calls->mlen-1) {

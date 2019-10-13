@@ -13,12 +13,12 @@ extern "C" {
 #endif
 
 
-P44_DECLARE_FIFO(_nvim_wait_node);
+P99_DECLARE_FIFO(_nvim_wait_node);
 struct _nvim_wait_node {
         int        fd;
         unsigned   count;
         p99_futex  fut;
-        mpack_obj *obj;
+        _Atomic(mpack_obj *) obj;
 
         _nvim_wait_node_ptr p99_fifo;
 };

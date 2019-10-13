@@ -8,6 +8,7 @@
 
 #include "contrib/p99/p99_count.h"
 #include "contrib/p99/p99_defarg.h"
+#include "contrib/p99/p99_futex.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,8 +46,8 @@ struct settings_s {
         b_list       *ctags_args;
         b_list       *ignored_ftypes;
         b_list       *norecurse_dirs;
-        mpack_dict_t *ignored_tags;
-        mpack_dict_t *order;
+        mpack_dict *ignored_tags;
+        mpack_dict *order;
 };
 
 struct filetype {
@@ -88,8 +89,8 @@ struct bufdata {
         struct {
                 pthread_mutex_t total;
                 pthread_mutex_t ctick;
-                pthread_mutex_t update;
                 p99_count       num_workers;
+                p99_futex       fut;
         } lock;
 
         struct {
@@ -114,7 +115,7 @@ struct bufdata {
                 };
         };
 };
-        
+
 struct buffer_list {
         Buffer *lst[DATA_ARRSIZE];
 #if 0
@@ -145,11 +146,11 @@ extern size_t const        ftdata_len;
 
 /*===========================================================================*/
 
-extern bool    have_seen_file   (const bstring *filename);
-extern bool    new_buffer       (int bufnum);
-extern int     find_buffer_ind  (int bufnum);
+extern bool    have_seen_file   (const bstring *filename) __attribute__((pure));
+/* extern int     find_buffer_ind  (int bufnum); */
 /* extern bool    is_bad_buffer    (int bufnum); */
-extern void    destroy_bufdata  (Buffer **bdata);
+extern void    destroy_bufdata  (Buffer **bdata_p);
+extern Buffer *new_buffer       (int bufnum);
 extern Buffer *find_buffer      (int bufnum);
 extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
 
@@ -173,30 +174,34 @@ extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);
 extern void update_highlight   (Buffer *bdata, enum update_highlight_type type);
 extern int  get_initial_taglist(Buffer *bdata);
-extern void clear_highlight    (Buffer *bdata);
+extern void clear_highlight    (Buffer *bdata, bool blocking);
 extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
 extern void _b_list_dump_nvim  (const b_list *list, const char *listname);
 
-ALWAYS_INLINE Buffer *find_current_buffer(void)
+ALWAYS_INLINE Buffer *
+find_current_buffer(void)
 {
         return find_buffer(nvim_get_current_buf());
 }
 
+ALWAYS_INLINE void __attribute__((__nonnull__))
+_nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
+{
+        nvim_buf_attach(bdata->num);
+}
+
+
 #define update_highlight(...)       P99_CALL_DEFARG(update_highlight, 2, __VA_ARGS__)
 #define update_highlight_defarg_0() (find_current_buffer())
 #define update_highlight_defarg_1() (HIGHLIGHT_NORMAL)
-#define clear_highlight(...)        P99_CALL_DEFARG(clear_highlight, 1, __VA_ARGS__)
+#define clear_highlight(...)        P99_CALL_DEFARG(clear_highlight, 2, __VA_ARGS__)
 #define clear_highlight_defarg_0()  (find_current_buffer())
+#define clear_highlight_defarg_1()  (false)
 /* #define new_buffer(...)             P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__) */
 /* #define new_buffer_defarg_1()       (false) */
 
 #define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
-
-ALWAYS_INLINE void _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
-{
-        nvim_buf_attach(bdata->num);
-}
 
 #define nvim_buf_attach(buf_)                                \
         (                                                    \
@@ -208,25 +213,25 @@ ALWAYS_INLINE void _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
             )(buf_)                                          \
         )
 
-#define echo(...)                                                                                               \
-        do {                                                                                                    \
-                if (P99_UNLIKELY(settings.verbose)) {                                                           \
-                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                      \
-                        (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
-                        (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
-                }                                                                                               \
+#define echo(...)                                                                                                 \
+        do {                                                                                                      \
+                if (P99_UNLIKELY(settings.verbose)) {                                                             \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
+                          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
+                          (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                                 \
         } while (0)
 
-#define ECHO(...)                                                                                                    \
-        do {                                                                                                         \
-                if (P99_UNLIKELY(settings.verbose)) {                                                                \
-                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                           \
-                        (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                      \
-                        (nvim_b_printf(B("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
-                }                                                                                                    \
+#define ECHO(...)                                                                                                      \
+        do {                                                                                                           \
+                if (P99_UNLIKELY(settings.verbose)) {                                                                  \
+                        P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                             \
+                          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                      \
+                          (nvim_b_printf(B("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
+                }                                                                                                      \
         } while (0)
- 
-#define SHOUT(...) \
+
+#define SHOUT(...)                                                                                \
         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
           (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
           (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \

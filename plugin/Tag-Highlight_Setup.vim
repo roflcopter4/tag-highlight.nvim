@@ -291,8 +291,6 @@ endfunction
 function! s:OnExit(job_id, data, event) dict
     echom 'Closing channel.'
     let g:tag_highlight#pid = 0
-    let s:sock = 0
-    let s:pipe = 0
     let s:seen_bufs = []
     let s:new_bufs  = []
 endfunction
@@ -338,29 +336,11 @@ function! s:BufChanged()
     endif
 endfunction
 
-function! s:UpdateTags()
+function! s:SendMessage(msg)
     if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['UpdateTags'])
+        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types[a:msg])
     endif
 endfunction
-
-function! s:ForceUpdateTags()
-    if g:tag_highlight#pid !=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['UpdateTagsForce'])
-    endif
-endfunction
-
-function! s:ClearBuffer()
-    if g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['ClearBuffer'])
-    endif
-endfunction
-
-" function! s:ModeChange()
-"     if g:tag_highlight#pid >=# 0
-"         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', 'M')
-"     endif
-" endfunction
 
 function! s:DeleteBuf()
     let l:buf = nvim_get_current_buf()
@@ -405,9 +385,6 @@ function! s:getchan(job_id, data, event) dict
 endfunction
 
 let g:tag_highlight#pid = 0
-let s:pipe = 0
-let s:chid = 0
-let s:sock = 0
 let s:seen_bufs = []
 let s:new_bufs = []
 
@@ -417,8 +394,6 @@ let s:rpc  = {  'rpc':       v:true,
             \ }
 
 function! s:InitTagHighlight()
-    let s:chid = 0
-    let s:sock = 0
     let l:cur  = nvim_get_current_buf()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
@@ -437,8 +412,8 @@ endfunction
 
 command! THLInit call s:InitTagHighlight()
 command! THLStop call s:StopTagHighlight()
-command! THLClear call s:ClearBuffer()
-command! THLUpdate call s:ForceUpdateTags()
+command! THLClear call s:SendMessage('ClearBuffer')
+command! THLUpdate call s:SendMessage('UpdateTagsForce')
 
 command! TestExitKill call s:ExitKill()
 
@@ -451,10 +426,11 @@ endif
 augroup TagHighlightAu
     autocmd BufAdd * call s:NewBuf()
     " autocmd BufRead * call s:NewBuf()
-    autocmd BufWritePost * call s:UpdateTags()
+    autocmd BufWritePost * call s:SendMessage('UpdateTags')
     autocmd BufEnter * call s:BufChanged()
     autocmd BufDelete * call s:DeleteBuf()
     autocmd VimLeavePre * call s:ExitKill()
+    autocmd Syntax * call s:SendMessage('SyntaxChanged')
 augroup END
 
 "===============================================================================

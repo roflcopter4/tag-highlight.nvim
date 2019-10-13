@@ -111,8 +111,9 @@ b_split_char(bstring *tosplit, const int delim, const bool destroy)
         bstring *split = destroy ? tosplit : b_strcpy(tosplit);
         b_list  *ret   = b_list_create();
 
-        bstring *tok = &(bstring){0, 0, NULL, 0};
-        bstring *buf = &(bstring){split->slen, 0, split->data, split->flags};
+        bstring *tok = (bstring[]){BSTR_STATIC_INIT};
+        bstring *buf = (bstring[]){{.data = split->data, .slen = split->slen,
+                                    .mlen = 0, .flags = split->flags}};
 
         while (b_memsep(tok, buf, (char)delim)) {
                 b_list_append(&ret, b_fromblk(tok->data, tok->slen));
@@ -348,9 +349,9 @@ b_refblk(void *blk, const unsigned len)
                 RETURN_NULL();
         bstring *ret = malloc(sizeof *ret);
         *ret = (bstring){
+            .data  = (uchar *)blk,
             .slen  = len,
             .mlen  = len,
-            .data  = (uchar *)blk,
             .flags = BSTR_WRITE_ALLOWED | BSTR_FREEABLE /* | BSTR_CLONE */,
         };
         return ret;
@@ -671,8 +672,9 @@ b_strsep(bstring *ostr, const char *const delim, const int refonly)
                 RETURN_NULL();
 
         b_list *ret   = b_list_create();
-        bstring tok[] = {{0, 0, NULL, 0}};
-        bstring str[] = {{ostr->slen, 0, ostr->data, ostr->flags}};
+        bstring tok[] = {BSTR_STATIC_INIT};
+        bstring str[] = {{.data = ostr->data, .slen = ostr->slen,
+                          .mlen = 0, .flags = ostr->flags}};
 
         if (refonly)
                 while (b_memsep(tok, str, delim[0]))
@@ -1095,7 +1097,8 @@ b_starts_with(const bstring *b0, const bstring *b1)
                 RUNTIME_ERROR();
         if (b0->slen < b1->slen)
                 return false;
-        return b_strncmp(b0, b1, b1->slen) == 0;
+
+        return memcmp(b0->data, b1->data, b1->slen) == 0;
 }
 
 
@@ -1265,7 +1268,7 @@ _b_vsprintf(const bstring *fmt, va_list args)
                 case 'd': {
                         uchar buf[INT64_MAX_CHARS + 1];
                         int n = 0;
-                        bstring tmp = {0, 0, buf, 0};
+                        bstring tmp = {.data = buf, .slen = 0, .mlen = 0, .flags = 0};
 
                         switch (islong) {
                         case 0: {
@@ -1303,7 +1306,7 @@ _b_vsprintf(const bstring *fmt, va_list args)
                 case 'u': {
                         uchar buf[INT64_MAX_CHARS + 1];
                         int n = 0;
-                        bstring tmp[] = {{0, 0, buf, 0}};
+                        bstring tmp[] = {{.data = buf, .slen = 0, .mlen = 0, .flags = 0}};
 
                         switch (islong) {
                         case 0: {

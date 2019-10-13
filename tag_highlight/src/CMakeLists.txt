@@ -15,13 +15,13 @@ set (tag_highlight_SOURCES
     nvim_api/common.c
     nvim_api/misc.c
 
-    bufdata.c
+    buffer.c
     ctags.c
+    data.c
     events.c
-    globals.c
-    lang/lang.c
     main.c
-    update_commands.c
+    update.c
+    lang/lang.c
 )
 
 if (LZMA_SUPPORT)

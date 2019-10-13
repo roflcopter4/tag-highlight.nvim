@@ -38,7 +38,7 @@ struct go_output {
 
 static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
-static inline bool ident_is_ignored(Buffer *bdata, const bstring *tok);
+static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
 static int b_list_remove_dups_2(b_list **listp);
 
 /*======================================================================================*/
@@ -53,7 +53,7 @@ highlight_go(Buffer *bdata)
                 return retval;
         }
 
-        pthread_mutex_lock(&bdata->lock.update);
+        pthread_mutex_lock(&bdata->lock.total);
         pthread_mutex_lock(&bdata->lines->lock);   
         bstring *tmp = ll_join(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lines->lock);
@@ -84,11 +84,11 @@ highlight_go(Buffer *bdata)
 cleanup:
         b_destroy(tmp);
         p99_count_dec(&bdata->lock.num_workers);
-        pthread_mutex_unlock(&bdata->lock.update);
+        pthread_mutex_unlock(&bdata->lock.total);
         return retval;
 }
 
-void *
+noreturn void *
 highlight_go_pthread_wrapper(void *vdata)
 {
         highlight_go((Buffer *)vdata);
@@ -99,7 +99,7 @@ static void
 parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
 {
         struct go_output data;
-        const bstring   *group;
+        bstring const   *group;
         mpack_arg_array *calls = new_arg_array();
 
         if (bdata->hl_id == 0)
@@ -112,8 +112,11 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
-                if (ident_is_ignored(bdata, &(bstring){data.ident.len, 0,
-                                                       (uchar *)data.ident.str, 0}))
+                if (ident_is_ignored(bdata,
+                                     (bstring[]){{.data = (uchar *)data.ident.str,
+                                                  .slen  = data.ident.len,
+                                                  .mlen  = 0,
+                                                  .flags = 0}}))
                         continue;
 
                 switch (data.ch) {
@@ -138,7 +141,7 @@ separate_and_sort(bstring *output)
 {
         uint8_t *bak = output->data;
         b_list  *ret = b_list_create();
-        bstring  tok = {0, 0, NULL, 0};
+        bstring  tok = BSTR_STATIC_INIT;
         while (b_memsep(&tok, output, '\n')) {
                 bstring *tmp = b_refblk(tok.data, tok.slen);
 
@@ -162,7 +165,7 @@ separate_and_sort(bstring *output)
 }
 
 static inline bool
-ident_is_ignored(Buffer *bdata, const bstring *tok)
+ident_is_ignored(Buffer *bdata, bstring const *tok)
 {
         if (!bdata->ft->ignored_tags)
                 return false;

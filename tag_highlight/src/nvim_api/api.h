@@ -35,36 +35,36 @@ struct nvim_wait {
 /*============================================================================*/
 /* API Wrappers */
 
-extern void           _nvim_write             (enum nvim_write_type type, const bstring *mes);
-extern void           nvim_printf             (const char *__restrict fmt, ...) __aFMT(1, 2);
-extern void           nvim_vprintf            (const char *__restrict fmt, va_list args) __aFMT(1, 0);
-extern void           nvim_b_printf           (const bstring *fmt, ...);
-extern retval_t       nvim_get_var_fmt        (mpack_expect_t expect, const char *fmt, ...) __aFMT(2, 3) __aWUR;
-extern int            nvim_buf_add_highlight  (unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-extern mpack_dict_t * nvim_get_hl_by_name     (const bstring *name, bool rgb) __aWUR;
-extern mpack_dict_t * nvim_get_hl_by_id       (int hlid, bool rgb) __aWUR;
-extern void           nvim_buf_attach         (int bufnum);
-extern void           nvim_buf_clear_highlight(unsigned bufnum, int hl_id, unsigned start, int end);
-extern unsigned       nvim_buf_get_changedtick(int bufnum);
-extern b_list       * nvim_buf_get_lines      (unsigned bufnum, int start, int end) __aWUR;
-extern bstring      * nvim_buf_get_name       (int bufnum) __aWUR;
-extern retval_t       nvim_buf_get_option     (int bufnum, const bstring *optname, mpack_expect_t expect) __aWUR;
-extern retval_t       nvim_buf_get_var        (int bufnum, const bstring *varname, mpack_expect_t expect) __aWUR;
-extern unsigned       nvim_buf_line_count     (int bufnum);
-extern void           nvim_call_atomic        (const struct mpack_arg_array *calls);
-extern retval_t       nvim_call_function      (const bstring *function, mpack_expect_t expect) __aWUR;
-extern retval_t       nvim_call_function_args (const bstring *function, mpack_expect_t expect, const bstring *fmt, ...) __aWUR;
-extern bool           nvim_command            (const bstring *cmd);
-extern retval_t       nvim_command_output     (const bstring *cmd, mpack_expect_t expect) __aWUR;
-extern retval_t       nvim_eval               (const bstring *eval, mpack_expect_t expect) __aWUR;
-extern void           nvim_get_api_info       (void);
-extern int            nvim_get_current_buf    (void);
-extern bstring      * nvim_get_current_line   (void) __aWUR;
-extern retval_t       nvim_get_option         (const bstring *optname, mpack_expect_t expect) __aWUR;
-extern retval_t       nvim_get_var            (const bstring *varname, mpack_expect_t expect) __aWUR;
-extern retval_t       nvim_list_bufs          (void) __aWUR;
-extern void           nvim_subscribe          (const bstring *event);
-extern bool           nvim_set_var            (const bstring *varname, const bstring *fmt, ...);
+extern void           _nvim_write              (enum nvim_write_type type, const bstring *mes);
+extern void           nvim_printf              (const char *__restrict fmt, ...) __aFMT(1, 2);
+extern void           nvim_vprintf             (const char *__restrict fmt, va_list args) __aFMT(1, 0);
+extern void           nvim_b_printf            (const bstring *fmt, ...);
+extern mpack_retval   nvim_get_var_fmt         (mpack_expect_t expect, const char *fmt, ...) __aFMT(2, 3) __aWUR;
+extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
+extern mpack_dict   * nvim_get_hl_by_name      (const bstring *name, bool rgb) __aWUR;
+extern mpack_dict   * nvim_get_hl_by_id        (int hlid, bool rgb) __aWUR;
+extern void           nvim_buf_attach          (int bufnum);
+extern void           nvim_buf_clear_highlight (unsigned bufnum, int hl_id, unsigned start, int end, bool blocking);
+extern unsigned       nvim_buf_get_changedtick (int bufnum);
+extern b_list       * nvim_buf_get_lines       (unsigned bufnum, int start, int end) __aWUR;
+extern bstring      * nvim_buf_get_name        (int bufnum) __aWUR;
+extern mpack_retval   nvim_buf_get_option      (int bufnum, const bstring *optname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_buf_get_var         (int bufnum, const bstring *varname, mpack_expect_t expect) __aWUR;
+extern unsigned       nvim_buf_line_count      (int bufnum);
+extern void           nvim_call_atomic         (const struct mpack_arg_array *calls);
+extern mpack_retval   nvim_call_function       (const bstring *function, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_call_function_args  (const bstring *function, mpack_expect_t expect, const bstring *fmt, ...) __aWUR;
+extern bool           nvim_command             (const bstring *cmd);
+extern mpack_retval   nvim_command_output      (const bstring *cmd, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_eval                (const bstring *eval, mpack_expect_t expect) __aWUR;
+extern void           nvim_get_api_info        (void);
+extern int            nvim_get_current_buf     (void);
+extern bstring      * nvim_get_current_line    (void) __aWUR;
+extern mpack_retval   nvim_get_option          (const bstring *optname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_get_var             (const bstring *varname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_list_bufs           (void) __aWUR;
+extern void           nvim_subscribe           (const bstring *event);
+extern bool           nvim_set_var             (const bstring *varname, const bstring *fmt, ...);
 
 extern void nvim_set_client_info(const bstring *name, unsigned major, unsigned minor, const bstring *dev,
                                  const bstring *type, const void *methods, const void *attributes);
@@ -114,6 +114,9 @@ extern int _nvim_api_read_fd;
 #define _nvim_get_tmpfile(...)              P99_CALL_DEFARG(_nvim_get_tmpfile, 2, __VA_ARGS__)
 #define _nvim_get_tmpfile_defarg_0()        NULL
 #define _nvim_get_tmpfile_defarg_1()        NULL
+
+#define nvim_buf_clear_highlight(...)       P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
+#define nvim_buf_clear_highlight_defarg_4() false
 
 /*============================================================================*/
 #ifdef __cplusplus

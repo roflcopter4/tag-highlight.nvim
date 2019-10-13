@@ -16,7 +16,7 @@
 
 static bool is_c_or_cpp;
 
-static struct taglist *tok_search   (const Buffer *bdata, b_list *vimbuf);
+static struct taglist *tok_search   (Buffer const *bdata, b_list *vimbuf);
 static void           *do_tok_search(void *vdata);
 
 
@@ -36,23 +36,25 @@ process_tags(Buffer *bdata, b_list *toks)
 
 
 static inline void
-add_tag_to_list(struct taglist **list, struct tag *tag)
+add_tag_to_list(struct taglist **listp, struct tag *tag)
 {
-        if (!list || !*list || !(*list)->lst || !tag)
+        if (!listp || !*listp || !(*listp)->lst || !tag)
                 return;
-        if ((*list)->qty >= ((*list)->mlen - 1))
-                (*list)->lst = nrealloc((*list)->lst, ((*list)->mlen <<= 1),
-                                        sizeof(struct tag *));
-        (*list)->lst[(*list)->qty++] = tag;
+        struct taglist *const list = *listp;
+
+        if (list->qty >= (list->mlen - 1))
+                list->lst = nrealloc(list->lst, (list->mlen <<= 1),
+                                     sizeof(struct tag *));
+        list->lst[list->qty++] = tag;
 }
 
 
 static int
-tag_cmp(const void *vA, const void *vB)
+tag_cmp(void const *vA, const void *vB)
 {
         int ret;
-        const struct tag *sA = *(struct tag *const*)(vA);
-        const struct tag *sB = *(struct tag *const*)(vB);
+        struct tag const *sA = *(struct tag *const*)(vA);
+        struct tag const *sB = *(struct tag *const*)(vB);
 
         if (sA->kind == sB->kind) {
                 if (sA->b->slen == sB->b->slen)
@@ -70,7 +72,7 @@ tag_cmp(const void *vA, const void *vB)
 
 
 static bool
-in_order(const b_list *equiv, const bstring *order, char *kind)
+in_order(b_list const *equiv, const bstring *order, char *kind)
 {
         /* `kind' is actually a pointer to a char, not a C bstring. */
         if (equiv)
@@ -85,7 +87,7 @@ in_order(const b_list *equiv, const bstring *order, char *kind)
 
 
 static bool
-is_correct_lang(const bstring *lang, CONST__ bstring *match_lang)
+is_correct_lang(bstring const *lang, CONST__ bstring *match_lang)
 {
 #ifdef DOSISH
         if (match_lang->data[match_lang->slen - 1] == '\r')
@@ -100,7 +102,7 @@ is_correct_lang(const bstring *lang, CONST__ bstring *match_lang)
 
 
 static bool
-skip_tag(const b_list *skip, const bstring *find)
+skip_tag(b_list const *skip, const bstring *find)
 {
         if (skip && skip->lst && skip->qty)
                 for (unsigned i = 0; i < skip->qty; ++i)
@@ -158,21 +160,26 @@ remove_duplicate_tags(struct taglist **taglist_p)
 /*============================================================================*/
 
 
-struct pdata {
-        const b_list   *vim_buf;
-        const b_list   *skip;
-        const b_list   *equiv;
-        const bstring  *lang;
-        const bstring  *order;
-        const bstring  *filename;
+#if defined __GNUC__ && !defined __clang__
+#  define __aDESINIT __attribute__((__designated_init__))
+#else
+#  define __aDESINIT
+#endif
+
+struct __aDESINIT pdata {
+        b_list  const  *vim_buf;
+        b_list  const  *skip;
+        b_list  const  *equiv;
+        bstring const  *lang;
+        bstring const  *order;
+        bstring const  *filename;
         bstring       **lst;
         unsigned        num;
-        unsigned        thnum;
 };
 
 
 static struct taglist *
-tok_search(const Buffer *bdata, b_list *vimbuf)
+tok_search(Buffer const *bdata, b_list *vimbuf)
 {
         if (!bdata)
                 errx(1, "NEOTAGS ERROR: bdata is null\n");
@@ -218,21 +225,20 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
         /* Launch the actual search in separate threads, with each handling as
          * close to an equal number of tags as the math allows. */
         for (unsigned i = 0; i < num_threads; ++i) {
-                struct pdata *tmp = malloc(sizeof(*tmp));
-                unsigned quot = tags->qty / num_threads;
-                unsigned num  = (i == num_threads - 1)
-                                   ? (tags->qty - ((num_threads - 1) * quot))
-                                   : quot;
+                struct pdata  *tmp  = calloc(1, sizeof(*tmp));
+                unsigned const quot = tags->qty / num_threads;
+                unsigned const num  = (i == num_threads - 1)
+                                         ? (tags->qty - ((num_threads - 1) * quot))
+                                         : quot;
 
-                *tmp = (struct pdata){uniq,
-                                      bdata->ft->ignored_tags,
-                                      bdata->ft->equiv,
-                                     &bdata->ft->ctags_name,
-                                      bdata->ft->order,
-                                      bdata->name.full,
-                                     &tags->lst[i * quot],
-                                      num,
-                                      i};
+                *tmp = (struct pdata){.vim_buf  =  uniq,
+                                      .skip     =  bdata->ft->ignored_tags,
+                                      .equiv    =  bdata->ft->equiv,
+                                      .lang     = &bdata->ft->ctags_name,
+                                      .order    =  bdata->ft->order,
+                                      .filename =  bdata->name.full,
+                                      .lst      = &tags->lst[i * quot],
+                                      .num      =  num};
 
                 if (pthread_create(tid + i, NULL, &do_tok_search, tmp) != 0)
                         err(1, "pthread_create failed");
@@ -275,9 +281,7 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
         }
 
         qsort(alldata, total, sizeof(*alldata), &tag_cmp);
-        ECHO("There are %u tags...", ret->qty);
         remove_duplicate_tags(&ret);
-        ECHO("Now there are %u tags...", ret->qty);
 
         free(tid);
         free(out);
@@ -291,15 +295,12 @@ tok_search(const Buffer *bdata, b_list *vimbuf)
 static void *
 do_tok_search(void *vdata)
 {
-        struct pdata   *data = vdata;
-        if (data->num == 0) {
+        struct pdata *data = vdata;
+        if (data->num == 0)
                 pthread_exit(NULL);
-        }
-        struct taglist *ret  = malloc(sizeof(*ret));
-        *ret = (struct taglist){
-                .lst = nmalloc(INIT_MAX, sizeof(*ret->lst)),
-                .qty = 0, .mlen = INIT_MAX
-        };
+
+        struct taglist *ret = malloc(sizeof(*ret));
+        *ret = (struct taglist){ nmalloc(INIT_MAX, sizeof(*ret->lst)), 0, INIT_MAX };
 
         for (unsigned i = 0; i < data->num; ++i) {
                 /* Skip empty lines and comments. */
@@ -308,24 +309,23 @@ do_tok_search(void *vdata)
                 if (data->lst[i]->data[0] == '!')
                         continue;
 
-                bstring *cpy      = b_strcpy(data->lst[i]);
-                uchar   *cpy_data = cpy->data;
-                LOG("cpy is '%s'\n", BS(cpy));
+                bstring  name[]       = {BSTR_STATIC_INIT};
+                bstring  tok[]        = {BSTR_STATIC_INIT};
+                bstring  match_file[] = {BSTR_STATIC_INIT};
+                bstring  match_lang[] = {BSTR_STATIC_INIT};
+                bstring *namep        = name;
+                bstring *cpy          = b_strcpy(data->lst[i]);
+                uchar   *cpy_data     = cpy->data;
+                char      kind        = '\0';
 
-                bstring *name       = &(bstring){0, 0, NULL, 0u};
-                bstring *match_file = &(bstring){0, 0, NULL, 0u};
-                bstring *namep = name;
+                LOG("cpy is '%s'\n", BS(cpy));
 
                 /* The name is first, followed by two fields we don't need. */
                 b_memsep(name, cpy, '\t');
                 b_memsep(match_file, cpy, '\t');
-                const int64_t pos = b_strchr(cpy, '\t');
+                int64_t const pos = b_strchr(cpy, '\t');
                 cpy->data += pos;
                 cpy->slen -= pos;
-
-                char kind = '\0';
-                bstring *match_lang = &(bstring){0, 0, NULL, 0u};;
-                bstring *tok        = &(bstring){0, 0, NULL, 0u};;
 
                 LOG("found name: '%s', len: %u\t-\tmatch_file: '%s', len: %u\n",
                     BS(name), name->slen, BS(match_file), match_file->slen);
@@ -356,8 +356,6 @@ do_tok_search(void *vdata)
                  *    4) are present in the current vim buffer.
                  * If invalid, just move on. 
                  */
-#if !defined(DEBUG) || !defined(LOG_NEOTAGS)
-
                 if ( in_order(data->equiv, data->order, &kind) &&
                      is_correct_lang(data->lang, match_lang) &&
                     !skip_tag(data->skip, name) &&
@@ -371,33 +369,6 @@ do_tok_search(void *vdata)
                         add_tag_to_list(&ret, tag);
                 }
 
-#else
-#  define REJECT_TAG(REASON)                                                 \
-        (fprintf(thislog, "Rejecting tag %c - %-20s - %-40s - (%d)-\t%s.\n", \
-                 kind, BS(match_lang), BS(name), name->slen, (REASON)))
-
-                if (!in_order(data->equiv, data->order, &kind))
-                        REJECT_TAG("not in order");
-                else if (!is_correct_lang(data->lang, match_lang))
-                        REJECT_TAG("wrong language");
-                else if (skip_tag(data->skip, name))
-                        REJECT_TAG("in skip list");
-                else if (!(b_iseq(data->filename, match_file))) {
-                        REJECT_TAG("not in specified file");
-                        if (bsearch(&namep, data->vim_buf->lst, data->vim_buf->qty,
-                                    sizeof(bstring *), &b_strcmp_fast_wrap))
-                                goto lazy;
-                        REJECT_TAG("also not in buffer");
-                } else {
-                lazy:
-                        LOG("Accepting tag %c - %-20s - %-40s\n",
-                            kind, BS(match_lang), BS(name));
-                        bstring    *tmp = b_fromblk(name->data, name->slen);
-                        struct tag *tag = malloc(sizeof(*tag));
-                        *tag            = (struct tag){.b = tmp, .kind = kind};
-                        add_tag_to_list(&ret, tag);
-                }
-#endif
                 free(cpy_data);
                 free(cpy);
         }

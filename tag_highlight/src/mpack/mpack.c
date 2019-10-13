@@ -3,8 +3,14 @@
 /* #include "highlight.h" */
 #include "mpack.h"
 
+struct item_free_stack {
+        mpack_obj **items;
+        uint32_t    qty;
+        uint32_t    max;
+};
+
 static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);
-static mpack_obj *find_key_value (mpack_dict_t *dict, const bstring *key);
+static mpack_obj *find_key_value (mpack_dict *dict, bstring const *key) __attribute__((pure));
 static void       free_stack_push(struct item_free_stack *list, void *item);
 
 FILE  *mpack_log;
@@ -13,29 +19,29 @@ FILE  *mpack_log;
 #  define PRAGMA_NO_NONHEAP()           \
         _Pragma("GCC diagnostic push"); \
         _Pragma("GCC diagnostic ignored \"-Wfree-nonheap-object\"")
-#  define PRAGMA_NO_NONHEAP_POP() _Pragma("GCC diagnostic pop")
+#  define PRAGMA_NO_NONHEAP_POP() \
+        _Pragma("GCC diagnostic pop")
 #else
 #  define PRAGMA_NO_NONHEAP()
 #  define PRAGMA_NO_NONHEAP_POP()
 #endif
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-braces"
 
 pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
 __attribute__((__constructor__))
-static void _mpack_mutex_constructor(void) { 
-        pthread_mutexattr_t attr = { 0 };
+static void _mpack_mutex_constructor(void)
+{
+        pthread_mutexattr_t attr;
+        memset(&attr, 0, sizeof(attr));
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&mpack_rw_lock, &attr);
 }
-#pragma GCC diagnostic pop
 
 /*======================================================================================*/
 
-retval_t
-(m_expect)(mpack_obj *const obj, const mpack_expect_t type, bool destroy)
+mpack_retval
+(mpack_expect)(mpack_obj *const obj, mpack_expect_t const type, bool destroy)
 {
-        retval_t     ret = {.ptr = NULL};
+        mpack_retval ret = {.ptr = NULL};
         uint64_t     value;
         mpack_type_t err_expect;
         pthread_mutex_lock(&mpack_rw_lock);
@@ -47,7 +53,7 @@ retval_t
                 fflush(mpack_log);
         }
 
-        const mpack_type_t obj_type = mpack_type(obj);
+        mpack_type_t const obj_type = mpack_type(obj);
 
         switch (type) {
         case E_MPACK_ARRAY:
@@ -150,29 +156,29 @@ void
 mpack_destroy_object(mpack_obj *root)
 {
         pthread_mutex_lock(&mpack_rw_lock);
-        if (!(root->flags & MPACK_ENCODE)) {
-                if (root->flags & MPACK_HAS_PACKED)
+
+        if (!(root->flags & MPACKFLG_ENCODE)) {
+                if (root->flags & MPACKFLG_HAS_PACKED)
                         b_destroy(*root->packed);
 
                 /* This gcc specific warning is a false positive. Non-heap
                  * objects all have the `phony' flag and won't be free'd. */
                 PRAGMA_NO_NONHEAP();
-
-                if (!(root->flags & MPACK_PHONY))
+                if (!(root->flags & MPACKFLG_PHONY))
                         free(root);
                 PRAGMA_NO_NONHEAP_POP();
                 pthread_mutex_unlock(&mpack_rw_lock);
                 return;
         }
 
-        struct item_free_stack tofree = { nmalloc(1024, sizeof(void *)), 0, 1024 };
+        struct item_free_stack tofree = {nmalloc(1024, sizeof(void *)), 0, 1024};
         collect_items(&tofree, root);
 
         for (int64_t i = (int64_t)(tofree.qty - 1); i >= 0; --i) {
                 mpack_obj *cur = tofree.items[i];
                 if (!cur)
                         continue;
-                if (!(cur->flags & MPACK_SPARE_DATA)) {
+                if (!(cur->flags & MPACKFLG_SPARE_DATA)) {
                         switch (mpack_type(cur)) {
                         case MPACK_ARRAY:
                                 if (cur->data.arr) {
@@ -202,9 +208,9 @@ mpack_destroy_object(mpack_obj *root)
                         }
                 }
 
-                if (cur->flags & MPACK_HAS_PACKED)
+                if (cur->flags & MPACKFLG_HAS_PACKED)
                         b_destroy(*cur->packed);
-                if (!(cur->flags & MPACK_PHONY))
+                if (!(cur->flags & MPACKFLG_PHONY))
                         free(cur);
         }
 
@@ -218,7 +224,7 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
         if (!item)
                 return;
         free_stack_push(tofree, item);
-        if (item->flags & MPACK_SPARE_DATA)
+        if (item->flags & MPACKFLG_SPARE_DATA)
                 return;
 
         switch (mpack_type(item)) {
@@ -230,6 +236,7 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
                         if (item->DAI[i])
                                 collect_items(tofree, item->DAI[i]);
                 break;
+
         case MPACK_DICT:
                 if (!item->data.dict)
                         return;
@@ -241,8 +248,10 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
                                 collect_items(tofree, item->DDE[i]->value);
                 }
                 break;
+
         case MPACK_UNINITIALIZED:
                 errx(1, "Got uninitialized item to free!");
+
         default:
                 break;
         }
@@ -261,11 +270,11 @@ free_stack_push(struct item_free_stack *list, void *item)
 /* Type conversions */
 
 b_list *
-mpack_array_to_blist(mpack_array_t *array, const bool destroy)
+mpack_array_to_blist(mpack_array *array, bool const destroy)
 {
         if (!array)
                 return NULL;
-        const unsigned size = array->qty;
+        unsigned const size = array->qty;
         b_list        *ret  = b_list_create_alloc(size);
 
         if (destroy) {
@@ -274,7 +283,7 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
                         b_list_append(&ret, array->items[i]->data.str);
                 }
 
-                destroy_mpack_array(array);
+                mpack_array_destroy(array);
                 b_list_writeallow(ret);
         } else {
                 for (unsigned i = 0; i < size; ++i)
@@ -284,20 +293,20 @@ mpack_array_to_blist(mpack_array_t *array, const bool destroy)
         return ret;
 }
 
-retval_t
-dict_get_key(mpack_dict_t *dict, const mpack_expect_t expect, const bstring *key)
+mpack_retval
+mpack_dict_get_key(mpack_dict *dict, mpack_expect_t const expect, bstring const *key)
 {
         assert(dict && key);
 
         mpack_obj *tmp = find_key_value(dict, key);
         if (!tmp)
-                return (retval_t){ .ptr = NULL };
+                return (mpack_retval){ .ptr = NULL };
 
-        return m_expect(tmp, expect, false);
+        return mpack_expect(tmp, expect, false);
 }
 
 static mpack_obj *
-find_key_value(mpack_dict_t *dict, const bstring *key)
+find_key_value(mpack_dict *dict, bstring const *key)
 {
         for (unsigned i = 0; i < dict->qty; ++i)
                 if (b_iseq(dict->entries[i]->key->data.str, key))
@@ -315,7 +324,7 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
                 return;
         for (unsigned i = 0; i < calls->qty; ++i) {
                 unsigned x = 0;
-                for (const char *ptr = calls->fmt[i]; *ptr; ++ptr) {
+                for (char const *ptr = calls->fmt[i]; *ptr; ++ptr) {
                         switch (*ptr) {
                         case 'b': case 'B':
                         case 'd': case 'D':
@@ -449,23 +458,23 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
  * All errors are fatal.
  */
 mpack_obj *
-mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
+mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
 {
         assert(fmt != NULL && *fmt != '\0');
-        const unsigned arr_size = (size_hint)
+        unsigned const arr_size = (size_hint)
                                     ? ENCODE_FMT_ARRSIZE + (size_hint * 6U)
                                     : ENCODE_FMT_ARRSIZE;
 
         unsigned         sub_lengths[arr_size];
         int              ch;
         va_list          args;
-        va_list         *ref         = NULL;
-        mpack_argument **a_args      = NULL;
-        const char      *ptr         = fmt;
-        unsigned        *cur_len     = &sub_lengths[0];
-        unsigned         len_ctr     = 1;
-        int              next_type   = OWN_VALIST;
-        *cur_len                     = 0;
+        va_list         *ref       = NULL;
+        mpack_argument **a_args    = NULL;
+        char const      *ptr       = fmt;
+        unsigned        *cur_len   = &sub_lengths[0];
+        unsigned         len_ctr   = 1;
+        int              next_type = OWN_VALIST;
+        *cur_len                   = 0;
 
 #ifdef DEBUG
         memset(sub_lengths, 0, (size_t)arr_size * sizeof(*sub_lengths));
@@ -554,39 +563,39 @@ mpack_encode_fmt(const unsigned size_hint, const char *const restrict fmt, ...)
                         bool arg = 0;
                         NEXT(arg, int, boolean);
                         mpack_encode_boolean(pack, cur_obj, arg);
-                        break;
-                }
+                }       break;
+
                 case 'd': case 'D': {
                         int arg = 0;
                         NEXT(arg, int, num);
                         mpack_encode_integer(pack, cur_obj, arg);
-                        break;
-                }
+                }       break;
+
                 case 'l': case 'L': {
                         int64_t arg = 0;
                         NEXT(arg, int64_t, num);
                         mpack_encode_integer(pack, cur_obj, arg);
-                        break;
-                }
+                }       break;
+
                 case 'u': {
                         uint64_t arg = 0;
                         NEXT(arg, uint64_t, uint);
                         mpack_encode_unsigned(pack, cur_obj, arg);
-                        break;
-                }
+                }       break;
+
                 case 's': case 'S': {
                         bstring *arg = NULL;
                         NEXT(arg, bstring *, str);
                         mpack_encode_string(pack, cur_obj, arg);
-                        break;
-                }
+                }       break;
+
                 case 'c': case 'C': {
-                        const char *arg;
+                        char const *arg;
                         NEXT(arg, char *, c_str);
                         bstring tmp = bt_fromcstr(arg);
                         mpack_encode_string(pack, cur_obj, &tmp);
-                        break;
-                }
+                }       break;
+
                 case 'n': case 'N':
                         mpack_encode_nil(pack, cur_obj);
                         break;

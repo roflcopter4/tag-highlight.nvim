@@ -109,13 +109,14 @@ await_package(_nvim_wait_node *node)
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
         p99_futex_wait(&node->fut);
+        mpack_obj *ret = atomic_load(&node->obj);
 
-        if (!node->obj)
+        if (!ret)
                 errx(1, "null object");
 
         /* p99_futex_wakeup(&event_loop_futex, 1u, 1u); */
 
-        return node->obj;
+        return ret;
 }
 
 static noreturn void *
@@ -189,22 +190,22 @@ static mpack_obj *
 
 /*======================================================================================*/
 
-retval_t
+mpack_retval
 m_expect_intern(mpack_obj *root, mpack_expect_t type)
 {
-        mpack_obj *errmsg = m_index(root, 2);
-        mpack_obj *data   = m_index(root, 3);
-        retval_t   ret    = { .ptr = NULL };
+        mpack_obj *errmsg = mpack_index(root, 2);
+        mpack_obj *data   = mpack_index(root, 3);
+        mpack_retval   ret    = { .ptr = NULL };
 
         if (mpack_type(errmsg) != MPACK_NIL) {
-                bstring *err_str = m_expect(m_index(errmsg, 1), E_STRING, true).ptr;
+                bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, true).ptr;
                 if (err_str) {
                         warnx("Neovim returned with an err_str: '%s'", BS(err_str));
                         b_destroy(err_str);
                         root->DAI[2] = NULL;
                 }
         } else {
-                ret          = m_expect(data, type, true);
+                ret          = mpack_expect(data, type, true);
                 root->DAI[3] = NULL;
         }
 

@@ -30,7 +30,13 @@
 #  define BSTR_UNUSED
 #endif
 
-#if !defined(__GNUC__)
+#if defined(__GNUC__)
+#  if !defined(__clang__)
+#    define __aDESINIT __attribute__((__designated_init__))
+#  else
+#    define __aDESINIT
+#  endif
+#else
 #  define __attribute__(...)
 #endif
 
@@ -77,19 +83,18 @@ enum BSTR_flags {
 typedef struct bstring_s    bstring;
 typedef struct bstring_list b_list;
 
-struct bstring_s {
+struct __aDESINIT bstring_s {
+        unsigned char *data;
         unsigned int   slen;
         unsigned int   mlen;
-        unsigned char *data;
         unsigned char  flags;
 };
 #pragma pack(pop)
 
-struct bstring_list {
+struct __aDESINIT bstring_list {
+        bstring **lst;
         unsigned  qty;
         unsigned  mlen;
-        bstring **lst;
-        pthread_rwlock_t lock;
 };
 
 #ifdef __cplusplus

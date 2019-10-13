@@ -13,8 +13,8 @@
 
 typedef volatile p99_futex vfutex_t;
 
-P44_DECLARE_FIFO(mpack_obj_node);
-P44_DECLARE_LIFO(mpack_obj_node);
+P99_DECLARE_FIFO(mpack_obj_node);
+P99_DECLARE_LIFO(mpack_obj_node);
 struct mpack_obj_node {
         mpack_obj      *obj;
         mpack_obj_node *p99_fifo;
@@ -24,8 +24,8 @@ struct mpack_obj_node {
 
 
 #if 0
-P44_DECLARE_FIFO(nvim_wait_queue);
-P44_DECLARE_LIFO(nvim_wait_queue);
+P99_DECLARE_FIFO(nvim_wait_queue);
+P99_DECLARE_LIFO(nvim_wait_queue);
 struct nvim_wait_queue {
         vfutex_t *volatile  fut;
         mpack_obj          *obj;

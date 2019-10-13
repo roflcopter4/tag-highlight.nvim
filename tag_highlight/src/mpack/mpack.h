@@ -34,23 +34,27 @@ enum mpack_expect_types {
 };
 
 enum mpack_flag_values {
-        MPACK_SPARE_DATA = 0x10U,
-        MPACK_PHONY      = 0x20U,
-        MPACK_ENCODE     = 0x40U,
-        MPACK_HAS_PACKED = 0x80U,
+        MPACKFLG_SPARE_DATA = 0x10U,
+        MPACKFLG_PHONY      = 0x20U,
+        MPACKFLG_ENCODE     = 0x40U,
+        MPACKFLG_HAS_PACKED = 0x80U,
 };
 
 #define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0FU)
-#define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACK_SPARE_DATA))
-#define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACK_SPARE_DATA))
+#define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACKFLG_SPARE_DATA))
+#define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACKFLG_SPARE_DATA))
 
 typedef struct mpack_object       mpack_obj;
-typedef struct mpack_ext          mpack_ext_t;
-typedef struct mpack_array        mpack_array_t;
-typedef struct mpack_dictionary   mpack_dict_t;
-typedef struct dict_ent           mpack_dict_ent_t;
-typedef   enum mpack_types        mpack_type_t;
-typedef   enum mpack_expect_types mpack_expect_t;
+typedef struct mpack_arg_array    mpack_arg_array;
+typedef struct mpack_array        mpack_array;
+typedef struct mpack_dict_ent     mpack_dict_ent;
+typedef struct mpack_dictionary   mpack_dict;
+typedef struct mpack_ext          mpack_ext;
+typedef enum   mpack_expect_types mpack_expect_t;
+typedef enum   mpack_types        mpack_type_t;
+typedef union  mpack_argument     mpack_argument;
+typedef union  mpack_retval       mpack_retval;
+
 
 #pragma pack(push, 1)
 
@@ -60,16 +64,16 @@ struct mpack_object {
                 int16_t        nil;
                 uint64_t       num; /* An unsigned var can hold a signed value */
                 bstring       *str;
-                mpack_array_t *arr;
-                mpack_dict_t  *dict;
-                mpack_ext_t   *ext;
+                mpack_array *arr;
+                mpack_dict  *dict;
+                mpack_ext   *ext;
         } data;
         uint8_t  flags;
         bstring *packed[];
 };
 
 struct mpack_dictionary {
-        struct dict_ent {
+        struct mpack_dict_ent {
                 mpack_obj *key;
                 mpack_obj *value;
         } **entries;
@@ -90,10 +94,6 @@ struct mpack_ext {
 
 #pragma pack(pop)
 
-typedef struct mpack_arg_array  mpack_arg_array;
-typedef union  mpack_argument   mpack_argument;
-typedef union  retval           retval_t;
-
 struct mpack_arg_array {
         char **fmt;
         union mpack_argument {
@@ -108,13 +108,7 @@ struct mpack_arg_array {
         uint32_t mlen;
 };
 
-struct item_free_stack {
-        mpack_obj **items;
-        uint32_t    qty;
-        uint32_t    max;
-};
-
-union retval {
+union mpack_retval {
         void    *ptr;
         uint64_t num;
 };
@@ -144,32 +138,32 @@ extern mpack_obj * mpack_encode_fmt       (unsigned size_hint, const char *fmt, 
 /*============================================================================*/
 /* Type conversions and Misc */
 
-extern b_list   * mpack_array_to_blist(mpack_array_t *array, bool destroy);
-extern retval_t   dict_get_key        (mpack_dict_t *dict, mpack_expect_t expect, const bstring *key);
-extern retval_t   m_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
+extern b_list *     mpack_array_to_blist(mpack_array *array, bool destroy);
+extern mpack_retval mpack_dict_get_key  (mpack_dict *dict, mpack_expect_t expect, const bstring *key);
+extern mpack_retval mpack_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
 extern pthread_mutex_t mpack_rw_lock;
 
 ALWAYS_INLINE void
-destroy_mpack_dict(mpack_dict_t *dict)
+mpack_dict_destroy(mpack_dict *dict)
 {
         mpack_obj tmp;
-        tmp.flags     = MPACK_DICT | MPACK_ENCODE | MPACK_PHONY;
+        tmp.flags     = MPACK_DICT | MPACKFLG_ENCODE | MPACKFLG_PHONY;
         tmp.data.dict = dict;
         mpack_destroy_object(&tmp);
 }
 
 ALWAYS_INLINE void
-destroy_mpack_array(mpack_array_t *array)
+mpack_array_destroy(mpack_array *array)
 {
         mpack_obj tmp;
-        tmp.flags    = MPACK_ARRAY | MPACK_ENCODE | MPACK_PHONY;
+        tmp.flags    = MPACK_ARRAY | MPACKFLG_ENCODE | MPACKFLG_PHONY;
         tmp.data.arr = array;
         mpack_destroy_object(&tmp);
 }
 
 ALWAYS_INLINE mpack_obj *
-m_index(mpack_obj *obj, const unsigned index)
+mpack_index(mpack_obj *obj, const unsigned index)
 {
         mpack_obj *ret = NULL;
         pthread_mutex_lock(&mpack_rw_lock);
@@ -197,8 +191,8 @@ extern FILE *mpack_log;
 #ifdef MPACK_USE_P99
 #  include "contrib/p99/p99_defarg.h"
 #  include "contrib/p99/p99_map.h"
-#  define m_expect(...) P99_CALL_DEFARG(m_expect, 3, __VA_ARGS__)
-#  define m_expect_defarg_2() false
+#  define mpack_expect(...) P99_CALL_DEFARG(mpack_expect, 3, __VA_ARGS__)
+#  define mpack_expect_defarg_2() false
 #endif
 
 

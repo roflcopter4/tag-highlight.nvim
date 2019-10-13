@@ -17,8 +17,8 @@ static void update_from_cache(Buffer *bdata);
 static void add_cmd_call(mpack_arg_array **calls, bstring *cmd);
 static void update_c_like(Buffer *bdata, int type);
 static void update_other(Buffer *bdata);
-static int  handle_kind(bstring *cmd, unsigned i,   const struct filetype *ft,
-                        const struct taglist *tags, const struct cmd_info *info);
+static int  handle_kind(bstring *cmd, unsigned i,   struct filetype const *ft,
+                        struct taglist const *tags, struct cmd_info const *info);
 
 #if defined DEBUG && defined DEBUG_LOGS
 extern FILE *cmd_log;
@@ -30,16 +30,18 @@ extern FILE *cmd_log;
 /*======================================================================================*/
 
 void
-(update_highlight)(Buffer *bdata, const enum update_highlight_type type)
+(update_highlight)(Buffer *bdata, enum update_highlight_type const type)
 {
+#if 0
         struct timer *t = TIMER_INITIALIZER;
         TIMER_START(t);
+#endif
 
         if (!bdata || !bdata->topdir || !bdata->lines || bdata->lines->qty <= 1)
                 return;
 
         echo("Updating commands for bufnum %d", bdata->num);
-        pthread_mutex_lock(&bdata->lock.update);
+        pthread_mutex_lock(&bdata->lock.total);
 
         if (bdata->ft->has_parser) {
                 if (bdata->ft->is_c) {
@@ -70,12 +72,14 @@ void
                         update_other(bdata);
         }
 
-        pthread_mutex_unlock(&bdata->lock.update);
+        pthread_mutex_unlock(&bdata->lock.total);
+#if 0
         TIMER_REPORT(t, "update highlight");
+#endif
 }
 
 static void
-update_c_like(Buffer *bdata, const int type)
+update_c_like(Buffer *bdata, int const type)
 {
         libclang_highlight(bdata,,,type);
         if (!bdata->topdir->tags && bdata->initialized)
@@ -141,21 +145,21 @@ retry:
 static mpack_arg_array *
 update_commands(Buffer *bdata, struct taglist *tags)
 {
-        const unsigned  ngroups = bdata->ft->order->slen;
+        unsigned const  ngroups = bdata->ft->order->slen;
         struct cmd_info info[ngroups];
 
         for (unsigned i = 0; i < ngroups; ++i) {
-                const int     ch   = bdata->ft->order->data[i];
-                mpack_dict_t *dict = nvim_get_var_fmt(
+                int const   ch   = bdata->ft->order->data[i];
+                mpack_dict *dict = nvim_get_var_fmt(
                         E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind   = ch;
-                info[i].group  = dict_get_key(dict, E_STRING, B("group")).ptr;
-                info[i].prefix = dict_get_key(dict, E_STRING, B("prefix")).ptr;
-                info[i].suffix = dict_get_key(dict, E_STRING, B("suffix")).ptr;
+                info[i].group  = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
+                info[i].prefix = mpack_dict_get_key(dict, E_STRING, B("prefix")).ptr;
+                info[i].suffix = mpack_dict_get_key(dict, E_STRING, B("suffix")).ptr;
 
                 b_writeprotect_all(info[i].group, info[i].prefix, info[i].suffix);
-                destroy_mpack_dict(dict);
+                mpack_dict_destroy(dict);
                 b_writeallow_all(info[i].group, info[i].prefix, info[i].suffix);
         }
 
@@ -192,9 +196,9 @@ update_commands(Buffer *bdata, struct taglist *tags)
 
 static int
 handle_kind(bstring *const cmd, unsigned i,
-            const struct filetype *ft,
-            const struct taglist  *tags,
-            const struct cmd_info *info)
+            struct filetype const *ft,
+            struct taglist const  *tags,
+            struct cmd_info const *info)
 {
         bstring *group_id = b_sprintf("_tag_highlight_%s_%c_%s",
                                       &ft->vim_name, info->kind, info->group);
@@ -236,25 +240,26 @@ handle_kind(bstring *const cmd, unsigned i,
 /*======================================================================================*/
 
 void
-update_line(Buffer *bdata, const int first, const int last)
+update_line(Buffer *bdata, int const first, int const last)
 {
         libclang_highlight(bdata, first, last);
 }
 
 void
-(clear_highlight)(Buffer *bdata)
+(clear_highlight)(Buffer *bdata, bool const blocking)
 {
         if (!bdata)
                 return;
+        pthread_mutex_lock(&bdata->lock.total);
 
         if (bdata->ft->order && !(bdata->ft->has_parser)) {
                 bstring *cmd = b_alloc_null(8192);
 
                 for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
-                        const int     ch   = bdata->ft->order->data[i];
-                        mpack_dict_t *dict = nvim_get_var_fmt(
+                        int const   ch   = bdata->ft->order->data[i];
+                        mpack_dict *dict = nvim_get_var_fmt(
                                 E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
-                        bstring *group = dict_get_key(dict, E_STRING, B("group")).ptr;
+                        bstring *group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
 
                         b_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",
                                    &bdata->ft->vim_name, ch, group);
@@ -262,16 +267,17 @@ void
                         if (i < (bdata->ft->order->slen - 1))
                                 b_catlit(cmd, " | ");
 
-                        destroy_mpack_dict(dict);
+                        mpack_dict_destroy(dict);
                 }
 
                 nvim_command(cmd);
                 b_destroy(cmd);
         }
 
-        if (bdata->hl_id > 0) {
-                nvim_buf_clear_highlight(bdata->num, bdata->hl_id, 0, (-1));
-        }
+        if (bdata->hl_id > 0)
+                nvim_buf_clear_highlight(bdata->num, bdata->hl_id, 0, (-1), blocking);
+
+        pthread_mutex_unlock(&bdata->lock.total);
 }
 
 /*======================================================================================*/

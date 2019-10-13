@@ -455,16 +455,6 @@ ll_join(linked_list *list, const int sepchar)
 
 /*============================================================================*/
 
-ll_node *
-ll_find_bstring(const linked_list *const list, const bstring *const find)
-{
-        LL_FOREACH_F (list, node)
-                if (b_iseq(find, node->data))
-                        return node;
-
-        return NULL;
-}
-
 STATIC_INLINE void
 free_data(ll_node *node)
 {

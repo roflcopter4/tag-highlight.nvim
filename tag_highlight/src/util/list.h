@@ -19,7 +19,7 @@
 #    define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
 #  endif
 #endif
-#if defined __MINGW__ || defined __MINGW32 || defined __MINGW64__
+#if defined __MINGW__ || defined __MINGW32__ || defined __MINGW64__
 #  define LLDECL extern
 #  define INTERN extern /* That's defininitely not confusing at all... */
 #else
@@ -137,6 +137,7 @@ INTERN void argv_dump_fd__(int fd, const str_vector *argv, const char *listname,
 #define argv_dump(FP, ARGV)    (argv_dump__((FP), (ARGV), #ARGV, __FILE__, __LINE__))
 #define argv_dump_fd(FD, ARGV) (argv_dump_fd__((FD), (ARGV), #ARGV, __FILE__, __LINE__))
 
+#undef LLDECL
 #undef INTERN
 
 /*======================================================================================================*/

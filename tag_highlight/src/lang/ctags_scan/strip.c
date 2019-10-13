@@ -230,14 +230,14 @@ handle_cstyle(bstring **vim_bufp)
                 errx(1, "Null paramater");
         bstring        *data    = *vim_bufp;
         uint8_t        *bak     = data->data;
-        bstring        *tok     = &(bstring){0, 0, NULL, 0};
         b_list         *list    = b_list_create_alloc(data->slen / GUESS_AVERAGE_LINELEN);
+        bstring         tok[]   = {BSTR_STATIC_INIT};
         int             ifcount = 0;
         bool            esc     = 0;
         unsigned short  want    = 0;
 
         while (data && *data->data && b_memsep(tok, data, '\n')) {
-                char     *repl  = malloc(tok->slen + 2ll);
+                char     *repl  = malloc(tok->slen + 2LL);
                 char     *line  = (char *)tok->data;
                 unsigned  len   = tok->slen;
                 unsigned  i     = 0;
