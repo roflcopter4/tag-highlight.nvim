@@ -44,6 +44,9 @@ static void     bufdata_constructor(void) __attribute__((constructor));
 static pthread_mutex_t     ftdata_mutex;
 static p99_futex  volatile destruction_futex[DATA_ARRSIZE];
 
+/* 
+ * Actually initializing these things seems mandatory on Windows.
+ */
 __attribute__((constructor)) static void
 mutex_constructor(void)
 {
@@ -100,10 +103,6 @@ new_buffer(int const bufnum)
 
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
         buffers.lst[bufnum] = bdata;
-#if 0
-        buffers.lst[buffers.mkr] = bdata;
-        NEXT_MKR(buffers);
-#endif
         ret = bdata;
 
 skip_buffer:
@@ -222,44 +221,12 @@ find_buffer(int const bufnum)
         Buffer *ret = NULL;
         pthread_mutex_lock(&buffers.lock);
 
-#if 0
-        for (unsigned i = 0; i < buffers.mlen; ++i) {
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
-                        ret = buffers.lst[i];
-                        break;
-                }
-        }
-#endif
         if (bufnum < buffers.mlen && buffers.lst[bufnum])
                 ret = buffers.lst[bufnum];
 
         pthread_mutex_unlock(&buffers.lock);
         return ret;
 }
-
-#if 0
-int
-find_buffer_ind(int const bufnum)
-{
-        int ret = (-1);
-        pthread_mutex_lock(&buffers.lock);
-
-        if (bufnum < buffers.mlen && buffers.lst[bufnum])
-                ret = bufnum;
-
-#if 0
-        for (unsigned i = 0; i < buffers.mlen; ++i) {
-                if (buffers.lst[i] && buffers.lst[i]->num == bufnum) {
-                        ret = (int)i;
-                        break;
-                }
-        }
-#endif
-
-        pthread_mutex_unlock(&buffers.lock);
-        return ret;
-}
-#endif
 
 static void
 log_prev_file(bstring const *filename)
@@ -325,7 +292,7 @@ init_topdir(Buffer *bdata)
         Top_Dir *tdir   = calloc(1, sizeof(Top_Dir));
         tdir->tmpfname  = nvim_call_function(B("tempname"), E_STRING).ptr;
         tdir->gzfile    = b_strcpy(settings.cache_dir);
-        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT | O_RDWR | O_TRUNC | O_BINARY, 0600);
+        tdir->tmpfd     = safe_open(BS(tdir->tmpfname), O_CREAT|O_RDWR|O_TRUNC|O_BINARY, 0600);
         tdir->ftid      = bdata->ft->id;
         tdir->index     = top_dirs->qty;
         tdir->pathname  = dir;
@@ -575,8 +542,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
         ECHO("Getting ignored tags for ft %d", ft->id);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                char         cmd[2048], *ptr;
-                size_t const len = snprintf(cmd, 2048, "syntax list %s",
+                char         cmd[4096], *ptr;
+                size_t const len = snprintf(cmd, 4096, "syntax list %s",
                                             BS(restored_groups->lst[i]));
                 bstring *output = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
 
@@ -588,8 +555,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 }
 
                 uchar *bak    = output->data;
-                output->data  = (uchar *)(ptr += 4) /* Add 4 to skip the "xxx " */;
-                output->slen -= PSUB(ptr, bak);
+                output->data  = (uchar *)(ptr += 4); /* Add 4 to skip the "xxx " */
+                output->slen -= (unsigned)PSUB(ptr, bak);
 
                 if (!b_starts_with(output, B("match /"))) {
                         bstring line = BSTR_WRITEABLE_STATIC_INIT;
@@ -654,9 +621,9 @@ get_restore_cmds(b_list *restored_groups)
                                 b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
                                 while (isblank(*++tmp))
                                         ;
-                                if (strncmp((ptr = tmp), "links to ", 9) == 0)
-                                        if (!((tmp = strchr(ptr, '\n')) + 1))
-                                                break;
+                                if (strncmp((ptr = tmp), "links to ", 9) == 0
+                                            && !((tmp = strchr(ptr, '\n')) + 1))
+                                        break;
                         }
 
                         b_list_remove_dups(&toks);
