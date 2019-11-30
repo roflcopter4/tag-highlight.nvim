@@ -190,6 +190,9 @@ extern char *HOME;
 #endif
 #ifdef DOSISH
 #  ifdef __MINGW__
+#    ifndef WINPTHREAD_API
+#      define WINPTHREAD_API __declspec(dllimport)
+#    endif
 extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__));
 #  endif
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)

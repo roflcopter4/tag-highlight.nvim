@@ -302,7 +302,7 @@ handle_win32_command_script(Buffer *bdata, char const *cstr, str_vector *ret)
                                 len   = PSUB(next, tok);
                         }
 
-                        unquote((bstring[]){{len, 0, (uchar *)tok, 0}});
+                        unquote((bstring[]){{.data = (uchar *)tok, .slen = len, .mlen = 0,  .flags = 0}});
                         argv_append(ret, "-I", true);
                         tok += 2;
                         char *abspath;
