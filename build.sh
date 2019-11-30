@@ -26,7 +26,7 @@ die() {
 check() {
     Exists 'cmake' || die 'Cmake not found'
     Exists 'llvm-config' || die 'llvm not found'
-    Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
+    Exists $CC || Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
 }
 
 guess_system() {
@@ -70,6 +70,24 @@ make_link() {
 
     printf '%s\n' "$_command_" >&2
     eval $_command_
+}
+
+find_compiler() {
+    local MY_CC
+    if [ "$1" ] && Exists "$1"; then
+        MY_CC="$1"
+    elif [ "$CC" ] && Exists "$CC"; then
+        MY_CC="$CC"
+    elif Exists 'gcc'; then
+        MY_CC=gcc
+    elif Exists 'clang'; then
+        MY_CC=clang
+    else
+        die 'No valid compiler found'
+    fi
+
+    echo "$MY_CC"
+    unset MY_CC
 }
 
 ################################################################################
@@ -128,7 +146,7 @@ compile() {
     [ "$system_type" = 'MinGW' ] && cmake_make_system='MSYS Makefiles'
 
     cmake -DCMAKE_BUILD_TYPE="${2:-Release}" -DCMAKE_EXPORT_COMPILE_COMMANDS=YES \
-        -DCMAKE_C_COMPILER="${1:-gcc}" -G "${cmake_make_system}" .. ||
+          -DCMAKE_C_COMPILER="$(find_compiler)" -G "${cmake_make_system}" .. ||
         die 'Cmake configuration failed.'
 
     num_jobs=$(nproc)
