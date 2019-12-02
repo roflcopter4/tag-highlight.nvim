@@ -375,8 +375,8 @@ get_command_output(const char *command, char *const *const argv, bstring *input)
         bstring *rd = b_read_fd(fds[1][READ_FD]);
         close(fds[1][READ_FD]);
 
-        if ((status <<= 8) != 0)
-                SHOUT("Command failed with status %d\n", status);
+        if (status != 0)
+                SHOUT("Command failed with status %d\n", status >> 8);
         return rd;
 }
 #elif defined DOSISH

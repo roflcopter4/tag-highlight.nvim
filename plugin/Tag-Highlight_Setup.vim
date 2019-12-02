@@ -405,7 +405,7 @@ function! s:InitTagHighlight()
     let l:binary = tag_highlight#install_info#GetBinaryName()
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     
-    sleep 500m " Don't do anything until we're sure everything's finished initializing
+    "sleep 500m " Don't do anything until we're sure everything's finished initializing
 endfunction
 
 "===============================================================================
@@ -431,6 +431,7 @@ augroup TagHighlightAu
     autocmd BufDelete * call s:DeleteBuf()
     autocmd VimLeavePre * call s:ExitKill()
     autocmd Syntax * call s:SendMessage('SyntaxChanged')
+    " autocmd BufReadPost * call s:SendMessage('UpdateTagsForce')
 augroup END
 
 "===============================================================================

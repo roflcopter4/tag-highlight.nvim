@@ -504,8 +504,8 @@ vimscript_message(void *vdata)
         Buffer                *bdata  = NULL;
         int                    num    = 0;
 
-        //echo("Recieved \"%s\" (%d): waking up!",
-        //     vimscript_message_type_getname(val), val);
+        echo("Recieved \"%s\" (%d): waking up!",
+             vimscript_message_type_getname(val), val);
 
         switch (val) {
 
@@ -575,9 +575,21 @@ vimscript_message(void *vdata)
                 num = nvim_get_current_buf();
                 atomic_store_explicit(&bufnum, num, memory_order_release);
 
+#if 0
+                for (int n = 0; n < 30; ++n) {
+                        if ((bdata = find_buffer(num)))
+                                break;
+                        echo("Attempt %d failed: %d -> p: %p", n, num, (void *)bdata);
+                        fsleep(0.05);
+                }
+                if (!bdata) {
+#endif
+
                 if (!(bdata = find_buffer(num))) {
-                        echo("Failed to find buffer! %d -> p: %p",
-                             num, (void *)bdata);
+                        if (have_seen_bufnum(num)) {
+                                goto try_attach;
+                        }
+                        echo("Failed to find buffer! %d -> p: %p", num, (void *)bdata);
                         break;
                 }
 
@@ -623,7 +635,7 @@ vimscript_message(void *vdata)
                         goto try_attach;
 
                 update_taglist(bdata, UPDATE_TAGLIST_FORCE);
-                update_highlight(bdata, HIGHLIGHT_UPDATE);
+                update_highlight(bdata, HIGHLIGHT_UPDATE_FORCE);
                 break;
         }
 

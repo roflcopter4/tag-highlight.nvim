@@ -147,6 +147,7 @@ extern size_t const        ftdata_len;
 /*===========================================================================*/
 
 extern bool    have_seen_file   (const bstring *filename) __attribute__((pure));
+extern bool    have_seen_bufnum (int bufnum);
 /* extern int     find_buffer_ind  (int bufnum); */
 /* extern bool    is_bad_buffer    (int bufnum); */
 extern void    destroy_bufdata  (Buffer **bdata_p);
@@ -168,7 +169,12 @@ enum update_taglist_opts {
         UPDATE_TAGLIST_FORCE_LANGUAGE,
 };
 
-enum update_highlight_type { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
+enum update_highlight_type {
+        HIGHLIGHT_NORMAL,
+        HIGHLIGHT_UPDATE,
+        HIGHLIGHT_UPDATE_FORCE,
+        HIGHLIGHT_REDO,
+};
 
 extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);

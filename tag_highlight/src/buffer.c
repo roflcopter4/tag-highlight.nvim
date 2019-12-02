@@ -44,6 +44,11 @@ static void     bufdata_constructor(void) __attribute__((constructor));
 static pthread_mutex_t     ftdata_mutex;
 static p99_futex  volatile destruction_futex[DATA_ARRSIZE];
 
+static struct seen_bufnum_stack {
+        int data[DATA_ARRSIZE];
+        int i;
+} seen_bufnum_stack;
+
 /* 
  * Actually initializing these things seems mandatory on Windows.
  */
@@ -104,6 +109,9 @@ new_buffer(int const bufnum)
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
         buffers.lst[bufnum] = bdata;
         ret = bdata;
+
+        if (!have_seen_bufnum(bufnum))
+                seen_bufnum_stack.data[seen_bufnum_stack.i++] = bufnum;
 
 skip_buffer:
         pthread_mutex_unlock(&buffers.lock);
@@ -243,6 +251,15 @@ have_seen_file(bstring const *filename)
         B_LIST_FOREACH (seen_files, file, i)
         if (b_iseq(file, filename))
                 return true;
+        return false;
+}
+
+bool
+have_seen_bufnum(int const bufnum)
+{
+        for (int n = 0; n < seen_bufnum_stack.i; ++n)
+                if (bufnum == seen_bufnum_stack.data[n])
+                        return true;
         return false;
 }
 
