@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -144,7 +145,7 @@ func (this *Parsed_Data) Populate() error {
 	var (
 		conf = types.Config{
 			// Importer: importer.Default(),
-			Importer: importer.ForCompiler(fset, "gc", nil),
+			Importer: importer.ForCompiler(fset, runtime.Compiler, nil),
 			// Ignore errors so we can support packages that import "C"
 			Error: func(error) {},
 		}
