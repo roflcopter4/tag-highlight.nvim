@@ -9,6 +9,7 @@ I'm not crazy enough to write my own parsers. At the moment, only implementation
 If using dein, installing should be as easy as adding this to your .vimrc.
     `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': 0, 'build': 'sh build.sh'})`
 The little shell script should build the binary and set everything up. If it goes wrong, you may need to manually build the project. In that case, be sure that the binary goes in the `tag_highlight.nvim/bin/tag_highlight(.exe)` (that is to say, the bin folder in at the top of the plugin). 
+
 On Windows you'll almost certainly have to build it yourself. Sorry. I can't write a batch script to save my life. MinGW is required and you might need to make sure that your `mingw64/bin` directory is in your PATH after installing.
 
 ## Why on earth is it written in C?
