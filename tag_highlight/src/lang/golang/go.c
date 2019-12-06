@@ -59,9 +59,9 @@ highlight_go(Buffer *bdata)
         }
 
         pthread_mutex_lock(&bdata->lock.total);
-        pthread_mutex_lock(&bdata->lines->lock);   
-        bstring *tmp = ll_join(bdata->lines, '\n');
-        pthread_mutex_unlock(&bdata->lines->lock);
+        /* pthread_mutex_lock(&bdata->lines->lock);    */
+        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
+        /* pthread_mutex_unlock(&bdata->lines->lock); */
 
         bstring *go_binary = nvim_call_function( B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);

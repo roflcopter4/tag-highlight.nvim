@@ -1,15 +1,17 @@
 # /src
+
+add_definitions(-D_BUILD_)
+
 set (tag_highlight_SOURCES
     lang/clang/clang.c
     lang/clang/index.c
     lang/clang/typeid.c
     lang/clang/util.c
-
     lang/ctags_scan/scan.c
     lang/ctags_scan/strip.c
     lang/ctags_scan/tok.c
-
     lang/golang/go.c
+    lang/lang.c
 
     nvim_api/api.c
     nvim_api/common.c
@@ -19,9 +21,9 @@ set (tag_highlight_SOURCES
     ctags.c
     data.c
     events.c
+    event_autocmd.c
     main.c
     update.c
-    lang/lang.c
 )
 
 if (LZMA_SUPPORT)
@@ -29,7 +31,6 @@ if (LZMA_SUPPORT)
 endif()
 
 add_executable(tag_highlight ${tag_highlight_SOURCES})
-add_definitions(-D_BUILD_)
 
 add_library(bstring OBJECT
     contrib/bstring/additions.c
@@ -59,15 +60,13 @@ add_library(thl-util OBJECT
 ################################################################################
 # Libraries
 
-# string(APPEND CMAKE_EXE_LINKER_FLAGS "-Wl,-rdynamic")
-
 if (MINGW)
+    # For some reason clang wants libstdc++ linked in on Windows.
     target_link_libraries(tag_highlight
-        -lstdc++ #-latomic
+        -lstdc++
     )
 else()
     target_link_libraries(tag_highlight
-        -lrt -lunwind -pthread
         ${LIBEV_LIBRARIES}
     )
 endif()
@@ -83,15 +82,12 @@ target_link_libraries(tag_highlight
 )
 
 if (LZMA_SUPPORT)
-    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-static")
     target_link_libraries(tag_highlight
         LibLZMA::LibLZMA
-        # -Wl,-static
         # ${LIBLZMA_LIBRARIES}
-        # "/usr/local/lib/liblzma.a"
     )
 endif()
 
 if (USE_JEMALLOC STREQUAL "YES")
-   target_link_libraries(tag_highlight -ljemalloc -ldl)
+    target_link_libraries(tag_highlight ${JEMALLOC_LIBRARY})
 endif()

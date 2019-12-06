@@ -5,6 +5,13 @@ include (CheckFunctionExists)
 include (CheckSymbolExists)
 include (CheckIncludeFile)
 
+if (MSVC)
+    message(FATAL_ERROR "MSVC is not and will probably never be supported. Use MinGW")
+endif()
+
+###############################################################################
+# Options
+
 set (REQUIRED_LZMA_VERSION 5.3.1)
 option(BUILD_DIST "\
 Include the required alpha (and therefore uncommon) liblzma version as a static\
@@ -13,56 +20,70 @@ option(STATIC_LIBS_ONLY "Build with only static libraries.")
 option(SANITIZE "Enable sanitizers")
 option(USE_JEMALLOC "Use jemalloc")
 
-###############################################################################
-# Libraries
-
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-# set(USE_JEMALLOC ON)
 
 macro(FIX_WINDOWS_PATHS _pathvar)
     string(REPLACE "\\" "/" ${_pathvar} "${${_pathvar}}")
 endmacro()
 
-if (MINGW OR CMAKE_COMPILER_IS_MINGW)
-    if (NOT MINGW)
-        set (MINGW TRUE)
-    endif()
-    message("Is mingw")
-elseif (MSYS)
-    message("Is msys")
+if (NOT CMAKE_BUILD_TYPE)
+    message("Setting build type to \"Release\"")
+    set (CMAKE_BUILD_TYPE "Release")
 endif()
 
-if (MSVC)
-    message(FATAL_ERROR "MSVC is not and will probably never be supported. Use MinGW")
+if ((CMAKE_BUILD_TYPE STREQUAL "Debug")
+    OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+    set (DEBUG 1)
 endif()
+
+###############################################################################
+# Includes and defines
 
 if (MINGW)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include _mingw.h")
+
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -Wl,--allow-multiple-definition")
+
     include_directories("D:/msys64/mingw64/x86_64-w64-mingw32/include")
     add_definitions(-D__MINGW__)
+    add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
+else()
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            "-L/usr/local/lib -rdynamic")
 endif()
 
+add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+include_directories("${PROJECT_SOURCE_DIR}/src")
+
+set (CMAKE_REQUIRED_DEFINITIONS
+    -D__USE_ISOC11
+    -D_GNU_SOURCE
+    -DHAVE_TOPCONFIG_H
+)
+
+include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
+GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)
+
+###############################################################################
+# Libraries
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibLZMA)
 find_package (LibClang REQUIRED)
+
 if (NOT MINGW)
     find_package (LibEv REQUIRED)
 endif ()
-if (USE_JEMALLOC STREQUAL "YES")
+
+if (USE_JEMALLOC)
     find_package (Jemalloc REQUIRED)
 endif()
-
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")
-
-string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
-if (MINGW)
-    FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
-    string(CONCAT CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include _mingw.h")
-endif()
-
-set (CMAKE_REQUIRED_DEFINITIONS -D__USE_MINGW_ANSI_STDIO=1 -D_GNU_SOURCE -DHAVE_TOPCONFIG_H -D__USE_ISOC11)
 
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
@@ -74,6 +95,9 @@ XZ support will be disabled for this build.")
         set (LZMA_SUPPORT 1)
     endif()
 endif()
+
+###############################################################################
+# Symbol and header checks
 
 CHECK_SYMBOL_EXISTS (mkostemps      "stdlib.h"   HAVE_MKOSTEMPS)
 CHECK_SYMBOL_EXISTS (reallocarray   "stdlib.h"   HAVE_REALLOCARRAY)
@@ -100,64 +124,47 @@ CHECK_INCLUDE_FILE("stdatomic.h"   HAVE_STDATOMIC_H)
 CHECK_INCLUDE_FILE("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
 
-string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
-
 ###############################################################################
-# Flags
+# General flags
 
-if (NOT CMAKE_BUILD_TYPE)
-    message("Setting build type to \"Release\"")
-    set (CMAKE_BUILD_TYPE "Release")
-endif()
+string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
 
-if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
-    set (DEBUG 1)
-endif()
-
-#####################################################################################################
-if (MINGW)
-    add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
-    set (WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types")
-    string(CONCAT WARNS "-Werror=pointer-to-int-cast -Werror=int-conversion -Werror=implicit-function-declaration -Werror=incompatible-pointer-types")
-else()
-    string(CONCAT WARNS "-Wall -Werror=implicit -Werror=incompatible-pointer-types"
-        " -Werror=pointer-to-int-cast -Werror=int-conversion -Werror=format-extra-args")
-endif()
+string (CONCAT WARNS
+    "-Wall -Wextra -Wpedantic"
+    " -Werror=implicit"
+    " -Werror=incompatible-pointer-types"
+    " -Werror=pointer-to-int-cast"
+    " -Werror=int-conversion"
+    " -Werror=implicit-function-declaration"
+    " -Werror=incompatible-pointer-types"
+    " -Werror=format-extra-args"
+)
 
 if (NOT BUILD_DIST) 
     set (MARCH_SETTING "-march=native")
 endif()
 
-
 if (SANITIZE)
+    set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
     if ("${SANITIZE}" STREQUAL "thread")
-        set (SANIT "-fsanitize=thread -fsanitize-address-use-after-scope -fsanitize=undefined")
-    elseif ("${SANITIZE}" STREQUAL "address")
-        set (SANIT "-fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined")
-    elseif ("${SANITIZE}" STREQUAL "ON" OR "${SANITIZE}" STREQUAL "On")
-        set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
+        set (SANIT "${SANIT} -fsanitize=thread")
     else ()
-        message(FATAL_ERROR "Unrecognized SANITIZE setting!")
+        set (SANIT "${SANIT} -fsanitize=address")
     endif()
 endif()
+
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
-set (EXTRA_FLAGS "-std=gnu17 -fdiagnostics-color=always")
+string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
+                    " -std=gnu17 -fdiagnostics-color=always")
 
-#####################################################################################################
-if (CLANG_STR_SEARCH EQUAL -1)
-    string(CONCAT WARNS "${WARNS}" 
-        " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc -Wsuggest-attribute=const"
-        " -Wsuggest-attribute=noreturn -Wsuggest-attribute=format" " -Wold-style-definition -Wold-style-declaration")
-    string (CONCAT WARNS "${WARNS}" " -Werror=designated-init")
-    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} ${EXTRA_FLAGS}")
+################################################################################
+# Compiler specific flags. Currently these override $CFLAGS.
 
-    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rdynamic")
-#----------------------------------------------------------------------------------------------------
-else() # CLANG
-#----------------------------------------------------------------------------------------------------
+string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
+
+if (NOT CLANG_STR_SEARCH EQUAL -1)
+
     # set (BASE "${BASE} -fprofile-instr-generate")
     # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
     # string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} ${SANIT} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
@@ -166,7 +173,6 @@ else() # CLANG
     #       " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
     #       " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
     # )
-    # string (CONCAT CMAKE_C_FLAGS_RELEASE  "${CMAKE_C_FLAGS_RELEASE} "
     # "-Rpass='.*'"
     # "-Rpass-missed='.*'" 
     # "-Rpass='inline'"
@@ -176,30 +182,41 @@ else() # CLANG
     # "-Rpass-analysis='.*'"
     # )
 
-    set (BASE "${WARNS} ${MARCH_SETTING} ${SANIT} ${EXTRA_FLAGS}")
-    set (CMAKE_C_FLAGS_DEBUG "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${BASE} -Og -g3")
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -rtlib=compiler-rt -fuse-ld=lld")
+    set (CMAKE_C_FLAGS_DEBUG
+            "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO
+            "${BASE} -Og -g3")
+
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -rtlib=compiler-rt -fuse-ld=lld")
+
+else() # GCC
+
+    string(CONCAT BASE "${BASE}"
+        " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc"
+        " -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format"
+        " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")
+
+    set (CMAKE_C_FLAGS_DEBUG
+            "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO
+            "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
+
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -rdynamic")
+
 endif()
+
+
 #####################################################################################################
+# Misc
 
 string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
-string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -ftree-vectorize -Ofast")
+string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -O3")
 
 if (MINGW)
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-        " -Wl,--allow-multiple-definition"
-    )
-else()
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L/usr/local/lib -rdynamic")
+    FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
 endif()
-
-add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
-include_directories("${PROJECT_SOURCE_DIR}/src")
-
-include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
-GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)
 
 configure_file(cmake-config.h.in topconfig.h)
 add_subdirectory(src)

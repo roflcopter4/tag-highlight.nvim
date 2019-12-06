@@ -358,7 +358,7 @@ void
 void
 (nvim_call_atomic)(mpack_arg_array const *calls)
 {
-#ifdef DEBUG
+#if 0 && defined DEBUG
         static bool first = true;
         if (first) {
                 char tmp[PATH_MAX];

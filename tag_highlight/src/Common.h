@@ -381,9 +381,33 @@ reallocarray(void *ptr, size_t num, size_t size)
 #define free(PTR) free(PTR)
 #endif
 
-#define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#define nalloca(NUM_, SIZ_)        alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#ifdef __GNUC__
+#  define nmalloc(NUM_, SIZ_)                                                        \
+        __extension__({                                                              \
+                size_t const nmalloc_tmp_num_ = (size_t)(NUM_) ?: 1;                 \
+                size_t const nmalloc_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t); \
+                size_t const nmalloc_tmp_alc_ = nmalloc_tmp_num_ * nmalloc_tmp_siz_; \
+                malloc(nmalloc_tmp_alc_);                                            \
+        })
+#  define nrealloc(PTR_, NUM_, SIZ_)                                                    \
+        __extension__({                                                                 \
+                size_t const nrealloc_tmp_num_ = (size_t)(NUM_) ?: 1;                   \
+                size_t const nrealloc_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t);   \
+                size_t const nrealloc_tmp_alc_ = nrealloc_tmp_num_ * nrealloc_tmp_siz_; \
+                realloc((PTR_), nrealloc_tmp_alc_);                                     \
+        })
+#  define nalloca(NUM_, SIZ_)                                                        \
+        __extension__({                                                              \
+                size_t const nalloca_tmp_num_ = (size_t)(NUM_) ?: 1;                 \
+                size_t const nalloca_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t); \
+                size_t const nalloca_tmp_alc_ = nalloca_tmp_num_ * nalloca_tmp_siz_; \
+                alloca(nalloca_tmp_alc_);                                            \
+        })
+#else
+#  define nmalloc(NUM_, SIZ_)        malloc((((size_t)(NUM_)) * ((size_t)(SIZ_))))
+#  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#  define nalloca(NUM_, SIZ_)        alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
+#endif
 
 /*===========================================================================*/
 #ifdef __cplusplus

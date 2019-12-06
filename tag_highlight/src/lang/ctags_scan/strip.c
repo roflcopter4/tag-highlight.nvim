@@ -38,14 +38,14 @@ strip_comments(Buffer *bdata)
         unsigned bytenum = 0;
 
         LL_FOREACH_F (bdata->lines, line)
-                bytenum += line->data->slen + 1;
+                bytenum += ((bstring *)line->data)->slen + 1;
 
         /* warnx("Buffer size is %u", bytenum); */
         bstring *joined = b_alloc_null(bytenum);
         /* free(bytenum); */
 
         LL_FOREACH_F (bdata->lines, line) {
-                b_concat(joined, line->data);
+                b_concat(joined, (bstring *)line->data);
                 b_conchar(joined, '\n');
         }
 
@@ -351,9 +351,11 @@ handle_cstyle(bstring **vim_bufp)
         free(*vim_bufp);
         *vim_bufp = b_list_join(list, NULL);
 
+#if 0
         FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
         b_fwrite(fp, *vim_bufp);
         fclose(fp);
+#endif
 
         b_list_destroy(list);
 }

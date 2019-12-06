@@ -32,18 +32,21 @@ extern "C" {
 #endif
 /*======================================================================================================*/
 
+typedef void (*ll_free_data_t)(void *);
 typedef struct linked_list_s linked_list;
 typedef struct ll_node_s     ll_node;
 
 struct linked_list_s {
-        ll_node        *head;
-        ll_node        *tail;
-        int             qty;
-        pthread_mutex_t lock;
+        void            *intern;
+        ll_node         *head;
+        ll_node         *tail;
+        ll_free_data_t   free_data;
+        int              qty;
+        pthread_rwlock_t lock;
 };
 
 struct ll_node_s {
-        bstring *data;
+        void    *data;
         ll_node *prev;
         ll_node *next;
 };
@@ -72,19 +75,19 @@ struct ll_node_s {
 #define LL_FOREACH_B(LIST, VAR) \
         for (ll_node * VAR = (LIST)->tail; (VAR) != NULL; (VAR) = (VAR)->prev)
 
-LLDECL linked_list *ll_make_new    (void) __aWUR;
+LLDECL linked_list *ll_make_new    (ll_free_data_t free_data) __aWUR;
 LLDECL ll_node     *ll_at          (linked_list *list, int index);
-LLDECL void ll_prepend             (linked_list *list, bstring *data);
-LLDECL void ll_append              (linked_list *list, bstring *data);
+LLDECL void ll_prepend             (linked_list *list, void *data);
+LLDECL void ll_append              (linked_list *list, void *data);
 LLDECL void ll_delete_node         (linked_list *list, ll_node *node);
 LLDECL void ll_delete_range        (linked_list *list, ll_node *at, int range);
 LLDECL void ll_destroy             (linked_list *list);
-LLDECL void ll_insert_after        (linked_list *list, ll_node *at, bstring *data);
-LLDECL void ll_insert_before       (linked_list *list, ll_node *at, bstring *data);
+LLDECL void ll_insert_after        (linked_list *list, ll_node *at, void *data);
+LLDECL void ll_insert_before       (linked_list *list, ll_node *at, void *data);
 LLDECL void ll_insert_blist_after  (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 LLDECL void ll_insert_blist_before (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 LLDECL bool ll_verify_size         (linked_list *list);
-LLDECL bstring *ll_join            (linked_list *list, int sepchar) __aWUR;
+LLDECL bstring *ll_join_bstrings   (linked_list *list, int sepchar) __aWUR;
 
 /*======================================================================================================*/
 /* Generic list */

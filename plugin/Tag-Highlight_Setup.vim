@@ -399,7 +399,8 @@ function! s:InitTagHighlight()
     let s:new_bufs = [l:cur]
 
     try
-        call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
+        " call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
+        call delete(expand(g:tag_highlight#directory . '/stderr.log'))
     endtry
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
