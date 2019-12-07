@@ -90,15 +90,15 @@ void
         /* pthread_mutex_lock(&bdata->lock.update); */
         pthread_mutex_lock(&lc_mutex);
         {
-                pthread_mutex_lock(&bdata->lines->lock);
-                joined = ll_join(bdata->lines, '\n');
+                /* pthread_rwlock_rdlock(&bdata->lines->lock); */
+                joined = ll_join_bstrings(bdata->lines, '\n');
                 if (last == (-1)) {
                         startend[0] = 0;
                         startend[1] = joined->slen;
                 } else {
                         lines2bytes(bdata, startend, first, last);
                 }
-                pthread_mutex_unlock(&bdata->lines->lock);
+                /* pthread_mutex_unlock(&bdata->lines->lock); */
         }
 
         if (type == HIGHLIGHT_REDO) {
@@ -138,10 +138,11 @@ lines2bytes(Buffer *bdata, int64_t *startend, int const first, int const last)
         startbyte = endbyte = i = 0;
 
         LL_FOREACH_F (bdata->lines, node) {
+                bstring *line = node->data;
                 if (i < first)
-                        endbyte = (startbyte += node->data->slen + 1);
+                        endbyte = (startbyte += line->slen + 1);
                 else if (i < last + 1)
-                        endbyte += node->data->slen + 1;
+                        endbyte += line->slen + 1;
                 else
                         break;
                 ++i;

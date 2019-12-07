@@ -10,55 +10,46 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 )
 
 var (
-	fset   *token.FileSet = token.NewFileSet()
-	lfile  *os.File
-	errlog *log.Logger
+	fset *token.FileSet = token.NewFileSet()
+	lg   *log.Logger
 )
-
-type QuickReadInfo struct {
-	Filename      string
-	Fp            *os.File
-	Bytes_To_Read int
-}
 
 //========================================================================================
 
 func main() {
-	open_log_rel()
-
 	var (
-		buf, err1      = ioutil.ReadAll(os.Stdin)
-		filename, err2 = filepath.Abs(os.Args[1])
+		lfile     *os.File
+		isdebug   int
+		prog_name string = os.Args[1]
+		isdebug_s string = os.Args[2]
+		our_fname string = os.Args[3]
+		our_fpath string = os.Args[4]
 	)
-	if err1 != nil {
-		panic(err1)
-	}
-	if err2 != nil {
-		panic(err2)
-	}
-	var (
-		pathname       = filepath.Dir(filename)
-		astfiles       = parse_files(pathname, filename)
-		new_file, err3 = parser.ParseFile(fset, filename, buf, 0)
-	)
-	if err3 != nil {
-		if errlog != nil {
-			errlog.Printf("%v\n", err3)
-		}
-	}
 
-	astfiles = append(astfiles, new_file)
-	highlight(filename, astfiles)
-	eprintf("Done!\n")
+	isdebug, _ = strconv.Atoi(isdebug_s)
+	open_log(lfile, false && isdebug == 1, prog_name)
+	defer lfile.Close()
+
+	data := do_parse(our_fname, our_fpath)
+	data.Highlight()
 	os.Exit(0)
 }
 
-func open_log_rel() {
+func open_log(lfile *os.File, isdebug bool, our_fname string) {
+	if isdebug {
+		open_log_dbg(lfile, our_fname)
+	} else {
+		open_log_rel(lfile, our_fname)
+	}
+}
+
+func open_log_rel(lfile *os.File, prog_name string) {
 	var err error
 	lfile, err = os.Open("/dev/null")
 	if err != nil {
@@ -67,116 +58,136 @@ func open_log_rel() {
 			panic(err)
 		}
 	}
-	errlog = log.New(lfile, "ERROR: ", 0)
+	lg = log.New(lfile, prog_name+": ERROR: ", 0)
 }
 
-func open_log_dbg() {
-	lfile = os.Stderr
-	errlog = log.New(lfile, "ERROR: ", 0)
+func open_log_dbg(lfile *os.File, prog_name string) {
+	// lfile = os.Stderr
+	var err error
+	lfile, err = os.OpenFile("thl_go.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	lg = log.New(lfile, "  =====  ", 0)
 }
 
 //========================================================================================
 
-func parse_whole_dir(path string) *ast.Package {
+type Parsed_Data struct {
+	FileName  string
+	FilePath  string
+	FileSlice []*ast.File
+	FileMap   map[string]*ast.File
+	Packages  map[string]*ast.Package
+	AstFile   *ast.File
+	FileToken *token.File
+	Pkg       *ast.Package
+	Info      *types.Info
+}
+
+func do_parse(our_fname, our_fpath string) *Parsed_Data {
+	var (
+		err error
+		buf []byte
+
+		ret = Parsed_Data{
+			FileName:  our_fname,
+			FilePath:  our_fpath,
+			FileMap:   nil,
+			FileSlice: nil,
+			Packages:  nil,
+			FileToken: nil,
+			AstFile:   nil,
+			Pkg:       nil,
+			Info:      nil,
+		}
+	)
+
+	if buf, err = ioutil.ReadAll(os.Stdin); err != nil {
+		panic(err)
+	}
+
+	if ret.Packages, err = parse_whole_dir(ret.FilePath); err != nil {
+		lg.Printf("parse_files: %v\n", err)
+	}
+	if ret.AstFile, err = parser.ParseFile(fset, ret.FileName, buf, 0); err != nil {
+		lg.Printf("parser.Parsefile: %v\n", err)
+	}
+
+	ret.Pkg = ret.Packages[ret.AstFile.Name.String()]
+	ret.FileMap = ret.Pkg.Files
+	ret.FileMap[ret.FileName] = ret.AstFile
+	ret.FileSlice = []*ast.File{}
+
+	for _, f := range ret.FileMap {
+		ret.FileSlice = append(ret.FileSlice, f)
+	}
+
+	ret.Populate()
+	return &ret
+}
+
+func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 	var (
 		astmap map[string]*ast.Package
 		err    error
 	)
+	Eprintf("Reading dir '%s'\n", path)
 	if astmap, err = parser.ParseDir(fset, path, nil, 0); err != nil {
-		panic(err)
+		lg.Println(err)
 	}
-	for _, file := range astmap {
-		return file
+	return astmap, err
+
+}
+
+func (this *Parsed_Data) Populate() error {
+	var (
+		conf = types.Config{
+			// Importer: importer.Default(),
+			Importer: importer.ForCompiler(fset, runtime.Compiler, nil),
+			// Ignore errors so we can support packages that import "C"
+			Error: func(error) {},
+		}
+	)
+
+	this.Info = &types.Info{
+		Defs: make(map[*ast.Ident]types.Object),
+		Uses: make(map[*ast.Ident]types.Object),
+	}
+
+	fset.Iterate(
+		func(f *token.File) bool {
+			if f.Name() == this.FileName {
+				this.FileToken = f
+				return false
+			}
+			return true
+		},
+	)
+	if this.FileToken == nil {
+		Errx(1, "Current file not in fileset.\n")
+	}
+
+	if pkg, err := conf.Check("", fset, this.FileSlice, this.Info); err != nil {
+		Eprintln(err.Error())
+		lg.Println("check: ", err)
+		lg.Println(pkg)
+
+		return err
 	}
 
 	return nil
 }
 
-func parse_files(path, skip string) []*ast.File {
-	var (
-		fnames       = get_files(path)
-		parsed_files = make([]*ast.File, 0, len(fnames))
-	)
-	for _, file := range fnames {
-		if file != skip {
-			tmp, err := parser.ParseFile(fset, file, nil, 0)
-			if err != nil {
-				panic(err)
-			}
-			parsed_files = append(parsed_files, tmp)
-		}
-	}
-	return parsed_files
-}
-
-func get_files(path string) []string {
-	var (
-		dir    *os.File
-		err    error
-		fnames []string
-		st     os.FileInfo
-	)
-	if dir, err = os.Open(path); err != nil {
-		panic(err)
-	}
-	if st, err = dir.Stat(); err != nil {
-		panic(err)
-	}
-	if !st.IsDir() {
-		log.Fatalln("Invalid path")
-	}
-	if fnames, err = dir.Readdirnames(0); err != nil {
-		panic(err)
-	}
-
-	ret := make([]string, 0, len(fnames))
-	for _, name := range fnames {
-		name = filepath.Join(path, name)
-		if strings.HasSuffix(name, ".go") {
-			ret = append(ret, name)
-		}
-	}
-
-	return ret
-}
-
 //========================================================================================
 
-func highlight(filename string, ast_files []*ast.File) {
-	var (
-		file *token.File
-		conf = types.Config{
-			Importer: importer.Default(),
-			Error:    func(error) {}, // Ignore errors so we can support packages that import "C"
-		}
-		info = &types.Info{
-			Defs: make(map[*ast.Ident]types.Object),
-			Uses: make(map[*ast.Ident]types.Object),
-		}
-	)
-
-	fset.Iterate(func(f *token.File) bool {
-		if f.Name() == filename {
-			file = f
-			return false
-		}
-		return true
-	})
-
-	if file == nil {
-		errx(1, "Current file not in fileset.\n")
+func (this *Parsed_Data) Highlight() {
+	for ident, typeinfo := range this.Info.Defs {
+		handle_ident(this.FileToken, ident, typeinfo)
 	}
-	if _, err := conf.Check("", fset, ast_files, info); err != nil {
-		if errlog != nil {
-			errlog.Printf("%v\n", err)
-		}
-	}
-
-	for ident, typeinfo := range info.Defs {
-		handle_ident(file, ident, typeinfo)
-	}
-	for ident, typeinfo := range info.Uses {
-		handle_ident(file, ident, typeinfo)
+	for ident, typeinfo := range this.Info.Uses {
+		handle_ident(this.FileToken, ident, typeinfo)
 	}
 }
 
@@ -184,9 +195,12 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
 		return
 	}
-	kind := identify_kind(ident, typeinfo)
+	var kind rune = identify_kind(ident, typeinfo)
 
-	if kind == 0 || file != fset.File(ident.Pos()) {
+	if kind == 0 {
+		return
+	}
+	if file.Name() != fset.File(ident.Pos()).Name() {
 		return
 	}
 	p := get_range(ident.Pos(), len(ident.Name))
@@ -244,13 +258,16 @@ func dump_data(ch rune, p [2]token.Position, ident string) {
 }
 
 //========================================================================================
-// Util
 
-func eprintf(format string, a ...interface{}) {
+func Eprintln(a ...interface{}) {
+	fmt.Fprintln(os.Stderr, a...)
+	os.Stderr.Sync()
+}
+func Eprintf(format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, a...)
 	os.Stderr.Sync()
 }
-func errx(code int, format string, a ...interface{}) {
-	eprintf(format, a...)
+func Errx(code int, format string, a ...interface{}) {
+	Eprintf(format, a...)
 	os.Exit(code)
 }

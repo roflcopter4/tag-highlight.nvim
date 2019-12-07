@@ -21,13 +21,6 @@ extern "C" {
 
 #define DATA_ARRSIZE 4096
 
-enum event_types {
-        EVENT_BUF_LINES,
-        EVENT_BUF_CHANGED_TICK,
-        EVENT_BUF_DETACH,
-        EVENT_VIM_UPDATE,
-};
-
 typedef enum { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type_t;
 
 typedef struct bufdata Buffer;
@@ -116,6 +109,7 @@ struct bufdata {
         };
 };
 
+#if 0
 struct buffer_list {
         Buffer *lst[DATA_ARRSIZE];
 #if 0
@@ -130,26 +124,30 @@ struct buffer_list {
         uint16_t        mlen;
         pthread_mutex_t lock;
 };
+extern struct buffer_list  buffers;
+#endif
 
+#if 0
 struct top_dir_list {
         struct top_dir *lst[DATA_ARRSIZE];
         uint16_t        mkr;
         uint16_t        mlen;
 };
+#endif
 
 
 extern struct settings_s   settings;
-extern struct buffer_list  buffers;
 extern struct filetype     ftdata[];
 extern genlist            *top_dirs;
 extern size_t const        ftdata_len;
 
 /*===========================================================================*/
 
-extern bool    have_seen_file   (const bstring *filename) __attribute__((pure));
+extern bool    have_seen_bufnum (int bufnum);
 /* extern int     find_buffer_ind  (int bufnum); */
 /* extern bool    is_bad_buffer    (int bufnum); */
-extern void    destroy_bufdata  (Buffer **bdata_p);
+/* extern void    destroy_bufdata  (Buffer **bdata_p); */
+extern void    destroy_buffer   (Buffer *bdata);
 extern Buffer *new_buffer       (int bufnum);
 extern Buffer *find_buffer      (int bufnum);
 extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
@@ -168,7 +166,12 @@ enum update_taglist_opts {
         UPDATE_TAGLIST_FORCE_LANGUAGE,
 };
 
-enum update_highlight_type { HIGHLIGHT_NORMAL, HIGHLIGHT_UPDATE, HIGHLIGHT_REDO };
+enum update_highlight_type {
+        HIGHLIGHT_NORMAL,
+        HIGHLIGHT_UPDATE,
+        HIGHLIGHT_UPDATE_FORCE,
+        HIGHLIGHT_REDO,
+};
 
 extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);

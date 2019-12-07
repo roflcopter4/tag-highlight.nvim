@@ -8,7 +8,9 @@ I'm not crazy enough to write my own parsers. At the moment, only implementation
 ## Installing
 If using dein, installing should be as easy as adding this to your .vimrc.
     `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': 0, 'build': 'sh build.sh'})`
-The little shell script should build the binary and set everything up. If it goes wrong, you may need to manually build the project. In that case, be sure that the binary goes in the `tag_highlight.nvim/bin/tag_highlight(.exe)` (that is to say, the bin folder in at the top of the plugin). On Windows, you might need to make sure that your `mingw64/bin` directory is in your PATH after installing.
+The little shell script should build the binary and set everything up. If it goes wrong, you may need to manually build the project. In that case, be sure that the binary goes in the `tag_highlight.nvim/bin/tag_highlight(.exe)` (that is to say, the bin folder in at the top of the plugin). 
+
+On Windows you'll almost certainly have to build it yourself. Sorry. I can't write a batch script to save my life. MinGW is required and you might need to make sure that your `mingw64/bin` directory is in your PATH after installing.
 
 ## Why on earth is it written in C?
 Because.
@@ -16,13 +18,13 @@ Because.
 ## No really, why on earth is it written in C?
 Basically because I thought it would be a good way to learn a lot about C in general, and handling multithreading in particular. It was exactly that. Also because I like a challange, and writing something like a vim plugin in one of the least appropriate languages imaginable qualifies.
 
-## Why so many files?
+## Isn't this a bit much?
 I genuinely couldn't figure out how to use the msgpack-c library. Maybe I'm just an idiot, but after hours of reading manuals and fiddling I just gave up and wrote my own implementation of the msgpack protocol. A lot of the code here is devoted to that, and to wrappers for Neovim api functions that handle creating and reading the msgpack messages.
 
 ## Stability
-At present, it mostly works. Most of the obvious problems have been solved, so it at least shouldn't randomly segfault, but I can't guarentee that rather abhorrent bugs still exist. In particular, if libclang ever gets terribly confused and throws a general error, it is at present easiest to kill the plugin and start over, so any serious errors within libclang will trigger a crash. Synchronization has also been a problem that I believe is mostly solved.
+No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`.
 
 ## Compatibility
 The plugin works only with Neovim. It should compile in any unix-ish environment fairly easily, although it works best in Linux due to using the Linux-specific `futex` system call. Workarounds are available for other systems though. At least version 7 of libclang is required to compile. It may be necessary to provide the location of `libclang.so` if it is installed somewhere odd enough that cmake can't find it.
 
-The plugin has also successfully been compiled in Windows, under MinGW. Visual Studio is not supported. I used gcc extensions fairly liberally, so gcc or clang are required to compile. Under MinGW it should work without much fuss.
+The plugin has also successfully been compiled in Windows, under MinGW. Visual Studio is not supported. I used gcc extensions fairly liberally, so gcc or clang are required to compile.

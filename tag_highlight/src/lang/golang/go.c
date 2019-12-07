@@ -21,6 +21,11 @@ struct go_output {
         } ident;
 };
 
+#ifdef DEBUG
+static const char is_debug[] = "0";
+#else
+static const char is_debug[] = "1";
+#endif
 #ifdef DOSISH
 #  define CMD_SUFFIX ".exe"
 #else
@@ -39,7 +44,7 @@ struct go_output {
 static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
-static int b_list_remove_dups_2(b_list **listp);
+static int         b_list_remove_dups_2(b_list **listp);
 
 /*======================================================================================*/
 
@@ -54,12 +59,9 @@ highlight_go(Buffer *bdata)
         }
 
         pthread_mutex_lock(&bdata->lock.total);
-        pthread_mutex_lock(&bdata->lines->lock);   
-        bstring *tmp = ll_join(bdata->lines, '\n');
-        pthread_mutex_unlock(&bdata->lines->lock);
-
-        char buf[8192];
-        snprintf(buf, 8192, "%u", tmp->slen);
+        /* pthread_mutex_lock(&bdata->lines->lock);    */
+        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
+        /* pthread_mutex_unlock(&bdata->lines->lock); */
 
         bstring *go_binary = nvim_call_function( B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);
@@ -71,11 +73,26 @@ highlight_go(Buffer *bdata)
         
         ECHO("Using binary %s\n", go_binary);
 
-        struct cmd_info *info      = getinfo(bdata);
-        char *const      argv[]    = {BS(go_binary), BS(bdata->name.full), buf, (char *)0};
-        bstring         *rd        = get_command_output(BS(go_binary), argv, tmp);
-        b_list          *data      = separate_and_sort(rd);
-        echo("Have %u strings...\n", data->qty);
+        char *const argv[] = {
+                BS(go_binary),
+                program_invocation_short_name,
+                (char *)is_debug,
+                BS(bdata->name.full),
+                BS(bdata->topdir->pathname),
+                (char *)0
+        };
+
+        struct cmd_info *info = getinfo(bdata);
+        bstring         *rd   = get_command_output(BS(go_binary), argv, tmp);
+        if (!rd || !rd->data || rd->slen == 0) {
+                b_free(rd);
+                retval = 1;
+                goto cleanup;
+        }
+
+        b_list *data = separate_and_sort(rd);
+
+        ECHO("Have %u strings...\n", data->qty);
 
         parse_go_output(bdata, info, data);
         b_destroy_all(tmp, rd);

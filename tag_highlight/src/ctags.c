@@ -59,11 +59,13 @@ get_initial_taglist(Buffer *bdata)
         TIMER_START(t);
         top->tags = b_list_create();
 
-        if (have_seen_file(bdata->name.full)) {
+#if 0
+        if (have_seen_bufnum(bdata->num)) {
                 ECHO("Seen file before, running ctags in case there was just a "
                      "momentary disconnect on write...");
                 goto force_ctags;
         }
+#endif
 
         /* Read the compressed tags file if it exists, otherwise we run ctags
          * and read the file it creates. If there is a read error in the saved

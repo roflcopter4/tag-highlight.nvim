@@ -181,13 +181,17 @@ get_compression_type(void)
 
 /*======================================================================================*/
 
+extern void destroy_bnode(void *vdata);
+
 /*
  * Free everything at exit for debugging purposes.
  */
 static void
 exit_cleanup(void)
 {
-        extern b_list *seen_files;
+        extern linked_list *buffer_list;
+        /* extern genlist *top_dirs; */
+        extern b_list  *seen_files;
         extern bool    process_exiting;
         process_exiting = true;
 
@@ -199,8 +203,27 @@ exit_cleanup(void)
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
 
+#if 0
         for (unsigned i = 0; i < buffers.mlen; ++i)
-                destroy_bufdata(buffers.lst + i);
+                destroy_bufdata(buffers.lst + i);  
+#endif
+        eprintf("have %d in lst\n", buffer_list->qty);
+        /* destroy_buffer(find_buffer(1)); */
+#if 0
+        LL_FOREACH_F (buffer_list, node) {
+                destroy_bnode(node);
+                /* node->data = NULL; */
+        }
+#endif
+#if 0
+        for (int i = 0, n = buffer_list->qty; i < n; ++i) {
+                ll_delete_at(buffer_list, 0);
+        }
+#endif
+        /* free(buffer_list->intern); */
+        /* free(buffer_list);         */
+
+        ll_destroy(buffer_list);
 
         if (top_dirs) {
                 free(top_dirs->lst);

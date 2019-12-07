@@ -1,10 +1,12 @@
 #include "Common.h"
+#include "events.h"
 #include "highlight.h"
 #include "lang/clang/clang.h"
 #include "nvim_api/wait_node.h"
 
 #include "contrib/p99/p99_atomic.h"
 #include <signal.h>
+
 
 #define BT bt_init
 
@@ -14,10 +16,10 @@
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-#  define USE_EVENT_LIB  EVENT_LIB_EV
-/* #  define USE_EVENT_LIB  EVENT_LIB_NONE */
+/* #  define USE_EVENT_LIB  EVENT_LIB_EV */
+#  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGUSR1
-static pthread_t loop_thread;
+pthread_t event_loop_thread;
 #endif
 
 /*======================================================================================*/
@@ -45,7 +47,6 @@ static inline   void      replace_line        (Buffer *bdata, b_list *new_string
 static inline   void      line_event_multi_op (Buffer *bdata, b_list *new_strings, int first, int num_to_modify);
 static          void      handle_line_event   (Buffer *bdata, mpack_array *arr);
 static          void      handle_nvim_event   (void *vdata);
-static noreturn void     *vimscript_message   (void *vdata);
 static noreturn void     *post_nvim_response  (void *vdata);
 static noreturn void     *nvim_event_handler  (void *unused);
 static const    event_id *id_event            (mpack_obj *event) __attribute__((pure));
@@ -61,10 +62,7 @@ P99_FIFO(event_node_ptr) nvim_event_queue;
 
 /*======================================================================================*/
 
-static const struct event_id {
-        bstring const          name;
-        enum event_types const id;
-} event_list[] = {
+const struct event_id event_list[] = {
         { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
         { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
         { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH       },
@@ -213,7 +211,7 @@ void
 run_event_loop(int const fd)
 {
         struct ev_loop *loop = EV_DEFAULT;
-        loop_thread          = pthread_self();
+        event_loop_thread     = pthread_self();
         ev_io_init(&input_watcher, event_loop_io_callback, fd, EV_READ);
         ev_io_start(loop, &input_watcher);
 
@@ -271,7 +269,7 @@ run_event_loop(int const fd)
         if (!atomic_flag_test_and_set(&event_loop_called)) {
                 /* Don't bother handling signals at all on Windows. */
 # ifndef DOSISH
-                loop_thread = pthread_self();
+                event_loop_thread = pthread_self();
                 if (setjmp(event_loop_jmp_buf) != 0)
                         return;
                 struct sigaction act;
@@ -304,7 +302,7 @@ handle_nvim_event(void *vdata)
         if (type->id == EVENT_VIM_UPDATE) {
                 /* Ugly and possibly undefined (?) but it works. Usually. */
                 void *hack = (void *)((uintptr_t)arr->items[0]->data.num);
-                START_DETACHED_PTHREAD(vimscript_message, hack);
+                START_DETACHED_PTHREAD(event_autocmd, hack);
         } else {
                 int const bufnum = mpack_expect(arr->items[0], E_NUM).num;
                 Buffer   *bdata  = find_buffer(bufnum);
@@ -328,7 +326,7 @@ handle_nvim_event(void *vdata)
                 }
                 case EVENT_BUF_DETACH:
                         clear_highlight(bdata);
-                        destroy_bufdata(&bdata);
+                        destroy_buffer(bdata);
                         warnx("Detaching from buffer %d", bufnum);
                         break;
                 default:
@@ -337,6 +335,18 @@ handle_nvim_event(void *vdata)
         }
 
         mpack_destroy_object(event);
+}
+
+static const event_id *
+id_event(mpack_obj *event)
+{
+        bstring const *typename = event->DAI[1]->data.str;
+
+        for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i)
+                if (b_iseq(typename, &event_list[i].name))
+                        return &event_list[i];
+
+        errx(1, "Failed to identify event type \"%s\".\n", BS(typename));
 }
 
 /*======================================================================================*/
@@ -364,7 +374,7 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         bool      empty       = false;
         items[4]->data.arr    = NULL;
 
-        pthread_mutex_lock(&bdata->lines->lock);
+        pthread_rwlock_wrlock(&bdata->lines->lock);
 
         /*
          * NOTE: For some reason neovim sometimes sends updates with an empty
@@ -407,7 +417,7 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
 
         free(new_strings->lst);
         free(new_strings);
-        pthread_mutex_unlock(&bdata->lines->lock);
+        pthread_rwlock_unlock(&bdata->lines->lock);
 
         if (!empty && bdata->ft->has_parser) {
                 if (bdata->ft->is_c)
@@ -478,172 +488,3 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
 
 /*======================================================================================*/
 
-P99_DECLARE_ENUM(vimscript_message_type,
-                 VIML_BUF_NEW,
-                 VIML_BUF_CHANGED,
-                 VIML_BUF_SYNTAX_CHANGED,
-                 VIML_UPDATE_TAGS,
-                 VIML_UPDATE_TAGS_FORCE,
-                 VIML_CLEAR_BUFFER,
-                 VIML_STOP
-                );
-P99_DEFINE_ENUM(vimscript_message_type);
-
-/*
- * Handle an update from the small vimscript plugin. Updates are recieved upon
- * the autocmd events "BufNew, BufEnter, Syntax, and BufWrite", as well as in
- * response to the user calling the provided clear command.
- */
-static noreturn void *
-vimscript_message(void *vdata)
-{
-        assert((uintptr_t)vdata < INT_MAX);
-        static atomic_int      bufnum = ATOMIC_VAR_INIT(-1);
-        vimscript_message_type val    = (int)((uintptr_t)vdata);
-        struct timer          *t      = TIMER_INITIALIZER;
-        Buffer                *bdata  = NULL;
-        int                    num    = 0;
-
-        //echo("Recieved \"%s\" (%d): waking up!",
-        //     vimscript_message_type_getname(val), val);
-
-        switch (val) {
-
-        /*
-         * New buffer was opened or current buffer changed.
-         */
-        case VIML_BUF_NEW:
-        case VIML_BUF_CHANGED: {
-                num            = nvim_get_current_buf();
-                int const prev = atomic_exchange(&bufnum, num);
-                bdata          = find_buffer(num);
-
-                if (prev == num && bdata)
-                        break;
-
-                if (bdata) {
-                        TIMER_START(t);
-                        if (!bdata->calls)
-                                get_initial_taglist(bdata);
-
-                        update_highlight(bdata, HIGHLIGHT_NORMAL);
-                        TIMER_REPORT(t, "update");
-                } else {
-                try_attach:
-                        if ((bdata = new_buffer(num))) {
-                                TIMER_START_BAR(t);
-                                nvim_buf_attach(num);
-
-                                get_initial_lines(bdata);
-                                get_initial_taglist(bdata);
-                                update_highlight(bdata, HIGHLIGHT_UPDATE);
-
-                                TIMER_REPORT(t, "initialization");
-                        } else {
-                                ECHO("Failed to attach to buffer number %d.", num);
-                        }
-                }
-
-                break;
-        }
-
-        /*
-         * Filetype/Syntax changed.
-         */
-        case VIML_BUF_SYNTAX_CHANGED: {
-                num   = nvim_get_current_buf();
-                bdata = find_buffer(num);
-                atomic_store_explicit(&bufnum, num, memory_order_release);
-                if (!bdata)
-                        break;
-                bstring *ft = nvim_buf_get_option(num, B("ft"), E_STRING).ptr;
-
-                if (!b_iseq(ft, &bdata->ft->vim_name)) {
-                        SHOUT("Filetype changed. Updating.");
-                        clear_highlight(bdata, true);
-                        destroy_bufdata(&bdata);
-                        goto try_attach;
-                }
-
-                break;
-        }
-
-        /*
-         * Buffer was written.
-         */
-        case VIML_UPDATE_TAGS: {
-                num = nvim_get_current_buf();
-                atomic_store_explicit(&bufnum, num, memory_order_release);
-
-                if (!(bdata = find_buffer(num))) {
-                        echo("Failed to find buffer! %d -> p: %p",
-                             num, (void *)bdata);
-                        break;
-                }
-
-                if (update_taglist(bdata, (val == 'F'))) {
-                        clear_highlight(bdata);
-                        update_highlight(bdata, HIGHLIGHT_UPDATE);
-                        TIMER_REPORT(t, "update");
-                }
-
-                break;
-        }
-
-        /*
-         * User called the kill command.
-         */
-        case VIML_STOP: {
-                clear_highlight(, true);
-#ifdef DOSISH
-                exit(0);
-#else
-                pthread_kill(loop_thread, KILL_SIG);
-                pthread_exit();
-#endif
-        }
-
-        /*
-         * User called the clear highlight command.
-         */
-        case VIML_CLEAR_BUFFER: {
-                clear_highlight();
-                break;
-        }
-
-        /*
-         * Force an update.
-         */
-        case VIML_UPDATE_TAGS_FORCE: {
-                TIMER_START_BAR(t);
-                num = nvim_get_current_buf();
-                atomic_store_explicit(&bufnum, num, memory_order_release);
-
-                if (!(bdata = find_buffer(num)))
-                        goto try_attach;
-
-                update_taglist(bdata, UPDATE_TAGLIST_FORCE);
-                update_highlight(bdata, HIGHLIGHT_UPDATE);
-                break;
-        }
-
-        default:
-                break;
-        }
-
-        pthread_exit();
-}
-
-/*======================================================================================*/
-
-static const event_id *
-id_event(mpack_obj *event)
-{
-        bstring const *typename = event->DAI[1]->data.str;
-
-        for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i)
-                if (b_iseq(typename, &event_list[i].name))
-                        return &event_list[i];
-
-        errx(1, "Failed to identify event type \"%s\".\n", BS(typename));
-}
