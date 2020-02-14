@@ -4,3 +4,6 @@
 [submodule "tag_highlight/src/contrib/p99"]
 	path = tag_highlight/src/contrib/p99
 	url = https://github.com/roflcopter4/P99
+[submodule "tag_highlight/src/contrib/bstring"]
+	path = tag_highlight/src/contrib/bstring
+	url = https://github.com/roflcopter4/bstring
