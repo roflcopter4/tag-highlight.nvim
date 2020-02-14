@@ -54,9 +54,11 @@ else()
             "-L/usr/local/lib -rdynamic")
 endif()
 
-add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H)
+add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H -DBSTR_USE_P99)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
+include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
+include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring/src")
 
 set (CMAKE_REQUIRED_DEFINITIONS
     -D__USE_ISOC11
@@ -111,6 +113,8 @@ CHECK_SYMBOL_EXISTS (strlcat        "string.h"   HAVE_STRLCAT)
 CHECK_SYMBOL_EXISTS (strlcpy        "string.h"   HAVE_STRLCPY)
 CHECK_SYMBOL_EXISTS (strsep         "string.h"   HAVE_STRSEP)
 CHECK_SYMBOL_EXISTS (strtonum       "string.h"   HAVE_STRTONUM)
+CHECK_SYMBOL_EXISTS (stricmp        "string.h"   HAVE_STRICMP)
+CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
 CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)

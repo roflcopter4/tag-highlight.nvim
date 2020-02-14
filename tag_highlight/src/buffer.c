@@ -436,7 +436,7 @@ check_project_directories(bstring *dir, Filetype const *ft)
 
                 if (strstr(BS(dir), BS(tmp))) {
                         b_writeprotect(tmp);
-                        b_list_append(&candidates, tmp);
+                        b_list_append(candidates, tmp);
                         continue;
                 }
         }
@@ -555,7 +555,7 @@ init_filetype(Filetype *ft)
                         free(ent);
                         b_writeallow(toadd);
 
-                        b_list_append(&ft->equiv, toadd);
+                        b_list_append(ft->equiv, toadd);
                 }
 
                 free(equiv->entries);
@@ -631,7 +631,7 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                                 while (b_memsep(&tok, &line, ' ')) {
                                         bstring *toadd = b_fromblk(tok.data, tok.slen);
                                         toadd->flags  |= BSTR_MASK_USR1;
-                                        b_list_append(&ft->ignored_tags, toadd);
+                                        b_list_append(ft->ignored_tags, toadd);
                                 }
                         }
                 }
@@ -675,7 +675,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_sprintfa(cmd, "syntax keyword %s ", restored_groups->lst[i]);
 
                         while ((tmp = strchr(ptr, '\n'))) {
-                                b_list_append(&toks, b_fromblk(ptr, PSUB(tmp, ptr)));
+                                b_list_append(toks, b_fromblk(ptr, PSUB(tmp, ptr)));
                                 while (isblank(*++tmp))
                                         ;
                                 if (strncmp((ptr = tmp), "links to ", 9) == 0
@@ -694,7 +694,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_sprintfa(cmd, " | hi! link %s %n",
                                    restored_groups->lst[i], link_name);
 
-                        b_list_append(&allcmds, cmd);
+                        b_list_append(allcmds, cmd);
                 }
 
                 b_destroy(output);

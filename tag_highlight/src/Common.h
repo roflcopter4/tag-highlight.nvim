@@ -101,7 +101,7 @@ typedef int error_t;
 #define USE_XMALLOC
 #define MPACK_USE_P99
 
-#include "contrib/bstring/bstring.h"
+#include "bstring.h"
 #include "my_p99_common.h"
 
 #include "contrib/p99/p99.h"

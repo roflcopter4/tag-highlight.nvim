@@ -3,7 +3,7 @@
 
 /* #include "Common.h" */
 
-#include "contrib/bstring/bstring.h"
+#include "bstring.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -3,7 +3,7 @@
 
 #include "Common.h"
 
-#include "contrib/bstring/bstring.h"
+#include "bstring.h"
 #include "contrib/p99/p99.h"
 #include "contrib/p99/p99_defarg.h"
 #include "contrib/p99/p99_for.h"

@@ -272,7 +272,7 @@ my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info)
                 LOG("The file is \"%s\"\n", info->filename);
 
         CXString fullname = clang_getFileName(info->file);
-        b_list_append(&DAT(data)->bdata->headers, b_fromcstr(CS(fullname)));
+        b_list_append(DAT(data)->bdata->headers, b_fromcstr(CS(fullname)));
         clang_disposeString(fullname);
 
         return NULL;

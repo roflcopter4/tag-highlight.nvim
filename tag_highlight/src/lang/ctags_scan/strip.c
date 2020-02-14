@@ -341,7 +341,7 @@ handle_cstyle(bstring **vim_bufp)
                 if (!empty) {
                         repl[x++] = '\n';
                         repl[x]   = '\0';
-                        b_list_append(&list, b_steal(repl, x));
+                        b_list_append(list, b_steal(repl, x));
                 } else {
                         free(repl);
                 }

@@ -1,7 +1,7 @@
 #ifndef SRC_LIST_H_
 #define SRC_LIST_H_
 
-#include "contrib/bstring/bstring.h"
+#include "bstring.h"
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>

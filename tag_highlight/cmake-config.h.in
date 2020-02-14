@@ -19,6 +19,8 @@
 #cmakedefine HAVE_STRLCAT
 #cmakedefine HAVE_STRLCPY
 #cmakedefine HAVE_STRSEP
+#cmakedefine HAVE_STRCASECMP
+#cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
 

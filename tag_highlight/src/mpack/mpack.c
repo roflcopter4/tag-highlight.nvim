@@ -280,14 +280,14 @@ mpack_array_to_blist(mpack_array *array, bool const destroy)
         if (destroy) {
                 for (unsigned i = 0; i < size; ++i) {
                         b_writeprotect(array->items[i]->data.str);
-                        b_list_append(&ret, array->items[i]->data.str);
+                        b_list_append(ret, array->items[i]->data.str);
                 }
 
                 mpack_array_destroy(array);
                 b_list_writeallow(ret);
         } else {
                 for (unsigned i = 0; i < size; ++i)
-                        b_list_append(&ret, array->items[i]->data.str);
+                        b_list_append(ret, array->items[i]->data.str);
         }
 
         return ret;

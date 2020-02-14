@@ -124,7 +124,7 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
-        B_LIST_FOREACH_2 (output, tok, i) {
+        B_LIST_FOREACH (output, tok, i) {
                 sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%s", &data.ch,
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
@@ -162,7 +162,7 @@ separate_and_sort(bstring *output)
         while (b_memsep(&tok, output, '\n')) {
                 bstring *tmp = b_refblk(tok.data, tok.slen);
 
-                if (b_list_append(&ret, tmp) != BSTR_OK)
+                if (b_list_append(ret, tmp) != BSTR_OK)
                         errx(1, "Fatal BSTRING runtime error");
         }
 
