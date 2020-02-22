@@ -117,6 +117,7 @@ init() {
 
     mkdir -p "${top_dir}/autoload/tag_highlight"
     mkdir -p "${top_dir}/cache"
+    mkdir -p "${top_dir}/cache/tags"
 
     cat >"${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#GetBinaryName()
@@ -188,6 +189,20 @@ install() {
 ################################################################################
 # The script
 
+show_help() {
+    cat <<EOF
+Usage: $0 -[hl] <command>
+Options:
+    -h  Show this help
+    -l  Link the binary rather than copy it
+Valid commands:
+    setup:   Initialize the directory structure and create the necessary vim files
+    update:  Rebuild the binary only
+    install: setup and install
+Defaults to 'install' if no command is specified.
+EOF
+}
+
 Exists 'uname' || die <<'EOF'
 A Posix build environment is required. How you have a working shell with no
 `uname(1)' utility is beyond my ability to interpret.
@@ -199,9 +214,11 @@ bin_dir="${top_dir}/bin"
 system_type=$(guess_system)
 link_cmd=$(get_link_command)
 
-while getopts 'l' ARG "$@"; do
+while getopts 'lh' ARG "$@"; do
     case $ARG in
         l) link_bin=true ;;
+        h) show_help; exit 0 ;;
+        *) show_help; exit 1 ;;
     esac
 done
 shift $((OPTIND - 1))

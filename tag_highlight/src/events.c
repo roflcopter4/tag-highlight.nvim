@@ -16,8 +16,8 @@
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-/* #  define USE_EVENT_LIB  EVENT_LIB_EV */
-#  define USE_EVENT_LIB  EVENT_LIB_NONE
+#  define USE_EVENT_LIB  EVENT_LIB_EV
+/* #  define USE_EVENT_LIB  EVENT_LIB_NONE */
 #  define KILL_SIG       SIGUSR1
 pthread_t event_loop_thread;
 #endif
@@ -116,7 +116,6 @@ post_nvim_response(void *vdata)
                 P99_FIFO_APPEND(&_nvim_wait_queue, node);
         }
 
-        /* node->obj = obj; */
         atomic_store_explicit(&node->obj, obj, memory_order_release);
         p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
         pthread_exit();
@@ -174,13 +173,12 @@ handle_message(int const fd, mpack_obj *obj)
 #if USE_EVENT_LIB == EVENT_LIB_EV
 
 # include <ev.h>
-# define UEVP_ __attribute__((__unused__)) EV_P
 
 static struct ev_io     input_watcher;
 static struct ev_signal signal_watcher[4];
 
 static void
-event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
+event_loop_io_cb(UNUSED EV_P, ev_io *w, UNUSED int revents)
 {
         pthread_mutex_lock(&event_loop_cb_mutex);
 
@@ -192,13 +190,14 @@ event_loop_io_callback(UEVP_, ev_io *w, UNUSED int revents)
 }
 
 static noreturn void
-sig_cb(UEVP_, UNUSED ev_signal *w, UNUSED int revents)
+event_loop_signal_cb(UNUSED EV_P, UNUSED ev_signal *w, UNUSED int revents)
 {
         quick_exit(0);
 }
 
 static void
-graceful_sig_cb(struct ev_loop *loop, UNUSED ev_signal *w, UNUSED int revents)
+event_loop_graceful_signal_cb(struct ev_loop *loop,
+                              UNUSED ev_signal *w, UNUSED int revents)
 {
         ev_signal_stop(loop, &signal_watcher[0]);
         ev_signal_stop(loop, &signal_watcher[1]);
@@ -211,14 +210,14 @@ void
 run_event_loop(int const fd)
 {
         struct ev_loop *loop = EV_DEFAULT;
-        event_loop_thread     = pthread_self();
-        ev_io_init(&input_watcher, event_loop_io_callback, fd, EV_READ);
+        event_loop_thread    = pthread_self();
+        ev_io_init(&input_watcher, event_loop_io_cb, fd, EV_READ);
         ev_io_start(loop, &input_watcher);
 
-        ev_signal_init(&signal_watcher[0], sig_cb, SIGTERM);
-        ev_signal_init(&signal_watcher[1], sig_cb, SIGPIPE);
-        ev_signal_init(&signal_watcher[2], sig_cb, SIGINT);
-        ev_signal_init(&signal_watcher[3], graceful_sig_cb, SIGUSR1);
+        ev_signal_init(&signal_watcher[0], event_loop_signal_cb, SIGTERM);
+        ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGPIPE);
+        ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGINT);
+        ev_signal_init(&signal_watcher[3], event_loop_graceful_signal_cb, SIGUSR1);
         ev_signal_start(loop, &signal_watcher[0]);
         ev_signal_start(loop, &signal_watcher[1]);
         ev_signal_start(loop, &signal_watcher[2]);
@@ -383,23 +382,26 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
          */
 
         if (new_strings->qty) {
+                /* An "initial" update, recieved only if asked for when attaching
+                 * to a buffer. We never ask for this, so this shouldn't occur. */
                 if (last == (-1)) {
-                        /* An "initial" update, recieved only if asked for when attaching
-                         * to a buffer. We never ask for this, so this shouldn't occur. */
                         errx(1, "Got initial update somehow...");
-                } else if (bdata->lines->qty         <= 1 &&
-                                first                     == 0 && /* Empty buffer... */
-                                new_strings->qty          == 1 && /* with one string... */
-                                new_strings->lst[0]->slen == 0    /* which is emtpy. */) {
-                        /* Useless update, one empty string in an empty buffer. */
+                }
+                /* Useless update, one empty string in an empty buffer. */
+                else if (bdata->lines->qty         <= 1 &&
+                           first                     == 0 && /* Empty buffer... */
+                           new_strings->qty          == 1 && /* with one string... */
+                           new_strings->lst[0]->slen == 0    /* which is emtpy. */)
+                {
                         empty = true;
-                } else if (first == 0 && last == 0) {
-                        /* Inserting above the first line in the file. */
+                } 
+                /* Inserting above the first line in the file. */
+                else if (first == 0 && last == 0) {
                         ll_insert_blist_before_at(bdata->lines, first, new_strings, 0, -1);
-                } else {
-                        /* The most common scenario: we recieved at least one string
-                         * which may be empty only if the buffer is not empty.
-                         * Moved to a helper function for clarity. */
+                }
+                /* The most common scenario: we recieved at least one string which may be empty
+                 * only if the buffer is not empty. Moved to a helper function for clarity. */
+                else {
                         line_event_multi_op(bdata, new_strings, first, diff);
                 }
         } else if (first != last) {
@@ -459,8 +461,8 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
         for (int i = 0; i < num_lines; ++i) {
                 if (num_to_modify-- > 0 && i < olen) {
                         /* There are still strings to be modified. If we still have a
-                         * replacement available then we use it. Otherwise we are
-                         * instead deleting a range of lines. */
+                         * replacement available then we use it. Otherwise we are instead
+                         * deleting a range of lines. */
                         if (i < num_new)
                                 replace_line(bdata, new_strings, first + i, i);
 
@@ -487,4 +489,3 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
 }
 
 /*======================================================================================*/
-
