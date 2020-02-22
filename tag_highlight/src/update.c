@@ -195,7 +195,8 @@ update_commands(Buffer *bdata, struct taglist *tags)
 }
 
 static int
-handle_kind(bstring *const cmd, unsigned i,
+handle_kind(bstring *const         cmd,
+            unsigned               i,
             struct filetype const *ft,
             struct taglist const  *tags,
             struct cmd_info const *info)

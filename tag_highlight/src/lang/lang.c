@@ -2,7 +2,8 @@
 
 /*======================================================================================*/
 
-__attribute__((pure)) const bstring *
+__attribute__((__pure__))
+const bstring *
 find_group(struct filetype *ft, struct cmd_info const *info,
            unsigned const num, int const ctags_kind)
 {
@@ -70,10 +71,10 @@ new_arg_array(void)
 
 void
 add_hl_call(struct mpack_arg_array *calls,
-            int const                 bufnum,
-            int const                 hl_id,
-            bstring const            *group,
-            struct line_data const   *data)
+            int const               bufnum,
+            int const               hl_id,
+            bstring const          *group,
+            struct line_data const *data)
 {
         assert(calls);
         if (calls->qty >= calls->mlen-1) {

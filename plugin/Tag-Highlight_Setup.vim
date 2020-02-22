@@ -166,6 +166,13 @@ function! s:Add_Remove_Project(operation, ...)
     else
         let l:path = getcwd()
     endif
+
+    echom 'got' . l:path . ' and ' . isdirectory(l:path)
+    if !isdirectory(l:path)
+        echoerr 'Specified project file ' . l:path . ' is not a valid directory.'
+        return
+    endif
+
     let l:path = resolve(fnamemodify(expand(l:path), ':p:h'))
 
     if a:operation ==# 0
@@ -279,11 +286,11 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
-            " if g:tag_highlight#verbose
+            if g:tag_highlight#verbose
                 try
                     call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
                 endtry
-            " endif
+            endif
         endif
     endfor
 endfunction
@@ -293,10 +300,6 @@ function! s:OnExit(job_id, data, event) dict
     let g:tag_highlight#pid = 0
     let s:seen_bufs = []
     let s:new_bufs  = []
-endfunction
-
-function! s:Wait()
-    sleep 25m
 endfunction
 
 "===============================================================================
@@ -312,7 +315,6 @@ let s:msg_types = {
             \     }
 
 function! s:NewBuf()
-    " call s:Wait()
     if g:tag_highlight#pid >=# 0
         let l:buf = nvim_get_current_buf()
         if index(s:new_bufs, l:buf) == (-1)
@@ -323,7 +325,6 @@ function! s:NewBuf()
 endfunction
 
 function! s:BufChanged()
-    " call s:Wait()
     let l:buf = nvim_get_current_buf()
     if index(s:new_bufs, l:buf) == (-1)
         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
@@ -399,14 +400,11 @@ function! s:InitTagHighlight()
     let s:new_bufs = [l:cur]
 
     try
-        " call system('rm -f '.expand('~/.tag_highlight_log/stderr.log'))
         call delete(expand(g:tag_highlight#directory . '/stderr.log'))
     endtry
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
     let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
-    
-    "sleep 500m " Don't do anything until we're sure everything's finished initializing
 endfunction
 
 "===============================================================================
@@ -426,7 +424,6 @@ endif
 
 augroup TagHighlightAu
     autocmd BufAdd * call s:NewBuf()
-    " autocmd BufRead * call s:NewBuf()
     autocmd BufWritePost * call s:SendMessage('UpdateTags')
     autocmd BufEnter * call s:BufChanged()
     autocmd BufDelete * call s:DeleteBuf()
@@ -437,7 +434,6 @@ augroup END
 
 "===============================================================================
 
-" call s:InitTagHighlight()
 let g:tag_highlight#loaded = 1
 
 " vim:fdm=marker
