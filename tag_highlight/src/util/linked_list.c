@@ -361,18 +361,14 @@ ll_destroy(linked_list *list)
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
         if (list->qty == 1) {
-                ll_node *current;
                 eprintf("Freeing 1 thing\n");
-                if (list->tail)
-                        current = list->tail;
-                else
-                        current = list->head;
+                ll_node *current = (list->tail) ? list->tail : list->head;
                 if (list->free_data)
                         list->free_data(current->data);
                 free(current);
         } else if (list->qty > 1) {
-                ll_node *current = list->head;
                 eprintf("Freeing %u things\n", list->qty);
+                ll_node *current = list->head;
                 do {
                         ll_node *tmp = current;
                         current      = current->next;

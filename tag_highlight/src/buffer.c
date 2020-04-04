@@ -35,8 +35,8 @@ typedef struct top_dir  Top_Dir;
 
 linked_list *buffer_list;
 
-static p99_futex  volatile destruction_futex[DATA_ARRSIZE];
-static pthread_mutex_t     ftdata_mutex;
+static p99_futex volatile destruction_futex[DATA_ARRSIZE];
+static pthread_mutex_t    ftdata_mutex;
 
 static void b_free_wrapper(void *vdata);
 
@@ -45,14 +45,12 @@ static void b_free_wrapper(void *vdata);
 static        buffer_node *find_buffer_node   (int bufnum);
 static inline buffer_node *new_buffer_node    (int bufnum);
 static        Buffer      *make_new_buffer    (buffer_node *bnode);
-static inline bool         should_skip_buffer (bstring const *ft);
-/* static inline void         ensure_buffer_node (buffer_node **bnode_p, int bufnum); */
+static inline bool         should_skip_buffer (bstring const *ft) __attribute__((pure));
 
 Buffer *
 new_buffer(int const bufnum)
 {
         buffer_node *bnode = find_buffer_node(bufnum);
-        /* ensure_buffer_node(&bnode, bufnum); */
         if (!bnode) {
                 bnode = new_buffer_node(bufnum);
                 ll_append(buffer_list, bnode);
@@ -60,17 +58,6 @@ new_buffer(int const bufnum)
         Buffer *ret = make_new_buffer(bnode);
         return ret;
 }
-
-#if 0
-static inline void
-ensure_buffer_node(buffer_node **bnode_p, int const bufnum)
-{
-        if (!*bnode_p) {
-                *bnode_p = new_buffer_node(bufnum);
-                ll_append(buffer_list, *bnode_p);
-        }
-}
-#endif
 
 static Buffer *
 make_new_buffer(buffer_node *bnode)
@@ -616,7 +603,7 @@ get_restore_cmds(b_list *restored_groups)
                                 while (isblank(*++tmp))
                                         ;
                                 if (strncmp((ptr = tmp), "links to ", 9) == 0
-                                            && !((tmp = strchr(ptr, '\n')) + 1))
+                                            && !(strchr(ptr, '\n') + 1))
                                         break;
                         }
 
@@ -649,7 +636,8 @@ static void destroy_buffer_wrapper(void *vdata);
 /* 
  * Actually initializing these things seems mandatory on Windows.
  */
-__attribute__((__constructor__)) static void
+__attribute__((__constructor__))
+static void
 buffer_c_constructor(void)
 {
         pthread_mutex_init(&ftdata_mutex);
@@ -658,7 +646,6 @@ buffer_c_constructor(void)
                 p99_futex_init((p99_futex *)&destruction_futex[i], 0);
 
         buffer_list = ll_make_new(destroy_buffer_wrapper);
-        /* buffer_list = ll_make_new(NULL); */
         top_dirs    = genlist_create();
 }
 
@@ -674,10 +661,9 @@ destroy_buffer_wrapper(void *vdata)
         assert(vdata);
         if (vdata) {
                 buffer_node *bnode = vdata;
-                if (bnode->bdata) {
-                        destroy_buffer(bnode->bdata,
-                                       DES_BUF_NO_NODESEARCH | DES_BUF_SHOULD_CLEAR);
-                }
+                if (bnode->bdata)
+                        destroy_buffer(bnode->bdata, DES_BUF_NO_NODESEARCH |
+                                                     DES_BUF_SHOULD_CLEAR);
                 if (bnode->lock) {
                         pthread_rwlock_destroy(bnode->lock);
                         free(bnode->lock);
@@ -749,18 +735,6 @@ void
         p99_futex_wakeup(&destruction_futex[bdata->num]);
         free(bdata);
 }
-
-#if 0
-void
-destroy_bnode(void *vdata)
-{
-        buffer_node *bnode = vdata;
-        if (bnode->bdata)
-                destroy_buffer(bnode->bdata, false);
-        /* free(bnode->lock); */
-        /* free(bnode);       */
-}
-#endif
 
 void
 clear_bnode(void *vdata)

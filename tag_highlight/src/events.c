@@ -312,11 +312,9 @@ handle_nvim_event(void *vdata)
                         handle_line_event(bdata, arr);
                         break;
                 case EVENT_BUF_CHANGED_TICK: {
-                        uint32_t new_tick, old_tick;
                         pthread_mutex_lock(&bdata->lock.ctick);
-                        new_tick = mpack_expect(arr->items[1], E_NUM).num;
-                        old_tick = atomic_load(&bdata->ctick);
-                        if (new_tick > old_tick)
+                        uint32_t const new_tick = mpack_expect(arr->items[1], E_NUM).num;
+                        if (new_tick > atomic_load(&bdata->ctick))
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
                         break;
@@ -359,8 +357,7 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         pthread_mutex_lock(&bdata->lock.ctick);
         mpack_obj **   items    = arr->items;
         unsigned const new_tick = mpack_expect(items[1], E_NUM).num;
-        unsigned const old_tick = atomic_load(&bdata->ctick);
-        if (new_tick > old_tick)
+        if (new_tick > atomic_load(&bdata->ctick))
                 atomic_store(&bdata->ctick, new_tick);
         pthread_mutex_unlock(&bdata->lock.ctick);
 
@@ -382,9 +379,8 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         if (new_strings->qty) {
                 /* An "initial" update, recieved only if asked for when attaching
                  * to a buffer. We never ask for this, so this shouldn't occur. */
-                if (last == (-1)) {
+                if (last == (-1))
                         errx(1, "Got initial update somehow...");
-                }
                 /* Useless update, one empty string in an empty buffer. */
                 else if (bdata->lines->qty         <= 1 &&
                          first                     == 0 && /* Empty buffer... */
@@ -394,17 +390,16 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
                         empty = true;
                 } 
                 /* Inserting above the first line in the file. */
-                else if (first == 0 && last == 0) {
+                else if (first == 0 && last == 0)
                         ll_insert_blist_before_at(bdata->lines, first, new_strings,
                                                   0, (-1));
-                }
                 /* The most common scenario: we recieved at least one string which
                  * may be empty only if the buffer is not empty. Moved to a helper
                  * function for clarity. */
-                else {
+                else
                         line_event_multi_op(bdata, new_strings, first, diff);
-                }
-        } else if (first != last) {
+        }
+        else if (first != last) {
                 /* If the replacement list is empty then we're just deleting lines. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
@@ -463,10 +458,9 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                         /* There are still strings to be modified. If we still have a
                          * replacement available then we use it. Otherwise we are instead
                          * deleting a range of lines. */
-                        if (i < num_new)
+                        if (i < num_new) {
                                 replace_line(bdata, new_strings, first + i, i);
-
-                        else {
+                        } else {
                                 ll_delete_range_at(bdata->lines, first + i,
                                                    num_to_modify + 1);
                                 break;
@@ -487,5 +481,3 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                 }
         }
 }
-
-/*======================================================================================*/

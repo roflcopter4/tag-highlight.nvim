@@ -198,6 +198,7 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
 else() # GCC
 
     string(CONCAT BASE "${BASE}"
+        " -Wattributes"
         " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc"
         " -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format"
         " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")

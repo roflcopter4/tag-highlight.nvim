@@ -221,18 +221,20 @@ mpack_retval
         return m_expect_intern(result, expect);
 }
 
-mpack_retval(nvim_buf_get_var)(int            const  bufnum,
-                               bstring        const *varname,
-                               mpack_expect_t const  expect)
+mpack_retval
+(nvim_buf_get_var)(int const             bufnum,
+                   bstring        const *varname,
+                   mpack_expect_t const  expect)
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,s"), bufnum, varname);
         return m_expect_intern(result, expect);
 }
 
-mpack_retval(nvim_buf_get_option)(int            const  bufnum,
-                                  bstring        const *optname,
-                                  mpack_expect_t const  expect)
+mpack_retval
+(nvim_buf_get_option)(int const             bufnum,
+                      bstring        const *optname,
+                      mpack_expect_t const  expect)
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,s"), bufnum, optname);

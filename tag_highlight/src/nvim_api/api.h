@@ -26,9 +26,9 @@ typedef enum nvim_filetype_id     nvim_filetype_id;
 typedef enum nvim_connection_type nvim_connection_type;
 
 struct nvim_wait {
-        int32_t             fd;
-        int32_t             count;
-        mpack_obj          *obj;
+        int32_t    fd;
+        int32_t    count;
+        mpack_obj *obj;
 };
 
 
@@ -36,8 +36,8 @@ struct nvim_wait {
 /* API Wrappers */
 
 extern void           _nvim_write              (enum nvim_write_type type, const bstring *mes);
-extern void           nvim_printf              (const char *__restrict fmt, ...) __aFMT(1, 2);
-extern void           nvim_vprintf             (const char *__restrict fmt, va_list args) __aFMT(1, 0);
+extern void           nvim_printf              (const char *restrict fmt, ...) __aFMT(1, 2);
+extern void           nvim_vprintf             (const char *restrict fmt, va_list args) __aFMT(1, 0);
 extern void           nvim_b_printf            (const bstring *fmt, ...);
 extern mpack_retval   nvim_get_var_fmt         (mpack_expect_t expect, const char *fmt, ...) __aFMT(2, 3) __aWUR;
 extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);

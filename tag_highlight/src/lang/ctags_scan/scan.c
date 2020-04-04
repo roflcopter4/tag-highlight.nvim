@@ -336,7 +336,7 @@ do_tok_search(void *vdata)
                         LOG("Tok is currently '%s'\n", BS(tok));
                         if (tok->slen == 1) {
                                 kind = (char)tok->data[0];
-                        } else if (strncmp(BS(tok), "language:", SIZE_LANG) == 0) {
+                        } else if (strncmp(BTS(*tok), "language:", SIZE_LANG) == 0) {
                                 match_lang[0].data = tok[0].data + SIZE_LANG;
                                 match_lang[0].slen = tok[0].slen - SIZE_LANG;
                         }

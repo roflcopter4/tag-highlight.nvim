@@ -66,6 +66,8 @@ init(char **argv)
 static void
 platform_init(char **argv)
 {
+        if (!program_invocation_name)
+                program_invocation_name = argv[0];
         if (!program_invocation_short_name)
                 program_invocation_short_name = basename(argv[0]);
 #ifdef DOSISH
@@ -182,7 +184,6 @@ get_compression_type(void)
 
 /*======================================================================================*/
 
-/* extern void destroy_bnode(void *vdata); */
 extern void clear_bnode(void *vdata);
 
 /*
@@ -192,8 +193,7 @@ void
 exit_cleanup(void)
 {
         extern linked_list *buffer_list;
-        /* extern genlist *top_dirs; */
-        extern bool    process_exiting;
+        extern bool         process_exiting;
         process_exiting = true;
 
         b_destroy(settings.cache_dir);
@@ -202,25 +202,6 @@ exit_cleanup(void)
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
-
-#if 0
-        for (unsigned i = 0; i < buffers.mlen; ++i)
-                destroy_bufdata(buffers.lst + i);  
-#endif
-        /* destroy_buffer(find_buffer(1)); */
-#if 0
-        LL_FOREACH_F (buffer_list, node) {
-                destroy_bnode(node);
-                /* node->data = NULL; */
-        }
-#endif
-#if 0
-        for (int i = 0, n = buffer_list->qty; i < n; ++i) {
-                ll_delete_at(buffer_list, 0);
-        }
-#endif
-        /* free(buffer_list->intern); */
-        /* free(buffer_list);         */
 
         LL_FOREACH_F (buffer_list, node)
                 clear_bnode(node->data);

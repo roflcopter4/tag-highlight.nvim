@@ -468,10 +468,10 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
         unsigned         sub_lengths[arr_size];
         int              ch;
         va_list          args;
-        va_list         *ref       = NULL;
+        va_list *        ref       = NULL;
         mpack_argument **a_args    = NULL;
-        char const      *ptr       = fmt;
-        unsigned        *cur_len   = &sub_lengths[0];
+        char const *     ptr       = fmt;
+        unsigned *       cur_len   = &sub_lengths[0];
         unsigned         len_ctr   = 1;
         int              next_type = OWN_VALIST;
         *cur_len                   = 0;
@@ -484,7 +484,7 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
 
         /* Go through the format string once to get the number of arguments and
          * in particular the number and size of any arrays. */
-        while ((ch = *ptr++)) {
+        while ((ch = (uchar)*ptr++)) {
                 switch (ch) {
                 /* Legal values. Increment size and continue. */
                 case 'b': case 'B': case 'l': case 'L':
@@ -557,7 +557,7 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
         /* This loop is where all of the actual interpretation and encoding
          * happens. A few stacks are used when recursively encoding arrays and
          * dictionaries to store the state of the enclosing object(s). */
-        while ((ch = *ptr++)) {
+        while ((ch = (uchar)*ptr++)) {
                 switch (ch) {
                 case 'b': case 'B': {
                         bool arg = 0;
