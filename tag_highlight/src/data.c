@@ -34,7 +34,6 @@ struct filetype ftdata[] = {
 
 
 extern bool             process_exiting;
-extern b_list          *seen_files;
 extern jmp_buf          exit_buf;
 extern FILE            *cmd_log, *echo_log, *main_log;
 extern const char      *program_name;
@@ -50,6 +49,5 @@ char           *HOME;
 FILE           *cmd_log;
 FILE           *echo_log;
 FILE           *main_log;
-b_list         *seen_files;
 jmp_buf         exit_buf;
 bool            process_exiting;
