@@ -45,8 +45,8 @@ static void b_free_wrapper(void *vdata);
 static        buffer_node *find_buffer_node   (int bufnum);
 static inline buffer_node *new_buffer_node    (int bufnum);
 static        Buffer      *make_new_buffer    (buffer_node *bnode);
-static inline void         ensure_buffer_node (buffer_node **bnode_p, int bufnum);
 static inline bool         should_skip_buffer (bstring const *ft);
+/* static inline void         ensure_buffer_node (buffer_node **bnode_p, int bufnum); */
 
 Buffer *
 new_buffer(int const bufnum)
@@ -57,7 +57,8 @@ new_buffer(int const bufnum)
                 bnode = new_buffer_node(bufnum);
                 ll_append(buffer_list, bnode);
         }
-        return make_new_buffer(bnode);
+        Buffer *ret = make_new_buffer(bnode);
+        return ret;
 }
 
 #if 0
@@ -190,70 +191,6 @@ init_buffer_mutexes(Buffer *bdata)
         pthread_mutex_init(&bdata->lock.ctick, &attr);
 
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
-}
-
-void
-destroy_buffer(Buffer *bdata)
-{
-        extern void destroy_clangdata(Buffer * bdata);
-        extern bool process_exiting;
-        /* if (!bdata)     */
-        /*         return; */
-        assert(bdata != NULL);
-        buffer_node *bnode = find_buffer_node(bdata->num);
-        assert(bnode != NULL);
-
-        if (!process_exiting) {
-                pthread_rwlock_wrlock(bnode->lock);
-                bnode->isopen = false;
-                pthread_rwlock_unlock(bnode->lock);
-        }
-
-        bnode->bdata = NULL;
-
-        pthread_mutex_lock(&bdata->lock.total);
-        pthread_mutex_lock(&bdata->lock.ctick);
-
-        b_destroy(bdata->name.full);
-        b_destroy(bdata->name.base);
-        b_destroy(bdata->name.path);
-        ll_destroy(bdata->lines);
-
-        if (--bdata->topdir->refs == 0) {
-                Top_Dir *topdir = bdata->topdir;
-                close(topdir->tmpfd);
-                unlink(BS(topdir->tmpfname));
-
-                b_destroy(topdir->gzfile);
-                b_destroy(topdir->pathname);
-                b_destroy(topdir->tmpfname);
-                b_list_destroy(topdir->tags);
-
-                for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                        if (top_dirs->lst[i] == topdir) {
-                                genlist_remove_index(top_dirs, i);
-                                top_dirs->lst[i] = NULL;
-                        }
-                }
-        }
-
-        if (bdata->ft->is_c) {
-                if (bdata->clangdata)
-                        destroy_clangdata(bdata);
-                if (bdata->headers)
-                        b_list_destroy(bdata->headers);
-        } else {
-                if (bdata->calls)
-                        mpack_destroy_arg_array(bdata->calls);
-        }
-
-        pthread_mutex_unlock(&bdata->lock.ctick);
-        pthread_mutex_destroy(&bdata->lock.ctick);
-        pthread_mutex_unlock(&bdata->lock.total);
-        pthread_mutex_destroy(&bdata->lock.total);
-
-        p99_futex_wakeup(&destruction_futex[bdata->num]);
-        free(bdata);
 }
 
 /*======================================================================================*/
@@ -707,41 +644,7 @@ get_restore_cmds(b_list *restored_groups)
 
 /*======================================================================================*/
 
-#if 0
-static void
-buffer_c_destructor(void)
-{
-        if (top_dirs) {
-                free(top_dirs->lst);
-                free(top_dirs);
-        }
-}
-#endif
-
-void
-destroy_bnode(void *vdata)
-{
-        buffer_node *bnode = vdata;
-        if (bnode->bdata)
-                destroy_buffer(bnode->bdata);
-        /* free(bnode->lock); */
-        /* free(bnode);       */
-}
-
-static void
-destroy_buffer_wrapper(void *vdata)
-{
-        if (vdata) {
-                buffer_node *bnode = vdata;
-                if (bnode->bdata) {
-                        destroy_buffer(bnode->bdata);
-                }
-                if (bnode->lock) {
-                        /* pthread_rwlock_destroy(bnode->lock); */
-                        free(bnode->lock);
-                }
-        }
-}
+static void destroy_buffer_wrapper(void *vdata);
 
 /* 
  * Actually initializing these things seems mandatory on Windows.
@@ -763,4 +666,106 @@ static void
 b_free_wrapper(void *vdata)
 {
         (void)b_free((bstring *)vdata);
+}
+
+static void
+destroy_buffer_wrapper(void *vdata)
+{
+        assert(vdata);
+        if (vdata) {
+                buffer_node *bnode = vdata;
+                if (bnode->bdata) {
+                        destroy_buffer(bnode->bdata,
+                                       DES_BUF_NO_NODESEARCH | DES_BUF_SHOULD_CLEAR);
+                }
+                if (bnode->lock) {
+                        pthread_rwlock_destroy(bnode->lock);
+                        free(bnode->lock);
+                }
+                free(bnode);
+        }
+}
+
+void
+(destroy_buffer)(Buffer *bdata, unsigned const flags)
+{
+        extern void destroy_clangdata(Buffer *bdata);
+        /* extern bool process_exiting; */
+        assert(bdata != NULL);
+
+        if (flags & DES_BUF_SHOULD_CLEAR)
+                clear_highlight(bdata);
+
+        if (!(flags & DES_BUF_NO_NODESEARCH)) {
+                buffer_node *bnode = find_buffer_node(bdata->num);
+                assert(bnode != NULL);
+                pthread_rwlock_wrlock(bnode->lock);
+                bnode->isopen = false;
+                bnode->bdata  = NULL;
+                pthread_rwlock_unlock(bnode->lock);
+        }
+
+        pthread_mutex_lock(&bdata->lock.total);
+        pthread_mutex_lock(&bdata->lock.ctick);
+
+        b_destroy(bdata->name.full);
+        b_destroy(bdata->name.base);
+        b_destroy(bdata->name.path);
+        ll_destroy(bdata->lines);
+
+        if (--bdata->topdir->refs == 0) {
+                Top_Dir *topdir = bdata->topdir;
+                close(topdir->tmpfd);
+                unlink(BS(topdir->tmpfname));
+
+                b_destroy(topdir->gzfile);
+                b_destroy(topdir->pathname);
+                b_destroy(topdir->tmpfname);
+                b_list_destroy(topdir->tags);
+
+                for (unsigned i = 0; i < top_dirs->qty; ++i) {
+                        if (top_dirs->lst[i] == topdir) {
+                                genlist_remove_index(top_dirs, i);
+                                top_dirs->lst[i] = NULL;
+                        }
+                }
+        }
+
+        if (bdata->ft->is_c) {
+                if (bdata->clangdata)
+                        destroy_clangdata(bdata);
+                if (bdata->headers)
+                        b_list_destroy(bdata->headers);
+        } else {
+                if (bdata->calls)
+                        mpack_destroy_arg_array(bdata->calls);
+        }
+
+        pthread_mutex_unlock(&bdata->lock.ctick);
+        pthread_mutex_destroy(&bdata->lock.ctick);
+        pthread_mutex_unlock(&bdata->lock.total);
+        pthread_mutex_destroy(&bdata->lock.total);
+
+        p99_futex_wakeup(&destruction_futex[bdata->num]);
+        free(bdata);
+}
+
+#if 0
+void
+destroy_bnode(void *vdata)
+{
+        buffer_node *bnode = vdata;
+        if (bnode->bdata)
+                destroy_buffer(bnode->bdata, false);
+        /* free(bnode->lock); */
+        /* free(bnode);       */
+}
+#endif
+
+void
+clear_bnode(void *vdata)
+{
+        buffer_node *bnode = vdata;
+        if (bnode && bnode->bdata)
+                clear_highlight(bnode->bdata);
 }

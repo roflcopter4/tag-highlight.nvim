@@ -143,11 +143,16 @@ extern size_t const        ftdata_len;
 
 /*===========================================================================*/
 
+enum destroy_buffer_flags {
+        DES_BUF_NO_NODESEARCH = 0x01U,
+        DES_BUF_SHOULD_CLEAR  = 0x02U,
+};
+
 extern bool    have_seen_bufnum (int bufnum);
 /* extern int     find_buffer_ind  (int bufnum); */
 /* extern bool    is_bad_buffer    (int bufnum); */
 /* extern void    destroy_bufdata  (Buffer **bdata_p); */
-extern void    destroy_buffer   (Buffer *bdata);
+extern void    destroy_buffer   (Buffer *bdata, unsigned flags);
 extern Buffer *new_buffer       (int bufnum);
 extern Buffer *find_buffer      (int bufnum);
 extern Buffer *get_bufdata      (int bufnum, struct filetype *ft);
@@ -201,6 +206,8 @@ _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 #define clear_highlight(...)        P99_CALL_DEFARG(clear_highlight, 2, __VA_ARGS__)
 #define clear_highlight_defarg_0()  (find_current_buffer())
 #define clear_highlight_defarg_1()  (false)
+#define destroy_buffer(...)         P99_CALL_DEFARG(destroy_buffer, 2, __VA_ARGS__)
+#define destroy_buffer_defarg_1()   (0)
 /* #define new_buffer(...)             P99_CALL_DEFARG(new_buffer, 2, __VA_ARGS__) */
 /* #define new_buffer_defarg_1()       (false) */
 
