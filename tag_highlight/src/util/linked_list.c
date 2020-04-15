@@ -46,7 +46,9 @@ ll_make_new(ll_free_data_t free_data)
 
         pthread_rwlockattr_t attr;
         pthread_rwlockattr_init(&attr);
+#ifdef PTHREAD_RWLOCK_PREFER_WRITER_NP
         pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
+#endif
         pthread_rwlock_init(&list->lock, &attr);
         pthread_rwlock_init((pthread_rwlock_t *)list->intern, &attr);
         //pthread_rwlockattr_t attr;

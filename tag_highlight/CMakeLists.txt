@@ -206,8 +206,8 @@ else() # GCC
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
             "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -rdynamic")
+    #string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+    #        " -rdynamic")
 
 endif()
 

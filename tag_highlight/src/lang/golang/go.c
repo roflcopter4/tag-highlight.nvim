@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 
 extern void try_go_crap(Buffer *bdata);
+extern const char *program_invocation_short_name;
 
 struct go_output {
         char ch;
@@ -75,7 +76,7 @@ highlight_go(Buffer *bdata)
 
         char *const argv[] = {
                 BS(go_binary),
-                program_invocation_short_name,
+                (char *)program_invocation_short_name,
                 (char *)is_debug,
                 BS(bdata->name.full),
                 BS(bdata->topdir->pathname),
