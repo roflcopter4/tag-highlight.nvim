@@ -47,16 +47,16 @@ static inline   void      replace_line        (Buffer *bdata, b_list *new_string
 static inline   void      line_event_multi_op (Buffer *bdata, b_list *new_strings, int first, int num_to_modify);
 static          void      handle_line_event   (Buffer *bdata, mpack_array *arr);
 static          void      handle_nvim_event   (void *vdata);
-static noreturn void     *post_nvim_response  (void *vdata);
-static noreturn void     *nvim_event_handler  (void *unused);
+static noreturn void *    post_nvim_response  (void *vdata);
+static noreturn void *    nvim_event_handler  (void *unused);
 static const    event_id *id_event            (mpack_obj *event) __attribute__((pure));
 
-extern FILE               *main_log;
-extern FILE               *api_buffer_log;
-extern p99_futex volatile  _nvim_wait_futex;
-extern p99_futex volatile  event_loop_futex;
-p99_futex volatile  event_loop_futex = P99_FUTEX_INITIALIZER(0);
-FILE               *api_buffer_log   = NULL;
+extern FILE *             main_log;
+extern FILE *             api_buffer_log;
+extern p99_futex volatile _nvim_wait_futex;
+extern p99_futex volatile event_loop_futex;
+       p99_futex volatile event_loop_futex = P99_FUTEX_INITIALIZER(0);
+       FILE *             api_buffer_log   = NULL;
 
 P99_FIFO(event_node_ptr) nvim_event_queue;
 
@@ -143,17 +143,15 @@ handle_message(int const fd, mpack_obj *obj)
 
         switch (mtype) {
         case MES_NOTIFICATION: {
-                event_node *node = calloc(1, sizeof(event_node));
+                event_node *node = calloc(1, sizeof *node);
                 atomic_store_explicit(&node->obj, obj, memory_order_relaxed);
                 P99_FIFO_APPEND(&nvim_event_queue, node);
                 START_DETACHED_PTHREAD(nvim_event_handler);
                 break;
         }
         case MES_RESPONSE: {
-                struct event_data *data = malloc(sizeof(struct event_data));
-                *data                   = (struct event_data) {
-                        fd, obj
-                };
+                struct event_data *data = malloc(sizeof *data);
+                *data                   = (struct event_data){fd, obj};
                 START_DETACHED_PTHREAD(post_nvim_response, data);
                 break;
         }
@@ -314,11 +312,9 @@ handle_nvim_event(void *vdata)
                         handle_line_event(bdata, arr);
                         break;
                 case EVENT_BUF_CHANGED_TICK: {
-                        uint32_t new_tick, old_tick;
                         pthread_mutex_lock(&bdata->lock.ctick);
-                        new_tick = mpack_expect(arr->items[1], E_NUM).num;
-                        old_tick = atomic_load(&bdata->ctick);
-                        if (new_tick > old_tick)
+                        uint32_t const new_tick = mpack_expect(arr->items[1], E_NUM).num;
+                        if (new_tick > atomic_load(&bdata->ctick))
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
                         break;
@@ -359,16 +355,15 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
                 errx(1, "Error: Continuation condition is unexpectedly true, cannot continue.");
 
         pthread_mutex_lock(&bdata->lock.ctick);
-        mpack_obj      **items    = arr->items;
-        unsigned const   new_tick = mpack_expect(items[1], E_NUM).num;
-        unsigned const   old_tick = atomic_load(&bdata->ctick);
-        if (new_tick > old_tick)
+        mpack_obj **   items    = arr->items;
+        unsigned const new_tick = mpack_expect(items[1], E_NUM).num;
+        if (new_tick > atomic_load(&bdata->ctick))
                 atomic_store(&bdata->ctick, new_tick);
         pthread_mutex_unlock(&bdata->lock.ctick);
 
         int const first       = mpack_expect(items[2], E_NUM).num;
         int const last        = mpack_expect(items[3], E_NUM).num;
-        b_list   *new_strings = mpack_expect(items[4], E_STRLIST).ptr;
+        b_list *  new_strings = mpack_expect(items[4], E_STRLIST).ptr;
         int const diff        = last - first;
         bool      empty       = false;
         items[4]->data.arr    = NULL;
@@ -384,27 +379,27 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         if (new_strings->qty) {
                 /* An "initial" update, recieved only if asked for when attaching
                  * to a buffer. We never ask for this, so this shouldn't occur. */
-                if (last == (-1)) {
+                if (last == (-1))
                         errx(1, "Got initial update somehow...");
-                }
                 /* Useless update, one empty string in an empty buffer. */
                 else if (bdata->lines->qty         <= 1 &&
-                           first                     == 0 && /* Empty buffer... */
-                           new_strings->qty          == 1 && /* with one string... */
-                           new_strings->lst[0]->slen == 0    /* which is emtpy. */)
+                         first                     == 0 && /* Empty buffer... */
+                         new_strings->qty          == 1 && /* with one string... */
+                         new_strings->lst[0]->slen == 0    /* which is emtpy. */)
                 {
                         empty = true;
                 } 
                 /* Inserting above the first line in the file. */
-                else if (first == 0 && last == 0) {
-                        ll_insert_blist_before_at(bdata->lines, first, new_strings, 0, -1);
-                }
-                /* The most common scenario: we recieved at least one string which may be empty
-                 * only if the buffer is not empty. Moved to a helper function for clarity. */
-                else {
+                else if (first == 0 && last == 0)
+                        ll_insert_blist_before_at(bdata->lines, first, new_strings,
+                                                  0, (-1));
+                /* The most common scenario: we recieved at least one string which
+                 * may be empty only if the buffer is not empty. Moved to a helper
+                 * function for clarity. */
+                else
                         line_event_multi_op(bdata, new_strings, first, diff);
-                }
-        } else if (first != last) {
+        }
+        else if (first != last) {
                 /* If the replacement list is empty then we're just deleting lines. */
                 ll_delete_range_at(bdata->lines, first, diff);
         }
@@ -463,10 +458,9 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                         /* There are still strings to be modified. If we still have a
                          * replacement available then we use it. Otherwise we are instead
                          * deleting a range of lines. */
-                        if (i < num_new)
+                        if (i < num_new) {
                                 replace_line(bdata, new_strings, first + i, i);
-
-                        else {
+                        } else {
                                 ll_delete_range_at(bdata->lines, first + i,
                                                    num_to_modify + 1);
                                 break;
@@ -487,5 +481,3 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                 }
         }
 }
-
-/*======================================================================================*/

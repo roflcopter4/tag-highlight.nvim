@@ -80,6 +80,7 @@ find_package (LibLZMA)
 find_package (LibClang REQUIRED)
 
 if (NOT MINGW)
+    # find_package (LibEv REQUIRED)
     find_package (LibEv REQUIRED)
 endif ()
 
@@ -151,9 +152,9 @@ endif()
 if (SANITIZE)
     set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
     if ("${SANITIZE}" STREQUAL "thread")
-        set (SANIT "${SANIT} -fsanitize=thread")
+        string (CONCAT SANIT "${SANIT} -fsanitize=thread")
     else ()
-        set (SANIT "${SANIT} -fsanitize=address")
+        string (CONCAT SANIT "${SANIT} -fsanitize=address")
     endif()
 endif()
 
@@ -197,6 +198,7 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
 else() # GCC
 
     string(CONCAT BASE "${BASE}"
+        " -Wattributes"
         " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc"
         " -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format"
         " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")
@@ -216,7 +218,7 @@ endif()
 # Misc
 
 string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
-string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -O3")
+string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -O3 -DNDEBUG")
 
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)

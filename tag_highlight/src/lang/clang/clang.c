@@ -154,6 +154,23 @@ lines2bytes(Buffer *bdata, int64_t *startend, int const first, int const last)
 
 /*======================================================================================*/
 
+static noreturn void
+horrible_horrible_awful_hack(void)
+{
+        execl(program_invocation_name, program_invocation_name, (char *)NULL);
+        _exit(1);
+}
+
+static noreturn void
+handle_libclang_error(int const err)
+{
+        extern void exit_cleanup(void);
+
+        shout("Libclang error (%d). Unfortunately this is fatal at the moment.", err);
+        exit_cleanup();
+        horrible_horrible_awful_hack();
+}
+
 static struct translationunit *
 recover_compilation_unit(Buffer *bdata, bstring *buf)
 {
@@ -164,7 +181,7 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
 
         int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 0, NULL, TUFLAGS);
         if (ret != 0)
-                errx(1, "libclang error: %d", ret);
+                handle_libclang_error(ret);
 
         struct translationunit *stu = malloc(sizeof(struct translationunit));
         stu->tu  = CLD(bdata)->tu;
@@ -200,10 +217,10 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         argv_dump(stderr, comp_cmds);
 #endif
 
-        struct clangdata *cld = malloc(sizeof *cld);
+        struct clangdata *cld = calloc(1, sizeof *cld);
         bdata->clangdata      = cld;
-        cld->idx = clang_createIndex(0, 0);
-        cld->tu  = NULL;
+        cld->idx  = clang_createIndex(0, 0);
+        cld->argv = comp_cmds;
 
         unsigned clerror = clang_parseTranslationUnit2(
             cld->idx, tmp, (char const **)comp_cmds->lst,
@@ -211,12 +228,11 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         );
 
         if (!cld->tu || clerror != 0)
-                errx(1, "libclang error: %d", clerror);
+                handle_libclang_error(clerror);
 
         struct translationunit *stu = malloc(sizeof *stu);
         stu->buf  = buf;
         stu->tu   = cld->tu;
-        cld->argv = comp_cmds;
         cld->info = getinfo(bdata);
         memcpy(cld->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
 
@@ -537,10 +553,12 @@ destroy_clangdata(Buffer *bdata)
         if (!cdata)
                 return;
 
-        for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
-                free(cdata->argv->lst[i]);
-        free(cdata->argv->lst);
-        free(cdata->argv);
+        if (cdata->argv) {
+                for (unsigned i = ARRSIZ(gcc_sys_dirs); i < cdata->argv->qty; ++i)
+                        free(cdata->argv->lst[i]);
+                free(cdata->argv->lst);
+                free(cdata->argv);
+        }
 
         if (cdata->info) {
                 for (unsigned i = 0, e = cdata->info[0].num; i < e; ++i)

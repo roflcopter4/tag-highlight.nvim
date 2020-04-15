@@ -16,11 +16,11 @@ p99_futex           first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 char                LOGDIR[SAFE_PATH_MAX];
 pthread_t           top_thread;
 
+extern void           exit_cleanup        (void);
 static void           init                (char **argv);
 static void           platform_init       (char **argv);
 static void           get_settings        (void);
 static void           open_logs           (void);
-static void           exit_cleanup        (void);
 static void           quick_cleanup       (void);
 static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
@@ -66,6 +66,8 @@ init(char **argv)
 static void
 platform_init(char **argv)
 {
+        if (!program_invocation_name)
+                program_invocation_name = argv[0];
         if (!program_invocation_short_name)
                 program_invocation_short_name = basename(argv[0]);
 #ifdef DOSISH
@@ -93,12 +95,12 @@ open_logs(void)
         extern char LOGDIR[];
         snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag_highlight_log", HOME);
         mkdir(LOGDIR, 0777);
-        mpack_log      = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
-        mpack_raw      = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
+        mpack_log = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
+        mpack_raw = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
         setvbuf(mpack_raw, NULL, 0, _IONBF);
-        cmd_log        = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
-        echo_log       = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
-        main_log       = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
+        cmd_log   = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
+        echo_log  = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
+        main_log  = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
 
         /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
 #endif
@@ -133,14 +135,12 @@ main_initialization(UNUSED void *arg)
 static void
 get_settings(void)
 {
-        settings.enabled        = nvim_get_var(B(PKG "enabled"),   E_BOOL  ).num;
-        settings.ctags_bin      = nvim_get_var(B(PKG "ctags_bin"), E_STRING).ptr;
-        if (!settings.enabled || !settings.ctags_bin)
-                exit(0);
-        settings.cache_dir      = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
         settings.comp_type      = get_compression_type();
+        settings.cache_dir      = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
         settings.comp_level     = nvim_get_var(B(PKG "compression_level"), E_NUM       ).num;
         settings.ctags_args     = nvim_get_var(B(PKG "ctags_args"),        E_STRLIST   ).ptr;
+        settings.ctags_bin      = nvim_get_var(B(PKG "ctags_bin"),         E_STRING    ).ptr;
+        settings.enabled        = nvim_get_var(B(PKG "enabled"),           E_BOOL      ).num;
         settings.ignored_ftypes = nvim_get_var(B(PKG "ignore"),            E_STRLIST   ).ptr;
         settings.ignored_tags   = nvim_get_var(B(PKG "ignored_tags"),      E_MPACK_DICT).ptr;
         settings.norecurse_dirs = nvim_get_var(B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
@@ -149,6 +149,9 @@ get_settings(void)
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
+
+        if (!settings.enabled || !settings.ctags_bin)
+                exit(0);
 }
 
 static comp_type_t
@@ -181,48 +184,27 @@ get_compression_type(void)
 
 /*======================================================================================*/
 
-extern void destroy_bnode(void *vdata);
+extern void clear_bnode(void *vdata);
 
 /*
  * Free everything at exit for debugging purposes.
  */
-static void
+void
 exit_cleanup(void)
 {
         extern linked_list *buffer_list;
-        /* extern genlist *top_dirs; */
-        extern b_list  *seen_files;
-        extern bool    process_exiting;
+        extern bool         process_exiting;
         process_exiting = true;
 
         b_destroy(settings.cache_dir);
         b_destroy(settings.ctags_bin);
         b_destroy(settings.settings_file);
-        b_list_destroy(seen_files);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
 
-#if 0
-        for (unsigned i = 0; i < buffers.mlen; ++i)
-                destroy_bufdata(buffers.lst + i);  
-#endif
-        eprintf("have %d in lst\n", buffer_list->qty);
-        /* destroy_buffer(find_buffer(1)); */
-#if 0
-        LL_FOREACH_F (buffer_list, node) {
-                destroy_bnode(node);
-                /* node->data = NULL; */
-        }
-#endif
-#if 0
-        for (int i = 0, n = buffer_list->qty; i < n; ++i) {
-                ll_delete_at(buffer_list, 0);
-        }
-#endif
-        /* free(buffer_list->intern); */
-        /* free(buffer_list);         */
-
+        LL_FOREACH_F (buffer_list, node)
+                clear_bnode(node->data);
         ll_destroy(buffer_list);
 
         if (top_dirs) {

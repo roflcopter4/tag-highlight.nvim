@@ -28,7 +28,6 @@ find_file(const char *path, const char *search, const enum find_flags flags)
 
         switch (flags) {
         case FIND_SHORTEST: {
-                unsigned i;
                 b_list  *split    = b_split_char(result, '\n', true);
                 bstring *shortest = split->lst[0];
 

@@ -75,6 +75,9 @@ struct ll_node_s {
 #define LL_FOREACH_B(LIST, VAR) \
         for (ll_node * VAR = (LIST)->tail; (VAR) != NULL; (VAR) = (VAR)->prev)
 
+#define ll_push    ll_append
+#define ll_enqueue ll_prepend
+
 LLDECL linked_list *ll_make_new    (ll_free_data_t free_data) __aWUR;
 LLDECL ll_node     *ll_at          (linked_list *list, int index);
 LLDECL void ll_prepend             (linked_list *list, void *data);
@@ -88,6 +91,8 @@ LLDECL void ll_insert_blist_after  (linked_list *list, ll_node *at, b_list *blis
 LLDECL void ll_insert_blist_before (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 LLDECL bool ll_verify_size         (linked_list *list);
 LLDECL bstring *ll_join_bstrings   (linked_list *list, int sepchar) __aWUR;
+LLDECL void *ll_pop                (linked_list *list) __aWUR;
+LLDECL void *ll_dequeue            (linked_list *list) __aWUR;
 
 /*======================================================================================================*/
 /* Generic list */

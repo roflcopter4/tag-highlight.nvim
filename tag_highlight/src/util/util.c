@@ -23,14 +23,15 @@
 
 #ifdef HAVE_EXECINFO_H
 #  include <execinfo.h>
-#  define SHOW_STACKTRACE()                                            \
-        __extension__({                                                \
-                void * arr[128];                                       \
-                size_t num = backtrace(arr, 128);                      \
-                fflush(stderr);                                        \
-                SHUTUPGCC write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
-                backtrace_symbols_fd(arr, num, 2);                     \
-                fsync(2);                                              \
+#  define SHOW_STACKTRACE()                                    \
+        __extension__({                                        \
+                void * arr[128];                               \
+                size_t num = backtrace(arr, 128);              \
+                fflush(stderr); fsync(2);                      \
+                SHUTUPGCC write(2, SLS("<<< FATAL ERROR >>>\n" \
+                                       "STACKTRACE:\n"));      \
+                backtrace_symbols_fd(arr, num, 2);             \
+                fsync(2);                                      \
         })
 #  define FATAL_ERROR(...)                                             \
         __extension__({                                                \
@@ -175,71 +176,35 @@ basename(char *path)
 void
 err_(UNUSED const int status, const bool print_err, const char *const restrict fmt, ...)
 {
-        const error_t e = errno;
-        va_list ap;
+        error_t const e = errno;
+        va_list       ap;
         va_start(ap, fmt);
-        /* char buf[ERRSTACKSIZE]; */
-
-        //if (print_err)
-        //        snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno));
-        //else
-        //        snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);
-
-
 
         fprintf(stderr, "%s: ", program_invocation_short_name);
         vfprintf(stderr, fmt, ap);
         if (print_err)
-                fprintf(stderr, ": %s", strerror(e));
+                fprintf(stderr, ": %s\n", strerror(e));
+        else
+                fputc('\n', stderr);
         va_end(ap);
 
         SHOW_STACKTRACE();
         fputc('\n', stderr);
         fflush(stderr);
         abort();
-        /* exit(status); */
 }
 
 extern FILE *echo_log;
 void
 warn_(const bool print_err, const bool force, const char *const restrict fmt, ...)
 {
+        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+
         if (!settings.verbose && !force)
                 return;
 
-        static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
-
         va_list       ap;
-        const error_t e = errno;
-
-#if 0
-        bstring  *new_fmt;
-
-        /* if (print_err) */
-        /*         new_fmt = b_sprintf("%n: %n: %n\n", program_invocation_short_name, fmt, strerror(e)); */
-        /* else */
-        /*         new_fmt = b_sprintf("%n: %n\n", program_invocation_short_name, fmt); */
-        if (print_err)
-                new_fmt = b_format("%s: %s: %s\n", program_invocation_short_name, fmt, strerror(e));
-        else
-                new_fmt = b_format("%s: %s\n", program_invocation_short_name, fmt);
-
-        if (!new_fmt)
-                return;
-
-        va_start(ap, fmt);
-        /* bstring *msg = _b_vsprintf(new_fmt, ap); */
-        bstring *msg = b_format(BS(new_fmt), ap);
-        va_end(ap);
-
-        b_free(new_fmt);
-
-        if (msg)
-                nvim_out_write(msg);
-        else
-                b_free(msg);
-#endif
-
+        error_t const e = errno;
         pthread_mutex_lock(&mut);
 
         fprintf(stderr, "%s: ", program_invocation_short_name);
@@ -249,31 +214,12 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         va_end(ap);
 
         if (print_err)
-                fprintf(stderr, "%s: \n", strerror(e));
+                fprintf(stderr, ": %s\n", strerror(e));
         else
                 fputc('\n', stderr);
 
         fflush(stderr);
-
         pthread_mutex_unlock(&mut);
-
-        /* va_list ap1, ap2;   */
-        /* va_start(ap1, fmt); */
-        /* va_start(ap2, fmt); */
-        /* char buf[ERRSTACKSIZE]; */
-
-        /* if (print_err)                                                                                            */
-        /*         snprintf(buf, ERRSTACKSIZE, "%s: %s: %s\n", program_invocation_short_name, fmt, strerror(errno)); */
-        /* else                                                                                                      */
-        /*         snprintf(buf, ERRSTACKSIZE, "%s: %s\n", program_invocation_short_name, fmt);                      */
-
-
-/* #ifdef DEBUG
-        vfprintf(echo_log, buf, ap2);
-        fflush(echo_log);
-#endif */
-
-        /* va_end(ap2); */
 }
 
 unsigned

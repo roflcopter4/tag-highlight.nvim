@@ -205,7 +205,6 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 static int
 exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 {
-        unsigned i;
         str_vector *argv = argv_create(128);
         argv_append(argv, BS(settings.ctags_bin), true);
 

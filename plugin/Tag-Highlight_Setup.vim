@@ -315,7 +315,7 @@ let s:msg_types = {
             \     }
 
 function! s:NewBuf()
-    if g:tag_highlight#pid >=# 0
+    if g:tag_highlight#pid > 0
         let l:buf = nvim_get_current_buf()
         if index(s:new_bufs, l:buf) == (-1)
             call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
@@ -326,19 +326,21 @@ endfunction
 
 function! s:BufChanged()
     let l:buf = nvim_get_current_buf()
-    if index(s:new_bufs, l:buf) == (-1)
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
-        call add(s:new_bufs, l:buf)
-        call add(s:seen_bufs, l:buf)
-    elseif index(s:seen_bufs, l:buf) ==# (-1)
-        call add(s:seen_bufs, l:buf)
-    elseif g:tag_highlight#pid >=# 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufChanged'])
+    if g:tag_highlight#pid > 0
+        if index(s:new_bufs, l:buf) == (-1)
+            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
+            call add(s:new_bufs, l:buf)
+            call add(s:seen_bufs, l:buf)
+        elseif index(s:seen_bufs, l:buf) ==# (-1)
+            call add(s:seen_bufs, l:buf)
+        elseif g:tag_highlight#pid >=# 0
+            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufChanged'])
+        endif
     endif
 endfunction
 
 function! s:SendMessage(msg)
-    if g:tag_highlight#pid !=# 0
+    if g:tag_highlight#pid > 0
         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types[a:msg])
     endif
 endfunction
@@ -357,7 +359,7 @@ function! s:DeleteBuf()
 endfunction
 
 function! s:StopTagHighlight()
-    if g:tag_highlight#pid >= 0
+    if g:tag_highlight#pid > 0
         call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['Stop'])
     endif
 endfunction
@@ -401,10 +403,15 @@ function! s:InitTagHighlight()
 
     try
         call delete(expand(g:tag_highlight#directory . '/stderr.log'))
+    catch
     endtry
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
-    let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
+    try
+        let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
+    catch /^Vim\%((\a\+)\)\=:E475/
+        echoerr "tag-highlight executable not found."
+    endtry
 endfunction
 
 "===============================================================================

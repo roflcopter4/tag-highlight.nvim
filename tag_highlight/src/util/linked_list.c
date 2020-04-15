@@ -51,10 +51,6 @@ ll_make_new(ll_free_data_t free_data)
 #endif
         pthread_rwlock_init(&list->lock, &attr);
         pthread_rwlock_init((pthread_rwlock_t *)list->intern, &attr);
-        //pthread_rwlockattr_t attr;
-        //pthread_rwlockattr_init(&attr);
-        //pthread_rwlockattr_settype(&attr, PTHREAD_RWLOCK_RECURSIVE);
-        //pthread_rwlock_init((pthread_rwlock_t *)list->intern, &attr);
 
         return list;
 }
@@ -85,6 +81,7 @@ ll_prepend(linked_list *list, void *data)
 void
 ll_append(linked_list *list, void *data)
 {
+        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
         assert(list);
         assert(data);
         ll_node *node = malloc(sizeof *node);
@@ -99,6 +96,7 @@ ll_append(linked_list *list, void *data)
         node->next = NULL;
         list->tail = node;
         ++list->qty;
+        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
 }
 
 
@@ -365,22 +363,19 @@ ll_destroy(linked_list *list)
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
         if (list->qty == 1) {
-                ll_node *current;
                 eprintf("Freeing 1 thing\n");
-                if (list->tail)
-                        current = list->tail;
-                else
-                        current = list->head;
+                ll_node *current = (list->tail) ? list->tail : list->head;
                 if (list->free_data)
-                        list->free_data(current);
+                        list->free_data(current->data);
                 free(current);
         } else if (list->qty > 1) {
+                eprintf("Freeing %u things\n", list->qty);
                 ll_node *current = list->head;
                 do {
                         ll_node *tmp = current;
                         current      = current->next;
                         if (list->free_data)
-                                list->free_data(tmp);
+                                list->free_data(tmp->data);
                         free(tmp);
                 } while (current);
         }
@@ -420,6 +415,53 @@ ll_delete_node(linked_list *list, ll_node *node)
 
 /*============================================================================*/
 
+void *
+ll_pop(linked_list *list)
+{
+        assert(list);
+        void *ret = NULL;
+        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+
+        if (list->tail) {
+                ll_node *tmp = list->tail;
+                list->tail   = list->tail->prev;
+                ret          = tmp->data;
+                free(tmp);
+
+                if (list->tail)
+                        list->tail->next = NULL;
+                else
+                        list->head = NULL;
+        }
+
+        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        return ret;
+}
+
+void *
+ll_dequeue(linked_list *list)
+{
+        assert(list);
+        void *ret = NULL;
+        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+
+        if (list->head) {
+                ll_node *tmp = list->head;
+                list->head   = list->head->next;
+                ret          = tmp->data;
+                free(tmp);
+
+                if (list->head)
+                        list->head->next = NULL;
+                else
+                        list->tail = NULL;
+        }
+
+        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        return ret;
+}
+
+/*============================================================================*/
 
 bool
 ll_verify_size(linked_list *list)
