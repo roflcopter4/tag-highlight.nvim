@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 
 extern void try_go_crap(Buffer *bdata);
-extern const char *program_invocation_short_name;
 
 struct go_output {
         char ch;
