@@ -42,10 +42,10 @@ static void b_free_wrapper(void *vdata);
 
 /*======================================================================================*/
 
-static        buffer_node *find_buffer_node   (int bufnum);
-static inline buffer_node *new_buffer_node    (int bufnum);
-static        Buffer      *make_new_buffer    (buffer_node *bnode);
 static inline bool         should_skip_buffer (bstring const *ft) __attribute__((pure));
+static inline buffer_node *new_buffer_node    (int bufnum);
+static        buffer_node *find_buffer_node   (int bufnum);
+static        Buffer      *make_new_buffer    (buffer_node *bnode);
 
 Buffer *
 new_buffer(int const bufnum)
@@ -224,7 +224,7 @@ static void     get_tag_filename           (bstring *gzfile, bstring const *base
 static inline void ensure_cache_directory(char const *dir);
 static inline void set_vim_tags_opt      (char const *fname);
 
-/**
+/*
  * This struct is primarily for filetypes that use ctags. It is convenient to run the
  * program once for a project tree and use the results for all files belonging to it, so
  * we run ctags on the `top_dir' of the tree. This routine populates that structure.
@@ -261,7 +261,7 @@ init_topdir(Buffer *bdata)
         tdir->pathname->flags |= BSTR_DATA_FREEABLE;
 
         if (tdir->tmpfd == (-1))
-                errx(1, "Failed to open temporary file!");
+                errx(1, "Failed to open temporary file");
 
         /* Make sure the ctags cache directory exists. */
         ensure_cache_directory(BS(settings.cache_dir));
@@ -302,7 +302,7 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
         return ret;
 }
 
-/**
+/*
  * For filetypes that use ctags to find highlight candidates we normally need to
  * run the program recursively on a directory. For some directories this is
  * undesirable (eg. $HOME, /, /usr/include, or something like C:\, etc) because
@@ -319,12 +319,11 @@ check_norecurse_directories(bstring const *const dir)
         return true;
 }
 
-/**
+/*
  * Check the file `tag_highlight.txt' for any directories the user has specified
  * to be `project' directories. Anything under them in the directory tree will
  * use that directory as its base.
  */
-
 static bstring *
 check_project_directories(bstring *dir, Filetype const *ft)
 {
@@ -436,9 +435,9 @@ static void     get_ignored_tags(Filetype *ft);
 static void     get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups);
 static bstring *get_restore_cmds(b_list *restored_groups);
 
-/**
- * Populate the non-static portions of the filetype structure, including a list of special
- * tags and groups of tags that should be ignored by this program when highlighting.
+/*
+ * Populate the non-static portions of the filetype structure, including a list of
+ * special tags and groups of tags that should be ignored when highlighting.
  */
 static void
 init_filetype(Filetype *ft)
@@ -523,8 +522,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
         ECHO("Getting ignored tags for ft %d", ft->id);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                char         cmd[4096], *ptr;
-                size_t const len = snprintf(cmd, 4096, "syntax list %s",
+                char         cmd[8192], *ptr;
+                size_t const len = snprintf(cmd, 8192, "syntax list %s",
                                             BS(restored_groups->lst[i]));
                 bstring *output = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
 
@@ -634,7 +633,7 @@ get_restore_cmds(b_list *restored_groups)
 static void destroy_buffer_wrapper(void *vdata);
 
 /* 
- * Actually initializing these things seems mandatory on Windows.
+ * Actually initializing these things seems to be mandatory on Windows.
  */
 __attribute__((__constructor__))
 static void
@@ -676,7 +675,6 @@ void
 (destroy_buffer)(Buffer *bdata, unsigned const flags)
 {
         extern void destroy_clangdata(Buffer *bdata);
-        /* extern bool process_exiting; */
         assert(bdata != NULL);
 
         if (flags & DES_BUF_SHOULD_CLEAR)
