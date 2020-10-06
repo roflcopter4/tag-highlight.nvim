@@ -30,6 +30,7 @@ func main() {
 		isdebug_s string = os.Args[2]
 		our_fname string = os.Args[3]
 		our_fpath string = os.Args[4]
+		// package_path string = os.Args[4]
 	)
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
@@ -86,6 +87,14 @@ type Parsed_Data struct {
 	Info      *types.Info
 }
 
+func whyunofind(data *Parsed_Data) (pack *ast.Package) {
+	if pack = data.Packages[data.AstFile.Name.String()]; pack != nil {
+		return
+	}
+	Eprintln(data.Packages)
+	panic("Yeah it be fucked")
+}
+
 func do_parse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
@@ -115,7 +124,8 @@ func do_parse(our_fname, our_fpath string) *Parsed_Data {
 		lg.Printf("parser.Parsefile: %v\n", err)
 	}
 
-	ret.Pkg = ret.Packages[ret.AstFile.Name.String()]
+	// ret.Pkg = ret.Packages[ret.AstFile.Name.String()]
+	ret.Pkg = whyunofind(&ret)
 	ret.FileMap = ret.Pkg.Files
 	ret.FileMap[ret.FileName] = ret.AstFile
 	ret.FileSlice = []*ast.File{}

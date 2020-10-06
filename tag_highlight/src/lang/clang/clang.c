@@ -3,6 +3,7 @@
 #include "lang/clang/clang.h"
 #include "lang/clang/intern.h"
 #include "util/find.h"
+#include <sys/stat.h>
 
 #ifdef DOSISH
 #  define at_quick_exit(a)
@@ -21,6 +22,7 @@
 
 #ifdef DOSISH
 #  define DUMPDATA()
+static void handle_win32_command_script(Buffer *bdata, char const *directory, char const *cstr, str_vector *ret);
 #else
 #  define DUMPDATA()                                                             \
         do {                                                                     \
@@ -280,23 +282,30 @@ unquote(bstring *str)
 }
 
 static void
-handle_win32_command_script(Buffer *bdata, char const *cstr, str_vector *ret)
+handle_win32_command_script(Buffer *bdata, char const *directory, char const *cstr, str_vector *ret)
 {
-        char        ch;
-        char        searchbuf[8192];
-        char       *sptr = searchbuf;
-        char const *optr = cstr + 1;
+        char searchbuf[8192];
+        {
+                char        ch;
+                char       *sptr = searchbuf;
+                char const *optr = cstr + 1;
 
-        *sptr++ = '.';
-        *sptr++ = '*';
+                *sptr++ = '.';
+                *sptr++ = '*';
 
-        while ((ch = *optr++))
-                *sptr++ = (char)((ch == '\\') ? '/' : ch);
-        *sptr = '\0';
+                while ((ch = *optr++))
+                        *sptr++ = (char)((ch == '\\') ? '/' : ch);
+                *sptr = '\0';
+        }
 
-        bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST);
-        if (file) {
-                b_regularize_path(file);
+        /* bstring *file = find_file(BS(bdata->topdir->pathname), searchbuf, FIND_FIRST); */
+        struct stat st;
+        bstring *file = b_fromcstr(directory);
+        b_catchar(file, '/');
+        b_catcstr(file, searchbuf);
+
+        if (stat(BS(file), &st) == 0) {
+                /* b_regularize_path(file); */
                 bstring *contents = b_quickread("%s", BS(file));
                 assert(contents);
                 eprintf("Read %s\n", BS(contents));
@@ -457,7 +466,7 @@ get_compile_commands(Buffer *bdata)
                                 }
 #ifdef DOSISH
                         } else if (cstr[0] == '@') {
-                                handle_win32_command_script(bdata, cstr, ret);
+                                handle_win32_command_script(bdata, CS(directory), cstr+1, ret);
 #endif
                         }
                                 

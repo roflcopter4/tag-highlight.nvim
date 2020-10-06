@@ -107,8 +107,13 @@ post_nvim_response(void *vdata)
 
         for (;;) {
                 node = P99_FIFO_POP(&_nvim_wait_queue);
-                if (!node)
-                        errx(1, "Queue is empty.");
+                /* if (!node) */
+                        /* errx(1, "Queue is empty."); */
+                if (!node) {
+                        eprintf("Queue is empty.");
+                        mpack_destroy_object(obj);
+                        pthread_exit();
+                }
 
                 if (node->fd == fd && node->count == count)
                         break;

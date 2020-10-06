@@ -6,6 +6,7 @@
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
+const char *program_invocation_name;
 const char *program_invocation_short_name;
 #endif
 #define WAIT_TIME  (3.0)

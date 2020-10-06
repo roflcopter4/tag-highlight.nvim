@@ -174,13 +174,13 @@ basename(char *path)
 
 #define ERRSTACKSIZE (6384)
 void
-err_(UNUSED const int status, const bool print_err, const char *const restrict fmt, ...)
+err_(UNUSED const int status, const bool print_err, const char *file, const int line, const char *func, const char *const restrict fmt, ...)
 {
         error_t const e = errno;
         va_list       ap;
         va_start(ap, fmt);
 
-        fprintf(stderr, "%s: ", program_invocation_short_name);
+        fprintf(stderr, "%s: (%s:%d - %s)", program_invocation_short_name, file, line, func);
         vfprintf(stderr, fmt, ap);
         if (print_err)
                 fprintf(stderr, ": %s\n", strerror(e));
@@ -196,7 +196,7 @@ err_(UNUSED const int status, const bool print_err, const char *const restrict f
 
 extern FILE *echo_log;
 void
-warn_(const bool print_err, const bool force, const char *const restrict fmt, ...)
+warn_(const bool print_err, const bool force, const char *file, const int line, const char *func, const char *const restrict fmt, ...)
 {
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
@@ -207,7 +207,8 @@ warn_(const bool print_err, const bool force, const char *const restrict fmt, ..
         error_t const e = errno;
         pthread_mutex_lock(&mut);
 
-        fprintf(stderr, "%s: ", program_invocation_short_name);
+        fprintf(stderr, "%s: (%s:%d - %s)", program_invocation_short_name, file, line, func);
+        //fprintf(stderr, "%s: ", program_invocation_short_name);
 
         va_start(ap, fmt);
         vfprintf(stderr, fmt, ap);

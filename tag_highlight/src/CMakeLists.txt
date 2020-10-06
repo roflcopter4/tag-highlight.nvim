@@ -33,8 +33,8 @@ endif()
 add_executable(tag_highlight ${tag_highlight_SOURCES})
 
 add_library(bstring OBJECT
-    contrib/bstring/src/additions.c
-    contrib/bstring/src/bstrlib.c
+    contrib/bstring/additions.c
+    contrib/bstring/bstrlib.c
 )
 
 add_library(mpack-c OBJECT 

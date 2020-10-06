@@ -51,7 +51,9 @@ typedef signed long long int ssize_t;
 #  define quick_exit(a) _Exit(a)
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
-extern char * basename(char *path);
+extern char *basename(char *path);
+extern const char *program_invocation_short_name;
+extern const char *program_invocation_name;
 #else
 #  include <pthread.h>
 #  include <sys/socket.h>
@@ -294,10 +296,10 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
                   : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
                          STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
 
-#define err(EVAL, ...)  err_((EVAL), true,  __VA_ARGS__)
-#define errx(EVAL, ...) err_((EVAL), false, __VA_ARGS__)
-#define warn(...)       warn_(true,  false, __VA_ARGS__)
-#define warnx(...)      warn_(false, false, __VA_ARGS__)
+#define err(EVAL, ...)  err_((EVAL), true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define errx(EVAL, ...) err_((EVAL), false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warn(...)       warn_(true,  false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnx(...)      warn_(false, false, __FILE__, __LINE__, __func__, __VA_ARGS__)
 /* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
 #define shout(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
@@ -307,8 +309,8 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define eprintf(...) ((void)0)
 #endif
 
-extern          void warn_(bool print_err, bool force, const char *restrict fmt, ...) __aFMT(3, 4);
-extern noreturn void err_ (int status, bool print_err, const char *restrict fmt, ...) __aFMT(3, 4);
+extern          void warn_(bool print_err, bool force, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
+extern noreturn void err_ (int status, bool print_err, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
 
 /*===========================================================================*/
 

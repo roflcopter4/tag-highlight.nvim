@@ -9,7 +9,6 @@
 #include <sys/stat.h>
 
 extern void try_go_crap(Buffer *bdata);
-extern const char *program_invocation_short_name;
 
 struct go_output {
         char ch;
@@ -64,7 +63,7 @@ highlight_go(Buffer *bdata)
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
         /* pthread_mutex_unlock(&bdata->lines->lock); */
 
-        bstring *go_binary = nvim_call_function( B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
+        bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);
         struct stat st;
         if (stat(BS(go_binary), &st) != 0) {
@@ -79,6 +78,7 @@ highlight_go(Buffer *bdata)
                 (char *)program_invocation_short_name,
                 (char *)is_debug,
                 BS(bdata->name.full),
+                BS(bdata->name.path),
                 BS(bdata->topdir->pathname),
                 (char *)0
         };
