@@ -22,9 +22,9 @@ struct go_output {
 };
 
 #ifdef DEBUG
-static const char is_debug[] = "0";
-#else
 static const char is_debug[] = "1";
+#else
+static const char is_debug[] = "0";
 #endif
 #ifdef DOSISH
 #  define CMD_SUFFIX ".exe"
@@ -59,9 +59,7 @@ highlight_go(Buffer *bdata)
         }
 
         pthread_mutex_lock(&bdata->lock.total);
-        /* pthread_mutex_lock(&bdata->lines->lock);    */
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
-        /* pthread_mutex_unlock(&bdata->lines->lock); */
 
         bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
         b_catlit(go_binary, "/golang" CMD_SUFFIX);
@@ -84,10 +82,12 @@ highlight_go(Buffer *bdata)
         };
 
         struct cmd_info *info = getinfo(bdata);
-        bstring         *rd   = get_command_output(BS(go_binary), argv, tmp);
+        bstring         *rd   = get_command_output(BS(go_binary), argv, tmp, &retval);
+        if (retval != 0)
+                errx(1, "Fuck! (%d)", WEXITSTATUS(retval));
         if (!rd || !rd->data || rd->slen == 0) {
                 b_free(rd);
-                retval = 1;
+                retval = (-1);
                 goto cleanup;
         }
 
@@ -130,12 +130,13 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
-                if (ident_is_ignored(bdata,
-                                     (bstring[]){{.data = (uchar *)data.ident.str,
-                                                  .slen  = data.ident.len,
-                                                  .mlen  = 0,
-                                                  .flags = 0}}))
+                if (ident_is_ignored(bdata, btp_fromblk(data.ident.str, data.ident.len))) {
+//                                     (bstring[]){{.data = (uchar *)data.ident.str,
+//                                                  .slen  = data.ident.len,
+//                                                  .mlen  = 0,
+//                                                  .flags = 0}}))
                         continue;
+                }
 
                 switch (data.ch) {
                 case 'p': case 'f': case 'm': case 'c':

@@ -52,12 +52,9 @@ func open_log(lfile *os.File, isdebug bool, our_fname string) {
 
 func open_log_rel(lfile *os.File, prog_name string) {
 	var err error
-	lfile, err = os.Open("/dev/null")
+	lfile, err = os.Open(os.DevNull)
 	if err != nil {
-		lfile, err = os.Open("NUL")
-		if err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 	lg = log.New(lfile, prog_name+": ERROR: ", 0)
 }
@@ -65,7 +62,7 @@ func open_log_rel(lfile *os.File, prog_name string) {
 func open_log_dbg(lfile *os.File, prog_name string) {
 	// lfile = os.Stderr
 	var err error
-	lfile, err = os.OpenFile("thl_go.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0644)
+	lfile, err = os.OpenFile("thl_go.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0600)
 	if err != nil {
 		panic(err)
 	}
@@ -87,12 +84,22 @@ type Parsed_Data struct {
 	Info      *types.Info
 }
 
-func whyunofind(data *Parsed_Data) (pack *ast.Package) {
+func whyunofind(data *Parsed_Data) *ast.Package {
+	var pack *ast.Package
 	if pack = data.Packages[data.AstFile.Name.String()]; pack != nil {
-		return
+		return pack
 	}
-	Eprintln(data.Packages)
-	panic("Yeah it be fucked")
+
+	if len(data.Packages) == 1 {
+		for _, v := range data.Packages {
+			if v != nil {
+				return v
+			}
+		}
+	}
+
+	e := fmt.Errorf("Error: Want \"%s\", but it's not in ( %#+v )", data.AstFile.Name, data.Packages)
+	panic(e)
 }
 
 func do_parse(our_fname, our_fpath string) *Parsed_Data {
@@ -116,7 +123,6 @@ func do_parse(our_fname, our_fpath string) *Parsed_Data {
 	if buf, err = ioutil.ReadAll(os.Stdin); err != nil {
 		panic(err)
 	}
-
 	if ret.Packages, err = parse_whole_dir(ret.FilePath); err != nil {
 		lg.Printf("parse_files: %v\n", err)
 	}
@@ -129,6 +135,8 @@ func do_parse(our_fname, our_fpath string) *Parsed_Data {
 	ret.FileMap = ret.Pkg.Files
 	ret.FileMap[ret.FileName] = ret.AstFile
 	ret.FileSlice = []*ast.File{}
+
+	// spew.Fdump(lg.Writer(), ret)
 
 	for _, f := range ret.FileMap {
 		ret.FileSlice = append(ret.FileSlice, f)
@@ -143,7 +151,6 @@ func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 		astmap map[string]*ast.Package
 		err    error
 	)
-	Eprintf("Reading dir '%s'\n", path)
 	if astmap, err = parser.ParseDir(fset, path, nil, 0); err != nil {
 		lg.Println(err)
 	}
@@ -219,7 +226,9 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	}
 
 	dump_data(kind, p, ident.Name)
-	os.Stdout.Sync()
+	// if e := os.Stdout.Sync(); e != nil {
+	//       panic(e)
+	// }
 }
 
 func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
@@ -263,19 +272,25 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 }
 
 func dump_data(ch rune, p [2]token.Position, ident string) {
-	fmt.Printf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
+	s := fmt.Sprintf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
 		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column, len(ident), ident)
+	_, err := os.Stdout.WriteString(s)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //========================================================================================
 
 func Eprintln(a ...interface{}) {
 	fmt.Fprintln(os.Stderr, a...)
-	os.Stderr.Sync()
+	// os.Stderr.Sync()
+	// lg.Println(a...)
 }
 func Eprintf(format string, a ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, a...)
-	os.Stderr.Sync()
+	// os.Stderr.Sync()
+	// lg.Printf(format, a...)
 }
 func Errx(code int, format string, a ...interface{}) {
 	Eprintf(format, a...)

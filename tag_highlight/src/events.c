@@ -356,7 +356,9 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
 {
         pthread_mutex_lock(&handle_mutex);
 
-        if (arr->qty < 5 || arr->items[5]->data.boolean)
+        if (arr->qty < 5)
+                errx(1, "Received an array from neovim that is too small. This shouldn't be possible.");
+        else if (arr->items[5]->data.boolean)
                 errx(1, "Error: Continuation condition is unexpectedly true, cannot continue.");
 
         pthread_mutex_lock(&bdata->lock.ctick);

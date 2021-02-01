@@ -180,7 +180,7 @@ err_(UNUSED const int status, const bool print_err, const char *file, const int 
         va_list       ap;
         va_start(ap, fmt);
 
-        fprintf(stderr, "%s: (%s:%d - %s)", program_invocation_short_name, file, line, func);
+        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, file, line, func);
         vfprintf(stderr, fmt, ap);
         if (print_err)
                 fprintf(stderr, ": %s\n", strerror(e));
@@ -207,7 +207,7 @@ warn_(const bool print_err, const bool force, const char *file, const int line, 
         error_t const e = errno;
         pthread_mutex_lock(&mut);
 
-        fprintf(stderr, "%s: (%s:%d - %s)", program_invocation_short_name, file, line, func);
+        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, file, line, func);
         //fprintf(stderr, "%s: ", program_invocation_short_name);
 
         va_start(ap, fmt);
@@ -289,41 +289,119 @@ free_all__(void *ptr, ...)
 #  include <wait.h>
 
 bstring *
-get_command_output(const char *command, char *const *const argv, bstring *input)
+get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
 {
-        int fds[2][2], pid, status;
+        int stdin_fds[2], /* stdout_fds[2], */ pid, st;
 
-#ifdef HAVE_PIPE2
-        if (pipe2(fds[0], O_CLOEXEC) == (-1) || pipe2(fds[1], O_CLOEXEC) == (-1)) 
-                err(1, "pipe() failed\n");
-#else
-        if (pipe(fds[0]) == (-1) || pipe(fds[1]) == (-1)) 
-                err(1, "pipe() failed\n");
-        fcntl(fds[0][0], F_SETFL, O_CLOEXEC);
-        fcntl(fds[0][1], F_SETFL, O_CLOEXEC);
-        fcntl(fds[1][0], F_SETFL, O_CLOEXEC);
-        fcntl(fds[1][1], F_SETFL, O_CLOEXEC);
-#endif
+//#if defined HAVE_PIPE2 && 0
+//        if (pipe2(stdin_fds, O_CLOEXEC) == (-1) || pipe2(stdout_fds, O_CLOEXEC) == (-1)) 
+//                err(1, "pipe() failed\n");
+//#else
+        // if (pipe(stdin_fds) == (-1) || pipe(stdout_fds) == (-1)) 
+        //         err(1, "pipe() failed\n");
+
+        if (pipe(stdin_fds) == (-1))
+                err(1, "pipe()");
+
+        /* char tmpfilename[128];              */
+        /* strcpy(tmpfilename, "/tmp/XXXXXX"); */
+
+        bstring *tmpfname = nvim_call_function(B("tempname"), E_STRING).ptr;
+        int tmpfd = safe_open(BS(tmpfname), O_CREAT|O_RDWR|O_TRUNC|O_BINARY, 0600);
+
+        /* int memfd = mkstemp(tmpfilename); */
+        // int memfd = mkostemp(tmpfilename, O_CLOEXEC);
+        /* if (memfd == (-1))                */
+        /*         err(1, "memfd_create()"); */
+
+        // {
+        //         int r;
+        //         r = fcntl(stdout_fds[READ_FD], F_SETPIPE_SZ, 1048576 * 100);
+        //         if (r == (-1))
+        //                 err(1, "fcntl()");
+        //         // r = fcntl(stdout_fds[WRITE_FD], F_SETPIPE_SZ, 1048576 * 100);
+        //         // if (r == (-1))
+        //         //         err(1, "fcntl()");
+        // 
+        //         SHOUT("Read got %d", fcntl(stdout_fds[READ_FD], F_GETPIPE_SZ));
+        //         // SHOUT("Write got %d", fcntl(stdout_fds[WRITE_FD], F_GETPIPE_SZ));
+        // }
+
+// #define FUCK_ME(FD) fcntl((FD), F_SETFL, (fcntl((FD)c, F_GETFL) | O_CLOEXEC))
+// 
+//         FUCK_ME(stdin_fds[0]); 
+//         FUCK_ME(stdin_fds[1]); 
+//         FUCK_ME(stdout_fds[0]);
+//         FUCK_ME(stdout_fds[1]);
+//
+// #undef FUCK_ME
+
+        /* fcntl(stdin_fds[0], F_SETFL, O_CLOEXEC);  */
+        /* fcntl(stdin_fds[1], F_SETFL, O_CLOEXEC);  */
+        /* fcntl(stdout_fds[0], F_SETFL, O_CLOEXEC); */
+        /* fcntl(stdout_fds[1], F_SETFL, O_CLOEXEC); */
+//#endif
+
+#define Close(fd) (((close)(fd) == (0)) ? ((void)0) : err(1, "close()"))
+
         if ((pid = fork()) == 0) {
-                if (dup2(fds[0][READ_FD], 0) == (-1) || dup2(fds[1][WRITE_FD], 1) == (-1))
+                if (dup2(stdin_fds[READ_FD], STDIN_FILENO) == (-1))
                         err(1, "dup2() failed\n");
+                // if (dup2(stdout_fds[WRITE_FD], STDOUT_FILENO) == (-1))
+                //         err(1, "dup2() failed\n");
+                if (dup2(tmpfd, STDOUT_FILENO) == (-1))
+                        err(1, "dup2() failed\n");
+
+                close(stdin_fds[WRITE_FD]);
+                close(stdin_fds[READ_FD]);
+                close(tmpfd);
+                /* Close(memfd); */
+                // Close(stdout_fds[WRITE_FD]);
+                // Close(stdout_fds[READ_FD]);
+
                 if (execvp(command, argv) == (-1))
                         err(1, "exec() failed\n");
         }
 
-        if (input)
-                b_write(fds[0][WRITE_FD], input);
+        if (input)                                  
+                b_write(stdin_fds[WRITE_FD], input);
 
-        close(fds[0][READ_FD]);
-        close(fds[1][WRITE_FD]);
-        close(fds[0][WRITE_FD]);
+        // if (input) {
+        //         if (write(stdin_fds[WRITE_FD], input->data, input->slen) != input->slen)
+        //                 err(1, "write()");
+        // } else {
+        //         errx(1, "wtf");
+        // }
 
-        waitpid(pid, &status, 0);
-        bstring *rd = b_read_fd(fds[1][READ_FD]);
-        close(fds[1][READ_FD]);
+        close(stdin_fds[WRITE_FD]);
+        close(stdin_fds[READ_FD]);
 
-        if (status != 0)
-                SHOUT("Command failed with status %d\n", status >> 8);
+        if (waitpid(pid, &st, 0) != pid && errno != ECHILD)
+                err(1, "waitpid()");
+
+        // bstring *rd = b_read_fd(stdout_fds[READ_FD]);
+        // bstring *rd = b_read_fd(memfd);
+        // bstring *rd = b_read(tmpfname);
+
+        lseek(tmpfd, 0, SEEK_SET);
+        bstring *rd = b_read_fd(tmpfd);
+        close(tmpfd);
+
+        remove(BS(tmpfname));
+        b_free(tmpfname);
+
+        // Close(stdout_fds[READ_FD]);
+        // Close(stdout_fds[WRITE_FD]);
+
+        /* if (status != 0) { */
+        if (WEXITSTATUS(st) != 0) {
+                warnx("Command failed with status %d (raw: 0x%X)", WEXITSTATUS(st), st);
+        }
+        if (status)
+                *status = st;
+
+#undef Close
+
         return rd;
 }
 #elif defined DOSISH
@@ -432,3 +510,6 @@ ErrorExit(const char *msg, DWORD dw)
 #else
 #  error "Impossible operating system detected. OS/2? System/360? Maybe DOS?"
 #endif
+
+#undef READ_FD
+#undef WRITE_FD

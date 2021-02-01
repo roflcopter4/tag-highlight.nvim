@@ -57,7 +57,7 @@ void
                                      strerror(ret));
                                 goto parser_failed;
                         default:
-                                SHOUT("Unexpected parser error: %s\n", strerror(ret));
+                                SHOUT("Unexpected parser error: (%d), %s\n", ret, (ret > 0 ? strerror(ret) : "CUSTOM"));
                                 goto parser_failed;
                         }
                         
