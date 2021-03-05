@@ -333,7 +333,7 @@ check_project_directories(bstring *dir, Filetype const *ft)
 
         b_list  *candidates = b_list_create();
         bstring *tmp;
-        b_regularize_path(dir);
+        /* b_regularize_path(dir); */
 
         for (tmp = NULL; ( tmp = B_GETS(fp, '\n', false) ); b_destroy(tmp)) {
                 ECHO("Looking at \"%s\"", tmp);
@@ -355,7 +355,7 @@ check_project_directories(bstring *dir, Filetype const *ft)
                                 continue;
                 }
 
-                b_regularize_path(tmp);
+                /* b_regularize_path(tmp); */
 
                 if (strstr(BS(dir), BS(tmp))) {
                         b_writeprotect(tmp);

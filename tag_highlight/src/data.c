@@ -5,14 +5,6 @@
 
 #define BI bt_init
 
-/* Initializers */
-#define ZERO_8    0, 0, 0, 0, 0, 0, 0, 0
-#define ZERO_64   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8,   ZERO_8
-#define ZERO_512  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64,  ZERO_64
-#define ZERO_4096 ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512, ZERO_512
-
-#define ZERO_DATA ZERO_4096
-
 struct filetype ftdata[] = {
     { NULL, NULL, NULL, NULL, BI("NONE"),       BI("NONE"),       FT_NONE,       0, 0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("c"),          BI("c"),          FT_C,          0, 0, 1, 1 },
@@ -36,14 +28,14 @@ struct filetype ftdata[] = {
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;
 extern FILE            *cmd_log, *echo_log, *main_log;
-extern const char      *program_name;
+extern char const      *program_name;
 extern pthread_mutex_t  update_mutex;
 
-struct settings_s   settings        = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
-const size_t    ftdata_len   = ARRSIZ(ftdata);
-const char     *program_name;
+size_t const    ftdata_len   = ARRSIZ(ftdata);
+char const     *program_name;
 genlist        *top_dirs;
 char           *HOME;
 FILE           *cmd_log;

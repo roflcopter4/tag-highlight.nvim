@@ -12,7 +12,6 @@ import (
 	"os"
 	"runtime"
 	"strconv"
-	"strings"
 )
 
 var (
@@ -30,14 +29,13 @@ func main() {
 		isdebug_s string = os.Args[2]
 		our_fname string = os.Args[3]
 		our_fpath string = os.Args[4]
-		// package_path string = os.Args[4]
 	)
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
 	open_log(lfile, false && isdebug == 1, prog_name)
 	defer lfile.Close()
 
-	data := do_parse(our_fname, our_fpath)
+	data := Parse(our_fname, our_fpath)
 	data.Highlight()
 	os.Exit(0)
 }
@@ -84,30 +82,12 @@ type Parsed_Data struct {
 	Info      *types.Info
 }
 
-func whyunofind(data *Parsed_Data) *ast.Package {
-	var pack *ast.Package
-	if pack = data.Packages[data.AstFile.Name.String()]; pack != nil {
-		return pack
-	}
-
-	if len(data.Packages) == 1 {
-		for _, v := range data.Packages {
-			if v != nil {
-				return v
-			}
-		}
-	}
-
-	e := fmt.Errorf("Error: Want \"%s\", but it's not in ( %#+v )", data.AstFile.Name, data.Packages)
-	panic(e)
-}
-
-func do_parse(our_fname, our_fpath string) *Parsed_Data {
+func Parse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
 		buf []byte
 
-		ret = Parsed_Data{
+		ret = &Parsed_Data{
 			FileName:  our_fname,
 			FilePath:  our_fpath,
 			FileMap:   nil,
@@ -131,7 +111,7 @@ func do_parse(our_fname, our_fpath string) *Parsed_Data {
 	}
 
 	// ret.Pkg = ret.Packages[ret.AstFile.Name.String()]
-	ret.Pkg = whyunofind(&ret)
+	ret.Pkg = whyunofind(ret)
 	ret.FileMap = ret.Pkg.Files
 	ret.FileMap[ret.FileName] = ret.AstFile
 	ret.FileSlice = []*ast.File{}
@@ -143,7 +123,7 @@ func do_parse(our_fname, our_fpath string) *Parsed_Data {
 	}
 
 	ret.Populate()
-	return &ret
+	return ret
 }
 
 func parse_whole_dir(path string) (map[string]*ast.Package, error) {
@@ -156,6 +136,24 @@ func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 	}
 	return astmap, err
 
+}
+
+func whyunofind(data *Parsed_Data) *ast.Package {
+	var pack *ast.Package
+	if pack = data.Packages[data.AstFile.Name.String()]; pack != nil {
+		return pack
+	}
+
+	if len(data.Packages) == 1 {
+		for _, v := range data.Packages {
+			if v != nil {
+				return v
+			}
+		}
+	}
+
+	e := fmt.Errorf("Error: Want \"%s\", but it's not in ( %#+v )", data.AstFile.Name, data.Packages)
+	panic(e)
 }
 
 func (this *Parsed_Data) Populate() error {
@@ -183,11 +181,11 @@ func (this *Parsed_Data) Populate() error {
 		},
 	)
 	if this.FileToken == nil {
-		Errx(1, "Current file not in fileset.\n")
+		errx(1, "Current file not in fileset.\n")
 	}
 
 	if pkg, err := conf.Check("", fset, this.FileSlice, this.Info); err != nil {
-		Eprintln(err.Error())
+		eprintln(err.Error())
 		lg.Println("check: ", err)
 		lg.Println(pkg)
 
@@ -225,10 +223,7 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 		return
 	}
 
-	dump_data(kind, p, ident.Name)
-	// if e := os.Stdout.Sync(); e != nil {
-	//       panic(e)
-	// }
+	write_output(kind, p, ident.Name)
 }
 
 func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
@@ -240,23 +235,27 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
 	case *types.PkgName:
 		return 'p'
 	case *types.TypeName:
-		if x.Type() == nil || x.Type().Underlying() == nil {
-			return 0
-		}
-		switch x.Type().Underlying().(type) {
-		case *types.Interface:
-			return 'i'
-		case *types.Struct:
-			return 's'
-		default:
-			return 't'
+		if x.Type() != nil || x.Type().Underlying() != nil {
+			switch x.Type().Underlying().(type) {
+			case *types.Interface:
+				return 'i'
+			case *types.Struct:
+				return 's'
+			default:
+				return 't'
+			}
 		}
 	case *types.Var:
+		if x.Type() != nil && x.Type().Underlying() != nil {
+			switch x.Type().Underlying().(type) {
+			case *types.Signature:
+				return 'f'
+			}
+		}
 		if x.IsField() {
 			return 'm'
 		}
-		scope := typeinfo.Parent()
-		if scope != nil && strings.HasPrefix(scope.String(), "package") {
+		if typeinfo.Parent() != nil && typeinfo.Parent().Parent() == types.Universe {
 			return 'v'
 		}
 	}
@@ -271,7 +270,7 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 	}
 }
 
-func dump_data(ch rune, p [2]token.Position, ident string) {
+func write_output(ch rune, p [2]token.Position, ident string) {
 	s := fmt.Sprintf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
 		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column, len(ident), ident)
 	_, err := os.Stdout.WriteString(s)
@@ -282,17 +281,10 @@ func dump_data(ch rune, p [2]token.Position, ident string) {
 
 //========================================================================================
 
-func Eprintln(a ...interface{}) {
-	fmt.Fprintln(os.Stderr, a...)
-	// os.Stderr.Sync()
-	// lg.Println(a...)
-}
-func Eprintf(format string, a ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, a...)
-	// os.Stderr.Sync()
-	// lg.Printf(format, a...)
-}
-func Errx(code int, format string, a ...interface{}) {
-	Eprintf(format, a...)
+func eprintln(a ...interface{})               { fmt.Fprintln(os.Stderr, a...) }
+func eprintf(format string, a ...interface{}) { fmt.Fprintf(os.Stderr, format, a...) }
+
+func errx(code int, format string, a ...interface{}) {
+	eprintf(format, a...)
 	os.Exit(code)
 }

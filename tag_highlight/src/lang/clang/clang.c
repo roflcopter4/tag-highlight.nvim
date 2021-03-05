@@ -360,9 +360,10 @@ handle_include_compile_command(str_vector *lst, char const *s, CXString director
         } else if (s[0] == '/') {
                 argv_append(lst, stupid_windows_bullshit(s), false);
         } else {
-                char *buf = NULL;
-                UNUSED int n = asprintf(&buf, "%s\\%s", CS(directory), s);
-                argv_append(lst, buf, false);
+                /* char *buf = NULL; */
+                char buf[8192];
+                UNUSED int n = snprintf(buf, 8192, "%s\\%s", CS(directory), s);
+                argv_append(lst, buf, true);
         }
 }
 
@@ -374,9 +375,10 @@ handle_include_compile_command(str_vector *lst, char const *cstr, CXString direc
         if (cstr[0] == '/') {
                 argv_append(lst, cstr, true);
         } else {
-                char *buf = NULL;
-                UNUSED int n = asprintf(&buf, "%s/%s", CS(directory), cstr);
-                argv_append(lst, buf, false);
+                /* char *buf = NULL; */
+                char buf[8192];
+                UNUSED int n = snprintf(buf, 8192, "%s/%s", CS(directory), cstr);
+                argv_append(lst, buf, true);
         }
 }
 
@@ -504,7 +506,7 @@ static CXCompileCommands
 get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 {
         bstring *newnam = b_strcpy(bdata->name.full);
-        b_regularize_path(newnam);
+        /* b_regularize_path(newnam); */
         CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, BS(newnam));
         unsigned const    num  = clang_CompileCommands_getSize(comp);
         b_destroy(newnam);

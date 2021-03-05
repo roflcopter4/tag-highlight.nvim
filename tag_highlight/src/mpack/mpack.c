@@ -155,21 +155,22 @@ error:
 void
 mpack_destroy_object(mpack_obj *root)
 {
+        PRAGMA_NO_NONHEAP();
         pthread_mutex_lock(&mpack_rw_lock);
 
         if (!(root->flags & MPACKFLG_ENCODE)) {
                 if (root->flags & MPACKFLG_HAS_PACKED)
                         b_destroy(*root->packed);
 
-                /* This gcc specific warning is a false positive. Non-heap
-                 * objects all have the `phony' flag and won't be free'd. */
-                PRAGMA_NO_NONHEAP();
-                if (!(root->flags & MPACKFLG_PHONY))
+                if (!(root->flags & MPACKFLG_PHONY)) {
+                        /* This gcc specific warning is a false positive. Non-heap
+                         * objects all have the `phony' flag and won't be free'd. */
                         free(root);
-                PRAGMA_NO_NONHEAP_POP();
+                }
                 pthread_mutex_unlock(&mpack_rw_lock);
                 return;
         }
+        PRAGMA_NO_NONHEAP_POP();
 
         struct item_free_stack tofree = {nmalloc(1024, sizeof(void *)), 0, 1024};
         collect_items(&tofree, root);

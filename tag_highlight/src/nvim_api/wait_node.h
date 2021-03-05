@@ -22,7 +22,7 @@ struct _nvim_wait_node {
 
         _nvim_wait_node_ptr p99_fifo;
 };
-P99_FIFO(_nvim_wait_node_ptr) _nvim_wait_queue;
+extern P99_FIFO(_nvim_wait_node_ptr) _nvim_wait_queue;
 
 
 #ifdef __cplusplus

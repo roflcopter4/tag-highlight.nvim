@@ -76,17 +76,8 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
-find_package (LibLZMA)
 find_package (LibClang REQUIRED)
-
-if (NOT MINGW)
-    # find_package (LibEv REQUIRED)
-    find_package (LibEv REQUIRED)
-endif ()
-
-if (USE_JEMALLOC)
-    find_package (Jemalloc REQUIRED)
-endif()
+find_package (LibLZMA)
 
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
@@ -98,6 +89,18 @@ XZ support will be disabled for this build.")
         set (LZMA_SUPPORT 1)
     endif()
 endif()
+
+if (NOT MINGW)
+    # find_package (LibEv)
+    # if (LIBEV_FOUND)
+    #     set (HAVE_LIBEV 1)
+    # endif()
+endif ()
+
+if (USE_JEMALLOC)
+    find_package (Jemalloc REQUIRED)
+endif()
+
 
 ###############################################################################
 # Symbol and header checks
@@ -187,13 +190,17 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     # "-Rpass-analysis='.*'"
     # )
 
-    set (CMAKE_C_FLAGS_DEBUG
-            "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${BASE} -Og -g3")
+    set (BASE "${BASE} -Wno-gnu-zero-variadic-macro-arguments")
 
-    #string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-    #        " -rtlib=compiler-rt -fuse-ld=lld")
+    set (CMAKE_C_FLAGS_DEBUG
+            "${BASE} -Og -g -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO
+            "${BASE} -Og -g")
+    set (CMAKE_C_FLAGS_RELEASE
+        "${CMAKE_C_FLAGS_RELEASE} ${BASE}")
+
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+           " -rtlib=compiler-rt -fuse-ld=lld")
 
 else() # GCC
 
@@ -204,13 +211,14 @@ else() # GCC
         " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")
 
     set (CMAKE_C_FLAGS_DEBUG
-            "${BASE} -O0 -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+            "${BASE} -Og -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g3")
+            "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g")
+    set (CMAKE_C_FLAGS_RELEASE
+            "${CMAKE_C_FLAGS_RELEASE} ${BASE} -fwhole-program")
 
-    #string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-    #        " -rdynamic")
-
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -Wno-free-nonheap")
 endif()
 
 
@@ -218,7 +226,11 @@ endif()
 # Misc
 
 string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
-string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} ${BASE} -O3 -DNDEBUG")
+string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG -flto -ffunction-sections")
+
+if (NOT DEBUG)
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
+endif()
 
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)

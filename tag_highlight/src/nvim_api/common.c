@@ -5,6 +5,8 @@
 #include "nvim_api/api.h"
 #include "nvim_api/wait_node.h"
 
+P99_FIFO(_nvim_wait_node_ptr) _nvim_wait_queue;
+
 typedef volatile p99_futex vfutex_t;
 
 struct gencall {

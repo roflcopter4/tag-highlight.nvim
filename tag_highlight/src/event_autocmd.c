@@ -51,12 +51,17 @@ mutex_constructor(void)
 noreturn void *
 event_autocmd(void *vdata)
 {
+        static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
         pthread_mutex_lock(&autocmd_mutex);
-        assert((uintptr_t)vdata < INT_MAX);
-
-        static atomic_int      bufnum = ATOMIC_VAR_INIT(-1);
-        vimscript_message_type val    = (int)((uintptr_t)vdata);
-        struct timer          *t      = TIMER_INITIALIZER;
+ 
+        struct timer *t = TIMER_INITIALIZER;
+        vimscript_message_type val;
+        {
+                uint64_t const tmp = *((uint64_t *)vdata);
+                assert(tmp < INT_MAX);
+                val = (vimscript_message_type)tmp;
+                free(vdata);
+        }
 
         echo("Recieved \"%s\" (%d): waking up!",
              vimscript_message_type_getname(val), val);
@@ -128,7 +133,7 @@ static void
 event_syntax_changed(struct timer *t, atomic_int *prev_num)
 {
         int const num   = nvim_get_current_buf();
-        Buffer *bdata = find_buffer(num);
+        Buffer   *bdata = find_buffer(num);
         atomic_store_explicit(prev_num, num, memory_order_release);
         if (!bdata)
                 return;

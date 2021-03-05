@@ -355,7 +355,8 @@ argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
         char *_buf = NULL;
         va_list _ap;
         va_start(_ap, fmt);
-#ifdef HAVE_VASPRINTF
+/* #ifdef HAVE_VASPRINTF */
+#if 0
         if (vasprintf(&_buf, fmt, _ap) == (-1))
                 err(1, "vasprintf failed");
 #else

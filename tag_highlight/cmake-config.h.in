@@ -1,6 +1,7 @@
 #cmakedefine DEBUG
 #cmakedefine USE_JEMALLOC
 #cmakedefine LZMA_SUPPORT
+#cmakedefine HAVE_LIBEV
 
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_CLOCK_GETTIME
@@ -31,5 +32,5 @@
 
 #define GCC_ALL_INCLUDE_DIRECTORIES ${COMPILER_INCLUDE_DIRECTORIES}
 
-#define VERSION "0.0.3"
+#define VERSION "0.0.4"
 #define PACKAGE_STRING "tag_highlight " VERSION

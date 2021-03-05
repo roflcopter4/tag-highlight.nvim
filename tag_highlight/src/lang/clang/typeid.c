@@ -54,7 +54,7 @@ create_nvim_calls(Buffer *bdata, struct translationunit *stu)
 
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 struct token *tok = stu->tokens->lst[i];
-                if ((int64_t)tok->line == INT64_C(-1))
+                if (((int)tok->line) == -1)
                         continue;
                 if (tok_in_skip_list(bdata, tok)) {
                         /* SHOUT("Skipping verboten token \"%s\"\n", BTS(tok->text)); */

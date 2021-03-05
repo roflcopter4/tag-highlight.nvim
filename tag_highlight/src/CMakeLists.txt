@@ -65,9 +65,10 @@ if (MINGW)
         -lstdc++
     )
 else()
-    target_link_libraries(tag_highlight
-        ${LIBEV_LIBRARIES}
-    )
+    if (LIBEV_FOUND)
+        target_link_libraries(tag_highlight
+            ${LIBEV_LIBRARIES})
+    endif()
 endif()
 
 target_link_libraries(tag_highlight 
