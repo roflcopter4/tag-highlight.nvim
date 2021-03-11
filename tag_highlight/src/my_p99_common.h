@@ -14,14 +14,14 @@
 #define pthread_exit_defarg_0() NULL
 
 #ifdef USE_P99_TRY
-#include "contrib/p99/p99_try.h"
+# include "contrib/p99/p99_try.h"
 
-#define TRY                P99_TRY
-#define CATCH(NAME)        P99_CATCH(int NAME) if (NAME)
-#define CATCH_FINALLY(...) P99_CATCH(P99_IF_EMPTY(__VA_ARGS__)()(int __VA_ARGS__))
-#define TRY_RETURN         P99_UNWIND_RETURN
+# define TRY                P99_TRY
+# define CATCH(NAME)        P99_CATCH(int NAME) if (NAME)
+# define CATCH_FINALLY(...) P99_CATCH(P99_IF_EMPTY(__VA_ARGS__)()(int __VA_ARGS__))
+# define TRY_RETURN         P99_UNWIND_RETURN
 
-#define FINALLY                                                         \
+# define FINALLY                                                        \
         P00_FINALLY                                                     \
         P00_BLK_BEFORE(p00_unw = 0)                                     \
         P00_BLK_AFTER(!p00_code || p00_code == -(INT_MAX)               \
@@ -33,7 +33,7 @@
  * Probably best that the arguments to this macro not have side effects, given
  * that they are expanded no fewer than 10 times.
  */
-#define THROW(...)                                                          \
+# define THROW(...)                                                         \
         p00_jmp_throw((((P99_NARG(__VA_ARGS__) == 1 &&                      \
                          _Generic(P99_CHS(0, __VA_ARGS__),                  \
                                   const char *: (true),                     \
@@ -61,13 +61,18 @@
                      )
 
 
-#define P99_IF_TYPE_ELSE(ITEM, TYPE, VAL, ELSE) \
-        (_Generic((ITEM),                       \
-                  TYPE : (VAL),                 \
-                  const TYPE : (VAL),           \
-                  volatile TYPE : (VAL),        \
+# define P99_IF_TYPE_ELSE(ITEM, TYPE, VAL, ELSE) \
+        (_Generic((ITEM),                        \
+                  TYPE : (VAL),                  \
+                  const TYPE : (VAL),            \
+                  volatile TYPE : (VAL),         \
                   default : (ELSE)))
-#endif
+
+# define pipe2_throw(...) P99_THROW_CALL_NEG(pipe2, EINVAL, __VA_ARGS__)
+# define dup2_throw(...)  P99_THROW_CALL_NEG(dup2, EINVAL, __VA_ARGS__)
+# define execl_throw(...) P99_THROW_CALL_NEG(execl, EINVAL, __VA_ARGS__)
+
+#endif /* USE_P99_TRY */
 
 
 #define P01_POINTLESS_MACRO(...) (__VA_ARGS__)
@@ -98,25 +103,21 @@
 #define b_iseq_any     P99_B_ISEQ_ANY
 #define b_iseq_lit_any P99_B_ISEQ_LIT_ANY
 
-#define P99_DECLARE_FIFO(NAME)   \
+#define P99_DECLARE_FIFO(NAME)    \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \
         P99_FIFO_DECLARE(NAME##_ptr)
 
-#define P99_DECLARE_LIFO(NAME)   \
+#define P99_DECLARE_LIFO(NAME)    \
         P99_DECLARE_STRUCT(NAME); \
         P99_POINTER_TYPE(NAME);   \
         P99_LIFO_DECLARE(NAME##_ptr)
 
-#define pipe2_throw(...) P99_THROW_CALL_NEG(pipe2, EINVAL, __VA_ARGS__)
-#define dup2_throw(...)  P99_THROW_CALL_NEG(dup2, EINVAL, __VA_ARGS__)
-#define execl_throw(...) P99_THROW_CALL_NEG(execl, EINVAL, __VA_ARGS__)
-
-#define P01_FREE_BSTRING(BSTR) b_destroy(BSTR)
-#define b_destroy_all(...) P99_BLOCK(P99_SEP(P01_FREE_BSTRING, __VA_ARGS__);)
+#define P01_FREE_BSTRING(BSTR)         b_destroy(BSTR)
 #define P01_WRITEPROTECT_BSTRING(BSTR) b_writeprotect(BSTR)
+#define P01_WRITEALLOW_BSTRING(BSTR)   b_writeallow(BSTR)
+#define b_destroy_all(...)      P99_BLOCK(P99_SEP(P01_FREE_BSTRING, __VA_ARGS__);)
 #define b_writeprotect_all(...) P99_BLOCK(P99_SEP(P01_WRITEPROTECT_BSTRING, __VA_ARGS__);)
-#define P01_WRITEALLOW_BSTRING(BSTR) b_writeallow(BSTR)
-#define b_writeallow_all(...) P99_BLOCK(P99_SEP(P01_WRITEALLOW_BSTRING, __VA_ARGS__);)
+#define b_writeallow_all(...)   P99_BLOCK(P99_SEP(P01_WRITEALLOW_BSTRING, __VA_ARGS__);)
 
 #endif /* p99_common.h */

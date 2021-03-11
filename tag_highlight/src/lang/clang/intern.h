@@ -35,6 +35,7 @@ struct translationunit {
         CXToken           *cxtokens;
         CXCursor          *cxcursors;
         CXTranslationUnit  tu;
+        CXIndex            idx;
         unsigned           num;
 };
 

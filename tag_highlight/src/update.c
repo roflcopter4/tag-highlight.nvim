@@ -113,14 +113,15 @@ retry:
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);
                 bdata->calls = update_commands(bdata, tags);
+                talloc_steal(bdata, bdata->calls);
                 nvim_call_atomic(bdata->calls);
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_destroy(tags->lst[i]->b);
-                        free(tags->lst[i]);
+                        talloc_free(tags->lst[i]);
                 }
-                free(tags->lst);
-                free(tags);
+                talloc_free(tags->lst);
+                talloc_free(tags);
 
                 if (bdata->ft->restore_cmds) {
                         LOGCMD("%s\n\n", BS(bdata->ft->restore_cmds));
@@ -146,7 +147,8 @@ static mpack_arg_array *
 update_commands(Buffer *bdata, struct taglist *tags)
 {
         unsigned const  ngroups = bdata->ft->order->slen;
-        struct cmd_info info[ngroups];
+        /* struct cmd_info info[ngroups]; */
+        struct cmd_info *info = talloc_array(NULL, struct cmd_info, ngroups);
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 int const   ch   = bdata->ft->order->data[i];
@@ -158,9 +160,12 @@ update_commands(Buffer *bdata, struct taglist *tags)
                 info[i].prefix = mpack_dict_get_key(dict, E_STRING, B("prefix")).ptr;
                 info[i].suffix = mpack_dict_get_key(dict, E_STRING, B("suffix")).ptr;
 
-                b_writeprotect_all(info[i].group, info[i].prefix, info[i].suffix);
-                mpack_dict_destroy(dict);
-                b_writeallow_all(info[i].group, info[i].prefix, info[i].suffix);
+                talloc_steal(info, info[i].group);
+                talloc_steal(info, info[i].prefix);
+                talloc_steal(info, info[i].suffix);
+                /* b_writeprotect_all(info[i].group, info[i].prefix, info[i].suffix); */
+                /* mpack_dict_destroy(dict); */
+                /* b_writeallow_all(info[i].group, info[i].prefix, info[i].suffix); */
         }
 
         mpack_arg_array *calls = NULL;
@@ -179,12 +184,14 @@ update_commands(Buffer *bdata, struct taglist *tags)
                         add_cmd_call(&calls, cmd);
                 }
 
-                b_destroy(info[i].group);
-                if (info[i].prefix)
-                        b_destroy(info[i].prefix);
-                if (info[i].suffix)
-                        b_destroy(info[i].suffix);
+                //b_destroy(info[i].group);
+                //if (info[i].prefix)
+                //        b_destroy(info[i].prefix);
+                //if (info[i].suffix)
+                //        b_destroy(info[i].suffix);
         }
+
+        talloc_free(info);
 
 #if defined DEBUG && defined DEBUG_LOGS
         fputs("\n\n\n\n", cmd_log);
@@ -268,7 +275,7 @@ void
                         if (i < (bdata->ft->order->slen - 1))
                                 b_catlit(cmd, " | ");
 
-                        mpack_dict_destroy(dict);
+                        talloc_free(dict);
                 }
 
                 nvim_command(cmd);
@@ -288,21 +295,22 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
 {
 #define CALLS (*calls)
         if (!CALLS) {
-                CALLS        = malloc(sizeof(mpack_arg_array));
+                CALLS        = talloc(NULL, mpack_arg_array);
                 CALLS->qty   = 0;
                 CALLS->mlen  = 16;
-                CALLS->fmt   = calloc(CALLS->mlen, sizeof(char *));
-                CALLS->args  = calloc(CALLS->mlen, sizeof(mpack_argument *));
+                CALLS->fmt   = talloc_zero_array(CALLS, char *, CALLS->mlen);
+                CALLS->args  = talloc_zero_array(CALLS, mpack_argument *, CALLS->mlen);
         } else if (CALLS->qty >= CALLS->mlen-1) {
                 CALLS->mlen *= 2;
-                CALLS->fmt   = nrealloc(CALLS->fmt,  CALLS->mlen, sizeof(char *));
-                CALLS->args  = nrealloc(CALLS->args, CALLS->mlen, sizeof(mpack_argument *));
+                CALLS->fmt   = talloc_realloc(CALLS, CALLS->fmt, char *, CALLS->mlen);
+                CALLS->args  = talloc_realloc(CALLS, CALLS->args, mpack_argument *, CALLS->mlen);
         }
 
-        CALLS->args[CALLS->qty]        = nmalloc(2, sizeof(mpack_argument));
-        CALLS->fmt[CALLS->qty]         = STRDUP("s[s]");
-        CALLS->args[CALLS->qty][0].str = b_fromlit("nvim_command");
-        CALLS->args[CALLS->qty][1].str = cmd;
+        bstring *tmp = b_fromlit("nvim_command");
+        CALLS->fmt[CALLS->qty]         = talloc_strdup(CALLS->fmt, "s[s]");
+        CALLS->args[CALLS->qty]        = talloc_array(CALLS->args, mpack_argument, 2); //nmalloc(2, sizeof(mpack_argument));
+        CALLS->args[CALLS->qty][0].str = talloc_move(CALLS->args[CALLS->qty], &tmp);
+        CALLS->args[CALLS->qty][1].str = talloc_move(CALLS->args[CALLS->qty], &cmd);
 
         ++CALLS->qty;
 #undef CALLS

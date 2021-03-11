@@ -1,8 +1,8 @@
 #include "archive.h"
-#ifdef HAVE_TOPCONFIG_H
-#include "Common.h"
+#ifdef HAVE_CONFIG_H
+#  include "Common.h"
 #else
-#include "util.h"
+#  include "util.h"
 #endif
 #include <sys/stat.h>
 
@@ -49,7 +49,7 @@ getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 static void
 ll_strsep(b_list *tags, uint8_t *buf)
 {
-        char *   tok;
+        char    *tok;
         uint8_t *bak = buf;
 
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
@@ -58,7 +58,7 @@ ll_strsep(b_list *tags, uint8_t *buf)
                 b_list_append(tags, b_fromblk(tok, (char *)(buf)-tok - 1));
         }
 
-        free(bak);
+        talloc_free(bak);
 }
 
 
@@ -86,7 +86,7 @@ plain_getlines(b_list *tags, const bstring *filename)
         struct stat st;
 
         SAFE_STAT(BS(filename), &st);
-        uint8_t *buffer = malloc(st.st_size + 1LL);
+        uint8_t *buffer = talloc_size(NULL, st.st_size + 1LLU);
 
         if (fread(buffer, 1, st.st_size, fp) != (size_t)st.st_size || ferror(fp))
                 err(1, "Error reading file %s", BS(filename));
@@ -120,8 +120,8 @@ gz_getlines(b_list *tags, const bstring *filename)
         }
 
         /* Magic macros to the rescue. */
-        uint8_t *     out_buf = malloc(size.uncompressed + 1);
-        const int64_t numread = gzread(gfp, out_buf, size.uncompressed);
+        uint8_t *     out_buf = talloc_size(NULL, size.uncompressed + 1LLU);
+        int64_t const numread = gzread(gfp, out_buf, size.uncompressed);
 
         ALWAYS_ASSERT(numread == 0 || numread == (int64_t)size.uncompressed);
         gzclose(gfp);
@@ -149,11 +149,11 @@ xz_getlines(b_list *tags, const bstring *filename)
                 return 0;
         report_size(&size);
 
-        uint8_t *in_buf  = malloc(size.archive + 1);
-        uint8_t *out_buf = malloc(size.uncompressed + 1);
+        uint8_t *in_buf  = talloc_size(NULL, size.archive + 1LLU);
+        uint8_t *out_buf = talloc_size(NULL, size.uncompressed + 1LLU);
 
         /* Setup the stream and initialize the decoder */
-        lzma_stream *strm = &(lzma_stream)LZMA_STREAM_INIT;
+        lzma_stream *strm = (lzma_stream[]){LZMA_STREAM_INIT};
         if ((lzma_auto_decoder(strm, UINT64_MAX, 0)) != LZMA_OK)
                 errx(1, "Unhandled internal error.");
 
@@ -192,7 +192,7 @@ xz_getlines(b_list *tags, const bstring *filename)
         out_buf[size.uncompressed] = '\0';
         fclose(fp);
         lzma_end(strm);
-        free(in_buf);
+        talloc_free(in_buf);
 
         ll_strsep(tags, out_buf);
         return 1;

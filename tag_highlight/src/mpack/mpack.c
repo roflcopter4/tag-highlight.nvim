@@ -9,9 +9,11 @@ struct item_free_stack {
         uint32_t    max;
 };
 
+#if 0
 static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);
-static mpack_obj *find_key_value (mpack_dict *dict, bstring const *key) __attribute__((pure));
 static void       free_stack_push(struct item_free_stack *list, void *item);
+#endif
+static mpack_obj *find_key_value (mpack_dict *dict, bstring const *key) __attribute__((pure));
 
 FILE  *mpack_log;
 
@@ -58,24 +60,27 @@ mpack_retval
         switch (type) {
         case E_MPACK_ARRAY:
                 if (destroy)
-                        mpack_spare_data(obj);
-                ret.ptr = obj->data.arr;
+                        talloc_steal(NULL, obj->arr);
+                        // mpack_spare_data(obj);
+                ret.ptr = obj->arr;
                 break;
 
         case E_MPACK_DICT:
                 if (obj_type != (err_expect = MPACK_DICT))
                         goto error;
                 if (destroy)
-                        mpack_spare_data(obj);
-                ret.ptr = obj->data.dict;
+                        talloc_steal(NULL, obj->dict);
+                        // mpack_spare_data(obj);
+                ret.ptr = obj->dict;
                 break;
 
         case E_MPACK_EXT:
                 if (obj_type != (err_expect = MPACK_EXT))
                         goto error;
                 if (destroy)
-                        mpack_spare_data(obj);
-                ret.ptr = obj->data.ext;
+                        talloc_steal(NULL, obj->ext);
+                        /* mpack_spare_data(obj); */
+                ret.ptr = obj->ext;
                 break;
 
         case E_MPACK_NIL:
@@ -86,11 +91,11 @@ mpack_retval
         case E_BOOL:
                 if (obj_type != (err_expect = MPACK_BOOL)) {
                         if (obj_type == MPACK_SIGNED || obj_type == MPACK_UNSIGNED)
-                                value = obj->data.num;
+                                value = obj->num;
                         else
                                 goto error;
                 } else {
-                        value = obj->data.boolean;
+                        value = obj->boolean;
                 }
                 ret.num = value;
                 break;
@@ -100,30 +105,26 @@ mpack_retval
                     obj_type != MPACK_UNSIGNED)
                 {
                         if (obj_type == MPACK_EXT)
-                                ret.num = obj->data.ext->num;
+                                ret.num = obj->ext->num;
                         else
                                 goto error;
                 } else {
-                        ret.num = obj->data.num;
+                        ret.num = obj->num;
                 }
                 break;
 
         case E_STRING:
                 if (obj_type != (err_expect = MPACK_STRING))
                         goto error;
-                ret.ptr = obj->data.str;
+                ret.ptr = obj->str;
                 if (destroy)
-                        b_writeprotect((bstring *)ret.ptr);
+                        talloc_steal(NULL, ret.ptr);
                 break;
 
         case E_STRLIST:
                 if (obj_type != (err_expect = MPACK_ARRAY))
                         goto error;
-                ret.ptr = mpack_array_to_blist(obj->data.arr, destroy);
-                if (destroy) {
-                        free(obj);
-                        destroy = false;
-                }
+                ret.ptr = mpack_array_to_blist(obj->arr, destroy);
                 break;
 
         case E_DICT2ARR:
@@ -134,9 +135,8 @@ mpack_retval
         }
 
         if (destroy) {
-                mpack_destroy_object(obj);
-                if (type == E_STRING)
-                        b_writeallow((bstring *)ret.ptr);
+                talloc_free(obj);
+                /* mpack_destroy_object(obj); */
         }
 
         pthread_mutex_unlock(&mpack_rw_lock);
@@ -145,16 +145,40 @@ mpack_retval
 error:
         warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
-        mpack_destroy_object(obj);
+        talloc_free(obj);
         ret.ptr = NULL;
         abort();
 }
 
 /*======================================================================================*/
 
-void
+#if 0
+int
 mpack_destroy_object(mpack_obj *root)
 {
+        pthread_mutex_lock(&mpack_rw_lock);
+
+        talloc_free(root);
+#if 0
+        if (!(root->flags & MPACKFLG_ENCODE)) {
+                if (root->flags & MPACKFLG_HAS_PACKED)
+                        b_destroy(*root->packed);
+
+                if (!(root->flags & MPACKFLG_PHONY)) {
+                        /* This gcc specific warning is a false positive. Non-heap
+                         * objects all have the `phony' flag and won't be free'd. */
+                        talloc_free(root);
+                }
+        } else if (!(root->flags & MPACKFLG_PHONY)) {
+                talloc_free(root);
+        } else {
+                /* talloc_free_children(root); */
+                abort();
+        }
+#endif
+
+
+#if 0
         PRAGMA_NO_NONHEAP();
         pthread_mutex_lock(&mpack_rw_lock);
 
@@ -182,27 +206,27 @@ mpack_destroy_object(mpack_obj *root)
                 if (!(cur->flags & MPACKFLG_SPARE_DATA)) {
                         switch (mpack_type(cur)) {
                         case MPACK_ARRAY:
-                                if (cur->data.arr) {
-                                        free(cur->DAI);
-                                        free(cur->data.arr);
+                                if (cur->arr) {
+                                        free(cur->arr->lst);
+                                        free(cur->arr);
                                 }
                                 break;
                         case MPACK_DICT:
-                                if (cur->data.dict) {
+                                if (cur->dict) {
                                         unsigned j = 0;
-                                        while (j < cur->data.dict->qty)
-                                                free(cur->DDE[j++]);
-                                        free(cur->DDE);
-                                        free(cur->data.dict);
+                                        while (j < cur->dict->qty)
+                                                free(cur->dict->lst[j++]);
+                                        free(cur->dict->lst);
+                                        free(cur->dict);
                                 }
                                 break;
                         case MPACK_STRING:
-                                if (cur->data.str)
-                                        b_destroy(cur->data.str);
+                                if (cur->str)
+                                        b_destroy(cur->str);
                                 break;
                         case MPACK_EXT:
-                                if (cur->data.ext)
-                                        free(cur->data.ext);
+                                if (cur->ext)
+                                        free(cur->ext);
                                 break;
                         default:
                                 break;
@@ -216,9 +240,13 @@ mpack_destroy_object(mpack_obj *root)
         }
 
         free(tofree.items);
+#endif
         pthread_mutex_unlock(&mpack_rw_lock);
+        return 0;
 }
+#endif
 
+#if 0
 static void
 collect_items(struct item_free_stack *tofree, mpack_obj *item)
 {
@@ -230,23 +258,23 @@ collect_items(struct item_free_stack *tofree, mpack_obj *item)
 
         switch (mpack_type(item)) {
         case MPACK_ARRAY:
-                if (!item->data.arr)
+                if (!item->arr)
                         return;
 
-                for (unsigned i = 0; i < item->data.arr->qty; ++i)
-                        if (item->DAI[i])
-                                collect_items(tofree, item->DAI[i]);
+                for (unsigned i = 0; i < item->arr->qty; ++i)
+                        if (item->arr->lst[i])
+                                collect_items(tofree, item->arr->lst[i]);
                 break;
 
         case MPACK_DICT:
-                if (!item->data.dict)
+                if (!item->dict)
                         return;
 
-                for (unsigned i = 0; i < item->data.dict->qty; ++i) {
-                        if (item->DDE[i]->key)
-                                collect_items(tofree, item->DDE[i]->key);
-                        if (item->DDE[i]->value)
-                                collect_items(tofree, item->DDE[i]->value);
+                for (unsigned i = 0; i < item->dict->qty; ++i) {
+                        if (item->dict->lst[i]->key)
+                                collect_items(tofree, item->dict->lst[i]->key);
+                        if (item->dict->lst[i]->value)
+                                collect_items(tofree, item->dict->lst[i]->value);
                 }
                 break;
 
@@ -266,6 +294,7 @@ free_stack_push(struct item_free_stack *list, void *item)
                                        sizeof(*list->items));
         list->items[list->qty++] = item;
 }
+#endif
 
 /*======================================================================================*/
 /* Type conversions */
@@ -280,15 +309,18 @@ mpack_array_to_blist(mpack_array *array, bool const destroy)
 
         if (destroy) {
                 for (unsigned i = 0; i < size; ++i) {
-                        b_writeprotect(array->items[i]->data.str);
-                        b_list_append(ret, array->items[i]->data.str);
+                        /* b_writeprotect(array->lst[i]->str); */
+                        b_list_append(ret, array->lst[i]->str);
+                        array->lst[i]->str = NULL;
                 }
 
-                mpack_array_destroy(array);
-                b_list_writeallow(ret);
+                talloc_free(array);
+                /* mpack_array_destroy(array); */
+                /* b_list_writeallow(ret); */
         } else {
-                for (unsigned i = 0; i < size; ++i)
-                        b_list_append(ret, array->items[i]->data.str);
+                for (unsigned i = 0; i < size; ++i) {
+                        b_list_append(ret, array->lst[i]->str);
+                }
         }
 
         return ret;
@@ -310,8 +342,8 @@ static mpack_obj *
 find_key_value(mpack_dict *dict, bstring const *key)
 {
         for (unsigned i = 0; i < dict->qty; ++i)
-                if (b_iseq(dict->entries[i]->key->data.str, key))
-                        return dict->entries[i]->value;
+                if (b_iseq(dict->lst[i]->key->str, key))
+                        return dict->lst[i]->value;
 
         return NULL;
 }
@@ -323,6 +355,8 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
 {
         if (!calls)
                 return;
+        talloc_free(calls);
+#if 0
         for (unsigned i = 0; i < calls->qty; ++i) {
                 unsigned x = 0;
                 for (char const *ptr = calls->fmt[i]; *ptr; ++ptr) {
@@ -342,6 +376,7 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
         free(calls->args);
         free(calls->fmt);
         free(calls);
+#endif
 }
 
 /*======================================================================================*/
@@ -658,12 +693,12 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
 
 #ifdef DEBUG
                 if (PEEK(dict_stack)) {
-                        if (PEEK(obj_stack)->data.dict->max > (*cur_ctr / 2))
+                        if (PEEK(obj_stack)->dict->max > (*cur_ctr / 2))
                                 cur_obj = (*cur_ctr & 1) == 0
-                                        ? &PEEK(obj_stack)->DDE[*cur_ctr / 2]->key
-                                        : &PEEK(obj_stack)->DDE[*cur_ctr / 2]->value;
-                } else if (PEEK(obj_stack)->data.arr->max > *cur_ctr) {
-                        cur_obj = &PEEK(obj_stack)->DAI[*cur_ctr];
+                                        ? &PEEK(obj_stack)->dict->lst[*cur_ctr / 2]->key
+                                        : &PEEK(obj_stack)->dict->lst[*cur_ctr / 2]->value;
+                } else if (PEEK(obj_stack)->arr->max > *cur_ctr) {
+                        cur_obj = &PEEK(obj_stack)->arr->lst[*cur_ctr];
                 }
 #endif
 

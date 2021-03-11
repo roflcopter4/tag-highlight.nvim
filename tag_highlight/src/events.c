@@ -31,6 +31,20 @@ extern p99_futex volatile _nvim_wait_futex;
 
 /*======================================================================================*/
 
+void *_events_object_talloc_ctx = NULL;
+void *_events_nvim_notification_talloc_ctx = NULL;
+void *_events_nvim_response_talloc_ctx = NULL;
+
+__attribute__((__constructor__))
+static void init_mpack_talloc_ctx(void) 
+{
+        _events_object_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
+        _events_nvim_notification_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
+        _events_nvim_response_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
+}
+
+/*======================================================================================*/
+
 P99_DECLARE_STRUCT(event_id);
 typedef const event_id *event_idp;
 
@@ -85,7 +99,6 @@ static void events_mutex_initializer(void)
  *======================================================================================*/
 
 #if USE_EVENT_LIB == EVENT_LIB_EV
-
 /*
  * Using libev
  */
@@ -107,7 +120,7 @@ run_event_loop(int const fd)
 
         ev_signal_init(&signal_watcher[0], event_loop_signal_cb, SIGTERM);
         ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGPIPE);
-        ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGINT);
+        ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGHUP);
         ev_signal_init(&signal_watcher[3], event_loop_graceful_signal_cb, SIGUSR1);
         ev_signal_start(loop, &signal_watcher[0]);
         ev_signal_start(loop, &signal_watcher[1]);
@@ -125,6 +138,7 @@ event_loop_io_cb(UNUSED EV_P, ev_io *w, UNUSED int revents)
 
         int const  fd  = w->fd;
         mpack_obj *obj = mpack_decode_stream(fd);
+        talloc_steal(_events_object_talloc_ctx, obj);
         handle_nvim_message(fd, obj);
 
         pthread_mutex_unlock(&event_loop_cb_mutex);
@@ -134,6 +148,9 @@ static void
 event_loop_graceful_signal_cb(struct ev_loop *loop,
                               UNUSED ev_signal *w, UNUSED int revents)
 {
+        extern void exit_cleanup(void);
+        exit_cleanup();
+
         ev_signal_stop(loop, &signal_watcher[0]);
         ev_signal_stop(loop, &signal_watcher[1]);
         ev_signal_stop(loop, &signal_watcher[2]);
@@ -144,11 +161,11 @@ event_loop_graceful_signal_cb(struct ev_loop *loop,
 static noreturn void
 event_loop_signal_cb(UNUSED EV_P, UNUSED ev_signal *w, UNUSED int revents)
 {
-        quick_exit(0);
+        quick_exit(1);
 }
 
+/*======================================================================================*/
 #elif USE_EVENT_LIB == EVENT_LIB_NONE
-
 /*
  * Using no event library
  */
@@ -160,10 +177,13 @@ static jmp_buf event_loop_jmp_buf;
 static noreturn void
 event_loop_sighandler(int signum)
 {
+#if 0
         if (signum == SIGUSR1)
                 longjmp(event_loop_jmp_buf, 1);
         else
-                quick_exit(0);
+                exit(0);
+#endif
+        longjmp(event_loop_jmp_buf, signum);
 }
 # endif
 
@@ -175,11 +195,14 @@ run_event_loop(int const fd)
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
 
         if (!atomic_flag_test_and_set(&event_loop_called)) {
-                /* Don't bother handling signals at all on Windows. */
 # ifndef DOSISH
+                /* Don't bother handling signals at all on Windows. */
                 event_loop_thread = pthread_self();
-                if (setjmp(event_loop_jmp_buf) != 0)
+                int signum;
+                if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
+                        eprintf("I gone and got a (%d)\n", signum);
                         return;
+                }
                 struct sigaction act;
                 memset(&act, 0, sizeof(act));
                 act.sa_handler = event_loop_sighandler;
@@ -187,6 +210,8 @@ run_event_loop(int const fd)
                 sigaction(SIGTERM, &act, NULL);
                 sigaction(SIGPIPE, &act, NULL);
                 sigaction(SIGINT, &act, NULL);
+                sigaction(SIGHUP, &act, NULL);
+                sigaction(SIGCHLD, &act, NULL);
 # endif
                 /* Run the show. */
                 event_loop(fd);
@@ -221,6 +246,7 @@ handle_nvim_message(int const fd, mpack_obj *obj)
 
         switch (mtype) {
         case MES_NOTIFICATION: {
+                talloc_steal(_events_nvim_notification_talloc_ctx, obj);
                 event_node *node = calloc(1, sizeof *node);
                 atomic_store_explicit(&node->obj, obj, memory_order_relaxed);
                 P99_FIFO_APPEND(&nvim_event_queue, node);
@@ -228,8 +254,10 @@ handle_nvim_message(int const fd, mpack_obj *obj)
                 break;
         }
         case MES_RESPONSE: {
+                talloc_steal(_events_nvim_response_talloc_ctx, obj);
                 struct event_data *data = malloc(sizeof *data);
-                *data                   = (struct event_data){fd, obj};
+                data->fd  = fd;
+                data->obj = obj;
                 START_DETACHED_PTHREAD(handle_nvim_response, data);
                 break;
         }
@@ -254,14 +282,14 @@ handle_nvim_notification(UNUSED void *unused)
         mpack_obj   *event = node->obj;
         mpack_array *arr   = mpack_expect(mpack_index(event, 2), E_MPACK_ARRAY).ptr;
         event_idp    type  = id_event(event);
-        mpack_print_object(api_buffer_log, event);
+        /* mpack_print_object(api_buffer_log, event); */
 
         if (type->id == EVENT_VIM_UPDATE) {
                 uint64_t *tmp = malloc(sizeof(uint64_t));
-                *tmp          = arr->items[0]->data.num;
+                *tmp          = mpack_expect(arr->lst[0], E_NUM).num;
                 START_DETACHED_PTHREAD(event_autocmd, tmp);
         } else {
-                int const bufnum = mpack_expect(arr->items[0], E_NUM).num;
+                int const bufnum = mpack_expect(arr->lst[0], E_NUM).num;
                 Buffer   *bdata  = find_buffer(bufnum);
 
                 if (!bdata)
@@ -273,7 +301,7 @@ handle_nvim_notification(UNUSED void *unused)
                         break;
                 case EVENT_BUF_CHANGED_TICK: {
                         pthread_mutex_lock(&bdata->lock.ctick);
-                        uint32_t const new_tick = mpack_expect(arr->items[1], E_NUM).num;
+                        uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
                         if (new_tick > atomic_load(&bdata->ctick))
                                 atomic_store(&bdata->ctick, new_tick);
                         pthread_mutex_unlock(&bdata->lock.ctick);
@@ -289,7 +317,8 @@ handle_nvim_notification(UNUSED void *unused)
                 }
         }
 
-        mpack_destroy_object(event);
+        /* mpack_destroy_object(event); */
+        talloc_free(event);
         free(node);
 
         pthread_mutex_unlock(&nvim_event_handler_mutex);
@@ -313,7 +342,7 @@ handle_nvim_response(void *vdata)
                 node = P99_FIFO_POP(&_nvim_wait_queue);
                 if (!node) {
                         eprintf("Queue is empty.");
-                        mpack_destroy_object(obj);
+                        talloc_free(obj);
                         pthread_exit();
                 }
 
@@ -331,7 +360,7 @@ handle_nvim_response(void *vdata)
 static event_idp
 id_event(mpack_obj *event)
 {
-        bstring const *typename = event->DAI[1]->data.str;
+        bstring const *typename = event->arr->lst[1]->str;
 
         for (unsigned i = 0, size = (unsigned)ARRSIZ(event_list); i < size; ++i)
                 if (b_iseq(typename, &event_list[i].name))
@@ -355,23 +384,21 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         if (arr->qty < 5)
                 errx(1, "Received an array from neovim that is too small. This "
                         "shouldn't be possible.");
-        else if (arr->items[5]->data.boolean)
+        else if (arr->lst[5]->boolean)
                 errx(1, "Error: Continuation condition is unexpectedly true, "
                         "cannot continue.");
 
         pthread_mutex_lock(&bdata->lock.ctick);
-        mpack_obj **   items    = arr->items;
-        unsigned const new_tick = mpack_expect(items[1], E_NUM).num;
+        unsigned const new_tick = mpack_expect(arr->lst[1], E_NUM, true).num;
         if (new_tick > atomic_load(&bdata->ctick))
                 atomic_store(&bdata->ctick, new_tick);
         pthread_mutex_unlock(&bdata->lock.ctick);
 
-        int const first       = mpack_expect(items[2], E_NUM).num;
-        int const last        = mpack_expect(items[3], E_NUM).num;
-        b_list   *new_strings = mpack_expect(items[4], E_STRLIST).ptr;
+        int const first       = mpack_expect(arr->lst[2], E_NUM, true).num;
+        int const last        = mpack_expect(arr->lst[3], E_NUM, true).num;
+        b_list   *new_strings = mpack_expect(arr->lst[4], E_STRLIST, true).ptr;
         int const diff        = last - first;
         bool      empty       = false;
-        items[4]->data.arr    = NULL;
 
         pthread_rwlock_wrlock(&bdata->lines->lock);
 
@@ -420,8 +447,9 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         if (!bdata->initialized && !empty)
                 bdata->initialized = true;
 
-        free(new_strings->lst);
-        free(new_strings);
+        talloc_free(new_strings);
+        /* free(new_strings->lst); */
+        /* free(new_strings); */
         pthread_rwlock_unlock(&bdata->lines->lock);
 
         if (!empty && bdata->ft->has_parser) {
@@ -438,9 +466,8 @@ replace_line(Buffer *bdata, b_list *new_strings,
              int const lineno, int const index)
 {
         ll_node *node = ll_at(bdata->lines, lineno);
-        b_free(node->data);
-        node->data              = new_strings->lst[index];
-        new_strings->lst[index] = NULL;
+        talloc_free(node->data);
+        node->data = talloc_move(node, &new_strings->lst[index]);
 }
 
 /*

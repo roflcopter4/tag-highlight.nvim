@@ -5,7 +5,7 @@
 
 #define BI bt_init
 
-struct filetype ftdata[] = {
+static const struct filetype ftdata_static[] = {
     { NULL, NULL, NULL, NULL, BI("NONE"),       BI("NONE"),       FT_NONE,       0, 0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("c"),          BI("c"),          FT_C,          0, 0, 1, 1 },
     { NULL, NULL, NULL, NULL, BI("cpp"),        BI("c++"),        FT_CXX,        0, 0, 1, 1 },
@@ -24,6 +24,26 @@ struct filetype ftdata[] = {
     { NULL, NULL, NULL, NULL, BI("zsh"),        BI("sh"),         FT_ZSH,        0, 0, 0, 0 },
 };
 
+size_t const ftdata_len = ARRSIZ(ftdata_static);
+struct filetype **ftdata;
+// struct filetype *ftdata[ARRSIZ(ftdata_static)];
+
+__attribute__((constructor)) void init_ftdata(void)
+{
+        ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
+        /* ftdata = talloc_pool(NULL, ftdata_len * sizeof(struct filetype)); */
+
+        for (unsigned i = 0; i < ftdata_len; ++i) {
+                ftdata[i] = talloc(ftdata, struct filetype);
+                memcpy(ftdata[i], &ftdata_static[i], sizeof(struct filetype));
+        }
+}
+
+//__attribute__((constructor)) void free_ftdata(void)
+//{
+//        talloc_free(ftdata);
+//        ftdata = NULL;
+//}
 
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;
@@ -34,7 +54,6 @@ extern pthread_mutex_t  update_mutex;
 struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
-size_t const    ftdata_len   = ARRSIZ(ftdata);
 char const     *program_name;
 genlist        *top_dirs;
 char           *HOME;

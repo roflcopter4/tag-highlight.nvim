@@ -1,3 +1,4 @@
+#include "Common.h"
 #include "util.h"
 #include "mpack/mpack.h"
 #include <sys/stat.h>
@@ -191,6 +192,7 @@ err_(UNUSED const int status, const bool print_err, const char *file, const int 
         SHOW_STACKTRACE();
         fputc('\n', stderr);
         fflush(stderr);
+        /* exit(status); */
         abort();
 }
 

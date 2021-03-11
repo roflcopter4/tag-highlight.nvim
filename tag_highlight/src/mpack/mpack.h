@@ -41,9 +41,10 @@ enum mpack_flag_values {
 };
 
 #define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0FU)
-#define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACKFLG_SPARE_DATA))
-#define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACKFLG_SPARE_DATA))
+/* #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACKFLG_SPARE_DATA)) */
+/* #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACKFLG_SPARE_DATA)) */
 
+#ifndef __cplusplus
 typedef struct mpack_object       mpack_obj;
 typedef struct mpack_arg_array    mpack_arg_array;
 typedef struct mpack_array        mpack_array;
@@ -54,21 +55,21 @@ typedef enum   mpack_expect_types mpack_expect_t;
 typedef enum   mpack_types        mpack_type_t;
 typedef union  mpack_argument     mpack_argument;
 typedef union  mpack_retval       mpack_retval;
+#endif
 
-
-#pragma pack(push, 1)
+// #pragma pack(push, 1)
 
 struct mpack_object {
-        union mpack_item_data {
-                bool           boolean;
-                int16_t        nil;
-                uint64_t       num; /* An unsigned var can hold a signed value */
-                bstring       *str;
+        uint8_t  flags;
+        union {
+                bool         boolean;
+                int16_t      nil;
+                uint64_t     num; /* An unsigned var can hold a signed value */
+                bstring     *str;
                 mpack_array *arr;
                 mpack_dict  *dict;
                 mpack_ext   *ext;
-        } data;
-        uint8_t  flags;
+        };
         bstring *packed[];
 };
 
@@ -76,13 +77,13 @@ struct mpack_dictionary {
         struct mpack_dict_ent {
                 mpack_obj *key;
                 mpack_obj *value;
-        } **entries;
+        } **lst;
         uint32_t qty;
         uint32_t max;
 };
 
 struct mpack_array {
-        mpack_obj **items;
+        mpack_obj **lst;
         uint32_t    qty;
         uint32_t    max;
 };
@@ -92,7 +93,7 @@ struct mpack_ext {
         uint32_t num;
 };
 
-#pragma pack(pop)
+// #pragma pack(pop)
 
 struct mpack_arg_array {
         char **fmt;
@@ -119,7 +120,7 @@ extern const char *const m_type_names[];
 /*============================================================================*/
 /* Decode and Destroy */
 extern void        mpack_print_object     (FILE *fp, const mpack_obj *result);
-extern void        mpack_destroy_object   (mpack_obj *root);
+extern int         mpack_destroy_object   (mpack_obj *root);
 extern void        mpack_destroy_arg_array(mpack_arg_array *calls);
 extern mpack_obj * mpack_decode_stream    (int fd);
 extern mpack_obj * mpack_decode_obj       (bstring *buf);
@@ -140,16 +141,17 @@ extern mpack_obj * mpack_encode_fmt       (unsigned size_hint, const char *fmt, 
 
 extern b_list *     mpack_array_to_blist(mpack_array *array, bool destroy);
 extern mpack_retval mpack_dict_get_key  (mpack_dict *dict, mpack_expect_t expect, const bstring *key);
-extern mpack_retval mpack_expect            (mpack_obj *obj, mpack_expect_t type, bool destroy);
+extern mpack_retval mpack_expect        (mpack_obj *obj, mpack_expect_t type, bool destroy);
 
 extern pthread_mutex_t mpack_rw_lock;
 
+#if 0
 ALWAYS_INLINE void
 mpack_dict_destroy(mpack_dict *dict)
 {
         mpack_obj tmp;
         tmp.flags     = MPACK_DICT | MPACKFLG_ENCODE | MPACKFLG_PHONY;
-        tmp.data.dict = dict;
+        tmp.dict = dict;
         mpack_destroy_object(&tmp);
 }
 
@@ -158,18 +160,19 @@ mpack_array_destroy(mpack_array *array)
 {
         mpack_obj tmp;
         tmp.flags    = MPACK_ARRAY | MPACKFLG_ENCODE | MPACKFLG_PHONY;
-        tmp.data.arr = array;
+        tmp.arr = array;
         mpack_destroy_object(&tmp);
 }
+#endif
 
 ALWAYS_INLINE mpack_obj *
 mpack_index(mpack_obj *obj, const unsigned index)
 {
         mpack_obj *ret = NULL;
-        pthread_mutex_lock(&mpack_rw_lock);
-        if (mpack_type(obj) == MPACK_ARRAY && obj->data.arr->qty >= index)
-                ret = obj->data.arr->items[index];
-        pthread_mutex_unlock(&mpack_rw_lock);
+        //pthread_mutex_lock(&mpack_rw_lock);
+        if (mpack_type(obj) == MPACK_ARRAY && obj->arr->qty >= index)
+                ret = obj->arr->lst[index];
+        //pthread_mutex_unlock(&mpack_rw_lock);
         return ret;
 }
 

@@ -28,24 +28,7 @@ extern genlist *nvim_connections;
 #define COUNT()            _get_fd_count((1), false)
 #define INC_COUNT()        _get_fd_count((1), true)
 
-INLINE int _get_fd_count(const int fd, const bool inc)
-{
-        pthread_mutex_lock(&nvim_connections->mut);
-
-        for (unsigned i = 0; i < nvim_connections->qty; ++i) {
-                struct nvim_connection *cur = nvim_connections->lst[i];
-
-                if (cur->fd == fd) {
-                        const int ret = cur->count;
-                        if (inc)
-                                ++cur->count;
-                        pthread_mutex_unlock(&nvim_connections->mut);
-                        return ret;
-                }
-        }
-
-        errx(1, "Couldn't find fd %d in nvim_connections.", fd);
-}
+extern int _get_fd_count(const int fd, const bool inc);
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 

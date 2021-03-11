@@ -15,9 +15,10 @@
 #include "nvim_api/api.h"
 
 extern genlist *_nvim_wait_list;
+genlist        *_nvim_wait_list   = NULL;
 
+#if 0
 genlist *nvim_connections  = NULL;
-genlist *_nvim_wait_list   = NULL;
 int      _nvim_api_read_fd = 0;
 
 static void add_nvim_connection(const int fd, const enum nvim_connection_type type);
@@ -26,7 +27,6 @@ static void free_wait_list(void);
 
 /*======================================================================================*/
 
-#if 0
  void
 (_nvim_init)(const enum nvim_connection_type init_type, const int init_fd)
 {
@@ -39,7 +39,6 @@ static void free_wait_list(void);
         _nvim_wait_list = genlist_create_alloc(INIT_WAIT_LISTSZ);
         atexit(free_wait_list);
 }
-#endif
 void
 _nvim_init(void)
 {
@@ -86,20 +85,6 @@ _nvim_create_socket(void)
         return fd;
 }
 
-int
-(_nvim_get_tmpfile)(bstring *restrict*restrict name, const bstring *restrict suffix)
-{
-        bstring *tmp = nvim_call_function(B("tempname"), E_STRING).ptr;
-        if (suffix)
-                b_concat(tmp, suffix);
-        int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY, 0600);
-        if (name)
-                *name = tmp;
-        else
-                b_destroy(tmp);
-        return ret;
-}
-
 static void
 add_nvim_connection(const int fd, const enum nvim_connection_type type)
 {
@@ -119,4 +104,52 @@ free_wait_list(void)
 {
         if (_nvim_wait_list && _nvim_wait_list->lst)
                 genlist_destroy(_nvim_wait_list);
+}
+#endif
+
+int
+(_nvim_get_tmpfile)(bstring *restrict*restrict name, const bstring *restrict suffix)
+{
+        bstring *tmp = nvim_call_function(B("tempname"), E_STRING).ptr;
+        if (suffix)
+                b_concat(tmp, suffix);
+        int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY, 0600);
+        if (name)
+                *name = tmp;
+        else
+                b_destroy(tmp);
+        return ret;
+}
+
+int
+_get_fd_count(const int fd, const bool inc)
+{
+        static atomic_int count = ATOMIC_VAR_INIT(0);
+        int ret;
+
+        if (inc) {
+                ret = atomic_fetch_add(&count, 1);
+        } else {
+                ret = atomic_load(&count);
+        }
+
+        return ret;
+
+#if 0
+        pthread_mutex_lock(&nvim_connections->mut);
+
+        for (unsigned i = 0; i < nvim_connections->qty; ++i) {
+                struct nvim_connection *cur = nvim_connections->lst[i];
+
+                if (cur->fd == fd) {
+                        const int ret = cur->count;
+                        if (inc)
+                                ++cur->count;
+                        pthread_mutex_unlock(&nvim_connections->mut);
+                        return ret;
+                }
+        }
+
+        errx(1, "Couldn't find fd %d in nvim_connections.", fd);
+#endif
 }

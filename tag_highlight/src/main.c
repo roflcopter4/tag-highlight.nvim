@@ -11,11 +11,13 @@ const char *program_invocation_short_name;
 #endif
 #define WAIT_TIME  (3.0)
 
+extern bool         process_exiting;
 extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
 static struct timer main_timer               = TIMER_STATIC_INITIALIZER;
 p99_futex           first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 char                LOGDIR[SAFE_PATH_MAX];
 pthread_t           top_thread;
+FILE *talloc_log_file;
 
 extern void           exit_cleanup        (void);
 static void           init                (char **argv);
@@ -27,11 +29,29 @@ static comp_type_t    get_compression_type(void);
 static noreturn void *main_initialization (void *arg);
 extern void           run_event_loop      (int fd);
 
+extern void *_mpack_decode_talloc_ctx;
+extern void *_mpack_encode_talloc_ctx;
+extern void *_events_object_talloc_ctx;
+extern void *_events_nvim_notification_talloc_ctx;
+extern void *_events_nvim_response_talloc_ctx;
+extern void *_nvim_common_talloc_ctx;
+extern void *_clang_talloc_ctx;
+
 /*======================================================================================*/
+
+/* #include <jemalloc/jemalloc.h> */
 
 int
 main(UNUSED int argc, char *argv[])
 {
+        /* talloc_enable_leak_report_full(); */
+        /* talloc_enable_null_tracking(); */
+        talloc_disable_null_tracking();
+        if (!(talloc_log_file = fopen("/home/bml/talloc_report.log", "wb")))
+                abort();
+
+        process_exiting = false;
+
         TIMER_START(&main_timer);
 
         /* This function will ultimately spawn an asynchronous thread that will try to
@@ -45,8 +65,35 @@ main(UNUSED int argc, char *argv[])
          * returns and we clean everything up. We don't do this when Neovim exits because
          * it freezes until all child processes have stopped. This delay is noticeable
          * and annoying, so normally we just call quick_exit or _Exit instead. */
-        eprintf("Right, cleaning up!");
-        return EXIT_SUCCESS;
+        if (!process_exiting) {
+                eprintf("Right, cleaning up!");
+                /* exit_cleanup(); */
+                eprintf("All clean!");
+        } else {
+                eprintf("nil");
+        }
+        
+        talloc_report_full(_mpack_decode_talloc_ctx, talloc_log_file);
+        talloc_report_full(_mpack_encode_talloc_ctx, talloc_log_file);
+        talloc_report_full(_events_object_talloc_ctx, talloc_log_file);
+        talloc_report_full(_events_nvim_notification_talloc_ctx, talloc_log_file);
+        talloc_report_full(_events_nvim_response_talloc_ctx, talloc_log_file);
+        talloc_report_full(_nvim_common_talloc_ctx, talloc_log_file);
+        talloc_report_full(_clang_talloc_ctx, talloc_log_file);
+        //talloc_free(_mpack_encode_talloc_ctx);
+        //talloc_free(_mpack_decode_talloc_ctx);
+        fclose(talloc_log_file);
+        talloc_free(_mpack_decode_talloc_ctx);
+        talloc_free(_mpack_encode_talloc_ctx);
+        talloc_free(_events_object_talloc_ctx);
+        talloc_free(_events_nvim_notification_talloc_ctx);
+        talloc_free(_events_nvim_response_talloc_ctx);
+        talloc_free(_nvim_common_talloc_ctx);
+        talloc_free(_clang_talloc_ctx);
+
+        /* exit_cleanup(); */
+
+        return 0;
 }
 
 /*======================================================================================*/
@@ -59,7 +106,6 @@ init(char **argv)
         platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
-        atexit(exit_cleanup);
         at_quick_exit(quick_cleanup);
         START_DETACHED_PTHREAD(main_initialization);
 }
@@ -185,7 +231,7 @@ get_compression_type(void)
 
 /*======================================================================================*/
 
-extern void clear_bnode(void *vdata);
+extern void clear_bnode(void *vdata, bool blocking);
 
 /*
  * Free everything at exit for debugging purposes.
@@ -194,44 +240,61 @@ void
 exit_cleanup(void)
 {
         extern linked_list *buffer_list;
-        extern bool         process_exiting;
-        process_exiting = true;
+        static atomic_flag flg = ATOMIC_FLAG_INIT;
+        if (atomic_flag_test_and_set(&flg))
+                return;
 
+        /* malloc_stats_print(NULL, NULL, ""); */
+
+#if 0
         b_destroy(settings.cache_dir);
         b_destroy(settings.ctags_bin);
         b_destroy(settings.settings_file);
         b_list_destroy(settings.ctags_args);
         b_list_destroy(settings.norecurse_dirs);
         b_list_destroy(settings.ignored_ftypes);
+#endif
+        talloc_free(settings.cache_dir);
+        talloc_free(settings.ctags_bin);
+        talloc_free(settings.settings_file);
+        talloc_free(settings.ctags_args);
+        talloc_free(settings.norecurse_dirs);
+        talloc_free(settings.ignored_ftypes);
 
-        LL_FOREACH_F (buffer_list, node)
-                clear_bnode(node->data);
-        ll_destroy(buffer_list);
+        if (!process_exiting)
+                LL_FOREACH_F (buffer_list, node)
+                        clear_bnode(node->data, false);
 
-        if (top_dirs) {
-                free(top_dirs->lst);
-                free(top_dirs);
-        }
+        //ll_destroy(buffer_list);
+        //genlist_destroy(top_dirs);
+        //if (top_dirs) {
+        //        /* free(top_dirs->lst); */
+        //        talloc_free(top_dirs);
+        //}
 
-        for (unsigned i = 0; i < ftdata_len; ++i) {
-                struct filetype *ft = &ftdata[i];
-                if (ft->initialized) {
-                        if (ft->ignored_tags) {
-                                b_list *igt = ft->ignored_tags;
-                                for (unsigned x = 0; x < igt->qty; ++x)
-                                        if (igt->lst[x]->flags & BSTR_MASK_USR1)
-                                                b_destroy(igt->lst[x]);
-                                free(igt->lst);
-                                free(igt);
-                        }
-                        b_list_destroy(ft->equiv);
-                        b_destroy(ft->order);
-                        b_destroy(ft->restore_cmds);
-                }
-        }
+        talloc_free(buffer_list);
+        talloc_free(top_dirs);
+        talloc_free(ftdata);
 
-        mpack_dict_destroy(settings.order);
-        mpack_dict_destroy(settings.ignored_tags);
+        //for (unsigned i = 0; i < ftdata_len; ++i) {
+        //        struct filetype *ft = &ftdata[i];
+        //        if (ft->initialized) {
+        //                if (ft->ignored_tags) {
+        //                        b_list *igt = ft->ignored_tags;
+        //                        for (unsigned x = 0; x < igt->qty; ++x)
+        //                                if (igt->lst[x]->flags & BSTR_MASK_USR1)
+        //                                        b_destroy(igt->lst[x]);
+        //                        free(igt->lst);
+        //                        free(igt);
+        //                }
+        //                b_list_destroy(ft->equiv);
+        //                b_destroy(ft->order);
+        //                b_destroy(ft->restore_cmds);
+        //        }
+        //}
+
+        talloc_free(settings.order);
+        talloc_free(settings.ignored_tags);
         quick_cleanup();
 }
 

@@ -34,15 +34,25 @@ STATIC_INLINE void resolve_negative_index(int *index, int base);
 #endif
 
 linked_list *
-ll_make_new(ll_free_data_t free_data)
+ll_make_new(void)
 {
         /* assert(free_data); */
+        linked_list *list = talloc(NULL, linked_list);
+        list->head        = NULL;
+        list->tail        = NULL;
+        list->qty         = 0;
+        list->intern      = talloc(list, pthread_rwlock_t);
+
+        /* talloc_set_destructor(list, ll_destroy); */
+
+#if 0
         linked_list *list = malloc(sizeof *list);
         list->head        = NULL;
         list->tail        = NULL;
         list->qty         = 0;
         list->free_data   = free_data;
         list->intern      = malloc(sizeof(pthread_rwlock_t));
+#endif
 
         pthread_rwlockattr_t attr;
         pthread_rwlockattr_init(&attr);
@@ -62,14 +72,14 @@ ll_prepend(linked_list *list, void *data)
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
         assert(list);
         assert(data);
-        ll_node *node = malloc(sizeof *node);
+        ll_node *node = talloc(list, ll_node);
 
         if (list->head)
                 list->head->prev = node;
         if (!list->tail)
                 list->tail = node;
 
-        node->data = data;
+        node->data = talloc_move(node, &data);
         node->prev = NULL;
         node->next = list->head;
         list->head = node;
@@ -84,14 +94,14 @@ ll_append(linked_list *list, void *data)
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
         assert(list);
         assert(data);
-        ll_node *node = malloc(sizeof *node);
+        ll_node *node = talloc(list, ll_node);
 
         if (list->tail)
                 list->tail->next = node;
         if (!list->head)
                 list->head = node;
 
-        node->data = data;
+        node->data = talloc_move(node, &data);
         node->prev = list->tail;
         node->next = NULL;
         list->tail = node;
@@ -108,8 +118,8 @@ ll_insert_after(linked_list *list, ll_node *at, void *data)
 {
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
         assert(list);
-        ll_node *node = malloc(sizeof *node);
-        node->data    = data;
+        ll_node *node = talloc(list, ll_node);
+        node->data    = talloc_move(node, &data);
         node->prev    = at;
 
         if (at) {
@@ -117,8 +127,9 @@ ll_insert_after(linked_list *list, ll_node *at, void *data)
                 at->next   = node;
                 if (node->next)
                         node->next->prev = node;
-        } else
+        } else {
                 node->next = NULL;
+        }
 
         if (!list->head)
                 list->head = node;
@@ -137,8 +148,8 @@ ll_insert_before(linked_list *list, ll_node *at, void *data)
 {
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
         assert(list);
-        ll_node *node = malloc(sizeof *node);
-        node->data    = data;
+        ll_node *node = talloc(list, ll_node);
+        node->data    = talloc_move(node, &data);
         node->next    = at;
 
         if (at) {
@@ -146,8 +157,9 @@ ll_insert_before(linked_list *list, ll_node *at, void *data)
                 at->prev   = node;
                 if (node->prev)
                         node->prev->next = node;
-        } else
+        } else {
                 node->prev = NULL;
+        }
 
         if (!list->head || at == list->head)
                 list->head = node;
@@ -165,20 +177,18 @@ ll_insert_before(linked_list *list, ll_node *at, void *data)
 
 
 static inline int
-create_nodes(int const     start,
-             int const     end,
-             int           i,
-             linked_list * list,
-             ll_node **    tmp,
-             b_list const *blist)
+create_nodes(int const start, int const end, int i,
+             linked_list *list, ll_node **narr, b_list *blist)
 {
-        for (int x = (start + 1); x < end; ++x, ++i) {
+        for (int x = (start + 1); x < end; ++x, ++i)
+        {
                 assert((unsigned)i < blist->qty);
-                assert(blist->lst[x]);
-                tmp[i]         = malloc(sizeof **tmp);
-                tmp[i]->data   = blist->lst[x];
-                tmp[i]->prev   = tmp[i-1];
-                tmp[i-1]->next = tmp[i];
+                assert(blist->lst[x] != NULL);
+
+                narr[i]         = talloc(list, ll_node);
+                narr[i]->data   = talloc_move(narr[i], &blist->lst[x]);
+                narr[i]->prev   = narr[i-1];
+                narr[i-1]->next = narr[i];
                 ++list->qty;
         }
 
@@ -200,29 +210,32 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 ll_insert_after(list, at, blist->lst[start]);
                 return;
         }
+
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
-        ll_node **tmp  = nmalloc(diff, sizeof *tmp);
-        tmp[0]         = malloc(sizeof **tmp);
-        tmp[0]->data   = blist->lst[start];
-        tmp[0]->prev   = at;
+        ll_node **narr = talloc_array(NULL, ll_node *, diff);
+        narr[0]        = talloc(list, ll_node);
+        narr[0]->data  = talloc_move(narr[0], &blist->lst[start]);
+        narr[0]->prev  = at;
         ++list->qty;
-        int const last = create_nodes(start, end, 1, list, tmp, blist) - 1;
+
+        int const last = create_nodes(start, end, 1, list, narr, blist) - 1;
 
         if (at) {
-                tmp[last]->next = at->next;
-                at->next        = tmp[0];
-                if (tmp[last]->next)
-                        tmp[last]->next->prev = tmp[last];
-        } else
-                tmp[last]->next = NULL;
+                narr[last]->next = at->next;
+                at->next         = narr[0];
+                if (narr[last]->next)
+                        narr[last]->next->prev = narr[last];
+        } else {
+                narr[last]->next = NULL;
+        }
 
         if (!list->head)
-                list->head = tmp[0];
+                list->head = narr[0];
         if (!list->tail || at == list->tail)
-                list->tail = tmp[last];
+                list->tail = narr[last];
 
-        free(tmp);
+        talloc_free(narr);
         pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
 }
 
@@ -241,29 +254,32 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 ll_insert_before(list, at, blist->lst[start]);
                 return;
         }
+
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
-        ll_node **tmp   = nmalloc(diff, sizeof *tmp);
-        tmp[0]          = malloc(sizeof **tmp);
-        tmp[0]->data    = blist->lst[start];
+        ll_node **narr = talloc_array(NULL, ll_node *, diff);
+        narr[0]        = talloc(list, ll_node);
+        narr[0]->data  = talloc_move(narr[0], &blist->lst[start]);
         ++list->qty;
-        int const last  = create_nodes(start, end, 1, list, tmp, blist) - 1;
-        tmp[last]->next = at;
+
+        int const last   = create_nodes(start, end, 1, list, narr, blist) - 1;
+        narr[last]->next = at;
 
         if (at) {
-                tmp[0]->prev = at->prev;
-                at->prev     = tmp[last];
-                if (tmp[0]->prev)
-                        tmp[0]->prev->next = tmp[0];
-        } else
-                tmp[0]->prev = NULL;
+                narr[0]->prev = at->prev;
+                at->prev      = narr[last];
+                if (narr[0]->prev)
+                        narr[0]->prev->next = narr[0];
+        } else {
+                narr[0]->prev = NULL;
+        }
 
         if (!list->head || at == list->head)
-                list->head = tmp[0];
+                list->head = narr[0];
         if (!list->tail)
-                list->tail = tmp[last];
+                list->tail = narr[last];
 
-        free(tmp);
+        talloc_free(narr);
         pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
 }
 
@@ -283,16 +299,14 @@ ll_delete_range(linked_list *list, ll_node *at, int const range)
         }
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
-        ll_node *current        = at;
-        ll_node *next           = NULL;
-        ll_node *prev           = (at) ? at->prev : NULL;
-        bool const replace_head = (at == list->head || !list->head);
+        ll_node *current      = at;
+        ll_node *next         = NULL;
+        ll_node *prev         = (at) ? at->prev : NULL;
+        bool     replace_head = (at == list->head || !list->head);
 
         for (int i = 0; i < range && current; ++i) {
                 next = current->next;
-                if (list->free_data)
-                        list->free_data(current);
-                free(current);
+                talloc_free(current);
                 current = next;
                 --list->qty;
         }
@@ -355,34 +369,44 @@ ll_at(linked_list *list, int index)
 }
 
 
-void
+int
 ll_destroy(linked_list *list)
 {
-        if (!list || !list->head)
-                return;
+        talloc_free(list);
+#if 0
+        if (!list)
+                return 0;
         pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
 
+#if 0
+        pthread_rwlock_t *lock = talloc_move(NULL, &list->intern);
+        pthread_rwlock_wrlock(lock);
+        talloc_free(list);
+        pthread_rwlock_unlock(lock);
+        talloc_free(lock);
+
+#endif
         if (list->qty == 1) {
                 eprintf("Freeing 1 thing\n");
                 ll_node *current = (list->tail) ? list->tail : list->head;
-                if (list->free_data)
-                        list->free_data(current->data);
-                free(current);
+                talloc_free(current);
         } else if (list->qty > 1) {
                 eprintf("Freeing %u things\n", list->qty);
                 ll_node *current = list->head;
                 do {
                         ll_node *tmp = current;
                         current      = current->next;
-                        if (list->free_data)
-                                list->free_data(tmp->data);
-                        free(tmp);
+                        talloc_free(tmp);
                 } while (current);
+                eprintf("weee all done\n");
         }
 
         pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
-        free(list->intern);
-        free(list);
+        talloc_free(list->intern);
+        talloc_free(list);
+#endif
+
+        return 0;
 }
 
 
@@ -408,7 +432,7 @@ ll_delete_node(linked_list *list, ll_node *node)
         }
 
         --list->qty;
-        free(node);
+        talloc_free(node);
         pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
 }
 
@@ -426,7 +450,8 @@ ll_pop(linked_list *list)
                 ll_node *tmp = list->tail;
                 list->tail   = list->tail->prev;
                 ret          = tmp->data;
-                free(tmp);
+                talloc_steal(NULL, ret);
+                talloc_free(tmp);
 
                 if (list->tail)
                         list->tail->next = NULL;
@@ -449,7 +474,8 @@ ll_dequeue(linked_list *list)
                 ll_node *tmp = list->head;
                 list->head   = list->head->next;
                 ret          = tmp->data;
-                free(tmp);
+                talloc_steal(NULL, ret);
+                talloc_free(tmp);
 
                 if (list->head)
                         list->head->next = NULL;
@@ -484,9 +510,9 @@ ll_verify_size(linked_list *list)
 bstring *
 ll_join_bstrings(linked_list *list, int const sepchar)
 {
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_rwlock_rdlock((pthread_rwlock_t *)list->intern);
         unsigned const seplen = (sepchar) ? 1 : 0;
-        unsigned          len = 0;
+        unsigned       len    = 0;
 
         LL_FOREACH_F (list, line)
                 len += ((bstring *)(line->data))->slen + seplen;

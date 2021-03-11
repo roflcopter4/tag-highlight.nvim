@@ -25,7 +25,8 @@ void
         default:          errx(1, "Should be unreachable!");
         }
 
-        generic_call(false, func, B("s"), mes);
+        mpack_obj *result = generic_call(false, func, B("s"), mes);
+        assert(result == NULL);
 }
 
 void
@@ -152,11 +153,11 @@ bool
         mpack_obj *result = generic_call(true, &fn, B("s"), cmd);
         bool const ret    = mpack_type(mpack_index(result, 2)) == MPACK_NIL;
 
-        if (mpack_type(result->data.arr->items[2]) == MPACK_ARRAY) {
-                bstring *errmsg = result->DAI[2]->DAI[1]->data.str;
+        if (mpack_type(result->arr->lst[2]) == MPACK_ARRAY) {
+                bstring *errmsg = result->arr->lst[2]->arr->lst[1]->str;
                 b_fwrite(stderr, errmsg, B("\n"));
         }
-        mpack_destroy_object(result);
+        talloc_free(result);
 
         return ret;
 }
@@ -291,7 +292,8 @@ void
                            bool     const blocking)
 {
         static const bstring fn = BS_FROMARR(__func__);
-        generic_call(blocking, &fn, B("dd,dd"), bufnum, hl_id, start, end);
+        mpack_obj *obj = generic_call(blocking, &fn, B("dd,dd"), bufnum, hl_id, start, end);
+        talloc_free(obj);
 }
 
 mpack_dict *
@@ -317,7 +319,7 @@ void
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, NULL);
-        PRINT_AND_DESTROY(result);
+        talloc_free(result);
 }
 
 void
@@ -325,7 +327,7 @@ void
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), event);
-        PRINT_AND_DESTROY(result);
+        talloc_free(result);
 }
 
 void
@@ -333,7 +335,7 @@ void
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,B,[]"), bufnum, false);
-        PRINT_AND_DESTROY(result);
+        talloc_free(result);
 }
 
 void
@@ -346,12 +348,13 @@ void
                        UNUSED void const *attributes)
 {
         static const bstring fn = BS_FROMARR(__func__);
-        (void)generic_call(false, &fn, B("s; {s:d, s:d, s:s}; s; {}; {}"),
-                           name,
-                           B("major"), major,
-                           B("minor"), minor,
-                           B("dev"), dev,
-                           type);
+        mpack_obj *result = generic_call(false, &fn, B("s; {s:d, s:d, s:s}; s; {}; {}"),
+                                         name,
+                                         B("major"), major,
+                                         B("minor"), minor,
+                                         B("dev"), dev,
+                                         type);
+        assert(result == NULL);
 }
 
 /*======================================================================================*/
@@ -385,5 +388,6 @@ void
         mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
                                             count, &fn, calls->args);
         b_destroy(fmt);
-        special_call(false, &fn, pack, count);
+        mpack_obj *result = special_call(false, &fn, pack, count);
+        assert(result == NULL);
 }

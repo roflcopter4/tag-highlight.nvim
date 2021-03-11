@@ -2,10 +2,6 @@
 
 #include "intern.h"
 
-#define DAI  data.arr->items
-#define DDE  data.dict->entries
-#define ITEM (*itemp)
-
 #define encode_uint64(ARR, IT, VAL)                                     \
         do {                                                            \
                 ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 070U); \
@@ -60,18 +56,32 @@
 
 static void sanity_check(mpack_obj *root, mpack_obj **itemp, unsigned check, bool force);
 
+
+void *_mpack_encode_talloc_ctx = NULL;
+#define CTX _mpack_encode_talloc_ctx
+
+__attribute__((__constructor__))
+static void init_mpack_talloc_ctx(void) 
+{
+        CTX = talloc_named_const(NULL, 0, __location__ ": TOP");
+}
+
+/*============================================================================*/
+
+
 /* God am I ever lazy */
 #define D ((*root->packed)->data)
 #define L ((*root->packed)->slen)
+#define ITEM (*itemp)
 
 mpack_obj *
 mpack_make_new(UNUSED unsigned const len, bool const encode)
 {
-        mpack_obj *root = malloc((offsetof(mpack_obj, packed) +
-                                  sizeof(bstring *)));
+        mpack_obj *root = talloc_size(CTX, offsetof(mpack_obj, packed) + sizeof(bstring *));
         root->flags     = (uint8_t)(encode ? MPACKFLG_ENCODE : 0) |
                           (uint8_t)MPACKFLG_HAS_PACKED;
         *root->packed   = b_alloc_null(128);
+        talloc_steal(root, *root->packed);
 
         return root;
 }
@@ -84,14 +94,14 @@ mpack_encode_array(mpack_obj *    root,
         sanity_check(root, itemp, 64, false);
 
         if (itemp && (root->flags & MPACKFLG_ENCODE)) {
-                ITEM->data.arr        = malloc(sizeof(mpack_array));
-                ITEM->data.arr->items = nmalloc(len, sizeof(mpack_obj *));
-                ITEM->data.arr->qty   = len;
-                ITEM->data.arr->max   = len;
-                ITEM->flags          |= (uint8_t)MPACK_ARRAY;
+                ITEM->arr      = talloc(ITEM, mpack_array);
+                ITEM->arr->lst = talloc_array(ITEM->arr, mpack_obj *, len);
+                ITEM->arr->qty = len;
+                ITEM->arr->max = len;
+                ITEM->flags   |= (uint8_t)MPACK_ARRAY;
 
                 for (unsigned i = 0; i < len; ++i)
-                        ITEM->DAI[i] = NULL;
+                        ITEM->arr->lst[i] = NULL;
         }
 
         if (len < 16U) {
@@ -115,16 +125,16 @@ mpack_encode_dictionary(mpack_obj *    root,
         sanity_check(root, itemp, 64, false);
 
         if (itemp && (root->flags & MPACKFLG_ENCODE)) {
-                ITEM->data.dict          = malloc(sizeof(mpack_dict));
-                ITEM->data.dict->entries = nmalloc(len, sizeof(mpack_dict_ent *));
-                ITEM->data.dict->qty     = len;
-                ITEM->data.dict->max     = len;
-                ITEM->flags             |= (uint8_t)MPACK_DICT;
+                ITEM->dict      = talloc(ITEM, mpack_dict);
+                ITEM->dict->lst = talloc_array(ITEM->dict, mpack_dict_ent *, len);
+                ITEM->dict->qty = len;
+                ITEM->dict->max = len;
+                ITEM->flags    |= (uint8_t)MPACK_DICT;
 
                 for (unsigned i = 0; i < len; ++i) {
-                        ITEM->DDE[i]        = malloc(sizeof(mpack_dict_ent));
-                        ITEM->DDE[i]->key   = NULL;
-                        ITEM->DDE[i]->value = NULL;
+                        ITEM->dict->lst[i]        = talloc(ITEM->dict->lst, mpack_dict_ent);
+                        ITEM->dict->lst[i]->key   = NULL;
+                        ITEM->dict->lst[i]->value = NULL;
                 }
         }
 
@@ -149,8 +159,8 @@ mpack_encode_integer(mpack_obj *   root,
         sanity_check(root, itemp, 15, false);
 
         if (root->flags & MPACKFLG_ENCODE) {
-                ITEM->data.num = value;
-                ITEM->flags   |= (uint8_t)MPACK_SIGNED;
+                ITEM->num    = value;
+                ITEM->flags |= (uint8_t)MPACK_SIGNED;
         }
 
         if (value >= 0) {
@@ -200,8 +210,8 @@ mpack_encode_unsigned(mpack_obj *    root,
         sanity_check(root, itemp, 15, false);
 
         if (root->flags & MPACKFLG_ENCODE) {
-                ITEM->data.num = value;
-                ITEM->flags    |= (uint8_t)MPACK_UNSIGNED;
+                ITEM->num    = value;
+                ITEM->flags |= (uint8_t)MPACK_UNSIGNED;
         }
 
         if (value <= 127) {
@@ -232,8 +242,9 @@ mpack_encode_string(mpack_obj *    root,
         sanity_check(root, itemp, string->slen + 5, false);
 
         if (root->flags & MPACKFLG_ENCODE) {
-                ITEM->data.str = b_strcpy(string);
-                ITEM->flags   |= (uint8_t)MPACK_STRING;
+                ITEM->str    = b_strcpy(string);
+                ITEM->flags |= (uint8_t)MPACK_STRING;
+                talloc_steal(ITEM, ITEM->str);
         }
 
         if (string->slen < 32U) {
@@ -260,8 +271,8 @@ mpack_encode_boolean(mpack_obj * root,
         sanity_check(root, itemp, 2, false);
 
         if (root->flags & MPACKFLG_ENCODE) {
-                ITEM->data.boolean = value;
-                ITEM->flags       |= (uint8_t)MPACK_BOOL;
+                ITEM->boolean = value;
+                ITEM->flags  |= (uint8_t)MPACK_BOOL;
         }
 
         D[L++] = (value) ? M_MASK_TRUE : M_MASK_FALSE;
@@ -273,8 +284,8 @@ mpack_encode_nil(mpack_obj *root, mpack_obj **itemp)
         sanity_check(root, itemp, 2, false);
 
         if (root->flags & MPACKFLG_ENCODE) {
-                ITEM->data.nil = M_MASK_NIL;
-                ITEM->flags   |= (uint8_t)MPACK_NIL;
+                ITEM->nil    = M_MASK_NIL;
+                ITEM->flags |= (uint8_t)MPACK_NIL;
         }
 
         D[L++] = M_MASK_NIL;
@@ -289,7 +300,7 @@ sanity_check(mpack_obj *    root,
              bool const     force)
 {
         if (itemp && !(*itemp) && (force || (root->flags & MPACKFLG_ENCODE))) {
-                (*itemp)        = malloc(sizeof(mpack_obj));
+                (*itemp)        = talloc(root, mpack_obj);
                 (*itemp)->flags = 0;
         }
 

@@ -2,6 +2,7 @@
 #cmakedefine USE_JEMALLOC
 #cmakedefine LZMA_SUPPORT
 #cmakedefine HAVE_LIBEV
+#cmakedefine LIBEV_FOUND
 
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_CLOCK_GETTIME

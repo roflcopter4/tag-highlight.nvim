@@ -25,7 +25,7 @@ struct cmd_info *
 getinfo(Buffer *bdata)
 {
         unsigned const   ngroups = bdata->ft->order->slen;
-        struct cmd_info *info    = nmalloc(ngroups, sizeof(*info));
+        struct cmd_info *info    = talloc_array(NULL, struct cmd_info, ngroups);
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 int const   ch   = bdata->ft->order->data[i];
@@ -36,9 +36,8 @@ getinfo(Buffer *bdata)
                 info[i].group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
                 info[i].num   = ngroups;
 
-                b_writeprotect(info[i].group);
-                mpack_dict_destroy(dict);
-                b_writeallow(info[i].group);
+                talloc_steal(info, info[i].group);
+                talloc_free(dict);
         }
 
         return info;
@@ -47,11 +46,12 @@ getinfo(Buffer *bdata)
 void
 destroy_struct_info(struct cmd_info *info)
 {
-        if (info) {
-                for (unsigned i = 0, e = info[0].num; i < e; ++i)
-                        b_destroy(info[i].group);
-                free(info);
-        }
+        talloc_free(info);
+        //if (info) {
+        //        for (unsigned i = 0, e = info[0].num; i < e; ++i)
+        //                b_destroy(info[i].group);
+        //        free(info);
+        //}
 }
 
 /*======================================================================================*/
@@ -61,10 +61,10 @@ destroy_struct_info(struct cmd_info *info)
 struct mpack_arg_array *
 new_arg_array(void)
 {
-        struct mpack_arg_array *calls = malloc(sizeof(struct mpack_arg_array));
+        struct mpack_arg_array *calls = talloc(NULL, struct mpack_arg_array);
         calls->mlen = INIT_ACALL_SIZE;
-        calls->fmt  = nmalloc(calls->mlen, sizeof(char *));
-        calls->args = nmalloc(calls->mlen, sizeof(mpack_argument *));
+        calls->fmt  = talloc_array(calls, char *, calls->mlen);
+        calls->args = talloc_array(calls, mpack_argument *, calls->mlen);
         calls->qty  = 0;
         return calls;
 }
@@ -79,11 +79,11 @@ add_hl_call(struct mpack_arg_array *calls,
         assert(calls);
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
-                calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
+                calls->fmt  = talloc_realloc(calls, calls->fmt, char *, calls->mlen);
+                calls->args = talloc_realloc(calls, calls->args, mpack_argument *, calls->mlen);
         }
 
-        mpack_argument *arg = nmalloc(7, sizeof(mpack_argument));
+        mpack_argument *arg = talloc_array(calls->args, mpack_argument, 7);
         arg[0].str = b_fromlit("nvim_buf_add_highlight");
         arg[1].num = bufnum;
         arg[2].num = hl_id;
@@ -92,13 +92,16 @@ add_hl_call(struct mpack_arg_array *calls,
         arg[5].num = data->start;
         arg[6].num = data->end;
 
-        calls->fmt[calls->qty]  = STRDUP("s[dd,s,ddd]");
+        talloc_steal(arg, arg[0].str);
+        talloc_steal(arg, arg[3].str);
+
+        calls->fmt[calls->qty]  = talloc_strdup(calls->fmt, "s[dd,s,ddd]");
         calls->args[calls->qty] = arg;
+        ++calls->qty;
 
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %u, %u, %u)\n",
                         bufnum, hl_id, BS(group), data->line, data->start, data->end);
-        ++calls->qty;
 }
 
 void
@@ -111,22 +114,24 @@ add_clr_call(struct mpack_arg_array *calls,
         assert(calls);
         if (calls->qty >= calls->mlen-1) {
                 calls->mlen *= 2;
-                calls->fmt  = nrealloc(calls->fmt, calls->mlen, sizeof(char *));
-                calls->args = nrealloc(calls->args, calls->mlen, sizeof(mpack_argument *));
+                calls->fmt  = talloc_realloc(calls, calls->fmt, char *, calls->mlen);
+                calls->args = talloc_realloc(calls, calls->args, mpack_argument *, calls->mlen);
         }
 
-        mpack_argument *arg = nmalloc(5, sizeof(mpack_argument));
+        mpack_argument *arg = talloc_array(calls->args, mpack_argument, 5);
         arg[0].str = b_fromlit("nvim_buf_clear_highlight");
         arg[1].num = bufnum;
         arg[2].num = hl_id;
         arg[3].num = line;
         arg[4].num = end;
 
-        calls->fmt[calls->qty]  = STRDUP("s[dddd]");
+        talloc_steal(arg, arg[0].str);
+
+        calls->fmt[calls->qty]  = talloc_strdup(calls->fmt, "s[dddd]");
         calls->args[calls->qty] = arg;
+        ++calls->qty;
 
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n",
                         bufnum, hl_id, line, end);
-        ++calls->qty;
 }

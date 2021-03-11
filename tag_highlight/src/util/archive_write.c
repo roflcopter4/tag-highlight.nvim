@@ -26,7 +26,7 @@ write_plain(struct top_dir *topdir)
         if (fstat(topdir->tmpfd, &st) != 0)
                 err(1, "stat failed");
 
-        uint8_t      *buf    = calloc(st.st_size + 1, 1);
+        uint8_t      *buf    = talloc_zero_size(NULL, st.st_size + 1);
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
         const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
@@ -45,6 +45,7 @@ write_plain(struct top_dir *topdir)
         FILE *wfp = safe_fopen(BS(topdir->gzfile), "wb");
         DIE_UNLESS((fwrite(buf, 1, (size_t)st.st_size, wfp) == (size_t)st.st_size));
         fclose(wfp);
+        talloc_free(buf);
 }
 
 
@@ -57,7 +58,7 @@ write_gzip(struct top_dir *topdir)
         if (fstat(topdir->tmpfd, &st) != 0)
                 err(1, "stat failed");
 
-        uint8_t *buf = malloc(st.st_size);
+        uint8_t *buf = talloc_size(NULL, st.st_size);
         /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
 
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
@@ -70,7 +71,7 @@ write_gzip(struct top_dir *topdir)
         gzwrite(gfp, buf, st.st_size);
         gzclose(gfp);
 
-        free(buf);
+        talloc_free(buf);
 }
 
 #ifdef LZMA_SUPPORT
@@ -130,13 +131,13 @@ write_lzma(struct top_dir *topdir)
         };
 #endif
 
-        struct stat st = { .st_size = 0ll };
+        struct stat st = { .st_size = 0LL };
         fsync(topdir->tmpfd);
         if (fstat(topdir->tmpfd, &st) != 0)
                 err(1, "stat failed");
 
         const size_t   size   = (size_t)st.st_size;
-        uint8_t       *in_buf = calloc(size + 1, 1);
+        uint8_t       *in_buf = talloc_zero_size(NULL, size + 1);
         FILE          *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
         const size_t   nread  = fread(in_buf, 1, size + 1, readfp);
         fclose(readfp);
@@ -154,7 +155,7 @@ write_lzma(struct top_dir *topdir)
                 errx(1, "LZMA error: %s", lzma_message_strm(ret));
 
         /* uint8_t *out_buf = calloc(st.st_size, 1); */
-        uint8_t *out_buf = calloc(size, 1);
+        uint8_t *out_buf = talloc_zero_size(NULL, size);
 
         strm.next_out  = out_buf;
         strm.next_in   = in_buf;
@@ -195,8 +196,8 @@ write_lzma(struct top_dir *topdir)
         fclose(fp);
 
         lzma_end(&strm);
-        free(in_buf);
-        free(out_buf);
+        talloc_free(in_buf);
+        talloc_free(out_buf);
         /* b_free(asswipe); */
 }
 #endif

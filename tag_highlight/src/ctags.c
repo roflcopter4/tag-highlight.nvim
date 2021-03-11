@@ -58,6 +58,7 @@ get_initial_taglist(Buffer *bdata)
 
         TIMER_START(t);
         top->tags = b_list_create();
+        talloc_steal(top, top->tags);
 
 #if 0
         if (have_seen_bufnum(bdata->num)) {
@@ -124,6 +125,7 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
 
         b_list_destroy(bdata->topdir->tags);
         bdata->topdir->tags = b_list_create();
+        talloc_steal(bdata->topdir, bdata->topdir->tags);
 
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
                 ECHO("Failed to read file");

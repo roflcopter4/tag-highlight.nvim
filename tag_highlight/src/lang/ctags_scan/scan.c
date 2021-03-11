@@ -43,9 +43,9 @@ add_tag_to_list(struct taglist **listp, struct tag *tag)
         struct taglist *const list = *listp;
 
         if (list->qty >= (list->mlen - 1))
-                list->lst = nrealloc(list->lst, (list->mlen <<= 1),
-                                     sizeof(struct tag *));
-        list->lst[list->qty++] = tag;
+                list->lst = talloc_realloc(list, list->lst, struct tag *, (list->mlen <<= 1));
+                                           
+        list->lst[list->qty++] = talloc_move(list->lst, &tag);
 }
 
 
@@ -116,11 +116,11 @@ static void
 remove_duplicate_tags(struct taglist **taglist_p)
 {
 #define TAG1 (list->lst[i])
-#define TAG2 (list->lst[i - 1])
 
         struct taglist *list = *taglist_p;
-        struct taglist *repl = malloc(sizeof(struct taglist));
-        struct tag     *to_free_lst[list->qty];
+        struct taglist *repl = talloc(NULL, struct taglist);
+        struct tag    **to_free_lst = talloc_array(NULL, struct tag *, list->qty);
+        /* struct tag     *to_free_lst[list->qty]; */
 
         struct taglist *to_free = (struct taglist[]){{
                 .lst = to_free_lst,
@@ -128,21 +128,22 @@ remove_duplicate_tags(struct taglist **taglist_p)
                 .mlen = list->qty
         }};
         *repl = (struct taglist){
-                .lst = nmalloc((list->qty > 0) ? list->qty : 1,
-                                sizeof(struct tag *)),
+                .lst = talloc_array(repl, struct tag *, (list->qty) ? list->qty : 1),
                 .qty = 0,
                 .mlen = list->qty
         };
 
-        repl->lst[repl->qty++] = list->lst[0];
+        struct tag *last;
+        repl->lst[repl->qty++] = last = talloc_move(repl->lst, &list->lst[0]);
 
         for (unsigned i = 1; i < list->qty; ++i) {
-                if (TAG1->kind != TAG2->kind || !b_iseq(TAG1->b, TAG2->b))
-                        repl->lst[repl->qty++] = list->lst[i];
+                if (TAG1->kind != last->kind || !b_iseq(TAG1->b, last->b))
+                        repl->lst[repl->qty++] = last = talloc_move(repl->lst, &list->lst[i]);
                 else
-                        to_free->lst[to_free->qty++] = list->lst[i];
+                        to_free->lst[to_free->qty++] = last = talloc_move(to_free->lst, &list->lst[i]);
         }
 
+#if 0
         for (unsigned i = 0; i < to_free->qty; ++i) {
                 b_destroy(to_free->lst[i]->b);
                 free(to_free->lst[i]);
@@ -151,6 +152,9 @@ remove_duplicate_tags(struct taglist **taglist_p)
 
         free(list->lst);
         free(list);
+#endif
+        talloc_free(to_free_lst);
+        talloc_free(*taglist_p);
         *taglist_p = repl;
 #undef TAG1
 #undef TAG2
@@ -204,8 +208,8 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         if (num_threads == 0)
                 num_threads = 4;
 
-        pthread_t       *tid = nmalloc(num_threads, sizeof(*tid));
-        struct taglist **out = nmalloc(num_threads, sizeof(*out));
+        pthread_t       *tid = nmalloc(num_threads, sizeof(pthread_t));
+        struct taglist **out = talloc_array(NULL, struct taglist *, num_threads);
 
         ECHO("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
 
@@ -215,11 +219,11 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
 
         b_list *uniq = b_list_create_alloc(vimbuf->qty);
         uniq->qty = 0;
-        uniq->lst[uniq->qty++] = vimbuf->lst[0];
+        uniq->lst[uniq->qty++] = talloc_move(uniq->lst, &vimbuf->lst[0]);
 
         for (unsigned i = 1; i < vimbuf->qty; ++i)
                 if (!b_iseq(vimbuf->lst[i], vimbuf->lst[i-1]))
-                        uniq->lst[uniq->qty++] = vimbuf->lst[i];
+                        uniq->lst[uniq->qty++] = talloc_move(uniq->lst, &vimbuf->lst[i]);
 
 
         /* Launch the actual search in separate threads, with each handling as
@@ -248,8 +252,8 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         for (unsigned i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
-        free(uniq->lst);
-        free(uniq);
+        // free(uniq->lst);
+        talloc_free(uniq);
         unsigned total = 0, offset = 0;
 
         for (unsigned T = 0; T < num_threads; ++T)
@@ -258,25 +262,30 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         if (total == 0) {
                 warnx("No tags found in buffer.");
                 free(tid);
-                free(out);
+                talloc_free(out);
                 return NULL;
         }
 
         /* Combine the returned data from all threads into one array, which is
          * then sorted and returned. */
-        struct tag    **alldata = calloc(total, sizeof(struct tag *));
-        struct taglist *ret     = malloc(sizeof(*ret));
+        struct taglist *ret     = talloc(NULL, struct taglist);
+        struct tag    **alldata = talloc_array(ret, struct tag *, total);
         *ret = (struct taglist){ alldata, total, total };
 
         for (unsigned T = 0; T < num_threads; ++T) {
                 if (out[T]) {
+                        for (uint i = 0; i < out[T]->qty; ++i) {
+                                alldata[offset++] = talloc_move(alldata, &out[T]->lst[i]);
+                        }
+#if 0
                         if (out[T]->qty > 0) {
                                 memcpy(alldata + offset, out[T]->lst,
                                        out[T]->qty * sizeof(*out));
                                 offset += out[T]->qty;
                         }
-                        free(out[T]->lst);
-                        free(out[T]);
+#endif
+                        talloc_free(out[T]->lst);
+                        talloc_free(out[T]);
                 }
         }
 
@@ -284,7 +293,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         remove_duplicate_tags(&ret);
 
         free(tid);
-        free(out);
+        talloc_free(out);
         return ret;
 }
 
@@ -299,8 +308,8 @@ do_tok_search(void *vdata)
         if (data->num == 0)
                 pthread_exit(NULL);
 
-        struct taglist *ret = malloc(sizeof(*ret));
-        *ret = (struct taglist){ nmalloc(INIT_MAX, sizeof(*ret->lst)), 0, INIT_MAX };
+        struct taglist *ret = talloc(NULL, struct taglist);
+        *ret = (struct taglist){ talloc_array(ret, struct tag *, INIT_MAX), 0, INIT_MAX };
 
         for (unsigned i = 0; i < data->num; ++i) {
                 /* Skip empty lines and comments. */
@@ -343,9 +352,7 @@ do_tok_search(void *vdata)
                 }
 
                 if (!kind || !match_lang[0].data) {
-                        free(cpy_data);
-                        free(cpy);
-                        continue;
+                        goto done;
                 }
 
                 /*
@@ -364,13 +371,16 @@ do_tok_search(void *vdata)
                               sizeof(bstring *), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
-                        struct tag *tag = malloc(sizeof(*tag));
-                        *tag            = (struct tag){.b = tmp, .kind = kind};
+                        struct tag *tag = talloc(NULL, struct tag);
+                        *tag            = (struct tag){.b = talloc_move(tag, &tmp), .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
 
-                free(cpy_data);
-                free(cpy);
+        done:
+                cpy->data = NULL;
+                talloc_steal(NULL, cpy_data);
+                talloc_free(cpy_data);
+                talloc_free(cpy);
         }
 
         free(vdata);

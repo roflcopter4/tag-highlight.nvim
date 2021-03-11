@@ -21,7 +21,8 @@ P99_DECLARE_ENUM(vimscript_message_type,
                  VIML_UPDATE_TAGS,
                  VIML_UPDATE_TAGS_FORCE,
                  VIML_CLEAR_BUFFER,
-                 VIML_STOP
+                 VIML_STOP,
+                 VIML_EXIT
                 );
 P99_DEFINE_ENUM(vimscript_message_type);
 
@@ -32,7 +33,8 @@ static void event_buffer_changed(struct timer *t, atomic_int *prev_num);
 static void event_syntax_changed(struct timer *t, atomic_int *prev_num);
 static void event_want_update(struct timer *t, atomic_int *prev_num, vimscript_message_type val);
 static void event_force_update(struct timer *t, atomic_int *prev_num);
-static noreturn void event_halt(void);
+static noreturn void event_stop(void);
+static noreturn void event_exit(void);
 static void attach_new_buffer(struct timer *t, int num);
 
 __attribute__((__constructor__)) void
@@ -90,7 +92,13 @@ event_autocmd(void *vdata)
 
         case VIML_STOP:
                 /* User called the kill command. */
-                event_halt();
+                event_stop();
+                break;
+
+        case VIML_EXIT:
+                /* Neovim is exiting */
+                event_exit();
+                break;
 
         case VIML_CLEAR_BUFFER:
                 /* User called the clear highlight command. */
@@ -186,15 +194,31 @@ event_force_update(struct timer *t, atomic_int *prev_num)
 }
 
 static noreturn void
-event_halt(void)
+event_halt(bool const nvim_exiting)
 {
-        clear_highlight(, true);
+        if (!nvim_exiting) {
+                clear_highlight(, true);
+        }
 #ifdef DOSISH
         exit(0);
 #else
         pthread_kill(event_loop_thread, KILL_SIG);
         pthread_exit();
 #endif
+}
+
+static noreturn void
+event_stop(void)
+{
+        event_halt(false);
+}
+
+static noreturn void
+event_exit(void)
+{
+        extern bool process_exiting;
+        process_exiting = true;
+        event_halt(true);
 }
 
 /*======================================================================================*/
