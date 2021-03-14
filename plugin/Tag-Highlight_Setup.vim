@@ -412,7 +412,7 @@ function! s:InitTagHighlight()
     try
         let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
-        echoerr "tag-highlight executable not found."
+        echom "tag-highlight executable not found."
     endtry
 endfunction
 
