@@ -94,13 +94,8 @@ endif()
 
 if (MINGW)
     # Nil I guess
-<<<<<<< HEAD
 else ()
     find_package (Talloc REQUIRED)
-=======
-else()
-    find_package (Talloc)
->>>>>>> cc3836c2314c137bc98bba0c0c42834aba8096e1
     if (USE_LIBEV)
         find_package (LibEv REQUIRED)
         if (LIBEV_FOUND)
@@ -109,12 +104,9 @@ else()
     endif()
 endif()
 
-<<<<<<< HEAD
-=======
 if (NOT TALLOC_FOUND)
     # file (DOWNLOAD "https://www.samba.org/ftp/talloc/talloc-2.3.2.tar.gz")
 endif()
->>>>>>> cc3836c2314c137bc98bba0c0c42834aba8096e1
 
 if (USE_JEMALLOC)
     find_package (Jemalloc REQUIRED)
