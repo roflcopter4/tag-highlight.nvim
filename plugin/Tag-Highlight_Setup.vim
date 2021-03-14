@@ -296,7 +296,7 @@ function! s:OnStderr(job_id, data, event) dict
 endfunction
 
 function! s:OnExit(job_id, data, event) dict
-    echom 'Closing channel (' . data . ').'
+    echom 'Closing channel (' . a:data . ').'
     let g:tag_highlight#pid = 0
     let s:seen_bufs = []
     let s:new_bufs  = []
@@ -412,7 +412,7 @@ function! s:InitTagHighlight()
     try
         let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
-        echoerr "tag-highlight executable not found."
+        echom "tag-highlight executable not found."
     endtry
 endfunction
 

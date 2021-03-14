@@ -76,10 +76,10 @@ target_link_libraries(tag_highlight
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
+    ${TALLOC_LIBRARY}
     mpack-c
     bstring
     thl-util
-    /usr/local/lib/libtalloc.so.2.3.2
 )
 
 if (LZMA_SUPPORT)
