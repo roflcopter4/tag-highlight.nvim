@@ -152,7 +152,7 @@ extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR
 
 extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input, int *status);
 #ifdef DOSISH
-extern bstring *_win32_get_command_output(char *argv, bstring *input);
+extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
 #endif
 
 #ifdef __cplusplus

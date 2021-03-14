@@ -64,14 +64,17 @@ if (MINGW)
     target_link_libraries(tag_highlight
         -lstdc++
     )
-else()
+else ()
+    #target_link_libraries(tag_highlight
+    #)
     if (LIBEV_FOUND)
         target_link_libraries(tag_highlight
-            ${LIBEV_LIBRARIES})
-    endif()
-endif()
+            ${LIBEV_LIBRARIES}
+        )
+    endif ()
+endif ()
 
-target_link_libraries(tag_highlight 
+target_link_libraries(tag_highlight
     ${LIBCLANG_LIBRARY}
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
@@ -79,15 +82,27 @@ target_link_libraries(tag_highlight
     mpack-c
     bstring
     thl-util
-    /usr/local/lib/libtalloc.so.2.3.2
 )
+
+if (TALLOC_FOUND)
+    target_link_libraries(tag_highlight
+        ${TALLOC_LIBRARIES}
+    )
+else ()
+    add_library(my_talloc OBJECT
+        "${PROJECT_SOURCE_DIR}/deps/talloc/talloc.c"
+    )
+    target_link_libraries(tag_highlight
+        my_talloc
+    )
+endif ()
 
 if (LZMA_SUPPORT)
     target_link_libraries(tag_highlight
         LibLZMA::LibLZMA
         # ${LIBLZMA_LIBRARIES}
     )
-endif()
+endif ()
 
 if (USE_JEMALLOC STREQUAL "YES")
     target_link_libraries(tag_highlight ${JEMALLOC_LIBRARY})

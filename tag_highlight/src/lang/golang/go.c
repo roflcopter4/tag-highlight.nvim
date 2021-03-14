@@ -8,6 +8,10 @@
 #include "contrib/p99/p99_count.h"
 #include <sys/stat.h>
 
+#ifndef WEXITSTATUS
+#  define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
+#endif
+
 extern void try_go_crap(Buffer *bdata);
 
 struct go_output {

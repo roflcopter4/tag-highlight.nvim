@@ -47,7 +47,8 @@ if (MINGW)
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
             " -Wl,--allow-multiple-definition")
 
-    include_directories("D:/msys64/mingw64/x86_64-w64-mingw32/include")
+    include_directories("/d/msys64/mingw64/x86_64-w64-mingw32/include")
+    include_directories("${PROJECT_SOURCE_DIR}/deps/talloc")
     add_definitions(-D__MINGW__)
     add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 else()
@@ -92,12 +93,17 @@ XZ support will be disabled for this build.")
 endif()
 
 if (MINGW)
-elseif (USE_LIBEV)
-    find_package (LibEv REQUIRED)
-    if (LIBEV_FOUND)
-        set (HAVE_LIBEV 1)
+    # Nil I guess
+else ()
+    find_package (Talloc REQUIRED)
+    if (USE_LIBEV)
+        find_package (LibEv REQUIRED)
+        if (LIBEV_FOUND)
+            set (HAVE_LIBEV 1)
+        endif()
     endif()
-endif ()
+endif()
+
 
 if (USE_JEMALLOC)
     find_package (Jemalloc REQUIRED)
@@ -140,7 +146,7 @@ CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
 string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
 
 string (CONCAT WARNS
-    "-Wall -Wextra -Wpedantic"
+    "-Wall -Wextra"
     " -Werror=implicit"
     " -Werror=incompatible-pointer-types"
     " -Werror=pointer-to-int-cast"
@@ -166,7 +172,7 @@ endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
 string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -std=gnu17 -fdiagnostics-color=always")
+                    " -pipe -std=gnu17 -fdiagnostics-color=always")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
@@ -175,7 +181,12 @@ string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
 set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -Wextra -ftree-vectorize -g -Wextra")
+#set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG")
 set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -flto -ffunction-sections")
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
+endif()
 
 if (NOT CLANG_STR_SEARCH EQUAL -1)
 
@@ -208,8 +219,8 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     set (CMAKE_C_FLAGS_RELEASE
             "${CFLAGS_RELEASE_COMMON} ${BASE}")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-           " -fuse-ld=lld -rdynamic")
+    #string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+    #       " -fuse-ld=lld")
 
 else() # GCC
 
@@ -224,12 +235,12 @@ else() # GCC
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
             "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELEASE
-            "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program")
+#       "${CFLAGS_RELEASE_COMMON} ${BASE}")
+        "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -Wno-free-nonheap -rdynamic")
+            " -Wno-free-nonheap -fwhole-program")
 endif()
-
 
 #####################################################################################################
 # Misc

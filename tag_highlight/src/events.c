@@ -177,13 +177,11 @@ static jmp_buf event_loop_jmp_buf;
 static noreturn void
 event_loop_sighandler(int signum)
 {
-#if 0
         if (signum == SIGUSR1)
                 longjmp(event_loop_jmp_buf, 1);
         else
                 exit(0);
-#endif
-        longjmp(event_loop_jmp_buf, signum);
+        //longjmp(event_loop_jmp_buf, signum);
 }
 # endif
 
@@ -195,8 +193,8 @@ run_event_loop(int const fd)
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
 
         if (!atomic_flag_test_and_set(&event_loop_called)) {
-# ifndef DOSISH
                 /* Don't bother handling signals at all on Windows. */
+# ifndef DOSISH
                 event_loop_thread = pthread_self();
                 int signum;
                 if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
@@ -209,9 +207,9 @@ run_event_loop(int const fd)
                 sigaction(SIGUSR1, &act, NULL);
                 sigaction(SIGTERM, &act, NULL);
                 sigaction(SIGPIPE, &act, NULL);
-                sigaction(SIGINT, &act, NULL);
+                //sigaction(SIGINT, &act, NULL);
                 sigaction(SIGHUP, &act, NULL);
-                sigaction(SIGCHLD, &act, NULL);
+                //sigaction(SIGCHLD, &act, NULL);
 # endif
                 /* Run the show. */
                 event_loop(fd);

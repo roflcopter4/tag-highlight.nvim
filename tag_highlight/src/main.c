@@ -20,13 +20,13 @@ pthread_t           top_thread;
 FILE *talloc_log_file;
 
 extern void           exit_cleanup        (void);
-static void           init                (char **argv);
+static void           general_init        (void);
 static void           platform_init       (char **argv);
 static void           get_settings        (void);
 static void           open_logs           (void);
 static void           quick_cleanup       (void);
 static comp_type_t    get_compression_type(void);
-static noreturn void *main_initialization (void *arg);
+static noreturn void *neovim_init         (void *arg);
 extern void           run_event_loop      (int fd);
 
 extern void *_mpack_decode_talloc_ctx;
@@ -39,24 +39,19 @@ extern void *_clang_talloc_ctx;
 
 /*======================================================================================*/
 
-/* #include <jemalloc/jemalloc.h> */
-
 int
 main(UNUSED int argc, char *argv[])
 {
-        /* talloc_enable_leak_report_full(); */
-        /* talloc_enable_null_tracking(); */
         talloc_disable_null_tracking();
-        if (!(talloc_log_file = fopen("/home/bml/talloc_report.log", "wb")))
-                abort();
-
+        platform_init(argv);
         process_exiting = false;
+        talloc_log_file = safe_fopen_fmt("%s/talloc_report.log", "wb", HOME);
 
         TIMER_START(&main_timer);
 
         /* This function will ultimately spawn an asynchronous thread that will try to
          * attach to the current buffer, if possible. */
-        init(argv);
+        general_init();
 
         /* This normally does not return. */
         run_event_loop(STDIN_FILENO);
@@ -80,8 +75,6 @@ main(UNUSED int argc, char *argv[])
         talloc_report_full(_events_nvim_response_talloc_ctx, talloc_log_file);
         talloc_report_full(_nvim_common_talloc_ctx, talloc_log_file);
         talloc_report_full(_clang_talloc_ctx, talloc_log_file);
-        //talloc_free(_mpack_encode_talloc_ctx);
-        //talloc_free(_mpack_decode_talloc_ctx);
         fclose(talloc_log_file);
         talloc_free(_mpack_decode_talloc_ctx);
         talloc_free(_mpack_encode_talloc_ctx);
@@ -91,8 +84,6 @@ main(UNUSED int argc, char *argv[])
         talloc_free(_nvim_common_talloc_ctx);
         talloc_free(_clang_talloc_ctx);
 
-        /* exit_cleanup(); */
-
         return 0;
 }
 
@@ -100,14 +91,13 @@ main(UNUSED int argc, char *argv[])
 /* General Setup */
 
 static void
-init(char **argv)
+general_init(void)
 {
         top_thread = pthread_self();
-        platform_init(argv);
         open_logs();
         p99_futex_init(&first_buffer_initialized, 0);
         at_quick_exit(quick_cleanup);
-        START_DETACHED_PTHREAD(main_initialization);
+        START_DETACHED_PTHREAD(neovim_init);
 }
 
 static void
@@ -154,7 +144,7 @@ open_logs(void)
 }
 
 static noreturn void *
-main_initialization(UNUSED void *arg)
+neovim_init(UNUSED void *arg)
 {
         get_settings();
         nvim_set_client_info(B(PKG), 0, 4, B("alpha"));
@@ -225,7 +215,7 @@ get_compression_type(void)
                 shout("Warning: unrecognized compression type \"%s\", "
                       "defaulting to no compression.", BS(tmp));
 
-        b_destroy(tmp);
+        talloc_free(tmp);
         return ret;
 }
 

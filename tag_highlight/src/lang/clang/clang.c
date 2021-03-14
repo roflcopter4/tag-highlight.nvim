@@ -375,17 +375,26 @@ handle_win32_command_script(Buffer *bdata, char const *directory, char const *cs
 }
 
 static inline void
-handle_include_compile_command(str_vector *lst, char const *s, CXString directory)
+handle_include_compile_command(str_vector *lst, char const *s, CXString directory, bool is_i)
 {
         if (isalpha(s[0]) && s[1] == ':' && (s[2] == '/' || s[2] == '\\')) {
-                argv_append(lst, s, true);
+                if (is_i)
+                        argv_append(lst, talloc_asprintf(NULL, "-I%s", s), false);
+                else
+                        argv_append(lst, s, true);
         } else if (s[0] == '/') {
-                argv_append(lst, stupid_windows_bullshit(s), false);
+                if (is_i) {
+                        char *tmp = stupid_windows_bullshit(s);
+                        argv_append(lst, talloc_asprintf(NULL, "-I%s", tmp), false);
+                        free(tmp);
+                } else {
+                        argv_append(lst, stupid_windows_bullshit(s), false);
+                }
         } else {
-                /* char *buf = NULL; */
-                char buf[8192];
-                UNUSED int n = snprintf(buf, 8192, "%s\\%s", CS(directory), s);
-                argv_append(lst, buf, true);
+                if (is_i)
+                        argv_append(lst, talloc_asprintf(NULL, "-I%s/%s", CS(directory), s), false);
+                else
+                        argv_append(lst, talloc_asprintf(NULL, "%s/%s", CS(directory), s), false);
         }
 }
 
