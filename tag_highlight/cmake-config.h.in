@@ -2,6 +2,8 @@
 #cmakedefine USE_JEMALLOC
 #cmakedefine LZMA_SUPPORT
 #cmakedefine HAVE_LIBEV
+#cmakedefine LIBEV_FOUND
+#cmakedefine SANITIZE
 
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_CLOCK_GETTIME
@@ -24,11 +26,16 @@
 #cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
+#cmakedefine HAVE_ARC4RANDOM
 
+#cmakedefine HAVE_BSD_STDLIB_H
+#cmakedefine HAVE_SYS_AUXV_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_STDATOMIC_H
 #cmakedefine HAVE_STDNORETURN_H
 #cmakedefine HAVE_THREADS_H
+
+#define SANITIZER_LOG_PLACE "@SANITIZER_LOG_PLACE@"
 
 #define GCC_ALL_INCLUDE_DIRECTORIES ${COMPILER_INCLUDE_DIRECTORIES}
 

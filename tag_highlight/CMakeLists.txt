@@ -13,12 +13,9 @@ endif()
 # Options
 
 set (REQUIRED_LZMA_VERSION 5.3.1)
-option(BUILD_DIST "\
-Include the required alpha (and therefore uncommon) liblzma version as a static\
-library, and use bundled BSD extensions instead of libbsd even if it is available.")
-option(STATIC_LIBS_ONLY "Build with only static libraries.")
 option(SANITIZE "Enable sanitizers")
 option(USE_JEMALLOC "Use jemalloc")
+option(USE_LIBEV "Use libev for the event loop (if available)")
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -46,7 +43,8 @@ if (MINGW)
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
             " -Wl,--allow-multiple-definition")
 
-    include_directories("D:/msys64/mingw64/x86_64-w64-mingw32/include")
+    # include_directories("/d/msys64/mingw64/x86_64-w64-mingw32/include")
+    # include_directories("${PROJECT_SOURCE_DIR}/deps/talloc")
     add_definitions(-D__MINGW__)
     add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 else()
@@ -54,7 +52,7 @@ else()
             "-L/usr/local/lib -rdynamic")
 endif()
 
-add_definitions(-D_GNU_SOURCE -DHAVE_TOPCONFIG_H -DBSTR_USE_P99)
+add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H -DBSTR_USE_P99 -DBSTR_USE_TALLOC)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
@@ -63,7 +61,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
 set (CMAKE_REQUIRED_DEFINITIONS
     -D__USE_ISOC11
     -D_GNU_SOURCE
-    -DHAVE_TOPCONFIG_H
+    -DHAVE_CONFIG_H
 )
 
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
@@ -90,12 +88,17 @@ XZ support will be disabled for this build.")
     endif()
 endif()
 
-if (NOT MINGW)
-    # find_package (LibEv)
-    # if (LIBEV_FOUND)
-    #     set (HAVE_LIBEV 1)
-    # endif()
-endif ()
+if (MINGW)
+    # Nil I guess
+else ()
+    find_package (Talloc)
+    if (USE_LIBEV)
+        find_package (LibEv REQUIRED)
+        if (LIBEV_FOUND)
+            set (HAVE_LIBEV 1)
+        endif()
+    endif()
+endif()
 
 if (USE_JEMALLOC)
     find_package (Jemalloc REQUIRED)
@@ -126,11 +129,21 @@ CHECK_SYMBOL_EXISTS (err            "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
 CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
+CHECK_SYMBOL_EXISTS (arc4random     "bsd/stdlib.h"    HAVE_ARC4RANDOM)
 
 CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)
 CHECK_INCLUDE_FILE("stdatomic.h"   HAVE_STDATOMIC_H)
 CHECK_INCLUDE_FILE("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
+CHECK_INCLUDE_FILE("sys/auxv.h"    HAVE_SYS_AUXV_H)
+CHECK_INCLUDE_FILE("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
+
+if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
+    pkg_check_modules(LIBBSD libbsd)
+    if (NOT LIBBSD_FOUND)
+        message(FATAL_ERROR "libbsd is required")
+    endif()
+endif()
 
 ###############################################################################
 # General flags
@@ -138,7 +151,7 @@ CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
 string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
 
 string (CONCAT WARNS
-    "-Wall -Wextra -Wpedantic"
+    "-Wall -Wextra"
     " -Werror=implicit"
     " -Werror=incompatible-pointer-types"
     " -Werror=pointer-to-int-cast"
@@ -154,6 +167,7 @@ endif()
 
 if (SANITIZE)
     set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
+    string(CONCAT SANITIZER_LOG_PLACE $ENV{HOME} "/sanit/asan.log")
     if ("${SANITIZE}" STREQUAL "thread")
         string (CONCAT SANIT "${SANIT} -fsanitize=thread")
     else ()
@@ -164,12 +178,25 @@ endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
 string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -std=gnu17 -fdiagnostics-color=always")
+                    " -pipe -std=gnu17 -fdiagnostics-color=always")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
 
 string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
+
+set (CFLAGS_DEBUG_COMMON          "-Og -g -Wextra -Wpedantic -Wformat")
+set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -Wextra -ftree-vectorize -g -Wextra")
+set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -ffunction-sections")
+
+if (SANITIZE)
+    string (CONCAT CFLAGS_DEBUG_COMMON "${CFLAGS_DEBUG_COMMON}"
+        " -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+endif()
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+endif()
 
 if (NOT CLANG_STR_SEARCH EQUAL -1)
 
@@ -190,53 +217,55 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     # "-Rpass-analysis='.*'"
     # )
 
-    set (BASE "${BASE} -Wno-gnu-zero-variadic-macro-arguments")
+    string (CONCAT BASE "${BASE} ${WARNS}"
+        " -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments -Wno-gnu-statement-expression -Werror=return-type"
+        " -Wno-sign-compare"
+        " --gcc-toolchain=/usr/local"
+    )
 
     set (CMAKE_C_FLAGS_DEBUG
-            "${BASE} -Og -g -Wextra -Wpedantic -Wformat -Wno-gnu-zero-variadic-macro-arguments")
+            "${CFLAGS_DEBUG_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${BASE} -Og -g")
+            "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELEASE
-        "${CMAKE_C_FLAGS_RELEASE} ${BASE}")
+            "${CFLAGS_RELEASE_COMMON} ${BASE} -flto=full")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-           " -rtlib=compiler-rt -fuse-ld=lld")
+        " -fuse-ld=lld -flto=full")
 
 else() # GCC
 
-    string(CONCAT BASE "${BASE}"
+    string(CONCAT BASE "${BASE} ${WARNS}"
         " -Wattributes"
         " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc"
         " -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format"
         " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")
 
     set (CMAKE_C_FLAGS_DEBUG
-            "${BASE} -Og -g3 -Wextra -Wpedantic -Wformat -Wno-switch-unreachable")
+            "${CFLAGS_DEBUG_COMMON} ${BASE} -Wno-switch-unreachable")
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${BASE} -Wextra -Wpedantic -Wno-switch-unreachable -Og -g")
+            "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELEASE
-            "${CMAKE_C_FLAGS_RELEASE} ${BASE} -fwhole-program")
+#       "${CFLAGS_RELEASE_COMMON} ${BASE}")
+        "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program -flto")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -Wno-free-nonheap")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto -fwhole-program")
 endif()
-
 
 #####################################################################################################
 # Misc
 
-string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Og -g3")
-string (CONCAT CMAKE_C_FLAGS_RELEASE    "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG -flto -ffunction-sections")
+string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Os")
 
 if (NOT DEBUG)
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
+    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
 endif()
 
-configure_file(cmake-config.h.in topconfig.h)
+configure_file(cmake-config.h.in config.h)
 add_subdirectory(src)
 
 # vim: tw=0

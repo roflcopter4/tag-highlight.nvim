@@ -11,18 +11,15 @@ static void print_nil   (const mpack_obj *result);
 static void print_number(const mpack_obj *result);
 static void print_string(const mpack_obj *result, bool ind);
 
-#define DAI data.arr->items
-#define DDE data.dict->entries
-
 #define CAST_INT(OBJ)                                                   \
-                ((OBJ)->type == M_INT_32)  ? (int32_t)(OBJ)->data.num : \
-                (((OBJ)->type == M_INT_16) ? (int16_t)(OBJ)->data.num : \
-                 (((OBJ)->type == M_INT_8) ? (int8_t)(OBJ)->data.num))
+                ((OBJ)->type == M_INT_32)  ? (int32_t)(OBJ)->num : \
+                (((OBJ)->type == M_INT_16) ? (int16_t)(OBJ)->num : \
+                 (((OBJ)->type == M_INT_8) ? (int8_t)(OBJ)->num))
 
 #define CAST_UINT(OBJ)                                                   \
-                ((OBJ)->type == M_UINT_32)  ? (int32_t)(OBJ)->data.num : \
-                (((OBJ)->type == M_UINT_16) ? (int16_t)(OBJ)->data.num : \
-                 (((OBJ)->type == M_UINT_8) ? (int8_t)(OBJ)->data.num))
+                ((OBJ)->type == M_UINT_32)  ? (int32_t)(OBJ)->num : \
+                (((OBJ)->type == M_UINT_16) ? (int16_t)(OBJ)->num : \
+                 (((OBJ)->type == M_UINT_8) ? (int8_t)(OBJ)->num))
 
 #define LOG(STRING) b_puts(print_log, B(STRING))
 
@@ -31,9 +28,6 @@ static FILE *          print_log         = NULL;
 static int             indent            = 0;
 static int             recursion         = 0;
 static bool            skip_indent       = false;
-
-#define DAI data.arr->items
-#define DDE data.dict->entries
 
 __attribute__((always_inline))
 static inline void
@@ -134,15 +128,15 @@ print_array(const mpack_obj *result)
                 abort();
         pindent();
 
-        if (!result->data.arr || result->data.arr->qty == 0) {
+        if (!result->arr || result->arr->qty == 0) {
                 b_fwrite(print_log, B("[]\n"));
         } else {
                 b_fwrite(print_log, B("[\n"));
 
                 ++indent;
-                for (unsigned i = 0; i < result->data.arr->qty; ++i)
-                        if (result->DAI[i])
-                                do_mpack_print_object(result->DAI[i]);
+                for (unsigned i = 0; i < result->arr->qty; ++i)
+                        if (result->arr->lst[i])
+                                do_mpack_print_object(result->arr->lst[i]);
                 --indent;
 
                 pindent();
@@ -158,28 +152,28 @@ print_dict(const mpack_obj *result)
                 abort();
         pindent();
 
-        if (!result->data.dict || result->data.dict->qty == 0) {
+        if (!result->dict || result->dict->qty == 0) {
                 b_fwrite(print_log, B("{}\n"));
         } else {
                 b_fwrite(print_log, B("{\n"));
                 ++indent;
-                for (unsigned i = 0; i < result->data.dict->qty; ++i) {
+                for (unsigned i = 0; i < result->dict->qty; ++i) {
 #if 0
-                        if (mpack_type(result->DDE[i]->key) == MPACK_STRING)
-                                print_string(result->DDE[i]->key, 0);
+                        if (mpack_type(result->dict->lst[i]->key) == MPACK_STRING)
+                                print_string(result->dict->lst[i]->key, 0);
                         else
 #endif
-                        do_mpack_print_object(result->DDE[i]->key);
+                        do_mpack_print_object(result->dict->lst[i]->key);
                         fseek(print_log, -1, SEEK_CUR);
 
 #if 0
-                        switch (mpack_type(result->DDE[i]->value)) {
+                        switch (mpack_type(result->dict->lst[i]->value)) {
                         case MPACK_ARRAY:
                         case MPACK_DICT:
                                 b_fwrite(print_log, B("  =>  (\n"));
 
                                 ++indent;
-                                do_mpack_print_object(result->DDE[i]->value);
+                                do_mpack_print_object(result->dict->lst[i]->value);
                                 --indent;
 
                                 pindent();
@@ -189,7 +183,7 @@ print_dict(const mpack_obj *result)
 #endif
                                 b_fwrite(print_log, B("  =>  "));
                                 skip_indent = true;
-                                do_mpack_print_object(result->DDE[i]->value);
+                                do_mpack_print_object(result->dict->lst[i]->value);
 #if 0
                                 break;
                         }
@@ -211,8 +205,8 @@ print_string(const mpack_obj *result, const bool ind)
         if (ind)
                 pindent();
 
-        b_chomp(result->data.str);
-        fprintf(print_log, "\"%s\"\n", BS(result->data.str));
+        b_chomp(result->str);
+        fprintf(print_log, "\"%s\"\n", BS(result->str));
 }
 
 
@@ -221,7 +215,7 @@ print_ext(const mpack_obj *result)
 {
         pindent();
         fprintf(print_log, "Type: %d -> Data: %d\n",
-                mpack_type(result), result->data.ext->num);
+                mpack_type(result), result->ext->num);
 }
 
 
@@ -240,7 +234,7 @@ static void
 print_bool(const mpack_obj *result)
 {
         pindent();
-        if (result->data.boolean)
+        if (result->boolean)
                 b_fwrite(print_log, B("true\n"));
         else
                 b_fwrite(print_log, B("false\n"));
@@ -255,7 +249,7 @@ print_number(const mpack_obj *result)
         pindent();
 
         if (mpack_type(result) == MPACK_SIGNED)
-                fprintf(print_log, "%"PRId64"\n", result->data.num);
+                fprintf(print_log, "%"PRId64"\n", result->num);
         else
-                fprintf(print_log, "%"PRIu64"\n", result->data.num);
+                fprintf(print_log, "%"PRIu64"\n", result->num);
 }

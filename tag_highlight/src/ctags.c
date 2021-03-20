@@ -28,7 +28,7 @@ run_ctags(Buffer *bdata, enum update_taglist_opts const opts)
 
         /* Wipe any cached commands if they exist. */
         if (!bdata->ft->has_parser && bdata->calls) {
-                mpack_destroy_arg_array(bdata->calls);
+                talloc_free(bdata->calls);
                 bdata->calls = NULL;
         }
 
@@ -37,9 +37,7 @@ run_ctags(Buffer *bdata, enum update_taglist_opts const opts)
                                 opts);
 
         if (status != 0)
-                ECHO("ctags failed with status \"%d\"\n", status);
-        else
-                ECHO("Ctags finished successfully.");
+                shout("ctags failed with status \"%d\"\n", status);
 
         return (status == 0);
 }
@@ -49,15 +47,14 @@ int
 get_initial_taglist(Buffer *bdata)
 {
         struct stat     st;
-        struct timer   *t   = TIMER_INITIALIZER;
         struct top_dir *top = bdata->topdir;
         int             ret = 0;
 
         if (top->tags)
                 return update_taglist(bdata, UPDATE_TAGLIST_FORCE);
 
-        TIMER_START(t);
         top->tags = b_list_create();
+        talloc_steal(top, top->tags);
 
 #if 0
         if (have_seen_bufnum(bdata->num)) {
@@ -102,7 +99,6 @@ get_initial_taglist(Buffer *bdata)
         }
 
         top->timestamp = (time_t)st.st_mtime;
-        TIMER_REPORT(t, "initial taglist");
         return ret;
 }
 
@@ -114,16 +110,16 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
                 ECHO("ctick unchanged");
                 return false;
         }
-        bool          ret = true;
-        struct timer *t   = TIMER_INITIALIZER;
-        TIMER_START(t);
+        bool ret = true;
+        pthread_mutex_lock(&bdata->lock.total);
 
         bdata->last_ctick = bdata->ctick;
         if (!run_ctags(bdata, opts))
                 warnx("Ctags exited with errors; trying to continue anyway.");
 
-        b_list_destroy(bdata->topdir->tags);
+        talloc_free(bdata->topdir->tags);
         bdata->topdir->tags = b_list_create();
+        talloc_steal(bdata->topdir, bdata->topdir->tags);
 
         if (!getlines(bdata->topdir->tags, COMP_NONE, bdata->topdir->tmpfname)) {
                 ECHO("Failed to read file");
@@ -132,7 +128,7 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
                 write_gzfile(bdata->topdir);
         }
 
-        TIMER_REPORT(t, "update taglist");
+        pthread_mutex_unlock(&bdata->lock.total);
         return ret;
 }
 
@@ -140,7 +136,6 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
 static inline void
 write_gzfile(struct top_dir *topdir)
 {
-        ECHO("Compressing tagfile.");
         switch (settings.comp_type) {
         case COMP_NONE:
                 write_plain(topdir);
@@ -156,7 +151,6 @@ write_gzfile(struct top_dir *topdir)
         default:
                 abort();
         }
-        ECHO("Finished compressing tagfile!");
 }
 
 
@@ -178,8 +172,8 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
                 b_sprintfa(cmd, " \"-f%s\" \"%s\" %s",
                            bdata->topdir->tmpfname, bdata->name.full, tmp);
 
-                b_destroy(tmp);
-                b_list_destroy(headers);
+                talloc_free(tmp);
+                talloc_free(headers);
         } else if (bdata->topdir->recurse) {
                 b_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"",
                            &bdata->ft->ctags_name, bdata->topdir->tmpfname,
@@ -253,7 +247,7 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 #endif
 
         waitpid(pid, &status, 0);
-        argv_destroy(argv);
+        talloc_free(argv);
         return (status > 0) ? status << 8
                             : status;
 }

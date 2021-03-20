@@ -296,7 +296,7 @@ function! s:OnStderr(job_id, data, event) dict
 endfunction
 
 function! s:OnExit(job_id, data, event) dict
-    echom 'Closing channel.'
+    echom 'Closing channel (' . a:data . ').'
     let g:tag_highlight#pid = 0
     let s:seen_bufs = []
     let s:new_bufs  = []
@@ -312,6 +312,7 @@ let s:msg_types = {
             \         'UpdateTagsForce': 4,
             \         'ClearBuffer':     5,
             \         'Stop':            6,
+            \         'Exit':            7,
             \     }
 
 function! s:NewBuf()
@@ -364,11 +365,11 @@ function! s:StopTagHighlight()
     endif
 endfunction
 
-function! s:ExitKill()
-    if exists('g:tag_highlight#binpid') 
-        echom system('kill -INT ' . g:tag_highlight#binpid) 
-    endif
-endfunction
+"function! s:ExitKill()
+"    if exists('g:tag_highlight#binpid') 
+"        echom system('kill -INT ' . g:tag_highlight#binpid) 
+"    endif
+"endfunction
 
 "===============================================================================
 
@@ -401,6 +402,7 @@ function! s:InitTagHighlight()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
 
+    echom "DIR: " g:tag_highlight#directory
     try
         call delete(expand(g:tag_highlight#directory . '/stderr.log'))
     catch
@@ -410,7 +412,7 @@ function! s:InitTagHighlight()
     try
         let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
-        echoerr "tag-highlight executable not found."
+        echom "tag-highlight executable not found."
     endtry
 endfunction
 
@@ -421,7 +423,7 @@ command! THLStop call s:StopTagHighlight()
 command! THLClear call s:SendMessage('ClearBuffer')
 command! THLUpdate call s:SendMessage('UpdateTagsForce')
 
-command! TestExitKill call s:ExitKill()
+" command! TestExitKill call s:ExitKill()
 
 if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
     augroup Tag_Highlight_Init
@@ -434,7 +436,7 @@ augroup TagHighlightAu
     autocmd BufWritePost * call s:SendMessage('UpdateTags')
     autocmd BufEnter * call s:BufChanged()
     autocmd BufDelete * call s:DeleteBuf()
-    autocmd VimLeavePre * call s:ExitKill()
+    autocmd VimLeavePre * call s:SendMessage('Exit')
     autocmd Syntax * call s:SendMessage('SyntaxChanged')
     " autocmd BufReadPost * call s:SendMessage('UpdateTagsForce')
 augroup END

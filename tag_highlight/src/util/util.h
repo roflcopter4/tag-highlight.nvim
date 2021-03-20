@@ -1,6 +1,9 @@
 #ifndef SRC_UTIL_H
 #define SRC_UTIL_H
 
+#if !defined THL_COMMON_H_
+#  error "Must include Common.h first."
+#endif
 #include "Common.h"
 
 #ifdef __cplusplus
@@ -67,8 +70,7 @@ struct timer {
 #  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
 #endif
 
-#define TIMER_INITIALIZER        (&(struct timer){{0, 0}, {0, 0}})
-#define TIMER_STATIC_INITIALIZER {{0, 0}, {0, 0}}
+#define STRUCT_TIMER_INITIALIZER {{0, 0}, {0, 0}}
 
 #define STRDUP(STR)                                                     \
         __extension__({                                                 \
@@ -83,9 +85,9 @@ struct timer {
 #define USEC2SECOND (1000000.0)
 #define NSEC2SECOND (1000000000.0)
 
-#define MKTIMESPEC(FLT) (&(struct timespec){ \
+#define MKTIMESPEC(FLT) ((struct timespec[]){{ \
           (int64_t)(FLT),                    \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)})
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)}})
 
 #define TDIFF(STV1, STV2)                                            \
         (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
@@ -101,9 +103,43 @@ struct timer {
 /*===========================================================================*/
 /* Generic Utility Functions */
 
-#define xatoi(STR_)          xatoi__((STR_), false)
-#define s_xatoi(STR_)        xatoi__((STR_), true)
-#define free_all(...)        free_all__(__VA_ARGS__, NULL)
+#ifndef __always_inline
+#  define __always_inline extern __inline__ __attribute__((__always_inline__))
+/* #  undef __always_inline */
+#endif
+
+#ifndef NOP
+#  define NOP ((void)0)
+#endif
+
+#define xatoi(STR_)        xatoi__((STR_), false)
+#define s_xatoi(STR_)      xatoi__((STR_), true)
+#define free_all(...)      free_all__(__VA_ARGS__, NULL)
+
+#define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
+#define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
+#define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
+#define SLS(STR)           ("" STR ""), LSLEN(STR)
+#define STRINGIFY_HLP(...) #__VA_ARGS__
+#define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
+
+#define ASSERT(COND, ...)   ((!!(COND)) ? NOP : err(50,  __VA_ARGS__))
+#define ASSERTX(COND, ...)  ((!!(COND)) ? NOP : errx(50, __VA_ARGS__))
+#define DIE_UNLESS(COND)    ((!!(COND)) ? NOP : err(55, "%s", (#COND)))
+#define DIE_UNLESSX(COND)   ((!!(COND)) ? NOP : errx(55, "%s", (#COND)))
+
+#define ALWAYS_ASSERT(COND)                                                                           \
+        (!!(COND) ? NOP                                                                               \
+                  : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
+                         STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
+
+#define err(EVAL, ...)  err_((EVAL), true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define errx(EVAL, ...) err_((EVAL), false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warn(...)       warn_(true,  false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnx(...)      warn_(false, false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+extern          void warn_(bool print_err, bool force, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
+extern noreturn void err_ (int status, bool print_err, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
 
 extern void     free_all__    (void *ptr, ...);
 extern int64_t  xatoi__       (const char *str, bool strict);
@@ -115,7 +151,7 @@ extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR
 
 extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input, int *status);
 #ifdef DOSISH
-extern bstring *_win32_get_command_output(char *argv, bstring *input);
+extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
 #endif
 
 #ifdef __cplusplus

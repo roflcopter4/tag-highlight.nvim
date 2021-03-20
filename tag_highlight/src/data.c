@@ -5,7 +5,7 @@
 
 #define BI bt_init
 
-struct filetype ftdata[] = {
+static const struct filetype ftdata_static[] = {
     { NULL, NULL, NULL, NULL, BI("NONE"),       BI("NONE"),       FT_NONE,       0, 0, 0, 0 },
     { NULL, NULL, NULL, NULL, BI("c"),          BI("c"),          FT_C,          0, 0, 1, 1 },
     { NULL, NULL, NULL, NULL, BI("cpp"),        BI("c++"),        FT_CXX,        0, 0, 1, 1 },
@@ -24,6 +24,21 @@ struct filetype ftdata[] = {
     { NULL, NULL, NULL, NULL, BI("zsh"),        BI("sh"),         FT_ZSH,        0, 0, 0, 0 },
 };
 
+size_t const ftdata_len = ARRSIZ(ftdata_static);
+struct filetype **ftdata;
+
+__attribute__((constructor)) void init_ftdata(void)
+{
+        ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
+        //ftdata = talloc_pool(NULL, (size_t)(ftdata_len * sizeof(struct filetype *)) +
+        //                           (size_t)(ftdata_len * sizeof(struct filetype)));
+
+        for (unsigned i = 0; i < ftdata_len; ++i) {
+                ftdata[i] = talloc(ftdata, struct filetype);
+                memcpy(ftdata[i], &ftdata_static[i], sizeof(struct filetype));
+        }
+}
+
 
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;
@@ -31,15 +46,15 @@ extern FILE            *cmd_log, *echo_log, *main_log;
 extern char const      *program_name;
 extern pthread_mutex_t  update_mutex;
 
-struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-
-pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
-size_t const    ftdata_len   = ARRSIZ(ftdata);
+pthread_mutex_t update_mutex    = PTHREAD_MUTEX_INITIALIZER;
+bool            process_exiting = false;
 char const     *program_name;
-genlist        *top_dirs;
+linked_list    *top_dirs;
 char           *HOME;
 FILE           *cmd_log;
 FILE           *echo_log;
 FILE           *main_log;
 jmp_buf         exit_buf;
-bool            process_exiting;
+
+struct settings_s settings = {0,    0,    0,    0,    0,    0,    NULL, NULL,
+                              NULL, NULL, NULL, NULL, NULL, NULL, NULL};

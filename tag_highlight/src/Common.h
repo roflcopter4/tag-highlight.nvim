@@ -83,25 +83,16 @@ extern const char *program_invocation_name;
 #ifdef HAVE_STDNORETURN_H
 #  include <stdnoreturn.h>
 #endif
-#ifdef HAVE_THREADS_H
-#  include <threads.h>
-#endif
 
-/* Apperently some lunatic working on glibc decided it would be a good idea to
- * define `I' to the imaginary unit. As nice as that sounds, that's just about
- * the stupidest thing I have ever seen in anything resembling a system header.
- * It breaks things left, right, and centre. */
-#ifdef I
-#  undef I
-#endif
+#include <talloc.h>
 
 /* Guarentee that this typedef exists. */
 typedef int error_t;
 
 /*===========================================================================*/
 
-#define USE_XMALLOC
-#define MPACK_USE_P99
+#define MPACK_USE_P99   1
+#define BSTR_USE_TALLOC 1
 
 #include "bstring.h"
 #include "my_p99_common.h"
@@ -217,6 +208,28 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define O_DIRECTORY (0)
 #endif
 
+#ifndef __WORDSIZE
+#  if UINTPTR_MAX == UINT64_MAX
+#    define __WORDSIZE 64
+#  elif UINTPTR_MAX == UINT32_MAX
+#    define __WORDSIZE 32
+#  else
+#    error "Unable to determine word size."
+#  endif
+#endif
+
+#ifndef SIZE_C
+  #if __WORDSIZE == 64
+  #  define SIZE_C  UINT64_C
+  #  define SSIZE_C INT64_C
+  #elif __WORDSIZE == 32
+  #  define SIZE_C  UINT32_C
+  #  define SSIZE_C INT32_C
+  #else
+  #  error "Unable to determine word size."
+  #endif
+#endif
+
 /*===========================================================================*/
 /* Attribute aliases and junk like MIN, MAX, NOP, etc */
 
@@ -252,15 +265,6 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
 #endif
 
-#ifndef __always_inline
-/* #  define __always_inline extern __inline__ __attribute__((__always_inline__)) */
-#  undef __always_inline
-#endif
-
-#ifndef NOP
-#  define NOP ((void)0)
-#endif
-
 /*===========================================================================*/
 /* Generic Macros */
 
@@ -279,27 +283,6 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
                 pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
         } while (0)
 
-#define ARRSIZ(ARR)        (sizeof(ARR) / sizeof((ARR)[0]))
-#define LSLEN(STR)         ((size_t)(sizeof(STR) - 1llu))
-#define PSUB(PTR1, PTR2)   ((ptrdiff_t)(PTR1) - (ptrdiff_t)(PTR2))
-#define SLS(STR)           ("" STR ""), LSLEN(STR)
-#define STRINGIFY_HLP(...) #__VA_ARGS__
-#define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
-
-#define ASSERT(COND, ...)   ((!!(COND)) ? NOP : err(50,  __VA_ARGS__))
-#define ASSERTX(COND, ...)  ((!!(COND)) ? NOP : errx(50, __VA_ARGS__))
-#define DIE_UNLESS(COND)    ((!!(COND)) ? NOP : err(55, "%s", (#COND)))
-#define DIE_UNLESSX(COND)   ((!!(COND)) ? NOP : errx(55, "%s", (#COND)))
-
-#define ALWAYS_ASSERT(COND)                                                                           \
-        (!!(COND) ? NOP                                                                               \
-                  : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
-                         STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
-
-#define err(EVAL, ...)  err_((EVAL), true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define errx(EVAL, ...) err_((EVAL), false, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warn(...)       warn_(true,  false, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warnx(...)      warn_(false, false, __FILE__, __LINE__, __func__, __VA_ARGS__)
 /* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
 #define shout(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
@@ -309,107 +292,10 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define eprintf(...) ((void)0)
 #endif
 
-extern          void warn_(bool print_err, bool force, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
-extern noreturn void err_ (int status, bool print_err, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
-
 /*===========================================================================*/
 
 #include "util/util.h"
-
-#if 0
-/* #ifdef USE_XMALLOC */
-#if 0
-__aNT __aWUR __aMAL __aALSZ(1)
-ALWAYS_INLINE void *
-malloc(const size_t size)
-{
-        void *tmp = malloc(size);
-        if (tmp == NULL)
-                err(100, "Malloc call failed - attempted %zu bytes", size);
-        return tmp;
-}
-
-__aNT __aWUR __aMAL __aALSZ(1, 2)
-ALWAYS_INLINE  void *
-calloc(const size_t num, const size_t size)
-{
-        void *tmp = calloc(num, size);
-        if (tmp == NULL)
-                err(101, "Calloc call failed - attempted %zu bytes", size);
-        return tmp;
-}
-
-__aNT __aWUR __aALSZ(2)
-ALWAYS_INLINE void *
-realloc(void *ptr, const size_t size)
-{
-        void *tmp = realloc(ptr, size);
-        if (tmp == NULL)
-                err(102, "Realloc call failed - attempted %zu bytes", size);
-        return tmp;
-}
-
-#  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-__aNT __aWUR __aALSZ(2, 3)
-ALWAYS_INLINE void *
-reallocarray(void *ptr, size_t num, size_t size)
-{
-        void *tmp = reallocarray(ptr, num, size);
-        if (tmp == NULL)
-                err(103, "Realloc call failed - attempted %zu bytes", size);
-        return tmp;
-}
-#    define nmalloc(NUM_, SIZ_)        reallocarray(NULL, (NUM_), (SIZ_))
-#    define nrealloc(PTR_, NUM_, SIZ_) reallocarray((PTR_), (NUM_), (SIZ_))
-#  else
-#    define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#    define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#    define reallocarray              nrealloc
-#  endif
-#else /* ! USE_XMALLOC */
-#  define malloc  malloc
-#  define calloc  calloc
-#  define realloc realloc
-
-#  define nmalloc(NUM_, SIZ_)        malloc(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
-
-#  if defined(HAVE_REALLOCARRAY) && !defined(WITH_JEMALLOC)
-#    define reallocarray reallocarray
-#  else
-#    define reallocarray nrealloc
-#  endif
-#endif
-#define free(PTR) free(PTR)
-#endif
-
-#ifdef __GNUC__
-#  define nmalloc(NUM_, SIZ_)                                                        \
-        __extension__({                                                              \
-                size_t const nmalloc_tmp_num_ = (size_t)(NUM_) ?: 1;                 \
-                size_t const nmalloc_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t); \
-                size_t const nmalloc_tmp_alc_ = nmalloc_tmp_num_ * nmalloc_tmp_siz_; \
-                malloc(nmalloc_tmp_alc_);                                            \
-        })
-#  define nrealloc(PTR_, NUM_, SIZ_)                                                    \
-        __extension__({                                                                 \
-                size_t const nrealloc_tmp_num_ = (size_t)(NUM_) ?: 1;                   \
-                size_t const nrealloc_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t);   \
-                size_t const nrealloc_tmp_alc_ = nrealloc_tmp_num_ * nrealloc_tmp_siz_; \
-                realloc((PTR_), nrealloc_tmp_alc_);                                     \
-        })
-#  define nalloca(NUM_, SIZ_)                                                        \
-        __extension__({                                                              \
-                size_t const nalloca_tmp_num_ = (size_t)(NUM_) ?: 1;                 \
-                size_t const nalloca_tmp_siz_ = (size_t)(SIZ_) ?: sizeof(uintptr_t); \
-                size_t const nalloca_tmp_alc_ = nalloca_tmp_num_ * nalloca_tmp_siz_; \
-                alloca(nalloca_tmp_alc_);                                            \
-        })
-#else
-#  define nmalloc(NUM_, SIZ_)        malloc((((size_t)(NUM_)) * ((size_t)(SIZ_))))
-#  define nrealloc(PTR_, NUM_, SIZ_) realloc((PTR_), ((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#  define nalloca(NUM_, SIZ_)        alloca(((size_t)(NUM_)) * ((size_t)(SIZ_)))
-#endif
+#define nalloca(NUM, SIZ) alloca(((size_t)(NUM)) * ((size_t)(SIZ)))
 
 /*===========================================================================*/
 #ifdef __cplusplus

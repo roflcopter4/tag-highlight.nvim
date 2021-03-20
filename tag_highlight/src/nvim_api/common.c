@@ -22,15 +22,16 @@ static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static mpack_obj *make_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count);
 static noreturn void *make_async_call(void *arg);
-static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func, bool blocking, FILE *logfp);
+static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func, FILE *logfp);
 
-#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 5, __VA_ARGS__)
-#define write_and_clean_defarg_3() (true)
-#define write_and_clean_defarg_4() (NULL)
-#define write_and_clean_defarg_5() (mpack_log)
+#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
+#define write_and_clean_defarg_3() (NULL)
 
 static          mpack_obj *await_package  (_nvim_wait_node *node) __aWUR;
 static noreturn void      *discard_package(void *arg);
+
+void *nvim_common_talloc_ctx_ = NULL;
+#define CTX nvim_common_talloc_ctx_
 
 /*======================================================================================*/
 
@@ -40,10 +41,13 @@ make_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int cou
         mpack_obj *result;
 
         if (blocking) {
-                result = write_and_clean(pack, count, fn, blocking);
+                result = write_and_clean(pack, count, fn);
         } else {
                 struct gencall *gc = malloc(sizeof *gc);
-                *gc    = (struct gencall){fn, pack, count};
+                /* *gc    = (struct gencall){fn, pack, count}; */
+                gc->fn = fn;
+                gc->pack = pack;
+                gc->count = count;
                 result = NULL;
                 START_DETACHED_PTHREAD(make_async_call, gc);
         }
@@ -55,8 +59,8 @@ static noreturn void *
 make_async_call(void *arg)
 {
         struct gencall *gc  = arg;
-        mpack_obj      *ret = write_and_clean(gc->pack, gc->count, gc->fn, true);
-        mpack_destroy_object(ret);
+        mpack_obj      *ret = write_and_clean(gc->pack, gc->count, gc->fn);
+        talloc_free(ret);
         free(gc);
         pthread_exit();
 }
@@ -111,7 +115,8 @@ await_package(_nvim_wait_node *node)
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
         p99_futex_wait(&node->fut);
-        mpack_obj *ret = atomic_load(&node->obj);
+        /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_relaxed); */
+        mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst);
 
         if (!ret)
                 errx(1, "null object");
@@ -129,12 +134,14 @@ discard_package(void *arg)
         /* mpack_obj *obj; */
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
+
         p99_futex_wait(&node->fut);
 
         if (!node->obj)
                 errx(1, "null object");
 
-        mpack_destroy_object(node->obj);
+        mpack_obj *obj = atomic_load(&node->obj);
+        talloc_free(obj);
         free(node);
         pthread_exit();
 
@@ -143,9 +150,9 @@ discard_package(void *arg)
 }
 
 static mpack_obj *
-(write_and_clean)(mpack_obj *pack, const int count, const bstring *func, const bool blocking, FILE *logfp)
+(write_and_clean)(mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
 {
-#ifdef DEBUG
+#if 0 && defined DEBUG
 #  ifdef LOG_RAW_MPACK
         {
         extern char LOGDIR[];
@@ -170,15 +177,21 @@ static mpack_obj *
 #endif
 
         mpack_obj       *ret;
-        _nvim_wait_node *node = calloc(1, sizeof(*node));
-        node->fd              = 1;
-        node->count           = count;
+        _nvim_wait_node *node;
+
+        b_write(1, *pack->packed);
+
+        node        = calloc(1, sizeof(*node));
+        node->fd    = 1;
+        node->count = count;
 
         p99_futex_init(&node->fut, 0);
         P99_FIFO_APPEND(&_nvim_wait_queue, node);
-        b_write(1, *pack->packed);
-        mpack_destroy_object(pack);
+        /* mpack_destroy_object(pack); */
+        //b_free(*pack->packed);
+        talloc_free(pack);
 
+#if 0
         if (blocking) {
                 ret = await_package(node);
                 free(node);
@@ -186,7 +199,10 @@ static mpack_obj *
                 ret = NULL;
                 START_DETACHED_PTHREAD(discard_package, node);
         }
+#endif
 
+        ret = await_package(node);
+        free(node);
         return ret;
 }
 
@@ -197,20 +213,31 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
 {
         mpack_obj *errmsg = mpack_index(root, 2);
         mpack_obj *data   = mpack_index(root, 3);
-        mpack_retval   ret    = { .ptr = NULL };
+        mpack_retval ret  = { .ptr = NULL };
 
         if (mpack_type(errmsg) != MPACK_NIL) {
-                bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, true).ptr;
+                bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
                 if (err_str) {
                         warnx("Neovim returned with an err_str: '%s'", BS(err_str));
                         b_destroy(err_str);
-                        root->DAI[2] = NULL;
                 }
         } else {
-                ret          = mpack_expect(data, type, true);
-                root->DAI[3] = NULL;
+                ret = mpack_expect(data, type, false);
+                switch (type) {
+                case E_STRING:
+                        talloc_set_name(ret.ptr, "nvim/common.c: m_expect_intern -> %s: (%s)", mpack_expect_t_getname(type), (char *)(((bstring *)ret.ptr)->data));
+                case E_DICT2ARR:
+                case E_MPACK_ARRAY:
+                case E_MPACK_DICT:
+                case E_MPACK_EXT:
+                case E_STRLIST:
+                        talloc_steal(CTX, ret.ptr);
+                        break;
+                default:;
+                }
         }
 
-        mpack_destroy_object(root);
+        //talloc_free(data);
+        talloc_free(root);
         return ret;
 }

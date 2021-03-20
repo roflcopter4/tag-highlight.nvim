@@ -50,8 +50,15 @@ extern FILE *mpack_raw;
 FILE *mpack_raw;
 static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/*============================================================================*/
+#undef talloc
+#define talloc(ctx, type) (type *)talloc_named_const(ctx, sizeof(type), __location__ " - " #type)
+#undef talloc_array
+#define talloc_array(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, __location__ " - " #type)
 
+void *mpack_decode_talloc_ctx_ = NULL;
+#define CTX mpack_decode_talloc_ctx_
+
+/*============================================================================*/
 
 mpack_obj *
 mpack_decode_stream(int32_t fd)
@@ -72,7 +79,7 @@ mpack_decode_stream(int32_t fd)
                 unsigned i = 0;
                 while (i < NUM_MUTEXES && mpack_mutex_list[i].init)
                         ++i;
-                if (i == NUM_MUTEXES)
+                if (i >= NUM_MUTEXES)
                         errx(1, "Too many open file descriptors.");
                 mpack_mutex_list[i].init = true;
                 mpack_mutex_list[i].fd   = fd;
@@ -84,9 +91,9 @@ mpack_decode_stream(int32_t fd)
         pthread_mutex_unlock(&mpack_search_mutex);
 
         mpack_obj *ret = do_decode(&stream_read, &fd);
-
         if (!ret)
                 errx(1, "Failed to decode stream.");
+
         if (mpack_type(ret) != MPACK_ARRAY) {
                 if (mpack_log) {
                         mpack_print_object(mpack_log, ret);
@@ -105,9 +112,9 @@ mpack_obj *
 mpack_decode_obj(bstring *buf)
 {
         mpack_obj *ret = do_decode(&obj_read, buf);
-
         if (!ret)
                 errx(1, "Failed to decode stream.");
+
         if (mpack_type(ret) != MPACK_ARRAY) {
                 if (mpack_log) {
                         mpack_print_object(mpack_log, ret);
@@ -152,8 +159,8 @@ do_decode(read_fn const READ, void *src)
 static mpack_obj *
 decode_array(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *mask)
 {
-        mpack_obj *item    = malloc(sizeof *item);
-        uint32_t   size    = 0;
+        mpack_obj *item = talloc(CTX, mpack_obj);
+        uint32_t   size = 0;
 
         if (mask->fixed) {
                 size = (uint32_t)(ch ^ mask->val);
@@ -174,15 +181,15 @@ decode_array(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *
                 }
         }
 
-        item->flags           = MPACK_ARRAY | MPACKFLG_ENCODE;
-        item->data.arr        = malloc(sizeof(mpack_array));
-        item->data.arr->items = nmalloc(size, sizeof(mpack_obj *));
-        item->data.arr->max   = size;
-        item->data.arr->qty   = 0;
+        item->flags    = MPACK_ARRAY | MPACKFLG_ENCODE;
+        item->arr      = talloc(item, mpack_array);
+        item->arr->lst = talloc_array(item->arr, mpack_obj *, size);
+        item->arr->max = size;
+        item->arr->qty = 0;
 
-        for (unsigned i = 0; i < item->data.arr->max; ++i) {
+        for (unsigned i = 0; i < item->arr->max; ++i) {
                 mpack_obj *tmp = do_decode(READ, src);
-                item->DAI[item->data.arr->qty++] = tmp;
+                item->arr->lst[item->arr->qty++] = talloc_move(item->arr->lst, &tmp);
         }
 
         return item;
@@ -192,7 +199,7 @@ decode_array(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *
 static mpack_obj *
 decode_dictionary(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *mask)
 {
-        mpack_obj *item = malloc(sizeof *item);
+        mpack_obj *item = talloc(CTX, mpack_obj);
         uint32_t   size = 0;
 
 
@@ -215,16 +222,21 @@ decode_dictionary(read_fn const READ, void *src, uint8_t const ch, mpack_mask co
                 }
         }
 
-        item->flags              = MPACK_DICT | MPACKFLG_ENCODE;
-        item->data.dict          = malloc(sizeof(mpack_dict));
-        item->data.dict->entries = nmalloc(size, sizeof(mpack_dict_ent *));
-        item->data.dict->qty     = item->data.dict->max = size;
+        item->flags     = MPACK_DICT | MPACKFLG_ENCODE;
+        item->dict      = talloc(item, mpack_dict);
+        item->dict->lst = talloc_array(item->dict, mpack_dict_ent *, size);
+        item->dict->qty = item->dict->max = size;
 
-        for (uint32_t i = 0; i < item->data.arr->max; ++i) {
-                item->DDE[i]        = malloc(sizeof(mpack_dict_ent));
-                item->DDE[i]->key   = do_decode(READ, src);
-                item->DDE[i]->value = do_decode(READ, src);
+#define ENTRY (item->dict->lst[i])
+        for (uint32_t i = 0; i < item->arr->max; ++i) {
+                /* mpack_dict_ent *entry = &item->dict->lst[i]; */
+                ENTRY        = talloc(item->dict->lst, mpack_dict_ent);
+                ENTRY->key   = do_decode(READ, src);
+                ENTRY->value = do_decode(READ, src);
+                talloc_steal(ENTRY, ENTRY->key);
+                talloc_steal(ENTRY, ENTRY->value);
         }
+#undef ENTRY
 
         return item;
 }
@@ -233,8 +245,8 @@ decode_dictionary(read_fn const READ, void *src, uint8_t const ch, mpack_mask co
 static mpack_obj *
 decode_string(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *mask)
 {
-        mpack_obj *item    = malloc(sizeof *item);
-        uint32_t   size    = 0;
+        mpack_obj *item = talloc(CTX, mpack_obj);
+        uint32_t   size = 0;
 
         if (mask->fixed) {
                 size = (uint32_t)(ch ^ mask->val);
@@ -259,14 +271,15 @@ decode_string(read_fn const READ, void *src, uint8_t const ch, mpack_mask const 
                 }
         }
 
-        item->flags          = MPACK_STRING | MPACKFLG_ENCODE;
-        item->data.str       = b_alloc_null(size + 1);
-        item->data.str->slen = size;
+        item->flags     = MPACK_STRING | MPACKFLG_ENCODE;
+        item->str       = b_alloc_null(size + 1);
+        item->str->slen = size;
+        talloc_steal(item, item->str);
 
         if (size > 0)
-                READ(src, item->data.str->data, size);
+                READ(src, item->str->data, size);
 
-        item->data.str->data[size] = (uchar)'\0';
+        item->str->data[size] = (uchar)'\0';
 
         return item;
 }
@@ -275,8 +288,8 @@ decode_string(read_fn const READ, void *src, uint8_t const ch, mpack_mask const 
 static mpack_obj *
 decode_integer(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *mask)
 {
-        mpack_obj *item    = malloc(sizeof *item);
-        int64_t    value   = 0;
+        mpack_obj *item  = talloc(CTX, mpack_obj);
+        int64_t    value = 0;
 
         if (mask->fixed) {
                 value  = (int64_t)(ch ^ mask->val);
@@ -309,8 +322,8 @@ decode_integer(read_fn const READ, void *src, uint8_t const ch, mpack_mask const
                 }
         }
 
-        item->flags     = MPACK_SIGNED | MPACKFLG_ENCODE;
-        item->data.num = value;
+        item->flags = MPACK_SIGNED | MPACKFLG_ENCODE;
+        item->num   = value;
 
         return item;
 }
@@ -319,8 +332,8 @@ decode_integer(read_fn const READ, void *src, uint8_t const ch, mpack_mask const
 static mpack_obj *
 decode_unsigned(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *mask)
 {
-        mpack_obj *item    = malloc(sizeof *item);
-        uint64_t   value   = 0;
+        mpack_obj *item  = talloc(CTX, mpack_obj);
+        uint64_t   value = 0;
 
         if (mask->fixed) {
                 value = (uint64_t)(ch ^ mask->val);
@@ -350,7 +363,7 @@ decode_unsigned(read_fn const READ, void *src, uint8_t const ch, mpack_mask cons
         }
 
         item->flags    = MPACK_UNSIGNED | MPACKFLG_ENCODE;
-        item->data.num = value;
+        item->num = value;
 
         return item;
 }
@@ -359,8 +372,8 @@ decode_unsigned(read_fn const READ, void *src, uint8_t const ch, mpack_mask cons
 static mpack_obj *
 decode_ext(read_fn const READ, void *src, mpack_mask const *mask)
 {
-        mpack_obj *item    = malloc(sizeof *item);
-        uint32_t   value   = 0;
+        mpack_obj *item      = talloc(CTX, mpack_obj);
+        uint32_t   value     = 0;
         uint8_t    word32[4] = {0, 0, 0, 0};
         uint8_t    type;
 
@@ -384,10 +397,10 @@ decode_ext(read_fn const READ, void *src, mpack_mask const *mask)
                 ERRMSG();
         }
 
-        item->flags          = MPACK_EXT | MPACKFLG_ENCODE;
-        item->data.ext       = malloc(sizeof(mpack_ext));
-        item->data.ext->type = type;
-        item->data.ext->num  = value;
+        item->flags     = MPACK_EXT | MPACKFLG_ENCODE;
+        item->ext       = talloc(item, mpack_ext);
+        item->ext->type = type;
+        item->ext->num  = value;
 
         return item;
 }
@@ -396,12 +409,12 @@ decode_ext(read_fn const READ, void *src, mpack_mask const *mask)
 static mpack_obj *
 decode_bool(mpack_mask const *mask)
 {
-        mpack_obj *item = malloc(sizeof *item);
+        mpack_obj *item = talloc(CTX, mpack_obj);
         item->flags     = MPACK_BOOL | MPACKFLG_ENCODE;
 
         switch (mask->type) {
-        case M_TRUE:  item->data.boolean = true;  break;
-        case M_FALSE: item->data.boolean = false; break;
+        case M_TRUE:  item->boolean = true;  break;
+        case M_FALSE: item->boolean = false; break;
         default:      ERRMSG();
         }
 
@@ -412,9 +425,9 @@ decode_bool(mpack_mask const *mask)
 static mpack_obj *
 decode_nil(void)
 {
-        mpack_obj *item = malloc(sizeof *item);
+        mpack_obj *item = talloc(CTX, mpack_obj);
         item->flags     = MPACK_NIL | MPACKFLG_ENCODE;
-        item->data.nil  = M_MASK_NIL;
+        item->nil       = M_MASK_NIL;
 
         return item;
 }
@@ -426,7 +439,7 @@ decode_nil(void)
 static const mpack_mask *
 id_pack_type(uint8_t const ch)
 {
-        mpack_mask const *mask = NULL;
+        mpack_mask const *mask = CTX;
 
         for (unsigned i = 0; i < m_masks_len; ++i) {
                 mpack_mask const *m = &m_masks[i];
