@@ -162,16 +162,10 @@ write_lzma(struct top_dir *topdir)
         strm.avail_out = size;
         strm.avail_in  = size;
 
-        ECHO("Running lzma code now");
-        int iter = 1;
-
         do {
-                ECHO("Iteration number %d", iter++);
-                /* ret = lzma_code(&strm, LZMA_RUN); */
                 ret = lzma_code(&strm, LZMA_FINISH);
         } while (ret == LZMA_OK);
 
-        ECHO("Done!");
 
         if (ret != LZMA_STREAM_END)
                 warnx("Unexpected error on line %d in file %s: %d => %s",

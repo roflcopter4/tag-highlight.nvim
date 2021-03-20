@@ -289,13 +289,104 @@ free_all__(void *ptr, ...)
 
 #if defined HAVE_FORK
 #  include <wait.h>
-#  define Close(fd) (((close)(fd) == (0)) ? ((void)0) : err(1, "close()"))
+#  define CLOSE(fd) (((close)(fd) == (-1)) ? err(1, "close()") : ((void)0))
+
+static void
+apply_cloexec(int fd)
+{
+        int flg = fcntl(fd, F_GETFL);
+        if (flg == (-1))
+                err(1, "fcntl()");
+        if (fcntl(fd, F_SETFL, flg | O_CLOEXEC) == (-1))
+                err(1, "fcntl()");
+}
+
+static void
+setup_pipe(int fds[2])
+{
+        // int flags;
+
+        if (pipe(fds) == (-1))
+                err(1, "pipe()");
+
+        // if ((flags = fcntl(fds[0], F_GETFL)) == (-1))
+        //         err(10, "fcntl()");
+        // if (fcntl(fds[0], F_SETFL, flags | O_CLOEXEC) == (-1))
+        //         err(10, "fcntl()");
+        // if ((flags = fcntl(fds[1], F_GETFL)) == (-1))
+        //         err(10, "fcntl()");
+        // if (fcntl(fds[1], F_SETFL, flags | O_CLOEXEC) == (-1))
+        //         err(10, "fcntl()");
+
+        // if (fcntl(fds[0], F_SETPIPE_SZ, 254) == (-1))
+        //        err(10, "fcntl(F_SETPIPE_SZ)");
+}
 
 bstring *
 get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
 {
+        bstring *rd;
+        int fds[2][2], pid, st = ~0;
+
+        setup_pipe(fds[0]);
+        setup_pipe(fds[1]);
+
+#if 0
+        if (pipe(fds[0]) == (-1))
+                err(1, "pipe()");
+        if (pipe(fds[1]) == (-1))
+                err(1, "pipe()");
+
+        for (int i = 0; i < 2; ++i)
+                for (int x = 0; x < 2; ++x)
+                        apply_cloexec(fds[i][x]);
+
+        if (fcntl(fds[0][0], F_SETPIPE_SZ, 256) == (-1))
+               err(10, "fcntl(F_SETPIPE_SZ)");
+        if (fcntl(fds[1][0], F_SETPIPE_SZ, 256) == (-1))
+               err(11, "fcntl(F_SETPIPE_SZ)");
+#endif
+
+        if ((pid = fork()) == 0) {
+                if (dup2(fds[0][READ_FD], STDIN_FILENO) == (-1))
+                        err(1, "dup2() failed\n");
+                if (dup2(fds[1][WRITE_FD], STDOUT_FILENO) == (-1))
+                        err(1, "dup2() failed\n");
+
+                close(fds[0][0]);
+                close(fds[0][1]);
+                close(fds[1][0]);
+                close(fds[1][1]);
+
+                if (execvp(command, argv) == (-1))
+                        err(1, "exec() failed\n");
+        }
+
+        close(fds[0][READ_FD]);
+        close(fds[1][WRITE_FD]);
+        if (input)                                  
+                b_write(fds[0][WRITE_FD], input);
+        close(fds[0][WRITE_FD]);
+
+        rd = b_read_fd(fds[1][READ_FD]);
+        close(fds[1][READ_FD]);
+
+        if (waitpid(pid, &st, 0) != pid && errno != ECHILD)
+                err(1, "waitpid()");
+        if ((st >>= 8) != 0)
+                echo("WARNING: Command failed with status %d", st);
+        if (status)
+                *status = st;
+
+        return rd;
+}
+
+#if 0
+bstring *
+get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
+{
         bstring *tmpfname, *rd;
-        int stdin_fds[2],  pid, st, tmpfd 
+        int stdin_fds[2],  pid, st, tmpfd;
 
         if (pipe(stdin_fds) == (-1))
                 err(1, "pipe()");
@@ -338,8 +429,9 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
 
         return rd;
 }
+#endif
 
-#  undef Close
+#  undef CLOSE
 
 #elif defined DOSISH
 #  define READ_BUFSIZE (8192LLU << 2)

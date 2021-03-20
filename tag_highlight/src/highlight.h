@@ -17,8 +17,6 @@ extern "C" {
 /* Old "data.h" */
 /*===========================================================================*/
 
-/* typedef volatile p99_futex vfutex_t; */
-
 #define DATA_ARRSIZE 4096
 
 typedef enum { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type_t;
@@ -33,12 +31,12 @@ struct settings_s {
         bool        verbose;
         comp_type_t comp_type;
 
-        bstring      *cache_dir;
-        bstring      *ctags_bin;
-        bstring      *settings_file;
-        b_list       *ctags_args;
-        b_list       *ignored_ftypes;
-        b_list       *norecurse_dirs;
+        bstring    *cache_dir;
+        bstring    *ctags_bin;
+        bstring    *settings_file;
+        b_list     *ctags_args;
+        b_list     *ignored_ftypes;
+        b_list     *norecurse_dirs;
         mpack_dict *ignored_tags;
         mpack_dict *order;
 };
@@ -109,36 +107,9 @@ struct bufdata {
         };
 };
 
-#if 0
-struct buffer_list {
-        Buffer *lst[DATA_ARRSIZE];
-#if 0
-        struct bad_bufs_s {
-                int      lst[DATA_ARRSIZE];
-                uint16_t qty;
-                uint16_t mlen;
-        } bad_bufs;
-#endif
-
-        uint16_t        mkr;
-        uint16_t        mlen;
-        pthread_mutex_t lock;
-};
-extern struct buffer_list  buffers;
-#endif
-
-#if 0
-struct top_dir_list {
-        struct top_dir *lst[DATA_ARRSIZE];
-        uint16_t        mkr;
-        uint16_t        mlen;
-};
-#endif
-
-
 extern struct settings_s   settings;
 extern struct filetype   **ftdata;
-extern genlist            *top_dirs;
+extern linked_list        *top_dirs;
 extern size_t const        ftdata_len;
 
 /*===========================================================================*/
@@ -150,9 +121,6 @@ enum destroy_buffer_flags {
 };
 
 extern bool    have_seen_bufnum (int bufnum);
-/* extern int     find_buffer_ind  (int bufnum); */
-/* extern bool    is_bad_buffer    (int bufnum); */
-/* extern void    destroy_bufdata  (Buffer **bdata_p); */
 extern void    destroy_buffer   (Buffer *bdata, unsigned flags);
 extern Buffer *new_buffer       (int bufnum);
 extern Buffer *find_buffer      (int bufnum);
@@ -187,6 +155,9 @@ extern void clear_highlight    (Buffer *bdata, bool blocking);
 extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
 extern void _b_list_dump_nvim  (const b_list *list, const char *listname);
+
+/*===========================================================================*/
+/* cpp shenanigans */
 
 ALWAYS_INLINE Buffer *
 find_current_buffer(void)
@@ -224,7 +195,7 @@ _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 
 #define echo(...)                                                                                                 \
         do {                                                                                                      \
-                if (P99_UNLIKELY(settings.verbose)) {                                                             \
+                if (settings.verbose) {                                                                           \
                         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
                           (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
                           (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
@@ -233,7 +204,7 @@ _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 
 #define ECHO(...)                                                                                                      \
         do {                                                                                                           \
-                if (P99_UNLIKELY(settings.verbose)) {                                                                  \
+                if (settings.verbose) {                                                                                \
                         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                             \
                           (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                      \
                           (nvim_b_printf(B("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \

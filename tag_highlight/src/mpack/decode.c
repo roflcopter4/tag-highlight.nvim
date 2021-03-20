@@ -55,17 +55,8 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 #undef talloc_array
 #define talloc_array(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, __location__ " - " #type)
 
-/*============================================================================*/
-
 void *_mpack_decode_talloc_ctx = NULL;
 #define CTX _mpack_decode_talloc_ctx
-
-
-__attribute__((__constructor__))
-static void init_mpack_talloc_ctx(void) 
-{
-        CTX = talloc_named_const(NULL, 0, __location__ ": TOP");
-}
 
 /*============================================================================*/
 

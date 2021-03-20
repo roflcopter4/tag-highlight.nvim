@@ -208,6 +208,28 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define O_DIRECTORY (0)
 #endif
 
+#ifndef __WORDSIZE
+#  if UINTPTR_MAX == UINT64_MAX
+#    define __WORDSIZE 64
+#  elif UINTPTR_MAX == UINT32_MAX
+#    define __WORDSIZE 32
+#  else
+#    error "Unable to determine word size."
+#  endif
+#endif
+
+#ifndef SIZE_C
+  #if __WORDSIZE == 64
+  #  define SIZE_C  UINT64_C
+  #  define SSIZE_C INT64_C
+  #elif __WORDSIZE == 32
+  #  define SIZE_C  UINT32_C
+  #  define SSIZE_C INT32_C
+  #else
+  #  error "Unable to determine word size."
+  #endif
+#endif
+
 /*===========================================================================*/
 /* Attribute aliases and junk like MIN, MAX, NOP, etc */
 

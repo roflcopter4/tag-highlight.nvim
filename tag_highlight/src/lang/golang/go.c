@@ -88,7 +88,7 @@ highlight_go(Buffer *bdata)
         struct cmd_info *info = getinfo(bdata);
         bstring         *rd   = get_command_output(BS(go_binary), argv, tmp, &retval);
         if (retval != 0)
-                errx(1, "Fuck! (%d)", WEXITSTATUS(retval));
+                errx(1, "Fuck! (%d)", retval);
         if (!rd || !rd->data || rd->slen == 0) {
                 b_free(rd);
                 retval = (-1);
@@ -97,11 +97,10 @@ highlight_go(Buffer *bdata)
 
         b_list *data = separate_and_sort(rd);
 
-        ECHO("Have %u strings...\n", data->qty);
-
         parse_go_output(bdata, info, data);
-        b_destroy_all(tmp, rd);
+        b_destroy_all(tmp, rd, go_binary);
         b_list_destroy(data);
+        talloc_free(info);
 
 cleanup:
         b_destroy(tmp);
@@ -134,18 +133,20 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
-                if (ident_is_ignored(bdata, btp_fromblk(data.ident.str, data.ident.len))) {
-//                                     (bstring[]){{.data = (uchar *)data.ident.str,
-//                                                  .slen  = data.ident.len,
-//                                                  .mlen  = 0,
-//                                                  .flags = 0}}))
-                        continue;
+                {
+                        bstring tmp = bt_fromblk(data.ident.str, data.ident.len);
+                        if (ident_is_ignored(bdata, &tmp))
+                                continue;
                 }
 
                 switch (data.ch) {
                 case 'p': case 'f': case 'm': case 'c':
                 case 't': case 's': case 'i': case 'v':
-                        ADD_CALL(data.ch);
+                        group = find_group(bdata->ft, info, info->num, data.ch);
+                        if (group) {
+                                line_data const ln = {data.start.line, data.start.column, data.end.column};
+                                add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
+                        }
                         break;
                 default:
                         SHOUT("Unidentifiable string... %c\n", data.ch);
@@ -166,14 +167,14 @@ separate_and_sort(bstring *output)
         b_list  *ret = b_list_create();
         bstring  tok = BSTR_STATIC_INIT;
         while (b_memsep(&tok, output, '\n')) {
-                bstring *tmp = b_refblk(tok.data, tok.slen);
+                bstring *tmp = b_refblk(tok.data, tok.slen + 1U, true);
 
                 if (b_list_append(ret, tmp) != BSTR_OK)
                         errx(1, "Fatal BSTRING runtime error");
         }
 
-        if (b_list_remove_dups_2(&ret) != BSTR_OK)
-                errx(1, "Fatal BSTRING runtime error");
+        //if (b_list_remove_dups_2(&ret) != BSTR_OK)
+        //        errx(1, "Fatal BSTRING runtime error");
 
 #if 0
         ECHO("Sorted. List is now %u in size\n", ret->qty);
@@ -207,22 +208,20 @@ b_list_remove_dups_2(b_list **listp)
         qsort(toks->lst, toks->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
 
         b_list *uniq = b_list_create_alloc(toks->qty);
-        uniq->lst[0] = toks->lst[0];
+        uniq->lst[0] = talloc_move(uniq->lst, &toks->lst[0]);
         uniq->qty    = 1;
-        b_writeprotect(uniq->lst[0]);
 
         for (unsigned i = 1; i < toks->qty; ++i) {
-                if (!b_iseq(toks->lst[i], toks->lst[i-1])) {
-                        uniq->lst[uniq->qty] = toks->lst[i];
-                        b_writeprotect(uniq->lst[uniq->qty]);
+                int const ret = b_iseq(toks->lst[i], toks->lst[i-1]);
+                if (ret == (-1)) {
+                        //ECHO("bstrlib returned an error comparing: \"%s\"  and  \"%s\"", toks->lst[i], toks->lst[i-1]);
+                } else if (ret == 0) {
+                        uniq->lst[uniq->qty] = talloc_move(uniq->lst, &toks->lst[i]);
                         ++uniq->qty;
                 }
         }
 
-        /* b_list_destroy(toks); */
-        for (unsigned i = 0; i < uniq->qty; ++i)
-                b_writeallow(uniq->lst[i]);
-
+        talloc_free(*listp);
         *listp = uniq;
         return BSTR_OK;
 }

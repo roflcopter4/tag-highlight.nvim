@@ -70,8 +70,7 @@ struct timer {
 #  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
 #endif
 
-#define TIMER_INITIALIZER        (&(struct timer){{0, 0}, {0, 0}})
-#define TIMER_STATIC_INITIALIZER {{0, 0}, {0, 0}}
+#define STRUCT_TIMER_INITIALIZER {{0, 0}, {0, 0}}
 
 #define STRDUP(STR)                                                     \
         __extension__({                                                 \
@@ -86,9 +85,9 @@ struct timer {
 #define USEC2SECOND (1000000.0)
 #define NSEC2SECOND (1000000000.0)
 
-#define MKTIMESPEC(FLT) (&(struct timespec){ \
+#define MKTIMESPEC(FLT) ((struct timespec[]){{ \
           (int64_t)(FLT),                    \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)})
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)}})
 
 #define TDIFF(STV1, STV2)                                            \
         (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \

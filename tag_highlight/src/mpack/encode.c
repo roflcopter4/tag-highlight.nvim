@@ -56,15 +56,8 @@
 
 static void sanity_check(mpack_obj *root, mpack_obj **itemp, unsigned check, bool force);
 
-
 void *_mpack_encode_talloc_ctx = NULL;
 #define CTX _mpack_encode_talloc_ctx
-
-__attribute__((__constructor__))
-static void init_mpack_talloc_ctx(void) 
-{
-        CTX = talloc_named_const(NULL, 0, __location__ ": TOP");
-}
 
 /*============================================================================*/
 

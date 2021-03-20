@@ -32,24 +32,17 @@ bstring *
 strip_comments(Buffer *bdata)
 {
         const struct comment_s *com = NULL;
-        /* unsigned               *bytenum = nvim_call_function_args(
-            0, B("wordcount()"), MPACK_NUM, B("bytes"), 1, "d", bdata->num); */
-
         unsigned bytenum = 0;
 
         LL_FOREACH_F (bdata->lines, line)
                 bytenum += ((bstring *)line->data)->slen + 1;
 
-        /* warnx("Buffer size is %u", bytenum); */
         bstring *joined = b_alloc_null(bytenum);
-        /* free(bytenum); */
 
         LL_FOREACH_F (bdata->lines, line) {
                 b_concat(joined, (bstring *)line->data);
                 b_conchar(joined, '\n');
         }
-
-        /* warnx("buffer size is definitely %u\n", joined->slen); */
 
         for (unsigned i = 0; i < ARRSIZ(lang_comment_groups); ++i) {
                 if (bdata->ft->id == lang_comment_groups[i].id) {
@@ -63,9 +56,7 @@ strip_comments(Buffer *bdata)
                 case PYTHON: handle_python(joined); break;
                 default:     abort();
                 }
-        } else
-                warnx("Failed to identify language \"%s\".",
-                      BTS(bdata->ft->vim_name));
+        }
 
         return joined;
 }
@@ -73,151 +64,6 @@ strip_comments(Buffer *bdata)
 
 /*============================================================================*/
 /* C style languages */
-
-
-#if 0
-#define QUOTE() (single_q || double_q)
-
-#define check_quote(CHECK, OTHER)                      \
-    do {                                               \
-            if (!(OTHER)) {                            \
-                    if (CHECK) {                       \
-                            if (!escape)               \
-                                    (CHECK) = false,   \
-                                    skip = true;       \
-                    } else                             \
-                            (CHECK) = true;            \
-            }                                          \
-            slash = false;                             \
-    } while (0)
-
-#define ustrchr(USTR, CH)  ((uchar *)(strchr((char *)(USTR), (CH))))
-#define ustrstr(USTR, STR) ((uchar *)(strstr((char *)(USTR), (STR))))
-
-enum c_com_type { NONE, BLOCK, LINE };
-
-
-static void
-handle_cstyle(bstring *vim_buf)
-{
-        /* enum c_com_type comment = NONE; */
-        unsigned     space = 0;
-        const uchar *pos   = vim_buf->data;
-
-        bool double_q, single_q, slash, escape, skip, header;
-        uchar *buf, *buf_orig;
-
-        double_q = single_q = slash = escape = skip = header = false;
-        buf_orig = buf = malloc(vim_buf->slen + 32);
-
-        if (!*pos) {
-                warnx("whole buf \"%s\"", pos);
-                errx(1, "Empty vim buffer!");
-        }
-
-        /* Add a non-offensive character to the buffer so we never have to worry
-         * about going out of bounds when checking 1 character backwards. */
-        for (int i = 0; i < 5; ++i)
-                *buf++ = ' ';
-
-        do {
-                switch (*pos) {
-                case '/':
-                        if (!QUOTE() && slash) {
-                                const uchar *tmp = pos + 1;
-                                --buf;
-                                /* Find the end of comment, but keep in mind
-                                 * that 'single line' C comments can be multiple
-                                 * lines long if the newline is escaped. */
-                                do
-                                        tmp = ustrchr(tmp + 1, '\n');
-                                while (tmp && *(tmp - 1) == '\\');
-
-                                if (!tmp) {
-                                        warnx("Couldn't find end of line comment.");
-                                        break;
-                                }
-                                pos = tmp;
-                                /* Add the newline only if the last char in the
-                                 * output buffer was not also a newline. */
-                                if (*(buf - 1) == '\n')
-                                        skip = true;
-                        } else if (!QUOTE())
-                                slash = true;
-                        break;
-
-                case '*':
-                        if (!QUOTE() && slash) {
-                                const uchar *tmp;
-                                --buf;
-                                if (!(tmp = ustrstr(pos, "*/")))
-                                        errx(1, "Couldn't find end of block comment.");
-                                pos = tmp + 2;
-                                /* Don't add newlines after infixed comments. */
-                                if (*pos == '\n' && *(buf - 1) == '\n')
-                                        skip = true;
-                                slash = false;
-                        }
-                        break;
-
-                case '\n':
-                        if (!escape) {
-                                slash = double_q = false;
-                                if (*(buf - 1) == '\n')
-                                        skip = true;
-                                header = false;
-                        }
-                        break;
-
-                case '#':;
-                        /* Strip out include directives as well. */
-                        const uchar *endln;
-                        if (*(buf - 1) == '\n' && (endln = (uchar*)strchr((char*)pos, '\n'))) {
-                                const uchar *tmp = pos + 1;
-                                while (tmp < endln && isblank(*tmp))
-                                        ++tmp;
-                                if (strncmp((char*)tmp, SLS("include")) == 0) {
-                                        header = true;
-                                        pos = endln - 1;
-                                        continue;
-                                }
-                        }
-                        slash = false;
-                        break;
-
-                case '\\': break;
-                case '"':  check_quote(double_q, single_q); break;
-                case '\'': check_quote(single_q, double_q); break;
-                default:   slash = false;
-                }
-
-                escape = (*pos == '\\') ? !escape : false;
-                /* Avoid adding spaces at the start of lines, and don't add more
-                 * than one space or newline in succession. */
-                space  = (isblank(*pos) &&
-                          !(skip = (skip) ? true : *(buf - 1) == '\n')
-                         ) ? space + 1 : 0;
-
-                if (skip)
-                        skip = false;
-                else if (!QUOTE() && !header && space < 2)
-                        *buf++ = *pos;
-
-        } while (*pos++);
-
-        *buf = '\0';
-
-        free(vim_buf->data);
-        vim_buf->data = buf_orig;
-        vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
-}
-
-#undef QUOTE
-#undef check_quote
-#endif
-
-
-/*============================================================================*/
 
 #define GUESS_AVERAGE_LINELEN (45llu)
 #define WANT_IF_ZERO          (UCHAR_MAX + 1)
@@ -341,7 +187,7 @@ handle_cstyle(bstring **vim_bufp)
                 if (!empty) {
                         repl[x++] = '\n';
                         repl[x]   = '\0';
-                        b_list_append(list, b_steal(repl, x));
+                        b_list_append(list, b_steal(repl, x + 1, true));
                 } else {
                         free(repl);
                 }
@@ -350,13 +196,6 @@ handle_cstyle(bstring **vim_bufp)
         free(bak);
         free(*vim_bufp);
         *vim_bufp = b_list_join(list, NULL);
-
-#if 0
-        FILE *fp = safe_fopen_fmt("%s/.tag_highlight_log/strip.log", "wb", HOME);
-        b_fwrite(fp, *vim_bufp);
-        fclose(fp);
-#endif
-
         b_list_destroy(list);
 }
 
@@ -398,8 +237,9 @@ handle_cstyle(bstring **vim_bufp)
                                     if (!escape)                     \
                                             (AA).Q = false,          \
                                             skip = true;             \
-                            } else                                   \
+                            } else {                                 \
                                     (AA).Q = true;                   \
+                            }                                        \
                     }                                                \
             }                                                        \
     } while (0)

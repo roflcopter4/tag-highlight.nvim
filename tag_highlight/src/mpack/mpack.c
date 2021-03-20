@@ -3,6 +3,8 @@
 /* #include "highlight.h" */
 #include "mpack.h"
 
+P99_DEFINE_ENUM(mpack_expect_t);
+
 struct item_free_stack {
         mpack_obj **items;
         uint32_t    qty;
@@ -46,14 +48,16 @@ mpack_retval
         mpack_retval ret = {.ptr = NULL};
         uint64_t     value;
         mpack_type_t err_expect;
-        pthread_mutex_lock(&mpack_rw_lock);
+        /* pthread_mutex_lock(&mpack_rw_lock); */
 
         if (!obj)
                 return ret;
+#if 0
         if (mpack_log) {
                 mpack_print_object(mpack_log, obj);
                 fflush(mpack_log);
         }
+#endif
 
         mpack_type_t const obj_type = mpack_type(obj);
 
@@ -61,7 +65,6 @@ mpack_retval
         case E_MPACK_ARRAY:
                 if (destroy)
                         talloc_steal(NULL, obj->arr);
-                        // mpack_spare_data(obj);
                 ret.ptr = obj->arr;
                 break;
 
@@ -70,7 +73,6 @@ mpack_retval
                         goto error;
                 if (destroy)
                         talloc_steal(NULL, obj->dict);
-                        // mpack_spare_data(obj);
                 ret.ptr = obj->dict;
                 break;
 
@@ -79,7 +81,6 @@ mpack_retval
                         goto error;
                 if (destroy)
                         talloc_steal(NULL, obj->ext);
-                        /* mpack_spare_data(obj); */
                 ret.ptr = obj->ext;
                 break;
 
@@ -139,7 +140,7 @@ mpack_retval
                 /* mpack_destroy_object(obj); */
         }
 
-        pthread_mutex_unlock(&mpack_rw_lock);
+        /* pthread_mutex_unlock(&mpack_rw_lock); */
         return ret;
 
 error:

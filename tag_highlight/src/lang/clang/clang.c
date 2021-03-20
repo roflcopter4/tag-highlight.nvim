@@ -58,25 +58,23 @@ static int                     do_destroy_clangdata(struct clangdata *cdata);
 #  define TIMER_REPORT(...)
 #endif
 
-/*======================================================================================*/
+static pthread_mutex_t lc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *_clang_talloc_ctx = NULL;
+#define CTX _clang_talloc_ctx
 
 __attribute__((__constructor__))
-static void init_mpack_talloc_ctx(void) 
+static void clang_initializer(void)
 {
-        _clang_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
+        pthread_mutex_init(&lc_mutex);
 }
 
 /*======================================================================================*/
 
 
-
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
 {
-        static pthread_mutex_t lc_mutex = PTHREAD_MUTEX_INITIALIZER;
-
         if (!bdata || !bdata->initialized)
                 return;
         if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
@@ -104,16 +102,13 @@ void
 
         /* pthread_mutex_lock(&bdata->lock.update); */
         pthread_mutex_lock(&lc_mutex);
-        {
-                /* pthread_rwlock_rdlock(&bdata->lines->lock); */
-                joined = ll_join_bstrings(bdata->lines, '\n');
-                if (last == (-1)) {
-                        startend[0] = 0;
-                        startend[1] = joined->slen;
-                } else {
-                        lines2bytes(bdata, startend, first, last);
-                }
-                /* pthread_mutex_unlock(&bdata->lines->lock); */
+
+        joined = ll_join_bstrings(bdata->lines, '\n');
+        if (last == (-1)) {
+                startend[0] = 0;
+                startend[1] = joined->slen;
+        } else {
+                lines2bytes(bdata, startend, first, last);
         }
 
         if (type == HIGHLIGHT_REDO) {
@@ -131,8 +126,8 @@ void
         mpack_arg_array *calls = create_nvim_calls(bdata, stu);
         nvim_call_atomic(calls);
 
-        mpack_destroy_arg_array(calls);
-        TALLOC_FREE(stu);
+        talloc_free(calls);
+        talloc_free(stu);
         p99_count_dec(&bdata->lock.num_workers);
 
         pthread_mutex_unlock(&lc_mutex);
@@ -198,7 +193,7 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
         if (ret != 0)
                 handle_libclang_error(ret);
 
-        struct translationunit *stu = talloc(_clang_talloc_ctx, struct translationunit);
+        struct translationunit *stu = talloc(CTX, struct translationunit);
         stu->tu  = CLD(bdata)->tu;
         stu->buf = talloc_move(stu, &buf);
         talloc_set_destructor(stu, destroy_struct_translationunit);
@@ -229,7 +224,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
                 err(1, "Write error");
         close(tmpfd);
 
-#ifdef DEBUG
+#if defined DEBUG && 0
         argv_dump(stderr, comp_cmds);
 #endif
 
@@ -250,7 +245,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         if (cld->info)
                 TALLOC_FREE(cld->info);
 
-        struct translationunit *stu = talloc(_clang_talloc_ctx, struct translationunit);
+        struct translationunit *stu = talloc(CTX, struct translationunit);
         stu->buf = talloc_move(stu, &buf);
         stu->tu  = cld->tu;
         stu->idx = cld->idx;
@@ -653,7 +648,7 @@ get_token_data(CXTranslationUnit *tu, CXToken *tok, CXCursor *cursor)
         /* CXString dispname = clang_getCursorDisplayName(*cursor); */
         CXString dispname = clang_getCursorSpelling(*cursor);
         size_t const len  = strlen(CS(dispname)) + UINTMAX_C(1);
-        ret               = talloc_size(_clang_talloc_ctx, offsetof(struct token, raw) + len);
+        ret               = talloc_size(CTX, offsetof(struct token, raw) + len);
         ret->token        = *tok;
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);

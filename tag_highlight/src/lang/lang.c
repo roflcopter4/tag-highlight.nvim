@@ -43,17 +43,6 @@ getinfo(Buffer *bdata)
         return info;
 }
 
-void
-destroy_struct_info(struct cmd_info *info)
-{
-        talloc_free(info);
-        //if (info) {
-        //        for (unsigned i = 0, e = info[0].num; i < e; ++i)
-        //                b_destroy(info[i].group);
-        //        free(info);
-        //}
-}
-
 /*======================================================================================*/
 
 #define INIT_ACALL_SIZE (128)

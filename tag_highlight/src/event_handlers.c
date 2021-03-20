@@ -7,46 +7,9 @@
 #include "contrib/p99/p99_atomic.h"
 #include <signal.h>
 
-
 #define BT bt_init
 
-#define EVENT_LIB_EV   1
-#define EVENT_LIB_NONE 2
-#ifdef DOSISH
-#  define USE_EVENT_LIB  EVENT_LIB_NONE
-#  define KILL_SIG       SIGTERM
-#else
-#  ifdef HAVE_LIBEV
-#    define USE_EVENT_LIB  EVENT_LIB_EV
-#  else
-#    define USE_EVENT_LIB  EVENT_LIB_NONE
-#  endif
-#  define KILL_SIG       SIGUSR1
-pthread_t event_loop_thread;
-#endif
-
-extern FILE *main_log;
-extern FILE *api_buffer_log;
-extern p99_futex volatile _nvim_wait_futex;
-
 /*======================================================================================*/
-
-void *_events_object_talloc_ctx = NULL;
-void *_events_nvim_notification_talloc_ctx = NULL;
-void *_events_nvim_response_talloc_ctx = NULL;
-
-__attribute__((__constructor__))
-static void init_mpack_talloc_ctx(void) 
-{
-        _events_object_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
-        _events_nvim_notification_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
-        _events_nvim_response_talloc_ctx = talloc_named_const(NULL, 0, __location__ ": TOP");
-}
-
-/*======================================================================================*/
-
-P99_DECLARE_STRUCT(event_id);
-typedef const event_id *event_idp;
 
 const event_id event_list[] = {
         { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES        },
@@ -55,208 +18,56 @@ const event_id event_list[] = {
         { BT("vim_event_update"),           EVENT_VIM_UPDATE       },
 };
 
-P99_DECLARE_FIFO(event_node);
-
-struct event_node {
-        _Atomic(mpack_obj *) obj;
-        event_node *p99_fifo;
-};
-
-struct event_data {
-        int        fd;
-        mpack_obj *obj;
-};
-
-/*======================================================================================*/
-
-extern noreturn void *highlight_go_pthread_wrapper(void *vdata);
-static noreturn void *handle_nvim_response    (void *vdata);
-static noreturn void *handle_nvim_notification(void *unused);
-static          void  handle_nvim_message     (int fd, mpack_obj *obj);
-
 FILE *                   api_buffer_log   = NULL;
 p99_futex volatile       event_loop_futex = P99_FUTEX_INITIALIZER(0);
-static pthread_mutex_t   event_loop_cb_mutex;
 static pthread_mutex_t   handle_mutex;
 static pthread_mutex_t   nvim_event_handler_mutex;
 P99_FIFO(event_node_ptr) nvim_event_queue;
 
-/*
- * Explicitly initializing every mutex seems strictly necessary under MinGW's
- * implementation of pthreads on Windows. Things break otherwise.
- */
+#define CTX _event_handlers_talloc_ctx
+void *_event_handlers_talloc_ctx = NULL;
+
 __attribute__((__constructor__))
-static void events_mutex_initializer(void)
+static void event_handlers_initializer(void)
 {
-        pthread_mutex_init(&event_loop_cb_mutex);
-        pthread_mutex_init(&handle_mutex);
-        pthread_mutex_init(&nvim_event_handler_mutex);
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&handle_mutex, &attr);
+        pthread_mutex_init(&nvim_event_handler_mutex, &attr);
         p99_futex_init((p99_futex *)&event_loop_futex, 0);
 }
 
-/*======================================================================================*
- * Main Event Loop                                                                      *
- *======================================================================================*/
-
-#if USE_EVENT_LIB == EVENT_LIB_EV
-/*
- * Using libev
- */
-
-# include <ev.h>
-static struct ev_io     input_watcher;
-static struct ev_signal signal_watcher[4];
-static void event_loop_io_cb(struct ev_loop *, ev_io *, int);
-static void event_loop_graceful_signal_cb(struct ev_loop *, ev_signal *, int);
-static noreturn void event_loop_signal_cb(struct ev_loop *, ev_signal *, int);
-
-/*extern*/ void
-run_event_loop(int const fd)
-{
-        struct ev_loop *loop = EV_DEFAULT;
-        event_loop_thread    = pthread_self();
-        ev_io_init(&input_watcher, event_loop_io_cb, fd, EV_READ);
-        ev_io_start(loop, &input_watcher);
-
-        ev_signal_init(&signal_watcher[0], event_loop_signal_cb, SIGTERM);
-        ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGPIPE);
-        ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGHUP);
-        ev_signal_init(&signal_watcher[3], event_loop_graceful_signal_cb, SIGUSR1);
-        ev_signal_start(loop, &signal_watcher[0]);
-        ev_signal_start(loop, &signal_watcher[1]);
-        ev_signal_start(loop, &signal_watcher[2]);
-        ev_signal_start(loop, &signal_watcher[3]);
-
-        /* This actually runs the show. */
-        ev_run(loop, 0);
-}
-
-static void
-event_loop_io_cb(UNUSED EV_P, ev_io *w, UNUSED int revents)
-{
-        pthread_mutex_lock(&event_loop_cb_mutex);
-
-        int const  fd  = w->fd;
-        mpack_obj *obj = mpack_decode_stream(fd);
-        talloc_steal(_events_object_talloc_ctx, obj);
-        handle_nvim_message(fd, obj);
-
-        pthread_mutex_unlock(&event_loop_cb_mutex);
-}
-
-static void
-event_loop_graceful_signal_cb(struct ev_loop *loop,
-                              UNUSED ev_signal *w, UNUSED int revents)
-{
-        extern void exit_cleanup(void);
-        exit_cleanup();
-
-        ev_signal_stop(loop, &signal_watcher[0]);
-        ev_signal_stop(loop, &signal_watcher[1]);
-        ev_signal_stop(loop, &signal_watcher[2]);
-        ev_signal_stop(loop, &signal_watcher[3]);
-        ev_io_stop(loop, &input_watcher);
-}
-
-static noreturn void
-event_loop_signal_cb(UNUSED EV_P, UNUSED ev_signal *w, UNUSED int revents)
-{
-        quick_exit(1);
-}
-
-/*======================================================================================*/
-#elif USE_EVENT_LIB == EVENT_LIB_NONE
-/*
- * Using no event library
- */
-
-static noreturn void event_loop(int fd);
-# ifndef DOSISH
-static jmp_buf event_loop_jmp_buf;
-
-static noreturn void
-event_loop_sighandler(int signum)
-{
-        if (signum == SIGUSR1)
-                longjmp(event_loop_jmp_buf, 1);
-        else
-                exit(0);
-        //longjmp(event_loop_jmp_buf, signum);
-}
-# endif
-
-/*extern*/ void
-run_event_loop(int const fd)
-{
-        /* I wanted to use pthread_once but it requires a function that takes no
-         * arguments. Getting around that would defeat the whole point. */
-        static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
-
-        if (!atomic_flag_test_and_set(&event_loop_called)) {
-                /* Don't bother handling signals at all on Windows. */
-# ifndef DOSISH
-                event_loop_thread = pthread_self();
-                int signum;
-                if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
-                        eprintf("I gone and got a (%d)\n", signum);
-                        return;
-                }
-                struct sigaction act;
-                memset(&act, 0, sizeof(act));
-                act.sa_handler = event_loop_sighandler;
-                sigaction(SIGUSR1, &act, NULL);
-                sigaction(SIGTERM, &act, NULL);
-                sigaction(SIGPIPE, &act, NULL);
-                //sigaction(SIGINT, &act, NULL);
-                sigaction(SIGHUP, &act, NULL);
-                //sigaction(SIGCHLD, &act, NULL);
-# endif
-                /* Run the show. */
-                event_loop(fd);
-        }
-}
-
-/*
- * Very sophisticated loop.
- */
-static noreturn void
-event_loop(int const fd)
-{
-        for (;;) {
-                mpack_obj *obj = mpack_decode_stream(fd);
-                handle_nvim_message(fd, obj);
-        }
-}
-
-#endif /* No event lib */
+extern noreturn void *highlight_go_pthread_wrapper(void *vdata);
+static void handle_nvim_response    (mpack_obj *obj, int fd);
+static void handle_nvim_notification(mpack_obj *event);
 
 /*======================================================================================*/
 /* Event Handlers */
 /*======================================================================================*/
 
 static void      handle_line_event(Buffer *bdata, mpack_array *arr);
-static event_idp id_event         (mpack_obj *event);
+static event_idp id_event         (mpack_obj *event) __attribute__((__pure__));
 
-static void
-handle_nvim_message(int const fd, mpack_obj *obj)
+noreturn void *
+handle_nvim_message(void *vdata)
 {
+        struct event_data *data = vdata;
+        mpack_obj         *obj  = data->obj;
+        int const          fd   = data->fd;
+        free(data);
+
         nvim_message_type const mtype = mpack_expect(mpack_index(obj, 0), E_NUM).num;
 
         switch (mtype) {
         case MES_NOTIFICATION: {
-                talloc_steal(_events_nvim_notification_talloc_ctx, obj);
-                event_node *node = calloc(1, sizeof *node);
-                atomic_store_explicit(&node->obj, obj, memory_order_relaxed);
-                P99_FIFO_APPEND(&nvim_event_queue, node);
-                START_DETACHED_PTHREAD(handle_nvim_notification);
+                talloc_steal(CTX, obj);
+                handle_nvim_notification(obj);
                 break;
         }
         case MES_RESPONSE: {
-                talloc_steal(_events_nvim_response_talloc_ctx, obj);
-                struct event_data *data = malloc(sizeof *data);
-                data->fd  = fd;
-                data->obj = obj;
-                START_DETACHED_PTHREAD(handle_nvim_response, data);
+                talloc_steal(CTX, obj);
+                handle_nvim_response(obj, fd);
                 break;
         }
         case MES_REQUEST:
@@ -266,18 +77,16 @@ handle_nvim_message(int const fd, mpack_obj *obj)
                 errx(1, "Recieved invalid object type from neovim. "
                      "This should be \"impossible\"?\n");
         }
+
+        pthread_exit();
 }
 
-static noreturn void *
-handle_nvim_notification(UNUSED void *unused)
+static void
+handle_nvim_notification(mpack_obj *event)
 {
-        pthread_mutex_lock(&nvim_event_handler_mutex);
+        assert(event);
+        //pthread_mutex_lock(&nvim_event_handler_mutex);
 
-        event_node *node = P99_FIFO_POP(&nvim_event_queue);
-        if (!node)
-                errx(1, "Impossible, shut up clang.");
-
-        mpack_obj   *event = node->obj;
         mpack_array *arr   = mpack_expect(mpack_index(event, 2), E_MPACK_ARRAY).ptr;
         event_idp    type  = id_event(event);
         /* mpack_print_object(api_buffer_log, event); */
@@ -300,15 +109,15 @@ handle_nvim_notification(UNUSED void *unused)
                 case EVENT_BUF_CHANGED_TICK: {
                         pthread_mutex_lock(&bdata->lock.ctick);
                         uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
-                        if (new_tick > atomic_load(&bdata->ctick))
-                                atomic_store(&bdata->ctick, new_tick);
+                        if (new_tick > atomic_load_explicit(&bdata->ctick, memory_order_acquire))    
+                                atomic_store_explicit(&bdata->ctick, new_tick, memory_order_release);
                         pthread_mutex_unlock(&bdata->lock.ctick);
                         break;
                 }
                 case EVENT_BUF_DETACH:
                         clear_highlight(bdata);
                         destroy_buffer(bdata);
-                        warnx("Detaching from buffer %d", bufnum);
+                        echo("Detaching from buffer %d", bufnum);
                         break;
                 default:
                         abort();
@@ -317,22 +126,15 @@ handle_nvim_notification(UNUSED void *unused)
 
         /* mpack_destroy_object(event); */
         talloc_free(event);
-        free(node);
-
-        pthread_mutex_unlock(&nvim_event_handler_mutex);
-        pthread_exit();
+        //pthread_mutex_unlock(&nvim_event_handler_mutex);
 }
 
-static noreturn void *
-handle_nvim_response(void *vdata)
+static void
+handle_nvim_response(mpack_obj *obj, int fd)
 {
-        struct event_data *data  = vdata;
-        mpack_obj         *obj   = data->obj;
-        int                fd    = data->fd;
-        unsigned const     count = mpack_expect(mpack_index(obj, 1), E_NUM).num;
-        _nvim_wait_node   *node  = NULL;
+        unsigned const   count = mpack_expect(mpack_index(obj, 1), E_NUM).num;
+        _nvim_wait_node *node  = NULL;
 
-        free(data);
         if (fd == 0)
                 ++fd;
 
@@ -340,7 +142,7 @@ handle_nvim_response(void *vdata)
                 node = P99_FIFO_POP(&_nvim_wait_queue);
                 if (!node) {
                         eprintf("Queue is empty.");
-                        talloc_free(obj);
+                        TALLOC_FREE(obj);
                         pthread_exit();
                 }
 
@@ -352,7 +154,6 @@ handle_nvim_response(void *vdata)
 
         atomic_store_explicit(&node->obj, obj, memory_order_release);
         p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
-        pthread_exit();
 }
 
 static event_idp
@@ -374,10 +175,12 @@ static inline void replace_line(Buffer *bdata, b_list *new_strings,
 static inline void line_event_multi_op(Buffer *bdata, b_list *new_strings,
                                        int first, int num_to_modify);
 
+static noreturn void *update_highlight_wrapper(void *bdata);
+
 static void
 handle_line_event(Buffer *bdata, mpack_array *arr)
 {
-        pthread_mutex_lock(&handle_mutex);
+        //pthread_mutex_lock(&handle_mutex);
 
         if (arr->qty < 5)
                 errx(1, "Received an array from neovim that is too small. This "
@@ -385,6 +188,8 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         else if (arr->lst[5]->boolean)
                 errx(1, "Error: Continuation condition is unexpectedly true, "
                         "cannot continue.");
+
+        pthread_mutex_lock(&bdata->lock.total);
 
         pthread_mutex_lock(&bdata->lock.ctick);
         unsigned const new_tick = mpack_expect(arr->lst[1], E_NUM, true).num;
@@ -398,7 +203,7 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
         int const diff        = last - first;
         bool      empty       = false;
 
-        pthread_rwlock_wrlock(&bdata->lines->lock);
+        //pthread_mutex_lock(&bdata->lines->lock);
 
         /*
          * NOTE: For some reason neovim sometimes sends updates with an empty
@@ -446,26 +251,31 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
                 bdata->initialized = true;
 
         talloc_free(new_strings);
-        /* free(new_strings->lst); */
-        /* free(new_strings); */
-        pthread_rwlock_unlock(&bdata->lines->lock);
+        //pthread_mutex_unlock(&bdata->lines->lock);
+        pthread_mutex_unlock(&bdata->lock.total);
 
+#if 0
         if (!empty && bdata->ft->has_parser) {
                 if (bdata->ft->is_c)
                         START_DETACHED_PTHREAD(highlight_c_pthread_wrapper, bdata);
                 else if (bdata->ft->id == FT_GO)
                         START_DETACHED_PTHREAD(highlight_go_pthread_wrapper, bdata);
         }
-        pthread_mutex_unlock(&handle_mutex);
+#endif
+        if (!empty && bdata->ft->has_parser)
+                START_DETACHED_PTHREAD(update_highlight_wrapper, bdata);
+        //pthread_mutex_unlock(&handle_mutex);
 }
 
 static inline void
 replace_line(Buffer *bdata, b_list *new_strings,
              int const lineno, int const index)
 {
+        pthread_mutex_lock(&bdata->lines->lock);
         ll_node *node = ll_at(bdata->lines, lineno);
         talloc_free(node->data);
         node->data = talloc_move(node, &new_strings->lst[index]);
+        pthread_mutex_unlock(&bdata->lines->lock);
 }
 
 /*
@@ -514,4 +324,11 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                         break;
                 }
         }
+}
+
+static noreturn void *
+update_highlight_wrapper(void *bdata)
+{
+        update_highlight(bdata);
+        pthread_exit();
 }

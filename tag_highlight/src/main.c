@@ -3,6 +3,22 @@
 
 #include "contrib/p99/p99_futex.h"
 
+#if defined SANITIZE && defined DEBUG
+#  include "sanitizer/common_interface_defs.h"
+__attribute__((const))
+const char *__asan_default_options(void)
+{
+        /* return "verbosity=1:fast_unwind_on_malloc=0" */
+        return "fast_unwind_on_malloc=0"
+#if 0
+#ifdef SANITIZER_LOG_PLACE
+        ":log_path=" SANITIZER_LOG_PLACE
+#endif
+#endif
+        ;
+}
+#endif
+
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
@@ -13,7 +29,7 @@ const char *program_invocation_short_name;
 
 extern bool         process_exiting;
 extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
-static struct timer main_timer               = TIMER_STATIC_INITIALIZER;
+static struct timer main_timer               = STRUCT_TIMER_INITIALIZER;
 p99_futex           first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 char                LOGDIR[SAFE_PATH_MAX];
 pthread_t           top_thread;
@@ -28,14 +44,21 @@ static void           quick_cleanup       (void);
 static comp_type_t    get_compression_type(void);
 static noreturn void *neovim_init         (void *arg);
 extern void           run_event_loop      (int fd);
+static void initialize_talloc_contexts(void);
+static void clean_talloc_contexts(void);
 
 extern void *_mpack_decode_talloc_ctx;
 extern void *_mpack_encode_talloc_ctx;
-extern void *_events_object_talloc_ctx;
-extern void *_events_nvim_notification_talloc_ctx;
-extern void *_events_nvim_response_talloc_ctx;
+extern void *_event_loop_talloc_ctx;
+extern void *_event_handlers_talloc_ctx;
 extern void *_nvim_common_talloc_ctx;
 extern void *_clang_talloc_ctx;
+extern void *_buffer_talloc_ctx;
+extern void *_tok_scan_talloc_ctx;
+extern void *_update_top_talloc_ctx;
+extern void *__bstring_talloc_top_ctx;
+static void *main_top_talloc_ctx = NULL;
+#define CTX main_top_talloc_ctx
 
 /*======================================================================================*/
 
@@ -43,11 +66,11 @@ int
 main(UNUSED int argc, char *argv[])
 {
         talloc_disable_null_tracking();
-        platform_init(argv);
         process_exiting = false;
-        talloc_log_file = safe_fopen_fmt("%s/talloc_report.log", "wb", HOME);
-
         TIMER_START(&main_timer);
+
+        /* Accomodate for Win32 */
+        platform_init(argv);
 
         /* This function will ultimately spawn an asynchronous thread that will try to
          * attach to the current buffer, if possible. */
@@ -56,49 +79,14 @@ main(UNUSED int argc, char *argv[])
         /* This normally does not return. */
         run_event_loop(STDIN_FILENO);
 
-        /* If the user explicitly gives the Vim command to stop the plugin, the loop
-         * returns and we clean everything up. We don't do this when Neovim exits because
-         * it freezes until all child processes have stopped. This delay is noticeable
-         * and annoying, so normally we just call quick_exit or _Exit instead. */
-        if (!process_exiting) {
-                eprintf("Right, cleaning up!");
-                /* exit_cleanup(); */
-                eprintf("All clean!");
-        } else {
-                eprintf("nil");
-        }
-        
-        talloc_report_full(_mpack_decode_talloc_ctx, talloc_log_file);
-        talloc_report_full(_mpack_encode_talloc_ctx, talloc_log_file);
-        talloc_report_full(_events_object_talloc_ctx, talloc_log_file);
-        talloc_report_full(_events_nvim_notification_talloc_ctx, talloc_log_file);
-        talloc_report_full(_events_nvim_response_talloc_ctx, talloc_log_file);
-        talloc_report_full(_nvim_common_talloc_ctx, talloc_log_file);
-        talloc_report_full(_clang_talloc_ctx, talloc_log_file);
-        fclose(talloc_log_file);
-        talloc_free(_mpack_decode_talloc_ctx);
-        talloc_free(_mpack_encode_talloc_ctx);
-        talloc_free(_events_object_talloc_ctx);
-        talloc_free(_events_nvim_notification_talloc_ctx);
-        talloc_free(_events_nvim_response_talloc_ctx);
-        talloc_free(_nvim_common_talloc_ctx);
-        talloc_free(_clang_talloc_ctx);
+        /* ... except for when it does. If the user has deliberately stopped the
+         * program, we clean up. */
+        clean_talloc_contexts();
 
         return 0;
 }
 
 /*======================================================================================*/
-/* General Setup */
-
-static void
-general_init(void)
-{
-        top_thread = pthread_self();
-        open_logs();
-        p99_futex_init(&first_buffer_initialized, 0);
-        at_quick_exit(quick_cleanup);
-        START_DETACHED_PTHREAD(neovim_init);
-}
 
 static void
 platform_init(char **argv)
@@ -121,6 +109,60 @@ platform_init(char **argv)
         HOME = getenv("HOME");
 #endif
 }
+
+static void
+general_init(void)
+{
+#ifdef DEBUG
+        talloc_log_file = safe_fopen_fmt("%s/talloc_report.log", "wb", HOME);
+#endif
+#if defined SANITIZE && !defined SANITIZER_LOG_PLACE
+        {
+                char tmp[8192];
+                snprintf(tmp, 8192, "%s/sanitizer.log", HOME);
+                __sanitizer_set_report_path(tmp);
+        }
+#endif
+        initialize_talloc_contexts();
+        open_logs();
+        top_thread = pthread_self();
+        p99_futex_init(&first_buffer_initialized, 0);
+        at_quick_exit(quick_cleanup);
+        START_DETACHED_PTHREAD(neovim_init);
+}
+
+static void
+initialize_talloc_contexts(void)
+{
+#if 0
+        main_top_talloc_ctx        = talloc_named_const(CTX, 0, "Main Top");
+        _mpack_encode_talloc_ctx   = talloc_named_const(CTX, 0, "Mpack Encode Top");
+        _mpack_decode_talloc_ctx   = talloc_named_const(CTX, 0, "Mpack Decode Top");
+        _nvim_common_talloc_ctx    = talloc_named_const(CTX, 0, "Nvim Common Top");
+        _clang_talloc_ctx          = talloc_named_const(CTX, 0, "Clang Top");
+        _event_loop_talloc_ctx     = talloc_named_const(CTX, 0, "Event Loop Top");
+        _event_handlers_talloc_ctx = talloc_named_const(CTX, 0, "Event Handlers Top");
+        _buffer_talloc_ctx         = talloc_named_const(CTX, 0, "Buffer Top Context");
+        _tok_scan_talloc_ctx       = talloc_named_const(CTX, 0, "Token Scanner Top Context");
+        _update_top_talloc_ctx     = talloc_named_const(CTX, 0, "Update Top Context");
+        __bstring_talloc_top_ctx   = talloc_named_const(CTX, 0, "Bstring Top Context");
+#endif
+}
+
+static void
+clean_talloc_contexts(void)
+{
+#if 0
+#ifdef DEBUG
+        talloc_report_full(main_top_talloc_ctx, talloc_log_file);
+        fclose(talloc_log_file);
+#endif
+        talloc_free(main_top_talloc_ctx);
+#endif
+}
+
+/*======================================================================================*/
+/* General Setup */
 
 /*
  * Open debug logs
@@ -189,6 +231,17 @@ get_settings(void)
 
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
+
+#if 0 /* Don't rock the boat I guess. */
+        talloc_steal(settings, settings.cache_dir);
+        talloc_steal(settings, settings.ctags_bin);
+        talloc_steal(settings, settings.settings_file);
+        talloc_steal(settings, settings.ctags_args);
+        talloc_steal(settings, settings.ignored_ftypes);
+        talloc_steal(settings, settings.norecurse_dirs);
+        talloc_steal(settings, settings.ignored_tags);
+        talloc_steal(settings, settings.order);
+#endif
 }
 
 static comp_type_t
@@ -234,57 +287,22 @@ exit_cleanup(void)
         if (atomic_flag_test_and_set(&flg))
                 return;
 
-        /* malloc_stats_print(NULL, NULL, ""); */
-
-#if 0
-        b_destroy(settings.cache_dir);
-        b_destroy(settings.ctags_bin);
-        b_destroy(settings.settings_file);
-        b_list_destroy(settings.ctags_args);
-        b_list_destroy(settings.norecurse_dirs);
-        b_list_destroy(settings.ignored_ftypes);
-#endif
-        talloc_free(settings.cache_dir);
-        talloc_free(settings.ctags_bin);
-        talloc_free(settings.settings_file);
-        talloc_free(settings.ctags_args);
-        talloc_free(settings.norecurse_dirs);
-        talloc_free(settings.ignored_ftypes);
-
         if (!process_exiting)
                 LL_FOREACH_F (buffer_list, node)
-                        clear_bnode(node->data, false);
-
-        //ll_destroy(buffer_list);
-        //genlist_destroy(top_dirs);
-        //if (top_dirs) {
-        //        /* free(top_dirs->lst); */
-        //        talloc_free(top_dirs);
-        //}
+                        clear_bnode(node->data, true);
 
         talloc_free(buffer_list);
         talloc_free(top_dirs);
         talloc_free(ftdata);
-
-        //for (unsigned i = 0; i < ftdata_len; ++i) {
-        //        struct filetype *ft = &ftdata[i];
-        //        if (ft->initialized) {
-        //                if (ft->ignored_tags) {
-        //                        b_list *igt = ft->ignored_tags;
-        //                        for (unsigned x = 0; x < igt->qty; ++x)
-        //                                if (igt->lst[x]->flags & BSTR_MASK_USR1)
-        //                                        b_destroy(igt->lst[x]);
-        //                        free(igt->lst);
-        //                        free(igt);
-        //                }
-        //                b_list_destroy(ft->equiv);
-        //                b_destroy(ft->order);
-        //                b_destroy(ft->restore_cmds);
-        //        }
-        //}
-
-        talloc_free(settings.order);
+        talloc_free(settings.cache_dir);
+        talloc_free(settings.ctags_args);
+        talloc_free(settings.ctags_bin);
+        talloc_free(settings.ignored_ftypes);
         talloc_free(settings.ignored_tags);
+        talloc_free(settings.norecurse_dirs);
+        talloc_free(settings.order);
+        talloc_free(settings.settings_file);
+
         quick_cleanup();
 }
 

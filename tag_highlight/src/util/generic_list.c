@@ -57,7 +57,7 @@ genlist_create(void *talloc_ctx)
         list->lst     = talloc_array(list, void *, 2);
         list->qty     = 0;
         list->mlen    = 2;
-        talloc_set_destructor(list, genlist_destroy);
+        /* talloc_set_destructor(list, genlist_destroy); */
         pthread_mutexattr_t attr;
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -78,7 +78,7 @@ genlist_create_alloc(void *talloc_ctx, const unsigned msz)
         list->lst     = talloc_array(list, void *, size);
         list->qty     = 0;
         list->mlen    = size;
-        talloc_set_destructor(list, genlist_destroy);
+        /* talloc_set_destructor(list, genlist_destroy); */
         pthread_mutexattr_t attr;
         pthread_mutexattr_init(&attr);
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -197,17 +197,25 @@ genlist_remove(genlist *list, const void *obj)
 {
         if (!list || !list->lst || !obj)
                 RUNTIME_ERROR();
+
         pthread_mutex_lock(&list->mut);
+
+        assert(list->qty > 0);
+        eprintf("qty -> %u\n", list->qty);
         int ret = (-1);
 
         for (unsigned i = 0; i < list->qty; ++i) {
                 if (list->lst[i] == obj) {
                         talloc_free(list->lst[i]);
                         list->lst[i] = NULL;
+                        assert(list->qty > 0);
+                        --list->qty;
 
-                        if (i == --list->qty)
-                                memmove(list->lst + i, list->lst + (i+1),
-                                        (list->qty - i) * sizeof(void *));
+                        if (i != list->qty && list->qty > 0) {
+                                eprintf("qty -> %u, i ->%u\n", list->qty, i);
+                                memmove(&list->lst[i], &list->lst[i+1],
+                                                (list->qty - i) * sizeof(void *));
+                        }
 
                         ret = 0;
                         break;

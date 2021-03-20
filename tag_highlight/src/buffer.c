@@ -21,6 +21,9 @@
 #  define DOSCHECK(CH_) (false)
 #endif
 
+#define CTX _buffer_talloc_ctx
+void *_buffer_talloc_ctx = NULL;
+
 P99_DECLARE_STRUCT(buffer_node);
 struct buffer_node {
         int               num;
@@ -95,7 +98,7 @@ make_new_buffer(buffer_node *bnode)
                 talloc_set_destructor(ret, destroy_buffer_wrapper);
         }
 
-        TALLOC_FREE(ftname);
+        talloc_free(ftname);
         pthread_rwlock_unlock(bnode->lock);
         return ret;
 }
@@ -104,7 +107,7 @@ static buffer_node *
 find_buffer_node(int const bufnum)
 {
         buffer_node *bnode = NULL;
-        pthread_rwlock_rdlock(&buffer_list->lock);
+        pthread_mutex_lock(&buffer_list->lock);
 
         LL_FOREACH_F (buffer_list, node) {
                 buffer_node *bnode_tmp = node->data;
@@ -118,16 +121,14 @@ find_buffer_node(int const bufnum)
                         break;
         }
 
-        pthread_rwlock_unlock(&buffer_list->lock);
+        pthread_mutex_unlock(&buffer_list->lock);
         return bnode;
 }
 
 static inline buffer_node *
 new_buffer_node(int const bufnum)
 {
-        /* buffer_node *bnode = malloc(sizeof *bnode); */
-        /* bnode->lock        = malloc(sizeof *bnode->lock); */
-        buffer_node *bnode = talloc(NULL, buffer_node);
+        buffer_node *bnode = talloc(CTX, buffer_node);
         bnode->lock        = talloc(bnode, pthread_rwlock_t);
         bnode->bdata       = NULL;
         bnode->isopen      = false;
@@ -155,7 +156,7 @@ static        void     init_filetype       (Filetype *ft);
 Buffer *
 get_bufdata(int const bufnum, Filetype *ft)
 {
-        Buffer *bdata    = talloc_zero(NULL, Buffer);
+        Buffer *bdata    = talloc_zero(CTX, Buffer);
         bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
@@ -168,7 +169,7 @@ get_bufdata(int const bufnum, Filetype *ft)
         talloc_steal(bdata, bdata->name.base);
         talloc_steal(bdata, bdata->name.path);
         talloc_steal(bdata, bdata->lines);
-        talloc_steal(bdata, bdata->topdir);
+        /* talloc_steal(bdata, bdata->topdir); */
 
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
@@ -207,8 +208,16 @@ find_buffer(int const bufnum)
 {
         Buffer      *ret   = NULL;
         buffer_node *bnode = find_buffer_node(bufnum);
+        if (bnode) {
+                pthread_rwlock_rdlock(bnode->lock);
+                if (bnode->bdata && bnode->isopen)
+                        ret = bnode->bdata;
+                pthread_rwlock_unlock(bnode->lock);
+        }
+#if 0
         if (bnode && bnode->bdata && bnode->isopen)
                 ret = bnode->bdata;
+#endif
         return ret;
 }
 
@@ -228,7 +237,7 @@ get_initial_lines(Buffer *bdata)
                 ll_delete_node(bdata->lines, bdata->lines->head);
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
 
-        TALLOC_FREE(tmp);
+        talloc_free(tmp);
         bdata->initialized = true;
         pthread_mutex_unlock(&bdata->lock.total);
 }
@@ -257,15 +266,14 @@ init_topdir(Buffer *bdata)
 {
         bstring    *dir     = check_project_directories(b_strcpy(bdata->name.path), bdata->ft);
         bool const  recurse = check_norecurse_directories(dir);
-        bstring    *base    = (!recurse) ? b_strcpy(bdata->name.full) : dir;
+        bstring    *base    = (recurse) ? dir : b_strcpy(bdata->name.full) ;
 
-        assert(top_dirs != NULL && top_dirs->lst != NULL && base != NULL);
-        ECHO("fname: %s, dir: %s, base: %s", bdata->name.full, dir, base);
+        assert(top_dirs != NULL && base != NULL);
 
         /* Search to see if this topdir is already open. */
         Top_Dir *tdir = check_open_topdirs(bdata, base);
         if (tdir) {
-                b_free(base);
+                TALLOC_FREE(base);
                 talloc_reference(bdata, tdir);
                 return tdir;
         }
@@ -275,7 +283,7 @@ init_topdir(Buffer *bdata)
         bstring *tnam = nvim_call_function(B("tempname"), E_STRING).ptr;
         bstring *cdir = b_strcpy(settings.cache_dir);
 
-        tdir            = talloc_zero(NULL, Top_Dir);
+        tdir            = talloc_zero(CTX, Top_Dir);
         tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_TRUNC|O_BINARY, 0600);
         tdir->gzfile    = talloc_move(tdir, &cdir);
         tdir->pathname  = talloc_move(tdir, &dir);
@@ -296,9 +304,9 @@ init_topdir(Buffer *bdata)
         ensure_cache_directory(BS(settings.cache_dir));
         set_vim_tags_opt(BS(tdir->tmpfname));
         get_tag_filename(tdir->gzfile, base, bdata);
-        genlist_append(top_dirs, tdir);
+        ll_append(top_dirs, tdir);
         if (!recurse)
-                b_destroy(base);
+                TALLOC_FREE(base);
 
         return tdir;
 }
@@ -307,10 +315,10 @@ static Top_Dir *
 check_open_topdirs(Buffer const *bdata, bstring const *base)
 {
         Top_Dir *ret = NULL;
-        pthread_mutex_lock(&top_dirs->mut);
+        pthread_mutex_lock(&top_dirs->lock);
 
-        for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                Top_Dir *cur = top_dirs->lst[i];
+        LL_FOREACH_F (top_dirs, node) {
+                Top_Dir *cur = node->data;
 
                 if (!cur || !cur->pathname)
                         continue;
@@ -327,7 +335,28 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
                 }
         }
 
-        pthread_mutex_unlock(&top_dirs->mut);
+#if 0
+        for (unsigned i = 0; i < top_dirs->qty; ++i) {
+                assert(top_dirs && top_dirs->lst);
+                Top_Dir *cur = top_dirs->lst[i];
+
+                if (!cur || !cur->pathname)
+                        continue;
+                if (cur->ftid != bdata->ft->id) {
+                        echo("cur->ftid (%d - %s) does not equal the current ft (%d - %s), skipping",
+                             cur->ftid, BTS(ftdata[cur->ftid]->vim_name), bdata->ft->id, BTS(bdata->ft->vim_name));
+                        continue;
+                }
+                if (b_iseq(cur->pathname, base)) {
+                        SHOUT("Using already initialized project directory \"%s\"", BS(cur->pathname));
+                        cur->refs++;
+                        ret = cur;
+                        break;
+                }
+        }
+#endif
+
+        pthread_mutex_unlock(&top_dirs->lock);
         return ret;
 }
 
@@ -366,8 +395,7 @@ check_project_directories(bstring *dir, Filetype const *ft)
         bstring *tmp;
         /* b_regularize_path(dir); */
 
-        for (tmp = NULL; (tmp = B_GETS(fp, '\n', false)); b_destroy(tmp)) {
-                ECHO("Looking at \"%s\"", tmp);
+        for (tmp = NULL; (tmp = B_GETS(fp, '\n', false)); talloc_free(tmp)) {
                 int64_t n = b_strchr(tmp, '\t');
                 if (n < 0)
                         continue;
@@ -386,13 +414,10 @@ check_project_directories(bstring *dir, Filetype const *ft)
                                 continue;
                 }
 
-                /* b_regularize_path(tmp); */
-
                 if (strstr(BS(dir), BS(tmp))) {
                         /* b_writeprotect(tmp); */
                         b_list_append(candidates, tmp);
                         tmp = NULL;
-                        /* continue; */
                 }
         }
 
@@ -409,11 +434,8 @@ check_project_directories(bstring *dir, Filetype const *ft)
                 if (candidates->lst[i]->slen > longest->slen)
                         longest = candidates->lst[i];
 
-        /* b_list_writeallow(candidates); */
-        /* b_writeprotect(longest); */
-        /* b_writeallow(longest); */
 
-        talloc_steal(NULL, longest);
+        talloc_steal(CTX, longest);
         TALLOC_FREE(candidates);
         TALLOC_FREE(dir);
 
@@ -489,12 +511,8 @@ init_filetype(Filetype *ft)
         mpack_array *tmp = mpack_dict_get_key(settings.ignored_tags, E_MPACK_ARRAY,
                                               &ft->vim_name).ptr;
 
-        // talloc_report_full(tmp, stderr);
-        // talloc_report_full(ft->order, stderr);
-
         if (ft->order)
                 talloc_steal(ft, ft->order);
-        ECHO("Init filetype called for ft %s", &ft->vim_name);
 
         if (tmp) {
                 ft->ignored_tags = mpack_array_to_blist(tmp, true);
@@ -519,19 +537,9 @@ init_filetype(Filetype *ft)
                         b_list_append(ft->equiv, toadd);
                         ent->key->str = NULL;
                         TALLOC_FREE(ent);
-#if 0
-                        b_writeprotect(toadd);
-                        mpack_destroy_object(ent->key);
-                        mpack_destroy_object(ent->value);
-                        free(ent);
-                        b_writeallow(toadd);
-#endif
                 }
 
                 TALLOC_FREE(equiv);
-                /* free(equiv->entries); */
-                /* free(equiv);          */
-
                 talloc_steal(ft, ft->equiv);
         } else {
                 ft->equiv = NULL;
@@ -551,7 +559,7 @@ get_ignored_tags(Filetype *ft)
         if (restored_groups) {
                 /* b_list_writeprotect(restored_groups); */
                 /* mpack_dict_destroy(tmp); */
-                talloc_steal(NULL, restored_groups);
+                talloc_steal(CTX, restored_groups);
                 TALLOC_FREE(tmp);
                 /* b_list_writeallow(restored_groups); */
 
@@ -573,10 +581,10 @@ get_ignored_tags(Filetype *ft)
 static void
 get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
 {
-        if (!ft->ignored_tags)
+        if (!ft->ignored_tags) {
                 ft->ignored_tags = b_list_create();
-
-        ECHO("Getting ignored tags for ft %d", ft->id);
+                talloc_steal(ft, ft->ignored_tags);
+        }
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
                 char         cmd[8192], *ptr;
@@ -587,14 +595,14 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 if (!output)
                         continue;
                 if (!(ptr = strstr(BS(output), "xxx"))) {
-                        b_destroy(output);
+                        TALLOC_FREE(output);
                         continue;
                 }
 
                 uchar *bak    = output->data;
                 output->data  = (uchar *)(ptr += 4); /* Add 4 to skip the "xxx " */
                 output->slen -= (unsigned)PSUB(ptr, bak);
-                talloc_steal(NULL, bak);
+                talloc_steal(CTX, bak);
 
                 if (!b_starts_with(output, B("match /"))) {
                         bstring line = BSTR_WRITEABLE_STATIC_INIT;
@@ -633,13 +641,13 @@ get_restore_cmds(b_list *restored_groups)
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
                 bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
                 bstring *output = nvim_command_output(cmd, E_STRING).ptr;
-                b_destroy(cmd);
+                TALLOC_FREE(cmd);
                 if (!output)
                         continue;
 
                 char *ptr = strstr(BS(output), "xxx");
                 if (!ptr) {
-                        b_destroy(output);
+                        TALLOC_FREE(output);
                         continue;
                 }
 
@@ -680,7 +688,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_list_append(allcmds, cmd);
                 }
 
-                b_destroy(output);
+                TALLOC_FREE(output);
         }
 
         bstring *ret = b_join(allcmds, B(" | "));
@@ -694,6 +702,8 @@ get_restore_cmds(b_list *restored_groups)
  * \===========/
  *-------------------------------------------------------------------------------------*/
 
+static pthread_mutex_t wtf_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* 
  * Actually initializing these things seems to be mandatory on Windows.
  */
@@ -701,13 +711,17 @@ __attribute__((__constructor__))
 static void
 buffer_c_constructor(void)
 {
-        pthread_mutex_init(&ftdata_mutex);
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&ftdata_mutex, &attr);
+        pthread_mutex_init(&wtf_mutex, &attr);
 
         for (int i = 0; i < DATA_ARRSIZE; ++i)
                 p99_futex_init((p99_futex *)&destruction_futex[i], 0);
 
         buffer_list = ll_make_new();
-        top_dirs    = genlist_create(NULL);
+        top_dirs    = ll_make_new();
 }
 
 static int
@@ -728,6 +742,7 @@ destroy_buffer_node(buffer_node *bnode)
 static int
 destroy_topdir(Top_Dir *topdir)
 {
+        pthread_mutex_lock(&wtf_mutex);
         close(topdir->tmpfd);
         unlink(BS(topdir->tmpfname));
 
@@ -738,13 +753,24 @@ destroy_topdir(Top_Dir *topdir)
         TALLOC_FREE(topdir->tags);
 #endif
 
+#if 0
         for (unsigned i = 0; i < top_dirs->qty; ++i) {
                 if (top_dirs->lst[i] == topdir) {
                         genlist_remove_index(top_dirs, i);
                         top_dirs->lst[i] = NULL;
                 }
         }
+#endif
+        LL_FOREACH_F (top_dirs, node) {
+                if (node->data == topdir) {
+                        talloc_steal(NULL, node->data);
+                        node->data = NULL;
+                        ll_delete_node(top_dirs, node);
+                        break;
+                }
+        }
         TALLOC_FREE(topdir);
+        pthread_mutex_unlock(&wtf_mutex);
         return 0;
 }
 
@@ -777,20 +803,23 @@ void
         pthread_mutex_lock(&bdata->lock.ctick);
 
 #if 0
-        b_destroy(bdata->name.full);
-        b_destroy(bdata->name.base);
-        b_destroy(bdata->name.path);
+        TALLOC_FREE(bdata->name.full);
+        TALLOC_FREE(bdata->name.base);
+        TALLOC_FREE(bdata->name.path);
         ll_destroy(bdata->lines);
         talloc_unlink(bdata, bdata->topdir);
 #endif
-        if (--bdata->topdir->refs == 0)
-                genlist_remove(top_dirs, bdata->topdir);
+        if (--bdata->topdir->refs == 0) {
+                echo("Destroying topdir (%s)", BS(bdata->topdir->pathname));
+                TALLOC_FREE(bdata->topdir);
+        }
+                /* genlist_remove(top_dirs, bdata->topdir); */
 
         if (bdata->ft->is_c) {
                 //if (bdata->clangdata)
                 //        destroy_clangdata(bdata);
                 if (bdata->headers)
-                        b_list_destroy(bdata->headers);
+                        TALLOC_FREE(bdata->headers);
         } else {
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);

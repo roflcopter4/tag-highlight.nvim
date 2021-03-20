@@ -32,7 +32,6 @@ extern mpack_arg_array  *new_arg_array(void);
 extern const bstring   *find_group   (struct filetype *ft, const cmd_info *info,
                                       unsigned num, const int ctags_kind);
 extern struct cmd_info *getinfo      (Buffer *bdata);
-extern void destroy_struct_info(cmd_info *info);
 
 /*======================================================================================*/
 

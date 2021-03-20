@@ -40,7 +40,7 @@ struct linked_list_s {
         ll_node         *head;
         ll_node         *tail;
         int              qty;
-        pthread_rwlock_t lock;
+        pthread_mutex_t  lock;
 };
 
 struct ll_node_s {
@@ -75,8 +75,9 @@ struct ll_node_s {
 
 #define ll_push    ll_append
 #define ll_enqueue ll_prepend
+#define ll_create  ll_make_new
 
-LLDECL linked_list *ll_make_new    (void) __aWUR;
+LLDECL linked_list *ll_make_new    (void *talloc_ctx) __aWUR;
 LLDECL ll_node     *ll_at          (linked_list *list, int index);
 LLDECL void ll_prepend             (linked_list *list, void *data);
 LLDECL void ll_append              (linked_list *list, void *data);
@@ -91,6 +92,9 @@ LLDECL bool ll_verify_size         (linked_list *list);
 LLDECL bstring *ll_join_bstrings   (linked_list *list, int sepchar) __aWUR;
 LLDECL void *ll_pop                (linked_list *list) __aWUR;
 LLDECL void *ll_dequeue            (linked_list *list) __aWUR;
+
+#define ll_make_new(...) P99_CALL_DEFARG(ll_make_new, 1, __VA_ARGS__)
+#define ll_make_new_defarg_0() NULL
 
 /*======================================================================================================*/
 /* Generic list */

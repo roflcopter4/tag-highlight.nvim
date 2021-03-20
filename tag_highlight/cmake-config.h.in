@@ -3,6 +3,7 @@
 #cmakedefine LZMA_SUPPORT
 #cmakedefine HAVE_LIBEV
 #cmakedefine LIBEV_FOUND
+#cmakedefine SANITIZE
 
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_CLOCK_GETTIME
@@ -30,6 +31,8 @@
 #cmakedefine HAVE_STDATOMIC_H
 #cmakedefine HAVE_STDNORETURN_H
 #cmakedefine HAVE_THREADS_H
+
+#define SANITIZER_LOG_PLACE "@SANITIZER_LOG_PLACE@"
 
 #define GCC_ALL_INCLUDE_DIRECTORIES ${COMPILER_INCLUDE_DIRECTORIES}
 

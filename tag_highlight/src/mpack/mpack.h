@@ -21,7 +21,9 @@ enum mpack_types {
         MPACK_ARRAY         = 7,
         MPACK_DICT          = 8,
 };
-enum mpack_expect_types {
+
+/* enum mpack_expect_types { */
+P99_DECLARE_ENUM(mpack_expect_t,
         E_MPACK_EXT,
         E_MPACK_ARRAY,
         E_MPACK_DICT,
@@ -31,7 +33,7 @@ enum mpack_expect_types {
         E_STRING,
         E_STRLIST,
         E_DICT2ARR
-};
+);
 
 enum mpack_flag_values {
         MPACKFLG_SPARE_DATA = 0x10U,
@@ -51,7 +53,7 @@ typedef struct mpack_array        mpack_array;
 typedef struct mpack_dict_ent     mpack_dict_ent;
 typedef struct mpack_dictionary   mpack_dict;
 typedef struct mpack_ext          mpack_ext;
-typedef enum   mpack_expect_types mpack_expect_t;
+typedef enum   mpack_expect_t     mpack_expect_t;
 typedef enum   mpack_types        mpack_type_t;
 typedef union  mpack_argument     mpack_argument;
 typedef union  mpack_retval       mpack_retval;

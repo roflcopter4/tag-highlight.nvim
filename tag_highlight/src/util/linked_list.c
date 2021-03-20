@@ -34,14 +34,14 @@ STATIC_INLINE void resolve_negative_index(int *index, int base);
 #endif
 
 linked_list *
-ll_make_new(void)
+(ll_make_new)(void *talloc_ctx)
 {
         /* assert(free_data); */
-        linked_list *list = talloc(NULL, linked_list);
+        linked_list *list = talloc(talloc_ctx, linked_list);
         list->head        = NULL;
         list->tail        = NULL;
         list->qty         = 0;
-        list->intern      = talloc(list, pthread_rwlock_t);
+        //list->intern      = talloc(list, pthread_rwlock_t);
 
         /* talloc_set_destructor(list, ll_destroy); */
 
@@ -54,13 +54,18 @@ ll_make_new(void)
         list->intern      = malloc(sizeof(pthread_rwlock_t));
 #endif
 
+#if 0
         pthread_rwlockattr_t attr;
         pthread_rwlockattr_init(&attr);
 #ifdef PTHREAD_RWLOCK_PREFER_WRITER_NP
         pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NP);
 #endif
-        pthread_rwlock_init(&list->lock, &attr);
-        pthread_rwlock_init((pthread_rwlock_t *)list->intern, &attr);
+        /* pthread_rwlock_init((pthread_rwlock_t *)list->intern, &attr); */
+#endif
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&list->lock, &attr);
 
         return list;
 }
@@ -69,7 +74,7 @@ ll_make_new(void)
 void
 ll_prepend(linked_list *list, void *data)
 {
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         assert(list);
         assert(data);
         ll_node *node = talloc(list, ll_node);
@@ -84,14 +89,14 @@ ll_prepend(linked_list *list, void *data)
         node->next = list->head;
         list->head = node;
         ++list->qty;
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
 void
 ll_append(linked_list *list, void *data)
 {
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         assert(list);
         assert(data);
         ll_node *node = talloc(list, ll_node);
@@ -106,7 +111,7 @@ ll_append(linked_list *list, void *data)
         node->next = NULL;
         list->tail = node;
         ++list->qty;
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -116,7 +121,7 @@ ll_append(linked_list *list, void *data)
 void
 ll_insert_after(linked_list *list, ll_node *at, void *data)
 {
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         assert(list);
         ll_node *node = talloc(list, ll_node);
         node->data    = talloc_move(node, &data);
@@ -139,14 +144,14 @@ ll_insert_after(linked_list *list, ll_node *at, void *data)
         /* This shuts up clang's whining about a potential memory leak. */
         ALWAYS_ASSERT((at && at->next == node) || list->tail == node);
         ++list->qty;
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
 void
 ll_insert_before(linked_list *list, ll_node *at, void *data)
 {
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         assert(list);
         ll_node *node = talloc(list, ll_node);
         node->data    = talloc_move(node, &data);
@@ -169,7 +174,7 @@ ll_insert_before(linked_list *list, ll_node *at, void *data)
         /* This shuts up clang's whining about a potential memory leak. */
         ALWAYS_ASSERT((at && at->prev == node) || list->head == node);
         ++list->qty;
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -211,7 +216,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 return;
         }
 
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         ll_node **narr = talloc_array(NULL, ll_node *, diff);
         narr[0]        = talloc(list, ll_node);
@@ -236,7 +241,7 @@ ll_insert_blist_after(linked_list *list, ll_node *at, b_list *blist, int start, 
                 list->tail = narr[last];
 
         talloc_free(narr);
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -255,7 +260,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 return;
         }
 
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         ll_node **narr = talloc_array(NULL, ll_node *, diff);
         narr[0]        = talloc(list, ll_node);
@@ -280,7 +285,7 @@ ll_insert_blist_before(linked_list *list, ll_node *at, b_list *blist, int start,
                 list->tail = narr[last];
 
         talloc_free(narr);
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -297,7 +302,7 @@ ll_delete_range(linked_list *list, ll_node *at, int const range)
                 ll_delete_node(list, at);
                 return;
         }
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         ll_node *current      = at;
         ll_node *next         = NULL;
@@ -323,7 +328,7 @@ ll_delete_range(linked_list *list, ll_node *at, int const range)
         else
                 list->tail = prev;
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -333,22 +338,29 @@ ll_delete_range(linked_list *list, ll_node *at, int const range)
 ll_node *
 ll_at(linked_list *list, int index)
 {
-        if (!list || list->qty == 0)
+        ll_node *current = NULL;
+        if (!list)
                 return NULL;
-        if (index == 0)
-                return list->head;
-        if (index == (-1) || index == list->qty)
-                return list->tail;
+        pthread_mutex_lock(&list->lock);
+
+        if (list->qty == 0)
+                goto ret;
+        if (index == 0) {
+                current = list->head;
+                goto ret;
+        }
+        if (index == (-1) || index == list->qty) {
+                current = list->tail;
+                goto ret;
+        }
         if (index < 0)
                 index += list->qty;
         if (index < 0 || index > list->qty) {
                 eprintf("Failed to find node: index: %d, qty %d",
                         index, list->qty);
-                return NULL;
+                goto ret;
         }
 
-        pthread_rwlock_rdlock((pthread_rwlock_t *)list->intern);
-        ll_node *current;
 
         if (index < ((list->qty - 1) / 2)) {
                 int x   = 0;
@@ -364,7 +376,8 @@ ll_at(linked_list *list, int index)
                         current = current->prev;
         }
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+ret:
+        pthread_mutex_unlock(&list->lock);
         return current;
 }
 
@@ -376,13 +389,13 @@ ll_destroy(linked_list *list)
 #if 0
         if (!list)
                 return 0;
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
 #if 0
         pthread_rwlock_t *lock = talloc_move(NULL, &list->intern);
-        pthread_rwlock_wrlock(lock);
+        pthread_mutex_lock(lock);
         talloc_free(list);
-        pthread_rwlock_unlock(lock);
+        pthread_mutex_unlock(lock);
         talloc_free(lock);
 
 #endif
@@ -401,7 +414,7 @@ ll_destroy(linked_list *list)
                 eprintf("weee all done\n");
         }
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
         talloc_free(list->intern);
         talloc_free(list);
 #endif
@@ -414,7 +427,7 @@ void
 ll_delete_node(linked_list *list, ll_node *node)
 {
         assert(node != NULL);
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         if (list->qty == 1) {
                 list->head = list->tail = NULL;
@@ -433,7 +446,7 @@ ll_delete_node(linked_list *list, ll_node *node)
 
         --list->qty;
         talloc_free(node);
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
 }
 
 
@@ -444,7 +457,7 @@ ll_pop(linked_list *list)
 {
         assert(list);
         void *ret = NULL;
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         if (list->tail) {
                 ll_node *tmp = list->tail;
@@ -459,7 +472,7 @@ ll_pop(linked_list *list)
                         list->head = NULL;
         }
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
         return ret;
 }
 
@@ -468,7 +481,7 @@ ll_dequeue(linked_list *list)
 {
         assert(list);
         void *ret = NULL;
-        pthread_rwlock_wrlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
 
         if (list->head) {
                 ll_node *tmp = list->head;
@@ -483,7 +496,7 @@ ll_dequeue(linked_list *list)
                         list->tail = NULL;
         }
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
         return ret;
 }
 
@@ -492,7 +505,7 @@ ll_dequeue(linked_list *list)
 bool
 ll_verify_size(linked_list *list)
 {
-        pthread_rwlock_rdlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         assert(list);
         int cnt = 0;
         LL_FOREACH_F (list, node)
@@ -502,7 +515,7 @@ ll_verify_size(linked_list *list)
         if (!ret)
                 list->qty = cnt;
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
         return ret;
 }
 
@@ -510,7 +523,7 @@ ll_verify_size(linked_list *list)
 bstring *
 ll_join_bstrings(linked_list *list, int const sepchar)
 {
-        pthread_rwlock_rdlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_lock(&list->lock);
         unsigned const seplen = (sepchar) ? 1 : 0;
         unsigned       len    = 0;
 
@@ -529,7 +542,7 @@ ll_join_bstrings(linked_list *list, int const sepchar)
                         b_concat(joined, line->data);
         }
 
-        pthread_rwlock_unlock((pthread_rwlock_t *)list->intern);
+        pthread_mutex_unlock(&list->lock);
         return joined;
 }
 

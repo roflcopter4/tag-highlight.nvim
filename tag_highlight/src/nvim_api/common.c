@@ -30,16 +30,8 @@ static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *fun
 static          mpack_obj *await_package  (_nvim_wait_node *node) __aWUR;
 static noreturn void      *discard_package(void *arg);
 
-/*============================================================================*/
-
 void *_nvim_common_talloc_ctx = NULL;
 #define CTX _nvim_common_talloc_ctx
-
-__attribute__((__constructor__))
-static void init_mpack_talloc_ctx(void) 
-{
-        CTX = talloc_named_const(NULL, 0, __location__ ": TOP");
-}
 
 /*======================================================================================*/
 
@@ -123,7 +115,8 @@ await_package(_nvim_wait_node *node)
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
         p99_futex_wait(&node->fut);
-        mpack_obj *ret = atomic_load(&node->obj);
+        /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_relaxed); */
+        mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst);
 
         if (!ret)
                 errx(1, "null object");
@@ -159,7 +152,7 @@ discard_package(void *arg)
 static mpack_obj *
 (write_and_clean)(mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
 {
-#ifdef DEBUG
+#if 0 && defined DEBUG
 #  ifdef LOG_RAW_MPACK
         {
         extern char LOGDIR[];
@@ -184,15 +177,18 @@ static mpack_obj *
 #endif
 
         mpack_obj       *ret;
-        _nvim_wait_node *node = calloc(1, sizeof(*node));
-        node->fd              = 1;
-        node->count           = count;
+        _nvim_wait_node *node;
+
+        b_write(1, *pack->packed);
+
+        node        = calloc(1, sizeof(*node));
+        node->fd    = 1;
+        node->count = count;
 
         p99_futex_init(&node->fut, 0);
         P99_FIFO_APPEND(&_nvim_wait_queue, node);
-        b_write(1, *pack->packed);
         /* mpack_destroy_object(pack); */
-        b_free(*pack->packed);
+        //b_free(*pack->packed);
         talloc_free(pack);
 
 #if 0
@@ -223,19 +219,20 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
                 bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
                 if (err_str) {
                         warnx("Neovim returned with an err_str: '%s'", BS(err_str));
-                        /* b_destroy(err_str); */
-                        /* root->arr->lst[2] = NULL; */
+                        b_destroy(err_str);
                 }
         } else {
                 ret = mpack_expect(data, type, false);
                 switch (type) {
+                case E_STRING:
+                        talloc_set_name(ret.ptr, "nvim/common.c: m_expect_intern -> %s: (%s)", mpack_expect_t_getname(type), (char *)(((bstring *)ret.ptr)->data));
                 case E_DICT2ARR:
                 case E_MPACK_ARRAY:
                 case E_MPACK_DICT:
                 case E_MPACK_EXT:
-                case E_STRING:
                 case E_STRLIST:
                         talloc_steal(CTX, ret.ptr);
+                        break;
                 default:;
                 }
         }

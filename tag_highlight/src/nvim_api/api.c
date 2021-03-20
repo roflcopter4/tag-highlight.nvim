@@ -151,11 +151,14 @@ bool
 {
         static const bstring fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), cmd);
-        bool const ret    = mpack_type(mpack_index(result, 2)) == MPACK_NIL;
+        mpack_obj *error  = mpack_index(result, 2);
+        ALWAYS_ASSERT(error != NULL);
+        bool const ret = mpack_type(error) == MPACK_NIL;
 
-        if (mpack_type(result->arr->lst[2]) == MPACK_ARRAY) {
-                bstring *errmsg = result->arr->lst[2]->arr->lst[1]->str;
-                b_fwrite(stderr, errmsg, B("\n"));
+        if (mpack_type(error) == MPACK_ARRAY) {
+                error = mpack_index(error, 1);
+                ALWAYS_ASSERT(error != NULL && mpack_type(error) == MPACK_STRING);
+                b_fwrite(stderr, error->str, B("\n"));
         }
         talloc_free(result);
 

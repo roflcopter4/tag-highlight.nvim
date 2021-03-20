@@ -165,6 +165,7 @@ endif()
 
 if (SANITIZE)
     set (SANIT "-fsanitize-address-use-after-scope -fsanitize=undefined")
+    string(CONCAT SANITIZER_LOG_PLACE $ENV{HOME} "/sanit/asan.log")
     if ("${SANITIZE}" STREQUAL "thread")
         string (CONCAT SANIT "${SANIT} -fsanitize=thread")
     else ()
@@ -185,10 +186,15 @@ string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -Wextra -ftree-vectorize -g -Wextra")
 #set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG")
-set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -flto -ffunction-sections")
+set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -ffunction-sections")
+
+if (SANITIZE)
+    string (CONCAT CFLAGS_DEBUG_COMMON "${CFLAGS_DEBUG_COMMON}"
+        " -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
 if (NOT CLANG_STR_SEARCH EQUAL -1)
@@ -213,6 +219,7 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     string (CONCAT BASE "${BASE} ${WARNS}"
         " -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments -Wno-gnu-statement-expression -Werror=return-type"
         " -Wno-sign-compare"
+        " --gcc-toolchain=/usr/local"
     )
 
     set (CMAKE_C_FLAGS_DEBUG
@@ -220,10 +227,10 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     set (CMAKE_C_FLAGS_RELWITHDEBINFO
             "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELEASE
-            "${CFLAGS_RELEASE_COMMON} ${BASE}")
+            "${CFLAGS_RELEASE_COMMON} ${BASE} -flto=full")
 
-    #string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-    #       " -fuse-ld=lld")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+        " -fuse-ld=lld -flto=full")
 
 else() # GCC
 
@@ -239,10 +246,9 @@ else() # GCC
             "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
     set (CMAKE_C_FLAGS_RELEASE
 #       "${CFLAGS_RELEASE_COMMON} ${BASE}")
-        "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program")
+        "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program -flto")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -Wno-free-nonheap -fwhole-program")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto -fwhole-program")
 endif()
 
 #####################################################################################################
@@ -251,7 +257,7 @@ endif()
 string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Os")
 
 if (NOT DEBUG)
-    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
+    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
 if (MINGW)

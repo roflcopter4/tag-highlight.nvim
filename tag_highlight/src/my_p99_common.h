@@ -5,7 +5,9 @@
 
 #include "bstring.h"
 #include "contrib/p99/p99.h"
+#include "contrib/p99/p99_atomic.h"
 #include "contrib/p99/p99_defarg.h"
+#include "contrib/p99/p99_fifo.h"
 #include "contrib/p99/p99_for.h"
 
 #define pthread_create(...)       P99_CALL_DEFARG(pthread_create, 4, __VA_ARGS__)

@@ -27,7 +27,6 @@ int
 getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 {
         int ret;
-        ECHO("Attempting to read tag file %s", filename);
 
         if (comptype == COMP_NONE)
                 ret = plain_getlines(tags, filename);
@@ -41,7 +40,6 @@ getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
                 warnx("Unknown compression type!");
                 ret = 0;
         }
-        ECHO("Done");
         return ret; /* 1 indicates success here... */
 }
 

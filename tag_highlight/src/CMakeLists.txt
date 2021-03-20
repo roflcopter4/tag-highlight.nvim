@@ -3,24 +3,11 @@
 add_definitions(-D_BUILD_)
 
 set (tag_highlight_SOURCES
-    lang/clang/clang.c
-    lang/clang/index.c
-    lang/clang/typeid.c
-    lang/clang/util.c
-    lang/ctags_scan/scan.c
-    lang/ctags_scan/strip.c
-    lang/ctags_scan/tok.c
-    lang/golang/go.c
-    lang/lang.c
-
-    nvim_api/api.c
-    nvim_api/common.c
-    nvim_api/misc.c
-
     buffer.c
     ctags.c
     data.c
-    events.c
+    event_loop.c
+    event_handlers.c
     message_autocmd.c
     main.c
     update.c
@@ -35,6 +22,24 @@ add_executable(tag_highlight ${tag_highlight_SOURCES})
 add_library(bstring OBJECT
     contrib/bstring/additions.c
     contrib/bstring/bstrlib.c
+)
+
+add_library(lang OBJECT
+    lang/clang/clang.c
+    lang/clang/index.c
+    lang/clang/typeid.c
+    lang/clang/util.c
+    lang/ctags_scan/scan.c
+    lang/ctags_scan/strip.c
+    lang/ctags_scan/tok.c
+    lang/golang/go.c
+    lang/lang.c
+)
+
+add_library(nvim-api OBJECT
+    nvim_api/api.c
+    nvim_api/common.c
+    nvim_api/misc.c
 )
 
 add_library(mpack-c OBJECT 
@@ -59,6 +64,13 @@ add_library(thl-util OBJECT
 ################################################################################
 # Libraries
 
+if (NOT CLANG_STR_SEARCH EQUAL -1)
+    # target_link_libraries(tag_highlight
+    #     -lunwind
+    #     -lc++
+    # )
+endif ()
+
 if (MINGW)
     # For some reason clang wants libstdc++ linked in on Windows.
     target_link_libraries(tag_highlight
@@ -80,10 +92,13 @@ target_link_libraries(tag_highlight
     ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
     ${TALLOC_LIBRARY}
-    mpack-c
     bstring
+    lang
+    nvim-api
+    mpack-c
     thl-util
 )
+
 
 if (TALLOC_FOUND)
     target_link_libraries(tag_highlight

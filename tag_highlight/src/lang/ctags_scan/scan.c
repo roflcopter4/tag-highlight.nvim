@@ -14,6 +14,9 @@
 #define b_iseql(BSTR, LIT)          (b_iseq((BSTR), b_tmp(LIT)))
 #define b_iseql_caseless(BSTR, LIT) (b_iseq_caseless((BSTR), b_tmp(LIT)))
 
+#define CTX _tok_scan_talloc_ctx 
+void *_tok_scan_talloc_ctx = NULL;
+
 static bool is_c_or_cpp;
 
 static struct taglist *tok_search   (Buffer const *bdata, b_list *vimbuf);
@@ -28,7 +31,6 @@ process_tags(Buffer *bdata, b_list *toks)
         if (!list)
                 return NULL;
         return list;
-
 }
 
 
@@ -61,8 +63,9 @@ tag_cmp(void const *vA, const void *vB)
                         ret = memcmp(sA->b->data, sB->b->data, sA->b->slen);
                 else
                         ret = (int)(sA->b->slen - sB->b->slen);
-        } else
+        } else {
                 ret = sA->kind - sB->kind;
+        }
 
         return ret;
 }
@@ -118,8 +121,8 @@ remove_duplicate_tags(struct taglist **taglist_p)
 #define TAG1 (list->lst[i])
 
         struct taglist *list = *taglist_p;
-        struct taglist *repl = talloc(NULL, struct taglist);
-        struct tag    **to_free_lst = talloc_array(NULL, struct tag *, list->qty);
+        struct taglist *repl = talloc(CTX, struct taglist);
+        struct tag    **to_free_lst = talloc_array(CTX, struct tag *, list->qty);
         /* struct tag     *to_free_lst[list->qty]; */
 
         struct taglist *to_free = (struct taglist[]){{
@@ -209,7 +212,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
                 num_threads = 4;
 
         pthread_t       *tid = nmalloc(num_threads, sizeof(pthread_t));
-        struct taglist **out = talloc_array(NULL, struct taglist *, num_threads);
+        struct taglist **out = talloc_array(CTX, struct taglist *, num_threads);
 
         ECHO("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
 
@@ -268,7 +271,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
 
         /* Combine the returned data from all threads into one array, which is
          * then sorted and returned. */
-        struct taglist *ret     = talloc(NULL, struct taglist);
+        struct taglist *ret     = talloc(CTX, struct taglist);
         struct tag    **alldata = talloc_array(ret, struct tag *, total);
         *ret = (struct taglist){ alldata, total, total };
 
@@ -308,7 +311,7 @@ do_tok_search(void *vdata)
         if (data->num == 0)
                 pthread_exit(NULL);
 
-        struct taglist *ret = talloc(NULL, struct taglist);
+        struct taglist *ret = talloc(CTX, struct taglist);
         *ret = (struct taglist){ talloc_array(ret, struct tag *, INIT_MAX), 0, INIT_MAX };
 
         for (unsigned i = 0; i < data->num; ++i) {
@@ -371,14 +374,14 @@ do_tok_search(void *vdata)
                               sizeof(bstring *), &b_strcmp_fast_wrap)))
                 {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
-                        struct tag *tag = talloc(NULL, struct tag);
+                        struct tag *tag = talloc(CTX, struct tag);
                         *tag            = (struct tag){.b = talloc_move(tag, &tmp), .kind = kind};
                         add_tag_to_list(&ret, tag);
                 }
 
         done:
                 cpy->data = NULL;
-                talloc_steal(NULL, cpy_data);
+                talloc_steal(CTX, cpy_data);
                 talloc_free(cpy_data);
                 talloc_free(cpy);
         }

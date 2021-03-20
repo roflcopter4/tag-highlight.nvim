@@ -51,14 +51,25 @@ extern FILE            *cmd_log, *echo_log, *main_log;
 extern char const      *program_name;
 extern pthread_mutex_t  update_mutex;
 
-struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-
 pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
 char const     *program_name;
-genlist        *top_dirs;
+linked_list    *top_dirs;
 char           *HOME;
 FILE           *cmd_log;
 FILE           *echo_log;
 FILE           *main_log;
 jmp_buf         exit_buf;
 bool            process_exiting;
+
+struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+#if 0
+struct settings_s *settings = NULL;
+
+__attribute__((__constructor__))
+static void
+init_settings_struct(void)
+{
+        settings = talloc(NULL, struct settings_s);
+        memcpy(settings, &settings_raw, sizeof(struct settings_s));
+}
+#endif
