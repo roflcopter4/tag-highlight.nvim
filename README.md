@@ -1,5 +1,9 @@
 # tag-highlight.nvim
-This plugin provides IDE-like semantic highlighting for various languages in Neovim. Currently, C, C++, and Go are supported. More languages will be added as time permits. Highlighting for other languages is approximated using ctags. This plugin doubles as an automatic tag manager.
+
+## About
+This plugin provides IDE-like semantic highlighting for various languages in Neovim. 
+
+Currently, C, C++, and Go are supported, and ore languages will be added as time permits. Highlighting for other languages is approximated using ctags. This plugin doubles as an automatic tag manager.
 
 Originally, I wrote this to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C, for no particular reason. Working with Neovim proved so simple and fast that it seemed natural to expand this project to implement true semantic highlighting.
 
