@@ -39,6 +39,8 @@ struct settings_s {
         b_list     *norecurse_dirs;
         mpack_dict *ignored_tags;
         mpack_dict *order;
+
+        void       *talloc_ctx;
 };
 
 struct filetype {

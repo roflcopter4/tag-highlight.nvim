@@ -10,14 +10,16 @@
 #ifndef HAVE_STRSEP
    extern char *strsep(char **stringp, const char *delim);
 #endif
-#ifndef HAVE_STRLCPY
-   extern size_t strlcpy(char *restrict dst, const char *restrict src, size_t dst_size);
-#endif
-#ifndef HAVE_STRLCAT
-   extern size_t strlcat(char *restrict dst, const char *restrict src, size_t dst_size);
-#endif
-#ifndef HAVE_STRTONUM
-   extern int64_t strtonum(const char *numstr, long long minval, long long maxval, const char **errstrp);
+#ifndef HAVE_BSD_STDLIB_H
+#  ifndef HAVE_STRLCPY
+     extern size_t strlcpy(char *restrict dst, const char *restrict src, size_t dst_size);
+#  endif
+#  ifndef HAVE_STRLCAT
+     extern size_t strlcat(char *restrict dst, const char *restrict src, size_t dst_size);
+#  endif
+#  ifndef HAVE_STRTONUM
+     extern int64_t strtonum(const char *numstr, long long minval, long long maxval, const char **errstrp);
+#  endif
 #endif
 #ifndef HAVE_MEMRCHR
    extern void *memrchr(const void *str, int ch, size_t n);

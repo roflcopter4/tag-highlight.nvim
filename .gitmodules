@@ -1,9 +1,9 @@
-[submodule "tag_highlight/win32_libs"]
-	path = tag_highlight/win32_libs
-	url = https://github.com/roflcopter4/win32_libs
 [submodule "tag_highlight/src/contrib/p99"]
 	path = tag_highlight/src/contrib/p99
 	url = https://github.com/roflcopter4/P99
 [submodule "tag_highlight/src/contrib/bstring"]
 	path = tag_highlight/src/contrib/bstring
 	url = https://github.com/roflcopter4/bstring
+[submodule "tag_highlight/src/contrib/talloc"]
+	path = tag_highlight/src/contrib/talloc
+	url = https://github.com/roflcopter4/talloc

@@ -26,12 +26,12 @@ static const struct filetype ftdata_static[] = {
 
 size_t const ftdata_len = ARRSIZ(ftdata_static);
 struct filetype **ftdata;
-// struct filetype *ftdata[ARRSIZ(ftdata_static)];
 
 __attribute__((constructor)) void init_ftdata(void)
 {
         ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
-        /* ftdata = talloc_pool(NULL, ftdata_len * sizeof(struct filetype)); */
+        //ftdata = talloc_pool(NULL, (size_t)(ftdata_len * sizeof(struct filetype *)) +
+        //                           (size_t)(ftdata_len * sizeof(struct filetype)));
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 ftdata[i] = talloc(ftdata, struct filetype);
@@ -39,11 +39,6 @@ __attribute__((constructor)) void init_ftdata(void)
         }
 }
 
-//__attribute__((constructor)) void free_ftdata(void)
-//{
-//        talloc_free(ftdata);
-//        ftdata = NULL;
-//}
 
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;
@@ -51,7 +46,8 @@ extern FILE            *cmd_log, *echo_log, *main_log;
 extern char const      *program_name;
 extern pthread_mutex_t  update_mutex;
 
-pthread_mutex_t update_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t update_mutex    = PTHREAD_MUTEX_INITIALIZER;
+bool            process_exiting = false;
 char const     *program_name;
 linked_list    *top_dirs;
 char           *HOME;
@@ -59,17 +55,6 @@ FILE           *cmd_log;
 FILE           *echo_log;
 FILE           *main_log;
 jmp_buf         exit_buf;
-bool            process_exiting;
 
-struct settings_s settings = {0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
-#if 0
-struct settings_s *settings = NULL;
-
-__attribute__((__constructor__))
-static void
-init_settings_struct(void)
-{
-        settings = talloc(NULL, struct settings_s);
-        memcpy(settings, &settings_raw, sizeof(struct settings_s));
-}
-#endif
+struct settings_s settings = {0,    0,    0,    0,    0,    0,    NULL, NULL,
+                              NULL, NULL, NULL, NULL, NULL, NULL, NULL};

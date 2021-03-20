@@ -1,30 +1,26 @@
 # tag-highlight.nvim
-This was originally intended to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C. It would run ctags on a project (or individual file), scan through the generated tags, and create highlight definitions for Neovim based that data. In addition, it would give the tags to Neovim directly, doubling as a tag file manager. This functionality is now fully implemented and largely working.
+This plugin provides IDE-like semantic highlighting for various languages in Neovim. Currently, C, C++, and Go are supported. More languages will be added as time permits. Highlighting for other languages is approximated using ctags. This plugin doubles as an automatic tag manager.
 
-After having gotten this working I decided it wasn't really good enough to justify all the work put into writing this in C. Ctags isn't perfect at parsing languages, and it can generate conflicting tags, especially for languages with many different sorts of namespaces. Furthermore, it is relatively difficult to determine where the tags ought to be visible. Scanning a whole directory for tags will generate many that should only appear in some files, but knowing which of these are valid would require something close to actually parsing the language, which is much more complicated than this plugin was capable of. With that problem in mind, I decided that it should be capable of properly parsing languages to offer much more detailed and correct highlighting.
-
-I'm not crazy enough to write my own parsers. At the moment, only implementations for C and C++ are functional, using libclang to do the parsing. With the full might of clang behind it, the highlighting is always correct, detailed, and never fooled by tricky namespace problems. It is a proper semantic highlighter of the sort you'd expect from an IDE.
+Originally, I wrote this to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C, for no particular reason. Working with Neovim proved so simple and fast that it seemed natural to expand this project to implement true semantic highlighting.
 
 ## Installing
 If using dein, installing should be as easy as adding this to your .vimrc.
-    `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': 0, 'build': 'sh build.sh'})`
-The little shell script should build the binary and set everything up. If it goes wrong, you may need to manually build the project. In that case, be sure that the binary goes in the `tag_highlight.nvim/bin/tag_highlight(.exe)` (that is to say, the bin folder in at the top of the plugin). 
+    `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': v:false, 'build': 'sh build.sh'})`
+The little shell script should build the binary and set everything up.
 
-On Windows you'll almost certainly have to build it yourself. Sorry. I can't write a batch script to save my life. MinGW is required and you might need to make sure that your `mingw64/bin` directory is in your PATH after installing.
+Disclaimer: 'should be'. Odds are it will fail and you'll have to run the script yourself. If that also fails, you'll have to build the cmake project yourself too. This isn't very likely to happen unless you're missing libraries. LLVM with libclang is required, and go must installed to build the go support. The C compiler must be either gcc or clang. Microsoft Visual C++, with it's non-compliant c-preprocessor, will have a stroke if it tries to build this. Therefore MinGW is required on Windows.
+
+## Features
+Project root directories can and should be marked via the command `:THLAddProject <DIR>`. They can be deleted again with `:THLRemoveProject`. Doing this makes it much easier to find the whole project, especially the 'compile_commands.json'. Go projects need to be installed for the highlighting to work. You'll also likely want to fiddle with the highlight linking to fit your favorite color scheme. Maybe someday I'll even document them.
 
 ## Why on earth is it written in C?
 Because.
 
 ## No really, why on earth is it written in C?
-Basically because I thought it would be a good way to learn a lot about C in general, and handling multithreading in particular. It was exactly that. Also because I like a challange, and writing something like a vim plugin in one of the least appropriate languages imaginable qualifies.
-
-## Isn't this a bit much?
-I genuinely couldn't figure out how to use the msgpack-c library. Maybe I'm just an idiot, but after hours of reading manuals and fiddling I just gave up and wrote my own implementation of the msgpack protocol. A lot of the code here is devoted to that, and to wrappers for Neovim api functions that handle creating and reading the msgpack messages.
+Because reasons.
 
 ## Stability
-No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`.
+No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`. If it hangs, try killing it first with `:THLStop`.
 
-## Compatibility
-The plugin works only with Neovim. It should compile in any unix-ish environment fairly easily, although it works best in Linux due to using the Linux-specific `futex` system call. Workarounds are available for other systems though. At least version 7 of libclang is required to compile. It may be necessary to provide the location of `libclang.so` if it is installed somewhere odd enough that cmake can't find it.
-
-The plugin has also successfully been compiled in Windows, under MinGW. Visual Studio is not supported. I used gcc extensions fairly liberally, so gcc or clang are required to compile.
+## The fact that you wrote a section entitled "Stability" is why this shouldn't be in C.
+Yeah, probably.

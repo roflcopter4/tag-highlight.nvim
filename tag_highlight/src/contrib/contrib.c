@@ -13,7 +13,8 @@
 
 /*============================================================================*/
 /*============================================================================*/
-#ifndef HAVE_STRLCPY
+#ifndef HAVE_BSD_STDLIB_H
+#  ifndef HAVE_STRLCPY
 /* strlcpy */
 
 /* $OpenBSD: strlcpy.c,v 1.12 2015/01/15 03:54:12 millert Exp $ */
@@ -62,10 +63,10 @@ strlcpy(char *restrict dst, const char *restrict src, const size_t dst_size)
         return (src - orig_src - 1);  /* count does not include NUL */
 }
 
-#endif
+#  endif
 /*============================================================================*/
 /*============================================================================*/
-#ifndef HAVE_STRLCAT
+#  ifndef HAVE_STRLCAT
 /* strlcat */
 
 /* $OpenBSD: strlcat.c,v 1.15 2015/03/02 21:41:08 millert Exp $ */
@@ -121,10 +122,10 @@ strlcat(char *restrict dst, const char *restrict src, size_t dst_size)
         return (dst_len + (src - orig_src)); /* count does not include NUL */
 }
 
-#endif
+#  endif
 /*============================================================================*/
 /*============================================================================*/
-#ifndef HAVE_STRTONUM
+#  ifndef HAVE_STRTONUM
 /* strtonum */
 
 /*-
@@ -188,6 +189,7 @@ strtonum(const char *numstr, long long minval, long long maxval, const char **er
         return (ret);
 }
 
+#  endif
 #endif
 /*============================================================================*/
 /*============================================================================*/

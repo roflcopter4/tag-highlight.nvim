@@ -13,10 +13,6 @@ endif()
 # Options
 
 set (REQUIRED_LZMA_VERSION 5.3.1)
-option(BUILD_DIST "\
-Include the required alpha (and therefore uncommon) liblzma version as a static\
-library, and use bundled BSD extensions instead of libbsd even if it is available.")
-option(STATIC_LIBS_ONLY "Build with only static libraries.")
 option(SANITIZE "Enable sanitizers")
 option(USE_JEMALLOC "Use jemalloc")
 option(USE_LIBEV "Use libev for the event loop (if available)")
@@ -47,8 +43,8 @@ if (MINGW)
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
             " -Wl,--allow-multiple-definition")
 
-    include_directories("/d/msys64/mingw64/x86_64-w64-mingw32/include")
-    include_directories("${PROJECT_SOURCE_DIR}/deps/talloc")
+    # include_directories("/d/msys64/mingw64/x86_64-w64-mingw32/include")
+    # include_directories("${PROJECT_SOURCE_DIR}/deps/talloc")
     add_definitions(-D__MINGW__)
     add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 else()
@@ -95,17 +91,13 @@ endif()
 if (MINGW)
     # Nil I guess
 else ()
-    find_package (Talloc REQUIRED)
+    find_package (Talloc)
     if (USE_LIBEV)
         find_package (LibEv REQUIRED)
         if (LIBEV_FOUND)
             set (HAVE_LIBEV 1)
         endif()
     endif()
-endif()
-
-if (NOT TALLOC_FOUND)
-    # file (DOWNLOAD "https://www.samba.org/ftp/talloc/talloc-2.3.2.tar.gz")
 endif()
 
 if (USE_JEMALLOC)
@@ -137,11 +129,21 @@ CHECK_SYMBOL_EXISTS (err            "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
 CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
+CHECK_SYMBOL_EXISTS (arc4random     "bsd/stdlib.h"    HAVE_ARC4RANDOM)
 
 CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)
 CHECK_INCLUDE_FILE("stdatomic.h"   HAVE_STDATOMIC_H)
 CHECK_INCLUDE_FILE("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
+CHECK_INCLUDE_FILE("sys/auxv.h"    HAVE_SYS_AUXV_H)
+CHECK_INCLUDE_FILE("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
+
+if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
+    pkg_check_modules(LIBBSD libbsd)
+    if (NOT LIBBSD_FOUND)
+        message(FATAL_ERROR "libbsd is required")
+    endif()
+endif()
 
 ###############################################################################
 # General flags
@@ -183,9 +185,8 @@ string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
 
 string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
 
-set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
+set (CFLAGS_DEBUG_COMMON          "-Og -g -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -Wextra -ftree-vectorize -g -Wextra")
-#set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG")
 set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -ffunction-sections")
 
 if (SANITIZE)

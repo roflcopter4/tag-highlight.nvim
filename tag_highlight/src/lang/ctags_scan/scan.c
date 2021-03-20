@@ -211,7 +211,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         if (num_threads == 0)
                 num_threads = 4;
 
-        pthread_t       *tid = nmalloc(num_threads, sizeof(pthread_t));
+        pthread_t       *tid = nalloca(num_threads, sizeof(pthread_t));
         struct taglist **out = talloc_array(CTX, struct taglist *, num_threads);
 
         ECHO("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
@@ -255,7 +255,6 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         for (unsigned i = 0; i < num_threads; ++i)
                 pthread_join(tid[i], (void **)(&out[i]));
 
-        // free(uniq->lst);
         talloc_free(uniq);
         unsigned total = 0, offset = 0;
 
@@ -264,7 +263,6 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
                         total += out[T]->qty;
         if (total == 0) {
                 warnx("No tags found in buffer.");
-                free(tid);
                 talloc_free(out);
                 return NULL;
         }
@@ -295,7 +293,6 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         qsort(alldata, total, sizeof(*alldata), &tag_cmp);
         remove_duplicate_tags(&ret);
 
-        free(tid);
         talloc_free(out);
         return ret;
 }

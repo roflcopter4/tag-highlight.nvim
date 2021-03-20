@@ -8,14 +8,7 @@
 __attribute__((const))
 const char *__asan_default_options(void)
 {
-        /* return "verbosity=1:fast_unwind_on_malloc=0" */
-        return "fast_unwind_on_malloc=0"
-#if 0
-#ifdef SANITIZER_LOG_PLACE
-        ":log_path=" SANITIZER_LOG_PLACE
-#endif
-#endif
-        ;
+        return "fast_unwind_on_malloc=0";
 }
 #endif
 
@@ -27,25 +20,24 @@ const char *program_invocation_short_name;
 #endif
 #define WAIT_TIME  (3.0)
 
-extern bool         process_exiting;
-extern FILE        *cmd_log, *echo_log, *main_log, *mpack_raw;
-static struct timer main_timer               = STRUCT_TIMER_INITIALIZER;
-p99_futex           first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
-char                LOGDIR[SAFE_PATH_MAX];
-pthread_t           top_thread;
-FILE *talloc_log_file;
+extern FILE *cmd_log, *echo_log, *main_log, *mpack_raw;
+FILE        *talloc_log_file;
+pthread_t    top_thread;
+char         LOGDIR[SAFE_PATH_MAX];
+p99_futex    first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
+static struct timer main_timer        = STRUCT_TIMER_INITIALIZER;
 
-extern void           exit_cleanup        (void);
-static void           general_init        (void);
-static void           platform_init       (char **argv);
-static void           get_settings        (void);
-static void           open_logs           (void);
-static void           quick_cleanup       (void);
-static comp_type_t    get_compression_type(void);
-static noreturn void *neovim_init         (void *arg);
-extern void           run_event_loop      (int fd);
+extern void run_event_loop(int fd);
+extern void exit_cleanup(void);
+static void general_init(void);
+static void platform_init(char **argv);
+static void get_settings(void);
+static void open_logs(void);
+static void quick_cleanup(void);
 static void initialize_talloc_contexts(void);
 static void clean_talloc_contexts(void);
+static comp_type_t get_compression_type(void);
+static noreturn void *neovim_init(void *arg);
 
 extern void *mpack_decode_talloc_ctx_;
 extern void *mpack_encode_talloc_ctx_;
@@ -60,13 +52,13 @@ extern void *__bstring_talloc_top_ctx;
 static void *main_top_talloc_ctx_ = NULL;
 #define CTX main_top_talloc_ctx
 
+
 /*======================================================================================*/
 
 int
 main(UNUSED int argc, char *argv[])
 {
         talloc_disable_null_tracking();
-        process_exiting = false;
         TIMER_START(&main_timer);
 
         /* Accomodate for Win32 */
@@ -83,7 +75,7 @@ main(UNUSED int argc, char *argv[])
          * program, we clean up. */
         clean_talloc_contexts();
 
-        return 0;
+        return EXIT_SUCCESS;
 }
 
 /*======================================================================================*/
@@ -145,7 +137,7 @@ initialize_talloc_contexts(void)
         _buffer_talloc_ctx_         = talloc_named_const(ctx_, 0, "Buffer Top Context");
         _tok_scan_talloc_ctx_       = talloc_named_const(ctx_, 0, "Token Scanner Top Context");
         _update_top_talloc_ctx      = talloc_named_const(ctx_, 0, "Update Top Context");
-        __bstring_talloc_top_ctx_   = talloc_named_const(ctx_, 0, "Bstring Top Context");
+        __bstring_talloc_top_ctx    = talloc_named_const(ctx_, 0, "Bstring Top Context");
 #endif
 }
 
@@ -232,16 +224,15 @@ get_settings(void)
         if (!settings.enabled || !settings.ctags_bin)
                 exit(0);
 
-#if 0 /* Don't rock the boat I guess. */
-        talloc_steal(settings, settings.cache_dir);
-        talloc_steal(settings, settings.ctags_bin);
-        talloc_steal(settings, settings.settings_file);
-        talloc_steal(settings, settings.ctags_args);
-        talloc_steal(settings, settings.ignored_ftypes);
-        talloc_steal(settings, settings.norecurse_dirs);
-        talloc_steal(settings, settings.ignored_tags);
-        talloc_steal(settings, settings.order);
-#endif
+        settings.talloc_ctx = talloc_named_const(NULL, 0, "Settings talloc context.");
+        talloc_steal(settings.talloc_ctx, settings.cache_dir);
+        talloc_steal(settings.talloc_ctx, settings.ctags_bin);
+        talloc_steal(settings.talloc_ctx, settings.settings_file);
+        talloc_steal(settings.talloc_ctx, settings.ctags_args);
+        talloc_steal(settings.talloc_ctx, settings.ignored_ftypes);
+        talloc_steal(settings.talloc_ctx, settings.norecurse_dirs);
+        talloc_steal(settings.talloc_ctx, settings.ignored_tags);
+        talloc_steal(settings.talloc_ctx, settings.order);
 }
 
 static comp_type_t
@@ -282,8 +273,11 @@ extern void clear_bnode(void *vdata, bool blocking);
 void
 exit_cleanup(void)
 {
+
+        extern bool         process_exiting;
         extern linked_list *buffer_list;
-        static atomic_flag flg = ATOMIC_FLAG_INIT;
+        static atomic_flag  flg = ATOMIC_FLAG_INIT;
+
         if (atomic_flag_test_and_set(&flg))
                 return;
 
@@ -294,6 +288,8 @@ exit_cleanup(void)
         talloc_free(buffer_list);
         talloc_free(top_dirs);
         talloc_free(ftdata);
+        talloc_free(settings.talloc_ctx);
+#if 0
         talloc_free(settings.cache_dir);
         talloc_free(settings.ctags_args);
         talloc_free(settings.ctags_bin);
@@ -302,6 +298,7 @@ exit_cleanup(void)
         talloc_free(settings.norecurse_dirs);
         talloc_free(settings.order);
         talloc_free(settings.settings_file);
+#endif
 
         quick_cleanup();
 }

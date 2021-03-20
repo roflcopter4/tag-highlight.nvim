@@ -16,6 +16,10 @@ set (tag_highlight_SOURCES
 if (LZMA_SUPPORT)
    set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
 endif()
+# if (NOT TALLOC_FOUND)
+#     include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
+#     set (tag_highlight_SOURCES ${tag_highlight_SOURCES} contrib/talloc/talloc.c)
+# endif ()
 
 add_executable(tag_highlight ${tag_highlight_SOURCES})
 
@@ -91,27 +95,48 @@ target_link_libraries(tag_highlight
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
-    ${TALLOC_LIBRARY}
     bstring
     lang
     nvim-api
     mpack-c
     thl-util
 )
+if (LIBBSD_FOUND)
+    target_link_libraries(tag_highlight "${LIBBSD_LIBRARIES}")
+endif()
 
 
 if (TALLOC_FOUND)
     target_link_libraries(tag_highlight
         ${TALLOC_LIBRARIES}
     )
-else ()
-    add_library(my_talloc OBJECT
-        "${PROJECT_SOURCE_DIR}/deps/talloc/talloc.c"
+else()
+    include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
+    add_library(my_talloc SHARED
+        "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c"
     )
-    target_link_libraries(tag_highlight
+
+    target_compile_options(
         my_talloc
+        PUBLIC
+            "-fPIC"
+            "-D_XOPEN_SOURCE_EXTENDED=1"
+            "-D__STDC_WANT_LIB_EXT1__=1"
+            "-fstack-protector-strong"
+            "-fstack-clash-protection"
+            "-fvisibility=hidden"
+            "-DSTATIC_talloc_MODULES=NULL"
+            "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
     )
-endif ()
+
+
+
+    target_link_libraries(tag_highlight my_talloc)
+
+    if (LIBBSD_FOUND)
+        target_link_libraries(tag_highlight "${LIBBSD_LINK_LIBRARIES}")
+    endif()
+endif()
 
 if (LZMA_SUPPORT)
     target_link_libraries(tag_highlight

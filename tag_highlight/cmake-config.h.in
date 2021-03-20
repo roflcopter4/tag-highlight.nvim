@@ -26,7 +26,10 @@
 #cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
+#cmakedefine HAVE_ARC4RANDOM
 
+#cmakedefine HAVE_BSD_STDLIB_H
+#cmakedefine HAVE_SYS_AUXV_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_STDATOMIC_H
 #cmakedefine HAVE_STDNORETURN_H
