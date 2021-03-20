@@ -12,8 +12,8 @@
 pthread_t event_loop_thread;
 #endif
 
-#define CTX _event_loop_talloc_ctx
-void *_event_loop_talloc_ctx = NULL;
+#define CTX event_loop_talloc_ctx_
+void *event_loop_talloc_ctx_ = NULL;
 static pthread_mutex_t event_loop_cb_mutex;
 
 /*

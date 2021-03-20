@@ -60,8 +60,8 @@ static int                     do_destroy_clangdata(struct clangdata *cdata);
 
 static pthread_mutex_t lc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void *_clang_talloc_ctx = NULL;
-#define CTX _clang_talloc_ctx
+void *clang_talloc_ctx_ = NULL;
+#define CTX clang_talloc_ctx_
 
 __attribute__((__constructor__))
 static void clang_initializer(void)

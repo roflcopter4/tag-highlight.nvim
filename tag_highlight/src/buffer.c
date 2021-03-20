@@ -21,8 +21,8 @@
 #  define DOSCHECK(CH_) (false)
 #endif
 
-#define CTX _buffer_talloc_ctx
-void *_buffer_talloc_ctx = NULL;
+#define CTX buffer_talloc_ctx_
+void *buffer_talloc_ctx_ = NULL;
 
 P99_DECLARE_STRUCT(buffer_node);
 struct buffer_node {

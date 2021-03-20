@@ -56,8 +56,8 @@
 
 static void sanity_check(mpack_obj *root, mpack_obj **itemp, unsigned check, bool force);
 
-void *_mpack_encode_talloc_ctx = NULL;
-#define CTX _mpack_encode_talloc_ctx
+void *mpack_encode_talloc_ctx_ = NULL;
+#define CTX mpack_encode_talloc_ctx_
 
 /*============================================================================*/
 

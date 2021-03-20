@@ -22,7 +22,7 @@ extern "C" {
 extern noreturn void *highlight_c_pthread_wrapper(void *vdata);
 
 extern void launch_libclang_waiter(void);
-extern void libclang_highlight(Buffer *bdata, int first, int last, int force);
+extern void libclang_highlight(Buffer *bdata, int first, int last, int type);
 extern void destroy_clangdata(Buffer *bdata);
 
 

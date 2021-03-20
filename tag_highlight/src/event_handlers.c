@@ -24,8 +24,8 @@ static pthread_mutex_t   handle_mutex;
 static pthread_mutex_t   nvim_event_handler_mutex;
 P99_FIFO(event_node_ptr) nvim_event_queue;
 
-#define CTX _event_handlers_talloc_ctx
-void *_event_handlers_talloc_ctx = NULL;
+#define CTX event_handlers_talloc_ctx_
+void *event_handlers_talloc_ctx_ = NULL;
 
 __attribute__((__constructor__))
 static void event_handlers_initializer(void)

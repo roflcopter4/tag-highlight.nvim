@@ -47,17 +47,17 @@ extern void           run_event_loop      (int fd);
 static void initialize_talloc_contexts(void);
 static void clean_talloc_contexts(void);
 
-extern void *_mpack_decode_talloc_ctx;
-extern void *_mpack_encode_talloc_ctx;
-extern void *_event_loop_talloc_ctx;
-extern void *_event_handlers_talloc_ctx;
-extern void *_nvim_common_talloc_ctx;
-extern void *_clang_talloc_ctx;
-extern void *_buffer_talloc_ctx;
-extern void *_tok_scan_talloc_ctx;
-extern void *_update_top_talloc_ctx;
+extern void *mpack_decode_talloc_ctx_;
+extern void *mpack_encode_talloc_ctx_;
+extern void *event_loop_talloc_ctx_;
+extern void *event_handlers_talloc_ctx_;
+extern void *nvim_common_talloc_ctx_;
+extern void *clang_talloc_ctx_;
+extern void *buffer_talloc_ctx_;
+extern void *tok_scan_talloc_ctx_;
+extern void *update_top_talloc_ctx_;
 extern void *__bstring_talloc_top_ctx;
-static void *main_top_talloc_ctx = NULL;
+static void *main_top_talloc_ctx_ = NULL;
 #define CTX main_top_talloc_ctx
 
 /*======================================================================================*/
@@ -135,17 +135,17 @@ static void
 initialize_talloc_contexts(void)
 {
 #if 0
-        main_top_talloc_ctx        = talloc_named_const(CTX, 0, "Main Top");
-        _mpack_encode_talloc_ctx   = talloc_named_const(CTX, 0, "Mpack Encode Top");
-        _mpack_decode_talloc_ctx   = talloc_named_const(CTX, 0, "Mpack Decode Top");
-        _nvim_common_talloc_ctx    = talloc_named_const(CTX, 0, "Nvim Common Top");
-        _clang_talloc_ctx          = talloc_named_const(CTX, 0, "Clang Top");
-        _event_loop_talloc_ctx     = talloc_named_const(CTX, 0, "Event Loop Top");
-        _event_handlers_talloc_ctx = talloc_named_const(CTX, 0, "Event Handlers Top");
-        _buffer_talloc_ctx         = talloc_named_const(CTX, 0, "Buffer Top Context");
-        _tok_scan_talloc_ctx       = talloc_named_const(CTX, 0, "Token Scanner Top Context");
-        _update_top_talloc_ctx     = talloc_named_const(CTX, 0, "Update Top Context");
-        __bstring_talloc_top_ctx   = talloc_named_const(CTX, 0, "Bstring Top Context");
+        main_top_talloc_ctx_        = talloc_named_const(ctx_, 0, "Main Top");
+        _mpack_encode_talloc_ctx_   = talloc_named_const(ctx_, 0, "Mpack Encode Top");
+        _mpack_decode_talloc_ctx_   = talloc_named_const(ctx_, 0, "Mpack Decode Top");
+        _nvim_common_talloc_ctx_    = talloc_named_const(ctx_, 0, "Nvim Common Top");
+        _clang_talloc_ctx_          = talloc_named_const(ctx_, 0, "Clang Top");
+        _event_loop_talloc_ctx_     = talloc_named_const(ctx_, 0, "Event Loop Top");
+        _event_handlers_talloc_ctx_ = talloc_named_const(ctx_, 0, "Event Handlers Top");
+        _buffer_talloc_ctx_         = talloc_named_const(ctx_, 0, "Buffer Top Context");
+        _tok_scan_talloc_ctx_       = talloc_named_const(ctx_, 0, "Token Scanner Top Context");
+        _update_top_talloc_ctx      = talloc_named_const(ctx_, 0, "Update Top Context");
+        __bstring_talloc_top_ctx_   = talloc_named_const(ctx_, 0, "Bstring Top Context");
 #endif
 }
 

@@ -30,8 +30,8 @@ static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *fun
 static          mpack_obj *await_package  (_nvim_wait_node *node) __aWUR;
 static noreturn void      *discard_package(void *arg);
 
-void *_nvim_common_talloc_ctx = NULL;
-#define CTX _nvim_common_talloc_ctx
+void *nvim_common_talloc_ctx_ = NULL;
+#define CTX nvim_common_talloc_ctx_
 
 /*======================================================================================*/
 

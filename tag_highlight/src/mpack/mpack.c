@@ -4,17 +4,6 @@
 #include "mpack.h"
 
 P99_DEFINE_ENUM(mpack_expect_t);
-
-struct item_free_stack {
-        mpack_obj **items;
-        uint32_t    qty;
-        uint32_t    max;
-};
-
-#if 0
-static void       collect_items  (struct item_free_stack *tofree, mpack_obj *item);
-static void       free_stack_push(struct item_free_stack *list, void *item);
-#endif
 static mpack_obj *find_key_value (mpack_dict *dict, bstring const *key) __attribute__((pure));
 
 FILE  *mpack_log;
@@ -32,7 +21,7 @@ FILE  *mpack_log;
 
 pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
 __attribute__((__constructor__))
-static void _mpack_mutex_constructor(void)
+static void mpack_mutex_constructor(void)
 {
         pthread_mutexattr_t attr;
         memset(&attr, 0, sizeof(attr));
@@ -48,7 +37,6 @@ mpack_retval
         mpack_retval ret = {.ptr = NULL};
         uint64_t     value;
         mpack_type_t err_expect;
-        /* pthread_mutex_lock(&mpack_rw_lock); */
 
         if (!obj)
                 return ret;
@@ -135,12 +123,9 @@ mpack_retval
                 errx(1, "Invalid type given to %s()\n", FUNC_NAME);
         }
 
-        if (destroy) {
+        if (destroy)
                 talloc_free(obj);
-                /* mpack_destroy_object(obj); */
-        }
 
-        /* pthread_mutex_unlock(&mpack_rw_lock); */
         return ret;
 
 error:
@@ -150,152 +135,6 @@ error:
         ret.ptr = NULL;
         abort();
 }
-
-/*======================================================================================*/
-
-#if 0
-int
-mpack_destroy_object(mpack_obj *root)
-{
-        pthread_mutex_lock(&mpack_rw_lock);
-
-        talloc_free(root);
-#if 0
-        if (!(root->flags & MPACKFLG_ENCODE)) {
-                if (root->flags & MPACKFLG_HAS_PACKED)
-                        b_destroy(*root->packed);
-
-                if (!(root->flags & MPACKFLG_PHONY)) {
-                        /* This gcc specific warning is a false positive. Non-heap
-                         * objects all have the `phony' flag and won't be free'd. */
-                        talloc_free(root);
-                }
-        } else if (!(root->flags & MPACKFLG_PHONY)) {
-                talloc_free(root);
-        } else {
-                /* talloc_free_children(root); */
-                abort();
-        }
-#endif
-
-
-#if 0
-        PRAGMA_NO_NONHEAP();
-        pthread_mutex_lock(&mpack_rw_lock);
-
-        if (!(root->flags & MPACKFLG_ENCODE)) {
-                if (root->flags & MPACKFLG_HAS_PACKED)
-                        b_destroy(*root->packed);
-
-                if (!(root->flags & MPACKFLG_PHONY)) {
-                        /* This gcc specific warning is a false positive. Non-heap
-                         * objects all have the `phony' flag and won't be free'd. */
-                        free(root);
-                }
-                pthread_mutex_unlock(&mpack_rw_lock);
-                return;
-        }
-        PRAGMA_NO_NONHEAP_POP();
-
-        struct item_free_stack tofree = {nmalloc(1024, sizeof(void *)), 0, 1024};
-        collect_items(&tofree, root);
-
-        for (int64_t i = (int64_t)(tofree.qty - 1); i >= 0; --i) {
-                mpack_obj *cur = tofree.items[i];
-                if (!cur)
-                        continue;
-                if (!(cur->flags & MPACKFLG_SPARE_DATA)) {
-                        switch (mpack_type(cur)) {
-                        case MPACK_ARRAY:
-                                if (cur->arr) {
-                                        free(cur->arr->lst);
-                                        free(cur->arr);
-                                }
-                                break;
-                        case MPACK_DICT:
-                                if (cur->dict) {
-                                        unsigned j = 0;
-                                        while (j < cur->dict->qty)
-                                                free(cur->dict->lst[j++]);
-                                        free(cur->dict->lst);
-                                        free(cur->dict);
-                                }
-                                break;
-                        case MPACK_STRING:
-                                if (cur->str)
-                                        b_destroy(cur->str);
-                                break;
-                        case MPACK_EXT:
-                                if (cur->ext)
-                                        free(cur->ext);
-                                break;
-                        default:
-                                break;
-                        }
-                }
-
-                if (cur->flags & MPACKFLG_HAS_PACKED)
-                        b_destroy(*cur->packed);
-                if (!(cur->flags & MPACKFLG_PHONY))
-                        free(cur);
-        }
-
-        free(tofree.items);
-#endif
-        pthread_mutex_unlock(&mpack_rw_lock);
-        return 0;
-}
-#endif
-
-#if 0
-static void
-collect_items(struct item_free_stack *tofree, mpack_obj *item)
-{
-        if (!item)
-                return;
-        free_stack_push(tofree, item);
-        if (item->flags & MPACKFLG_SPARE_DATA)
-                return;
-
-        switch (mpack_type(item)) {
-        case MPACK_ARRAY:
-                if (!item->arr)
-                        return;
-
-                for (unsigned i = 0; i < item->arr->qty; ++i)
-                        if (item->arr->lst[i])
-                                collect_items(tofree, item->arr->lst[i]);
-                break;
-
-        case MPACK_DICT:
-                if (!item->dict)
-                        return;
-
-                for (unsigned i = 0; i < item->dict->qty; ++i) {
-                        if (item->dict->lst[i]->key)
-                                collect_items(tofree, item->dict->lst[i]->key);
-                        if (item->dict->lst[i]->value)
-                                collect_items(tofree, item->dict->lst[i]->value);
-                }
-                break;
-
-        case MPACK_UNINITIALIZED:
-                errx(1, "Got uninitialized item to free!");
-
-        default:
-                break;
-        }
-}
-
-static void
-free_stack_push(struct item_free_stack *list, void *item)
-{
-        if (list->qty == (list->max - 1))
-                list->items = nrealloc(list->items, (list->max *= 2),
-                                       sizeof(*list->items));
-        list->items[list->qty++] = item;
-}
-#endif
 
 /*======================================================================================*/
 /* Type conversions */
@@ -310,18 +149,13 @@ mpack_array_to_blist(mpack_array *array, bool const destroy)
 
         if (destroy) {
                 for (unsigned i = 0; i < size; ++i) {
-                        /* b_writeprotect(array->lst[i]->str); */
                         b_list_append(ret, array->lst[i]->str);
                         array->lst[i]->str = NULL;
                 }
-
                 talloc_free(array);
-                /* mpack_array_destroy(array); */
-                /* b_list_writeallow(ret); */
         } else {
-                for (unsigned i = 0; i < size; ++i) {
+                for (unsigned i = 0; i < size; ++i)
                         b_list_append(ret, array->lst[i]->str);
-                }
         }
 
         return ret;
@@ -357,27 +191,6 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
         if (!calls)
                 return;
         talloc_free(calls);
-#if 0
-        for (unsigned i = 0; i < calls->qty; ++i) {
-                unsigned x = 0;
-                for (char const *ptr = calls->fmt[i]; *ptr; ++ptr) {
-                        switch (*ptr) {
-                        case 'b': case 'B':
-                        case 'd': case 'D':
-                                ++x;
-                                break;
-                        case 's': case 'S':
-                                b_destroy(calls->args[i][x].str); ++x;
-                                break;
-                        }
-                }
-                free(calls->args[i]);
-                free(calls->fmt[i]);
-        }
-        free(calls->args);
-        free(calls->fmt);
-        free(calls);
-#endif
 }
 
 /*======================================================================================*/

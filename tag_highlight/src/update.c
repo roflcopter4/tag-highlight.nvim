@@ -27,8 +27,8 @@ extern FILE *cmd_log;
 #  define LOGCMD(...)
 #endif
 
-#define CTX _update_top_talloc_ctx
-void *_update_top_talloc_ctx = NULL;
+#define CTX update_top_talloc_ctx_
+void *update_top_talloc_ctx_ = NULL;
 
 /*======================================================================================*/
 
@@ -158,7 +158,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
 {
         unsigned const        ngroups = bdata->ft->order->slen;
         struct cmd_call_info *info =
-            talloc_array(_update_top_talloc_ctx, struct cmd_call_info, ngroups);
+            talloc_array(CTX, struct cmd_call_info, ngroups);
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 int const   ch   = bdata->ft->order->data[i];
@@ -218,8 +218,8 @@ handle_kind(bstring *cmd, unsigned i,
                                               BTS(ft->vim_name)).ptr;
 
 #ifdef DEBUG
-        talloc_steal(_update_top_talloc_ctx, global_allbut);
-        talloc_steal(_update_top_talloc_ctx, global_allbut);
+        talloc_steal(CTX, global_allbut);
+        talloc_steal(CTX, global_allbut);
 #endif
 
         if (ft_allbut) {
@@ -310,7 +310,7 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
 {
 #define CL (*calls)
         if (!CL) {
-                CL        = talloc(_update_top_talloc_ctx, mpack_arg_array);
+                CL        = talloc(CTX, mpack_arg_array);
                 CL->qty   = 0;
                 CL->mlen  = 16;
                 CL->fmt   = talloc_zero_array(CL, char *, CL->mlen);

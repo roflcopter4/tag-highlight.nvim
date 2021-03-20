@@ -55,8 +55,8 @@ static pthread_mutex_t mpack_search_mutex = PTHREAD_MUTEX_INITIALIZER;
 #undef talloc_array
 #define talloc_array(ctx, type, count) (type *)_talloc_array(ctx, sizeof(type), count, __location__ " - " #type)
 
-void *_mpack_decode_talloc_ctx = NULL;
-#define CTX _mpack_decode_talloc_ctx
+void *mpack_decode_talloc_ctx_ = NULL;
+#define CTX mpack_decode_talloc_ctx_
 
 /*============================================================================*/
 
@@ -93,7 +93,6 @@ mpack_decode_stream(int32_t fd)
         mpack_obj *ret = do_decode(&stream_read, &fd);
         if (!ret)
                 errx(1, "Failed to decode stream.");
-        /* talloc_set_destructor(ret, mpack_destroy_object); */
 
         if (mpack_type(ret) != MPACK_ARRAY) {
                 if (mpack_log) {
@@ -115,7 +114,6 @@ mpack_decode_obj(bstring *buf)
         mpack_obj *ret = do_decode(&obj_read, buf);
         if (!ret)
                 errx(1, "Failed to decode stream.");
-        /* talloc_set_destructor(ret, mpack_destroy_object); */
 
         if (mpack_type(ret) != MPACK_ARRAY) {
                 if (mpack_log) {

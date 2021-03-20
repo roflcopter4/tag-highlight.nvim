@@ -14,8 +14,8 @@
 #define b_iseql(BSTR, LIT)          (b_iseq((BSTR), b_tmp(LIT)))
 #define b_iseql_caseless(BSTR, LIT) (b_iseq_caseless((BSTR), b_tmp(LIT)))
 
-#define CTX _tok_scan_talloc_ctx 
-void *_tok_scan_talloc_ctx = NULL;
+#define CTX tok_scan_talloc_ctx_
+void *tok_scan_talloc_ctx_ = NULL;
 
 static bool is_c_or_cpp;
 
