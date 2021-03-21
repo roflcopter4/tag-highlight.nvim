@@ -5,6 +5,13 @@ Currently, C, C++, and Go are supported, and ore languages will be added as time
 
 Originally, I wrote this to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C, for no particular reason. Working with Neovim proved so simple and fast that it seemed natural to expand this project to implement true semantic highlighting.
 
+### DISCLAIMER/PLEA
+I have no idea if anyone is actually using this thing. If you are, or you've tried to and something has gone horribly wrong I'd be grateful for any feedback. Heck, it'd make my day even if all you said were:
+
+>This is the worst piece of junk I've ever seen. It doesn't compile and wouldn't work if it did. I hate it, and hate you even more.
+ 
+And I'm not even kidding. Please do complain if it doesn't work.
+
 ## Installing
 If using dein, installing should be as easy as adding this to your .vimrc.
     `call dein#add('roflcopter4/tag-highlight.nvim', {'merged': v:false, 'build': 'sh build.sh'})`
