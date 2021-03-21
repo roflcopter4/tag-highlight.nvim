@@ -1,5 +1,9 @@
 # /src
 
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 add_definitions(-D_BUILD_)
 
 set (tag_highlight_SOURCES
@@ -68,28 +72,6 @@ add_library(thl-util OBJECT
 ################################################################################
 # Libraries
 
-if (NOT CLANG_STR_SEARCH EQUAL -1)
-    # target_link_libraries(tag_highlight
-    #     -lunwind
-    #     -lc++
-    # )
-endif ()
-
-if (MINGW)
-    # For some reason clang wants libstdc++ linked in on Windows.
-    target_link_libraries(tag_highlight
-        -lstdc++
-    )
-else ()
-    #target_link_libraries(tag_highlight
-    #)
-    if (LIBEV_FOUND)
-        target_link_libraries(tag_highlight
-            ${LIBEV_LIBRARIES}
-        )
-    endif ()
-endif ()
-
 target_link_libraries(tag_highlight
     ${LIBCLANG_LIBRARY}
     ${LLVM_SYSTEM_LIBRARIES}
@@ -101,25 +83,48 @@ target_link_libraries(tag_highlight
     mpack-c
     thl-util
 )
+
+if (MINGW)
+    # For some reason clang wants libstdc++ linked in on Windows.
+    target_link_libraries(tag_highlight -lstdc++)
+endif ()
+
+if (LIBEV_FOUND)
+    target_link_libraries(tag_highlight ${LIBEV_LIBRARIES})
+endif ()
+
 if (LIBBSD_FOUND)
-    target_link_libraries(tag_highlight "${LIBBSD_LIBRARIES}")
+    target_link_libraries(tag_highlight ${LIBBSD_LIBRARIES})
 endif()
 
+if (LZMA_SUPPORT)
+    target_link_libraries(tag_highlight LibLZMA::LibLZMA)
+endif ()
+
+if (USE_JEMALLOC STREQUAL "YES")
+    target_link_libraries(tag_highlight ${JEMALLOC_LIBRARY})
+endif()
 
 if (TALLOC_FOUND)
-    target_link_libraries(tag_highlight
-        ${TALLOC_LIBRARIES}
+    target_link_libraries(tag_highlight ${TALLOC_LIBRARIES})
+
+    install(TARGETS tag_highlight mytalloc
+            RUNTIME DESTINATION "bin"
     )
 else()
     include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
-    add_library(my_talloc SHARED
-        "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c"
-    )
+
+    # Unfortunately, apparently talloc *must* be a shared library to work
+    # properly. What a pain.
+    add_library(mytalloc SHARED
+                "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
 
     target_compile_options(
-        my_talloc
+        mytalloc
         PUBLIC
+            "-g"
             "-fPIC"
+            "-fno-lto"
             "-D_XOPEN_SOURCE_EXTENDED=1"
             "-D__STDC_WANT_LIB_EXT1__=1"
             "-fstack-protector-strong"
@@ -128,23 +133,26 @@ else()
             "-DSTATIC_talloc_MODULES=NULL"
             "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
     )
+    
+    if (CC_IS_CLANG)
+        target_link_options(mytalloc PRIVATE -fno-lto)
+    else()
+        target_link_options(mytalloc PRIVATE -fno-lto -fno-whole-program)
+    endif()
 
 
-
-    target_link_libraries(tag_highlight my_talloc)
+    target_link_libraries(tag_highlight mytalloc)
 
     if (LIBBSD_FOUND)
-        target_link_libraries(tag_highlight "${LIBBSD_LINK_LIBRARIES}")
+        target_link_libraries(tag_highlight ${LIBBSD_LINK_LIBRARIES})
     endif()
-endif()
+    
+    set_property(TARGET tag_highlight PROPERTY INSTALL_RPATH "\$ORIGIN")
 
-if (LZMA_SUPPORT)
-    target_link_libraries(tag_highlight
-        LibLZMA::LibLZMA
-        # ${LIBLZMA_LIBRARIES}
+    install(TARGETS tag_highlight mytalloc
+            RUNTIME DESTINATION "bin"
+            LIBRARY DESTINATION "bin"
     )
-endif ()
 
-if (USE_JEMALLOC STREQUAL "YES")
-    target_link_libraries(tag_highlight ${JEMALLOC_LIBRARY})
 endif()
+

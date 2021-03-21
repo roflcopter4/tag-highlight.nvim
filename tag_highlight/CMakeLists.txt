@@ -6,16 +6,20 @@ include (CheckSymbolExists)
 include (CheckIncludeFile)
 
 if (MSVC)
-    message(FATAL_ERROR "MSVC is not and will probably never be supported. Use MinGW")
+    message(FATAL_ERROR
+            "MSVC is not and will probably never be supported. Use MinGW")
 endif()
 
 ###############################################################################
 # Options
 
+set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/..")
+get_filename_component(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
+
 set (REQUIRED_LZMA_VERSION 5.3.1)
-option(SANITIZE "Enable sanitizers")
-option(USE_JEMALLOC "Use jemalloc")
-option(USE_LIBEV "Use libev for the event loop (if available)")
+option(SANITIZE "Enable sanitizers" OFF)
+option(USE_JEMALLOC "Use jemalloc" OFF)
+option(USE_LIBEV "Use libev for the event loop (if available)" "TRY")
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -29,8 +33,8 @@ if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE "Release")
 endif()
 
-if ((CMAKE_BUILD_TYPE STREQUAL "Debug")
-    OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL
+                                            "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 
@@ -40,16 +44,14 @@ endif()
 if (MINGW)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include _mingw.h")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -Wl,--allow-multiple-definition")
+    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS}
+           "-Wl,--allow-multiple-definition")
 
-    # include_directories("/d/msys64/mingw64/x86_64-w64-mingw32/include")
-    # include_directories("${PROJECT_SOURCE_DIR}/deps/talloc")
     add_definitions(-D__MINGW__)
     add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
 else()
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            "-L/usr/local/lib -rdynamic")
+    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS}
+           -L/usr/local/lib -rdynamic)
 endif()
 
 add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H -DBSTR_USE_P99 -DBSTR_USE_TALLOC)
@@ -58,11 +60,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
 
-set (CMAKE_REQUIRED_DEFINITIONS
-    -D__USE_ISOC11
-    -D_GNU_SOURCE
-    -DHAVE_CONFIG_H
-)
+set (CMAKE_REQUIRED_DEFINITIONS -D__USE_ISOC11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
 
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
 GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)
@@ -91,9 +89,13 @@ endif()
 if (MINGW)
     # Nil I guess
 else ()
-    find_package (Talloc)
+    # find_package (Talloc)
     if (USE_LIBEV)
-        find_package (LibEv REQUIRED)
+        if ("${USE_LIBEV}" STREQUAL "TRY")
+            find_package (LibEV)
+        else()
+            find_package (LibEv REQUIRED)
+        endif()
         if (LIBEV_FOUND)
             set (HAVE_LIBEV 1)
         endif()
@@ -108,6 +110,9 @@ endif()
 ###############################################################################
 # Symbol and header checks
 
+check_symbol_exists (err            "err.h"      HAVE_ERR)
+CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
+CHECK_SYMBOL_EXISTS (arc4random     "stdlib.h"   HAVE_ARC4RANDOM)
 CHECK_SYMBOL_EXISTS (mkostemps      "stdlib.h"   HAVE_MKOSTEMPS)
 CHECK_SYMBOL_EXISTS (reallocarray   "stdlib.h"   HAVE_REALLOCARRAY)
 CHECK_SYMBOL_EXISTS (asprintf       "stdio.h"    HAVE_ASPRINTF)
@@ -116,27 +121,24 @@ CHECK_SYMBOL_EXISTS (vasprintf      "stdio.h"    HAVE_VASPRINTF)
 CHECK_SYMBOL_EXISTS (memrchr        "string.h"   HAVE_MEMRCHR)
 CHECK_SYMBOL_EXISTS (strchrnul      "string.h"   HAVE_STRCHRNUL)
 CHECK_SYMBOL_EXISTS (strdupa        "string.h"   HAVE_STRDUPA)
+CHECK_SYMBOL_EXISTS (stricmp        "string.h"   HAVE_STRICMP)
 CHECK_SYMBOL_EXISTS (strlcat        "string.h"   HAVE_STRLCAT)
 CHECK_SYMBOL_EXISTS (strlcpy        "string.h"   HAVE_STRLCPY)
 CHECK_SYMBOL_EXISTS (strsep         "string.h"   HAVE_STRSEP)
 CHECK_SYMBOL_EXISTS (strtonum       "string.h"   HAVE_STRTONUM)
-CHECK_SYMBOL_EXISTS (stricmp        "string.h"   HAVE_STRICMP)
 CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
+CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
+CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
 CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
-CHECK_SYMBOL_EXISTS (err            "err.h"      HAVE_ERR)
-CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
-CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
-CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
-CHECK_SYMBOL_EXISTS (arc4random     "bsd/stdlib.h"    HAVE_ARC4RANDOM)
 
-CHECK_INCLUDE_FILE("execinfo.h"    HAVE_EXECINFO_H)
-CHECK_INCLUDE_FILE("stdatomic.h"   HAVE_STDATOMIC_H)
-CHECK_INCLUDE_FILE("stdnoreturn.h" HAVE_STDNORETURN_H)
-CHECK_INCLUDE_FILE("threads.h"     HAVE_THREADS_H)
-CHECK_INCLUDE_FILE("sys/auxv.h"    HAVE_SYS_AUXV_H)
-CHECK_INCLUDE_FILE("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
+CHECK_INCLUDE_FILE ("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
+CHECK_INCLUDE_FILE ("execinfo.h"    HAVE_EXECINFO_H)
+CHECK_INCLUDE_FILE ("stdatomic.h"   HAVE_STDATOMIC_H)
+CHECK_INCLUDE_FILE ("stdnoreturn.h" HAVE_STDNORETURN_H)
+CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
+CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
 
 if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
     pkg_check_modules(LIBBSD libbsd)
@@ -148,17 +150,17 @@ endif()
 ###############################################################################
 # General flags
 
-string(CONCAT CMAKE_C_FLAGS "${LIBCLANG_CFLAGS}" " ${CMAKE_C_FLAGS}")
+string(JOIN " " CMAKE_C_FLAGS ${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS})
 
-string (CONCAT WARNS
-    "-Wall -Wextra"
-    " -Werror=implicit"
-    " -Werror=incompatible-pointer-types"
-    " -Werror=pointer-to-int-cast"
-    " -Werror=int-conversion"
-    " -Werror=implicit-function-declaration"
-    " -Werror=incompatible-pointer-types"
-    " -Werror=format-extra-args"
+string (JOIN " " WARNS
+        -Wall -Wextra
+        -Werror=format-extra-args
+        -Werror=implicit
+        -Werror=implicit-function-declaration
+        -Werror=incompatible-pointer-types
+        -Werror=incompatible-pointer-types
+        -Werror=int-conversion
+        -Werror=pointer-to-int-cast
 )
 
 if (NOT BUILD_DIST) 
@@ -184,70 +186,44 @@ string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
 # Compiler specific flags. Currently these override $CFLAGS.
 
 string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
+if (NOT CLANG_STR_SEARCH EQUAL -1)
+    set (CC_IS_CLANG 1)
+endif()
 
-set (CFLAGS_DEBUG_COMMON          "-Og -g -Wextra -Wpedantic -Wformat")
-set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -Wextra -ftree-vectorize -g -Wextra")
-set (CFLAGS_RELEASE_COMMON        "-O3 -DNDEBUG -ffunction-sections")
+set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
+set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
+set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -ffunction-sections")
 
 if (SANITIZE)
-    string (CONCAT CFLAGS_DEBUG_COMMON "${CFLAGS_DEBUG_COMMON}"
-        " -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+    string (JOIN " " CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
+            -fno-omit-frame-pointer -fno-optimize-sibling-calls)
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 endif()
 
-if (NOT CLANG_STR_SEARCH EQUAL -1)
-
-    # set (BASE "${BASE} -fprofile-instr-generate")
-    # set (BASE "${BASE} -fprofile-instr-use=${CMAKE_CURRENT_BINARY_DIR}/code.profdata")
-    # string(CONCAT CMAKE_C_FLAGS_DEBUG "${BASE} ${SANIT} -O0 -g3 -Wextra -Wpedantic -Wformat" " -Wall" # " -Weverything"
-    #       " -Wno-sign-conversion -Wno-documentation-unknown-command"
-    #       " -Wno-cast-qual -Wno-shorten-64-to-32 -Wno-unused-macros -Wno-switch-enum"
-    #       " -Wno-disabled-macro-expansion -Wno-covered-switch-default -Wno-padded -Werror=enum-conversion"
-    #       " -Wno-vla -Wno-missing-variable-declarations -Wno-gnu" " -Wno-format-nonliteral"
-    # )
-    # "-Rpass='.*'"
-    # "-Rpass-missed='.*'" 
-    # "-Rpass='inline'"
-    # "-Rpass-missed='inline'" 
-    # "-mllvm -inline-threshold=10000000"
-    # "-mllvm -inlinehint-threshold=30000000"
-    # "-Rpass-analysis='.*'"
-    # )
-
-    string (CONCAT BASE "${BASE} ${WARNS}"
-        " -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments -Wno-gnu-statement-expression -Werror=return-type"
-        " -Wno-sign-compare"
-        " --gcc-toolchain=/usr/local"
+if (CC_IS_CLANG)
+    string (JOIN " " WARNS ${WARNS}
+         -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
+         -Wno-gnu-statement-expression -Werror=return-type
+         -Wno-sign-compare
     )
-
-    set (CMAKE_C_FLAGS_DEBUG
-            "${CFLAGS_DEBUG_COMMON} ${BASE}")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
-    set (CMAKE_C_FLAGS_RELEASE
-            "${CFLAGS_RELEASE_COMMON} ${BASE} -flto=full")
+    string (CONCAT BASE "${BASE} ${WARNS}")
+    set (LTO_STR "-flto=full")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
         " -fuse-ld=lld -flto=full")
 
 else() # GCC
 
-    string(CONCAT BASE "${BASE} ${WARNS}"
-        " -Wattributes"
-        " -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc"
-        " -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format"
-        " -Wold-style-definition -Wold-style-declaration -Werror=designated-init")
-
-    set (CMAKE_C_FLAGS_DEBUG
-            "${CFLAGS_DEBUG_COMMON} ${BASE} -Wno-switch-unreachable")
-    set (CMAKE_C_FLAGS_RELWITHDEBINFO
-            "${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE}")
-    set (CMAKE_C_FLAGS_RELEASE
-#       "${CFLAGS_RELEASE_COMMON} ${BASE}")
-        "${CFLAGS_RELEASE_COMMON} ${BASE} -fwhole-program -flto")
+    string (JOIN " " WARNS ${WARNS}
+         -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc
+         -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
+         -Wattributes -Wold-style-definition -Wold-style-declaration 
+    )
+    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init)
+    set (LTO_STR "-flto")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto -fwhole-program")
 endif()
@@ -255,11 +231,14 @@ endif()
 #####################################################################################################
 # Misc
 
-string (CONCAT CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} ${BASE} -Os")
-
-if (NOT DEBUG)
-    # set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-endif()
+string(JOIN " " CMAKE_C_FLAGS_DEBUG
+                ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
+string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
+                ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE})
+string(JOIN " " CMAKE_C_FLAGS_RELEASE
+                ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON} ${BASE} ${LTO_STR})
+string(JOIN " " CMAKE_C_FLAGS_MINSIZEREL
+                ${CMAKE_C_FLAGS_MINSIZEREL} ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s)
 
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
