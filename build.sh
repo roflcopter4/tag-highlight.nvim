@@ -6,6 +6,8 @@ project_dir=
 system_type=
 link_cmd=
 link_bin=false
+_CC=''
+progname=$(basename "$0")
 
 ################################################################################
 # Utilities
@@ -14,19 +16,40 @@ Exists() {
     command -v "$@" >/dev/null 2>&1
 }
 
+warn() {
+    if [ $# -eq 0 ]; then
+        printf '\033[1;31m%s: Error encountered.\033[0m\n' "$progname"
+    else
+        printf '\033[1;31m%s: Error:\033[0m %s\n' "$progname" "$1" >&2
+    fi
+    return 1
+}
+
 die() {
     if [ $# -eq 0 ]; then
-        printf '\033[1;31mFatal error encountered.\033[0m\n'
+        printf '\033[1;31m%s: Fatal error encountered.\033[0m\n' "$progname"
     else
-        printf '\033[1;31mFatal error:\033[0m %s\n' "$1" >&2
+        printf '\033[1;31m%s: Fatal error:\033[0m %s\n' "$progname" "$1" >&2
     fi
     exit 1
 }
 
+make_link() {
+    case "$system_type" in
+        MinGW) _command_="$link_cmd '$(cygpath -wa "$1")' '$(cygpath -wa "$2")'" ;;
+        *)     _command_="$link_cmd '$(realpath "$1")' '$(realpath "$2")'"       ;;
+    esac
+
+    printf '%s\n' "$_command_" >&2
+    eval $_command_
+}
+
+################################################################################
+
 check() {
     Exists 'cmake' || die 'Cmake not found'
     Exists 'llvm-config' || die 'llvm not found'
-    Exists $CC || Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
+    Exists "$CC" || Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
 }
 
 guess_system() {
@@ -62,18 +85,9 @@ get_link_command() {
     esac
 }
 
-make_link() {
-    case "$system_type" in
-        MinGW) _command_="$link_cmd '$(cygpath -wa "$1")' '$(cygpath -wa "$2")'" ;;
-        *)     _command_="$link_cmd '$(realpath "$1")' '$(realpath "$2")'"       ;;
-    esac
-
-    printf '%s\n' "$_command_" >&2
-    eval $_command_
-}
-
 find_compiler() {
     local MY_CC
+    MY_CC=''
     if [ "$1" ] && Exists "$1"; then
         MY_CC="$1"
     elif [ "$CC" ] && Exists "$CC"; then
@@ -91,13 +105,6 @@ find_compiler() {
 }
 
 ################################################################################
-# Subroutines
-
-do_all() {
-    init
-    compile "$@"
-    install
-}
 
 init() {
     case "$system_type" in
@@ -115,10 +122,6 @@ init() {
         ;;
     esac
 
-    mkdir -p "${top_dir}/autoload/tag_highlight"
-    mkdir -p "${top_dir}/cache"
-    mkdir -p "${top_dir}/cache/tags"
-
     cat >"${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#GetBinaryName()
     return '${final_path}'
@@ -134,8 +137,29 @@ endfunction
 EOF
 }
 
+################################################################################
+# Compile & Install
+
+do_all() {
+    init
+    do_go_binary
+    compile "$@"
+    install
+}
+
+do_go_binary() {
+    build_go_binary || warn "Failed to build the go binary"
+}
+
+build_go_binary() {
+    cd "${project_dir}/src/lang/golang" || return 1
+    go build ./main.go || return 2
+    mv main "${top_dir}/bin/golang" || return 3
+    return 0
+}
+
 compile() {
-    echo 'Compiling Tag-Highlight.nvim' >&2
+    # echo 'Compiling Tag-Highlight.nvim' >&2
     check
     cd "$project_dir" || die
     if [ -d 'build' ]; then
@@ -147,7 +171,8 @@ compile() {
     [ "$system_type" = 'MinGW' ] && cmake_make_system='MSYS Makefiles'
 
     cmake -DCMAKE_BUILD_TYPE="${2:-Release}" -DCMAKE_EXPORT_COMPILE_COMMANDS=YES \
-          -DCMAKE_C_COMPILER="$(find_compiler)" -G "${cmake_make_system}" .. ||
+          -DCMAKE_C_COMPILER="$(find_compiler "${_CC}")" -G "${cmake_make_system}" \
+          -DUSE_LIBV=TRY .. ||
         die 'Cmake configuration failed.'
 
     num_jobs=$(nproc)
@@ -157,17 +182,9 @@ compile() {
 }
 
 install() {
-    echo 'Installing Tag-Highlight.nvim' >&2
+    # echo 'Installing Tag-Highlight.nvim' >&2
     cd "$top_dir" || die
     mkdir -p bin
-
-    case "$system_type" in
-    MinGW)
-        for libname in libclang.dll libgcc_s_seh-1.dll libgomp-1.dll libstdc++-6.dll libwinpthread-1.dll libz3.dll zlib1.dll; do
-            make_link "/mingw64/bin/${libname}" "${binary_install_path}"
-        done
-        ;;
-    esac
 
     if [ -z "$binary_path" ] || [ -z "${final_path}" ]; then
         die 'Invalid'
@@ -176,14 +193,9 @@ install() {
     if $link_bin; then
         make_link "${binary_path}" "${bin_dir}"
     else
-        printf "mv '%s' '%s'\\n" "${binary_path}" "${bin_dir}" >&2
-        mv "${binary_path}" "${bin_dir}"
+        make -C "${project_dir}/build" 'install/strip'
         rm -r "${project_dir}/build"
     fi
-
-    mkdir -p "${HOME}/.vim_tags"
-    mkdir -p "${HOME}/.tag_highlight"
-    mkdir -p "${HOME}/.tag_highlight_log"
 }
 
 ################################################################################
@@ -193,12 +205,13 @@ show_help() {
     cat <<EOF
 Usage: $0 -[hl] <command>
 Options:
-    -h  Show this help
-    -l  Link the binary rather than copy it
+  -h   Show this help
+  -l   Link the binary rather than copy it
 Valid commands:
-    setup:   Initialize the directory structure and create the necessary vim files
-    update:  Rebuild the binary only
-    install: setup and install
+  setup     Create the directory structure and the necessary vim files
+  update    Rebuild the binary only
+  install   Setup and install
+  dirs      Create or update the vim directories and/or files
 Defaults to 'install' if no command is specified.
 EOF
 }
@@ -214,6 +227,12 @@ bin_dir="${top_dir}/bin"
 system_type=$(guess_system)
 link_cmd=$(get_link_command)
 
+mkdir -p "${top_dir}/autoload"
+mkdir -p "${top_dir}/autoload/tag_highlight"
+mkdir -p "${top_dir}/cache"
+mkdir -p "${top_dir}/cache/tags"
+mkdir -p "${top_dir}/bin"
+
 while getopts 'lh' ARG "$@"; do
     case $ARG in
         l) link_bin=true ;;
@@ -223,28 +242,38 @@ while getopts 'lh' ARG "$@"; do
 done
 shift $((OPTIND - 1))
 
-if [ "$1" ]; then
+while [ "$1" ]; do
     _ARG="$1"
     shift 1
     case "$_ARG" in
-    dirs | setup | info)
-        init
-        ;;
-    update | make)
-        do_all "$@"
-        ;;
-    install)
-        if [ -d "${project_dir}/build" ]; then
-            init
-            install
-        else
-            do_all "$@"
-        fi
-        ;;
-    *)
-        die 'Invalid command'
+    CC=*)
+        _CC="$(echo "$1" | sed 's/CC=//')"
         ;;
     esac
+done
+
+if [ "$1" ]; then
+    case "$1" in
+        dirs | setup | info)
+            init
+            ;;
+        update | make | all)
+            do_all "$@"
+            ;;
+        install)
+            if [ -d "${project_dir}/build" ]; then
+                init
+                install
+            else
+                do_all "$@"
+            fi
+            ;;
+        go|golang)
+            do_go_binary
+            ;;
+        *)
+            die 'Invalid command'
+    esac
 else
-    do_all "$@"
+    do_all
 fi
