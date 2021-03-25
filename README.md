@@ -18,14 +18,19 @@ Disclaimer: 'should be'. Odds are it will fail and you'll have to run the script
 ## Features
 Project root directories can and should be marked via the command `:THLAddProject <DIR>`. They can be deleted again with `:THLRemoveProject`. Doing this makes it much easier to find the whole project, especially the 'compile_commands.json'. Go projects need to be installed for the highlighting to work. You'll also likely want to fiddle with the highlight linking to fit your favorite color scheme. Maybe someday I'll even document them.
 
-## Why on earth is it written in C?
+## Questions
+
+#### Why on earth is it written in C?
 Because.
 
-## No really, why on earth is it written in C?
+#### No really, why on earth is it written in C?
 Because reasons.
 
-## Stability
+#### Why not use a Language Server?
+When I started this, language servers didn't offer any semantic information that I'd need to make this. Meh.
+
+#### Stability
 No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`. If it hangs, try killing it first with `:THLStop`.
 
-## The fact that you wrote a section entitled "Stability" is why this shouldn't be in C.
+#### The fact that you wrote a section entitled "Stability" is why this shouldn't be in C.
 Yeah, probably.
