@@ -20,17 +20,17 @@ Project root directories can and should be marked via the command `:THLAddProjec
 
 ## Questions
 
-#### Why on earth is it written in C?
+### Why on earth is it written in C?
 Because.
 
-#### No really, why on earth is it written in C?
+### No really, why on earth is it written in C?
 Because reasons.
 
-#### Why not use a Language Server?
+### Why not use a Language Server?
 When I started this, language servers didn't offer any semantic information that I'd need to make this. Meh.
 
-#### Stability
+### Stability
 No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`. If it hangs, try killing it first with `:THLStop`.
 
-#### The fact that you wrote a section entitled "Stability" is why this shouldn't be in C.
+### The fact that you wrote a section entitled "Stability" is why this shouldn't be in C.
 Yeah, probably.
