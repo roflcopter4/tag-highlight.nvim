@@ -8,14 +8,14 @@ let g:tag_highlight#perl#s = {
             \   'group': 'perlFunctionTag',
             \   'prefix': '\%(\<sub\s\*\)\@<!\%(>\|\s\|&\|^\)\@<=\<',
             \   'notin':  [
-            \       '*String*',
-            \       '*Comment*',
-            \       '*Match*',
-            \       '*HereDoc*',
+            \       '.*String.*',
+            \       '.*Comment.*',
+            \       '.*Match.*',
+            \       '.*HereDoc.*',
             \   ]
             \ }
 
-let g:tag_highlight#perl#allbut = '.*Here.oc.*,perlMatch.*,perl.*DQ.*,perl.*SQ.*,perlQQ'
+let g:tag_highlight#perl#allbut = '.*HereDoc.*,perlMatch.*,perl.*DQ.*,perl.*SQ.*,perlQQ'
 
 highlight def link perlConstantTag	tag_highlight_ConstantTag
 highlight def link perlFunctionTag	tag_highlight_FunctionTag

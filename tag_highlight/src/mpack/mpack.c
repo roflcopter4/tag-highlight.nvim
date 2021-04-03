@@ -110,6 +110,14 @@ mpack_retval
                         talloc_steal(NULL, ret.ptr);
                 break;
 
+        case E_WSTRING:
+                if (obj_type != (err_expect = MPACK_STRING))
+                        goto error;
+                ret.ptr = (wchar_t *)obj->str->data;
+                if (destroy)
+                        talloc_steal(NULL, ret.ptr);
+                break;
+
         case E_STRLIST:
                 if (obj_type != (err_expect = MPACK_ARRAY))
                         goto error;

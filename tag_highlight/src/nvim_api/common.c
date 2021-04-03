@@ -218,19 +218,22 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
         if (mpack_type(errmsg) != MPACK_NIL) {
                 bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
                 if (err_str) {
-                        warnx("Neovim returned with an err_str: '%s'", BS(err_str));
+                        echo("Neovim returned with an err_str: '%s'", BS(err_str));
                         b_destroy(err_str);
                 }
         } else {
                 ret = mpack_expect(data, type, false);
                 switch (type) {
                 case E_STRING:
-                        talloc_set_name(ret.ptr, "nvim/common.c: m_expect_intern -> %s: (%s)", mpack_expect_t_getname(type), (char *)(((bstring *)ret.ptr)->data));
+                        talloc_set_name(ret.ptr, "nvim/common.c: m_expect_intern -> %s: (%s)",
+                                        mpack_expect_t_getname(type),
+                                        (char *)(((bstring *)ret.ptr)->data));
                 case E_DICT2ARR:
                 case E_MPACK_ARRAY:
                 case E_MPACK_DICT:
                 case E_MPACK_EXT:
                 case E_STRLIST:
+                case E_WSTRING:
                         talloc_steal(CTX, ret.ptr);
                         break;
                 default:;

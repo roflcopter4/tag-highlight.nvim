@@ -206,6 +206,9 @@ neovim_init(UNUSED void *arg)
 static void
 get_settings(void)
 {
+        extern bstring *get_go_binary(void);
+
+        settings.go_binary      = get_go_binary();
         settings.comp_type      = get_compression_type();
         settings.cache_dir      = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
         settings.comp_level     = nvim_get_var(B(PKG "compression_level"), E_NUM       ).num;
@@ -225,6 +228,7 @@ get_settings(void)
                 exit(0);
 
         settings.talloc_ctx = talloc_named_const(NULL, 0, "Settings talloc context.");
+        talloc_steal(settings.talloc_ctx, settings.go_binary);
         talloc_steal(settings.talloc_ctx, settings.cache_dir);
         talloc_steal(settings.talloc_ctx, settings.ctags_bin);
         talloc_steal(settings.talloc_ctx, settings.settings_file);

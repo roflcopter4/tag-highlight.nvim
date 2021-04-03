@@ -1,4 +1,3 @@
-#pragma once
 #ifndef SRC_LANG_LANG_H_
 #define SRC_LANG_LANG_H_
 
@@ -10,14 +9,7 @@
 __BEGIN_DECLS
 /*======================================================================================*/
 
-P99_DECLARE_STRUCT(cmd_info);
 P99_DECLARE_STRUCT(line_data);
-struct cmd_info {
-        unsigned num;
-        int      kind;
-        bstring *group;
-};
-
 struct line_data {
         unsigned line;
         unsigned start;
@@ -29,9 +21,7 @@ extern void add_hl_call (mpack_arg_array *calls, int bufnum, int hl_id,
 extern void add_clr_call(mpack_arg_array *calls, int bufnum, int hl_id, int line, int end);
 
 extern mpack_arg_array  *new_arg_array(void);
-extern const bstring   *find_group   (struct filetype *ft, const cmd_info *info,
-                                      unsigned num, const int ctags_kind);
-extern struct cmd_info *getinfo      (Buffer *bdata);
+extern const bstring   *find_group   (struct filetype *ft, int ctags_kind);
 
 /*======================================================================================*/
 
@@ -51,6 +41,8 @@ extern FILE *cmd_log;
 #define CTAGS_UNION        'u'
 #define EXTENSION_TEMPLATE 'T'
 #define EXTENSION_CONSTANT 'c'
+#define EXTENSION_METHOD   'M'
+
 
 /*======================================================================================*/
 __END_DECLS

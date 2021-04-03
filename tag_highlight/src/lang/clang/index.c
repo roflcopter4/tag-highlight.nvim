@@ -8,7 +8,7 @@
 /* static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info); */
 /* static CXIdxClientASTFile my_importedASTFile(CXClientData data, const CXIdxImportedASTFileInfo *info); */
 /* static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved); */
-/* static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *clang_info); */
+/* static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info); */
 static void my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info);
 
 __attribute__((used))
@@ -45,22 +45,21 @@ static const char *const idx_entity_kind_repr[] = {
 #define ADD_CALL(CH)                                                                   \
         do {                                                                           \
                 const bstring *group;                                                  \
-                if ((group = find_group(data->bdata->ft, data->cdata->info,            \
-                                        data->cdata->info->num, (CH))))                \
+                if ((group = find_group(data->ft, (CH)))) {                            \
                         add_hl_call(data->calls, data->bdata->num, data->bdata->hl_id, \
                                     group, &line_data);                                \
+                }                                                                      \
         } while (0)
 
 /*======================================================================================*/
 
 struct idx_data {
-        Buffer                 *bdata;
-        struct clangdata       *cdata;
-        struct translationunit *stu;
-        mpack_arg_array        *calls;
-        genlist                *tok_list;
-        FILE                   *fp;
-        unsigned                cnt;
+        Buffer            *bdata;
+        Filetype          *ft;
+        clangdata_t       *cdata;
+        translationunit_t *stu;
+        mpack_arg_array   *calls;
+        unsigned           cnt;
 };
 
 #define LOG(...)    fprintf(data->fp, __VA_ARGS__)
@@ -68,31 +67,14 @@ struct idx_data {
 #define DAT(data)      ((struct idx_data *)(data))
 
 void
-lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls)
+lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls)
 {
-        FILE *fp = safe_fopen_fmt("%s/idx.log", "wb", BS(settings.cache_dir));
-
-        struct idx_data  data = {bdata, CLD(bdata), stu, calls, NULL /* genlist_create() */, fp, 0};
+        struct idx_data  data = {bdata, bdata->ft, CLD(bdata), stu, calls, 0};
         CXIndexAction    iact = clang_IndexAction_create(data.cdata->idx);
-
         IndexerCallbacks cb;
+
         memset(&cb, 0, sizeof(cb));
         cb.indexEntityReference = &my_indexEntityReference;
-#if 0
-        IndexerCallbacks cb   = {/* .abortQuery             = &my_abortQuery, */
-                                 /* .diagnostic             = &my_diagnostic, */
-                                 /* .enteredMainFile        = &my_enteredMainFile, */
-                                 /* .ppIncludedFile         = &my_ppIncludedFile, */
-                                 /* .importedASTFile        = &my_importedASTFile, */
-                                 /* .startedTranslationUnit = &my_startedTranslationUnit, */
-                                 /* .indexDeclaration       = &my_indexDeclaration, */
-                                 .indexEntityReference   = &my_indexEntityReference};
-#endif
-
-#if 0
-        if (!bdata->headers)
-                bdata->headers = b_list_create();
-#endif
 
         const int r = clang_indexTranslationUnit(iact, &data, &cb, sizeof(cb),
                                                  CXIndexOpt_IndexFunctionLocalSymbols,
@@ -100,30 +82,17 @@ lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls
         if (r != 0)
                 errx(1, "Clang failed with error %data", r);
 
-#if 0
-        stu->tokens = data.tok_list;
-        mpack_arg_array *calls = type_id(bdata, stu);
-        nvim_call_atomic(calls);
-        mpack_destroy_arg_array(calls);
-#endif
-
-#if 0
-        if (bdata->headers->qty > 0)
-                b_list_remove_dups(&bdata->headers);
-#endif
-
         clang_IndexAction_dispose(iact);
-        fclose(fp);
 }
 
 /*======================================================================================*/
 
 #if 0
-static struct token *
-mktok(const CXCursor *cursor, const CXString *dispname, const struct resolved_range *rng)
+static token_t *
+mktok(const CXCursor *cursor, const CXString *dispname, const resolved_range_t *rng)
 {
         size_t        len = strlen(CS(*dispname)) + 1LLU;
-        struct token *ret = malloc(offsetof(struct token, raw) + len);
+        token_t *ret = malloc(offsetof(token_t, raw) + len);
         ret->cursor       = *cursor;
         ret->cursortype   = clang_getCursorType(*cursor);
         ret->line         = rng->line - 1;
@@ -158,7 +127,7 @@ static void log_idx_location(const CXCursor         cursor,
             CS(dispname), CS(curstype_spell), CS(typekind_spell),
             idx_entity_kind_repr[ref->kind], ref->name, ref->USR);
 
-        struct resolved_range rng = {0, 0, 0, 0, 0, 0, NULL};
+        resolved_range_t rng = {0, 0, 0, 0, 0, 0, NULL};
         resolve_range(clang_getCursorExtent(cursor), &rng);
         /* genlist_append(data->tok_list, mktok(&cursor, &dispname, rng)); */
 
@@ -194,7 +163,7 @@ static void log_idx_location(const CXCursor         cursor,
 #define LINE_DATA_SUCEESS (1)
 
 static int
-get_line_data (const struct translationunit *stu,
+get_line_data (const translationunit_t *stu,
                const CXCursor                cursor,
                const CXIdxLoc                loc,
                struct idx_data              *data,
@@ -207,7 +176,7 @@ get_line_data (const struct translationunit *stu,
         if (!clang_File_isEqual(fileinfo.file, data->cdata->mainfile))
                 return LINE_DATA_FAIL;
 
-        struct resolved_range rng = {0, 0, 0, 0, 0, 0, NULL};
+        resolved_range_t rng = {0, 0, 0, 0, 0, 0, NULL};
         resolve_range(clang_getCursorExtent(cursor), &rng);
 
         if (rng.line == 0 || rng.start == rng.end || rng.end == 0)
@@ -228,7 +197,7 @@ get_line_data (const struct translationunit *stu,
         const bool eq       = b_iseq_cstr(&realtok, CS(dispname));
         clang_disposeString(dispname);
         if (!eq)
-                return LINE_DATA_FAIL;
+             return LINE_DATA_FAIL;
 
         line_data->line  = rng.line - 1;
         line_data->start = rng.start - 1;
@@ -300,30 +269,19 @@ static void
 my_indexDeclaration(CXClientData rawdata, const CXIdxDeclInfo *info)
 {
         struct idx_data *data = rawdata;
-        LOG("This node is an \033[1;32mINDEX DECLARATION\033[0m.\n");
-        log_idx_location(info->cursor, info->entityInfo, info->loc, data);
-}
-#endif
-
-static void
-my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
-{
-        struct idx_data  *data = raw_data;
         struct line_data  line_data;
 
         if (!get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
                 return;
 
-        switch (info->referencedEntity->kind) {
+        switch (info->entityInfo->kind) {
         case CXIdxEntity_EnumConstant:
                 ADD_CALL(CTAGS_ENUMCONST);
                 break;
-#if 0
         case CXIdxEntity_CXXClass:
                 if (data->bdata->ft->id == FT_CXX)
                         ADD_CALL(CTAGS_CLASS);
                 break;
-#endif
         case CXIdxEntity_CXXTypeAlias:
                 if (data->bdata->ft->id == FT_CXX)
                         ADD_CALL(CTAGS_TYPE);
@@ -337,7 +295,37 @@ my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
         }
 
 #if 0
-        LOG("This node is an \033[1;36mENTITY REFERENCE\033[0m.\n");
-        log_idx_location(info->cursor, info->referencedEntity, info->loc, data);
+        LOG("This node is an \033[1;32mINDEX DECLARATION\033[0m.\n");
+        log_idx_location(info->cursor, info->entityInfo, info->loc, data);
 #endif
+}
+#endif
+
+static void
+my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
+{
+        struct idx_data  *data = raw_data;
+        struct line_data  line_data;
+        int calltype = 0;
+
+        switch (info->referencedEntity->kind) {
+        case CXIdxEntity_EnumConstant:
+                calltype = CTAGS_ENUMCONST;
+                break;
+        case CXIdxEntity_CXXTypeAlias:
+                if (data->bdata->ft->id == FT_CXX)
+                        calltype = CTAGS_TYPE;
+                break;
+        case CXIdxEntity_CXXNamespaceAlias:
+                if (data->bdata->ft->id == FT_CXX)
+                        calltype = CTAGS_NAMESPACE;
+                break;
+        default:
+                return;
+        }
+
+        if (!calltype)
+                return;
+        if (get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
+                ADD_CALL(calltype);
 }

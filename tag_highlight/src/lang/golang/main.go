@@ -19,6 +19,18 @@ var (
 	lg   *log.Logger
 )
 
+const (
+	TYPE_CONSTANT    = 'c'
+	TYPE_FIELD       = 'm'
+	TYPE_FUNCTION    = 'f'
+	TYPE_INTERFACE   = 'i'
+	TYPE_PACKAGENAME = 'p'
+	TYPE_STRUCT      = 's'
+	TYPE_TYPENAME    = 't'
+	TYPE_VARIABLE    = 'v'
+	TYPE_METHOD      = 'F'
+)
+
 //========================================================================================
 
 func main() {
@@ -210,7 +222,7 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
 		return
 	}
-	var kind rune = identify_kind(ident, typeinfo)
+	var kind int = identify_kind(ident, typeinfo)
 
 	if kind == 0 {
 		return
@@ -226,41 +238,47 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	write_output(kind, p, ident.Name)
 }
 
-func identify_kind(ident *ast.Ident, typeinfo types.Object) rune {
+func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
+	var ret int = 0
+
 	switch x := typeinfo.(type) {
 	case *types.Const:
-		return 'c'
+		ret = TYPE_CONSTANT
 	case *types.Func:
-		return 'f'
+		if x.Parent() == nil {
+			ret = TYPE_METHOD
+		} else {
+			ret = TYPE_FUNCTION
+		}
 	case *types.PkgName:
-		return 'p'
+		ret = TYPE_PACKAGENAME
 	case *types.TypeName:
 		if x.Type() != nil || x.Type().Underlying() != nil {
 			switch x.Type().Underlying().(type) {
 			case *types.Interface:
-				return 'i'
+				ret = TYPE_INTERFACE
 			case *types.Struct:
-				return 's'
+				ret = TYPE_STRUCT
 			default:
-				return 't'
+				ret = TYPE_TYPENAME
 			}
 		}
 	case *types.Var:
 		if x.Type() != nil && x.Type().Underlying() != nil {
 			switch x.Type().Underlying().(type) {
 			case *types.Signature:
-				return 'f'
+				ret = TYPE_FUNCTION
 			}
 		}
 		if x.IsField() {
-			return 'm'
+			ret = TYPE_FIELD
 		}
 		if typeinfo.Parent() != nil && typeinfo.Parent().Parent() == types.Universe {
-			return 'v'
+			ret = TYPE_VARIABLE
 		}
 	}
 
-	return 0
+	return ret
 }
 
 func get_range(init_pos token.Pos, length int) [2]token.Position {
@@ -270,7 +288,7 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 	}
 }
 
-func write_output(ch rune, p [2]token.Position, ident string) {
+func write_output(ch int, p [2]token.Position, ident string) {
 	s := fmt.Sprintf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
 		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column, len(ident), ident)
 	_, err := os.Stdout.WriteString(s)

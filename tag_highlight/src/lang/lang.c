@@ -2,45 +2,17 @@
 
 /*======================================================================================*/
 
-__attribute__((__pure__))
 const bstring *
-find_group(struct filetype *ft, struct cmd_info const *info,
-           unsigned const num, int const ctags_kind)
+find_group(Filetype *ft, int const ctags_kind)
 {
         if (b_strchr(ft->order, ctags_kind) < 0)
                 return NULL;
-        bstring const *ret = NULL;
 
-        for (unsigned i = 0; i < num; ++i) {
-                if (info[i].kind == ctags_kind) {
-                        ret = info[i].group;
-                        break;
-                }
-        }
+        for (unsigned i = 0; i < ft->cmd_info->num; ++i)
+                if (ft->cmd_info[i].kind == ctags_kind)
+                        return ft->cmd_info[i].group;
 
-        return ret;
-}
-
-struct cmd_info *
-getinfo(Buffer *bdata)
-{
-        unsigned const   ngroups = bdata->ft->order->slen;
-        struct cmd_info *info    = talloc_array(NULL, struct cmd_info, ngroups);
-
-        for (unsigned i = 0; i < ngroups; ++i) {
-                int const   ch   = bdata->ft->order->data[i];
-                mpack_dict *dict = nvim_get_var_fmt(
-                        E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
-
-                info[i].kind  = ch;
-                info[i].group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
-                info[i].num   = ngroups;
-
-                talloc_steal(info, info[i].group);
-                talloc_free(dict);
-        }
-
-        return info;
+        return NULL;
 }
 
 /*======================================================================================*/
@@ -88,9 +60,11 @@ add_hl_call(struct mpack_arg_array *calls,
         calls->args[calls->qty] = arg;
         ++calls->qty;
 
+#ifdef DEBUG
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_add_highlight(%d, %d, %s, %u, %u, %u)\n",
                         bufnum, hl_id, BS(group), data->line, data->start, data->end);
+#endif
 }
 
 void
@@ -120,7 +94,9 @@ add_clr_call(struct mpack_arg_array *calls,
         calls->args[calls->qty] = arg;
         ++calls->qty;
 
+#ifdef DEBUG
         if (cmd_log)
                 fprintf(cmd_log, "nvim_buf_clear_highlight(%d, %d, %d, %d)\n",
                         bufnum, hl_id, line, end);
+#endif
 }

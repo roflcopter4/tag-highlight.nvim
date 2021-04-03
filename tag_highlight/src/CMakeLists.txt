@@ -108,7 +108,7 @@ endif()
 if (TALLOC_FOUND)
     target_link_libraries(tag_highlight ${TALLOC_LIBRARIES})
 
-    install(TARGETS tag_highlight mytalloc
+    install(TARGETS tag_highlight
             RUNTIME DESTINATION "bin"
     )
 else()

@@ -32,7 +32,8 @@ P99_DECLARE_ENUM(mpack_expect_t,
         E_NUM,
         E_STRING,
         E_STRLIST,
-        E_DICT2ARR
+        E_DICT2ARR,
+        E_WSTRING
 );
 
 enum mpack_flag_values {

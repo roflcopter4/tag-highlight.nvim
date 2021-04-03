@@ -32,7 +32,6 @@ struct buffer_node {
         Buffer           *bdata;
 };
 
-typedef struct filetype Filetype;
 typedef struct top_dir  Top_Dir;
 
 
@@ -494,6 +493,7 @@ set_vim_tags_opt(char const *fname)
 static void     get_ignored_tags(Filetype *ft);
 static void     get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups);
 static bstring *get_restore_cmds(b_list *restored_groups);
+static cmd_info *get_cmd_info(Filetype *ft);
 
 /*
  * Populate the non-static portions of the filetype structure, including a list of
@@ -545,6 +545,9 @@ init_filetype(Filetype *ft)
                 ft->equiv = NULL;
         }
 
+        ft->cmd_info = get_cmd_info(ft);
+        talloc_steal(ft, ft->cmd_info);
+
         pthread_mutex_unlock(&ftdata_mutex);
 }
 
@@ -566,8 +569,9 @@ get_ignored_tags(Filetype *ft)
                 if (ft->has_parser) {
                         get_tags_from_restored_groups(ft, restored_groups);
                         B_LIST_SORT_FAST(ft->ignored_tags);
-                } else
+                } else {
                         ft->restore_cmds = get_restore_cmds(restored_groups);
+                }
 
                 b_list_destroy(restored_groups);
         } else {
@@ -694,6 +698,28 @@ get_restore_cmds(b_list *restored_groups)
         bstring *ret = b_join(allcmds, B(" | "));
         b_list_destroy(allcmds);
         return ret;
+}
+
+static cmd_info *
+get_cmd_info(Filetype *ft)
+{
+        unsigned const   ngroups = ft->order->slen;
+        struct cmd_info *info    = talloc_array(NULL, struct cmd_info, ngroups);
+
+        for (unsigned i = 0; i < ngroups; ++i) {
+                int const   ch   = ft->order->data[i];
+                mpack_dict *dict = nvim_get_var_fmt(
+                        E_MPACK_DICT, PKG "%s#%c", BTS(ft->vim_name), ch).ptr;
+
+                info[i].kind  = ch;
+                info[i].group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
+                info[i].num   = ngroups;
+
+                talloc_steal(info, info[i].group);
+                talloc_free(dict);
+        }
+
+        return info;
 }
 
 /*--------------------------------------------------------------------------------------

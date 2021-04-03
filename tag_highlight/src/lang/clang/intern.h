@@ -9,20 +9,24 @@
 #include "highlight.h"
 #include "lang/lang.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 /*======================================================================================*/
 
-#define TMPSIZ (SAFE_PATH_MAX + 1)
-#define CLD(s) \
-        _Generic(s, Buffer *: (struct clangdata *)((s)->clangdata), \
-                    const Buffer *: (struct clangdata *)((s)->clangdata))
+#define TMPSIZ    (SAFE_PATH_MAX + 1)
 #define CS(CXSTR) (clang_getCString(CXSTR))
+#define CLD(s)                                                         \
+        _Generic((s),                                                  \
+                 Buffer *:       (struct clangdata *)((s)->clangdata), \
+                 const Buffer *: (struct clangdata *)((s)->clangdata)  \
+        )
+
+typedef struct clangdata       clangdata_t;
+typedef struct translationunit translationunit_t;
+typedef struct token           token_t;
+typedef struct resolved_range  resolved_range_t;
 
 struct clangdata {
         str_vector         *argv;
-        struct cmd_info    *info;
         CXIndex             idx;
         CXTranslationUnit   tu;
         CXFile              mainfile;
@@ -45,7 +49,7 @@ struct token {
         CXType      cursortype;
         CXToken     token;
         CXTokenKind tokenkind;
-        unsigned    line, col1, col2, len;
+        unsigned    line, col1, col2, offset, len;
         bstring     text;
         char        raw[];
 };
@@ -55,19 +59,20 @@ struct resolved_range {
         CXFile   file;
 };
 
-/*======================================================================================*/
+/*--------------------------------------------------------------------------------------*/
 
 #define INTERN __attribute__((__visibility__("hidden"))) extern
 
-INTERN mpack_arg_array *create_nvim_calls(Buffer *bdata, struct translationunit *stu);
-
+INTERN mpack_arg_array  *create_nvim_calls(Buffer *bdata, translationunit_t *stu);
 INTERN IndexerCallbacks *make_cb_struct(void);
-INTERN void              lc_index_file(Buffer *bdata, struct translationunit *stu, mpack_arg_array *calls);
 
-INTERN bool resolve_range(CXSourceRange r, struct resolved_range *res);
+INTERN void lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls);
+INTERN bool resolve_range(CXSourceRange r, resolved_range_t *res);
 INTERN void get_tmp_path(char *buf);
 
-/*======================================================================================*/
+#undef INTERN
+
+/*--------------------------------------------------------------------------------------*/
 /* P99 */
 
 #include "contrib/p99/p99_block.h"
@@ -76,7 +81,5 @@ INTERN void get_tmp_path(char *buf);
 #define free_cxstrings(...) P99_BLOCK(P99_SEP(P01_FREE_CXSTRING, __VA_ARGS__);)
 
 /*======================================================================================*/
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
 #endif /* intern.h */

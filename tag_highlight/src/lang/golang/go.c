@@ -15,13 +15,14 @@
 extern void try_go_crap(Buffer *bdata);
 
 struct go_output {
-        char ch;
+        int ch;
         struct {
-                unsigned line, column;
+                unsigned line;
+                unsigned column;
         } start, end;
         struct {
                 unsigned len;
-                char     str[32768];
+                char     str[1024];
         } ident;
 };
 
@@ -37,24 +38,34 @@ static const char is_debug[] = "0";
 #endif
 #define READ_FD  (0)
 #define WRITE_FD (1)
-#define ADD_CALL(CH)                                                                 \
-        do {                                                                         \
-                if ((group = find_group(bdata->ft, info, info->num, (CH))))          \
-                        add_hl_call(calls, bdata->num, bdata->hl_id, group,          \
-                                    &(line_data){data.start.line, data.start.column, \
-                                                 data.end.column});                  \
-        } while (0)
 
-static void        parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output);
+static void        parse_go_output(Buffer *bdata, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
-static int         b_list_remove_dups_2(b_list **listp);
 
 /*======================================================================================*/
+
+bstring *
+get_go_binary(void)
+{
+        struct stat st;
+
+        bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
+        b_catlit(go_binary, "/golang" CMD_SUFFIX);
+
+        if (stat(BS(go_binary), &st) != 0) {
+                b_free(go_binary);
+                go_binary = NULL;
+        }
+        
+        return go_binary;
+}
 
 int
 highlight_go(Buffer *bdata)
 {
+        bstring const *go_binary = settings.go_binary;
+
         int      retval  = 0;
         unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
         if (cnt_val >= 2) {
@@ -64,16 +75,6 @@ highlight_go(Buffer *bdata)
 
         pthread_mutex_lock(&bdata->lock.total);
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
-
-        bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
-        b_catlit(go_binary, "/golang" CMD_SUFFIX);
-        struct stat st;
-        if (stat(BS(go_binary), &st) != 0) {
-                retval = errno;
-                goto cleanup;
-        }
-        
-        ECHO("Using binary %s\n", go_binary);
 
         char *const argv[] = {
                 BS(go_binary),
@@ -85,7 +86,6 @@ highlight_go(Buffer *bdata)
                 (char *)0
         };
 
-        struct cmd_info *info = getinfo(bdata);
         bstring         *rd   = get_command_output(BS(go_binary), argv, tmp, &retval);
         if (retval != 0)
                 errx(1, "Fuck! (%d)", retval);
@@ -97,10 +97,9 @@ highlight_go(Buffer *bdata)
 
         b_list *data = separate_and_sort(rd);
 
-        parse_go_output(bdata, info, data);
-        b_destroy_all(tmp, rd, go_binary);
+        parse_go_output(bdata, data);
+        b_destroy_all(tmp, rd);
         b_list_destroy(data);
-        talloc_free(info);
 
 cleanup:
         b_destroy(tmp);
@@ -117,7 +116,7 @@ highlight_go_pthread_wrapper(void *vdata)
 }
 
 static void
-parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
+parse_go_output(Buffer *bdata, b_list *output)
 {
         struct go_output data;
         bstring const   *group;
@@ -128,8 +127,10 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
-        B_LIST_FOREACH (output, tok, i) {
-                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%s", &data.ch,
+        B_LIST_FOREACH (output, tok) {
+                /* The data is so regular that we can get away with using scanf.
+                 * I feel a bit dirty though. */
+                sscanf(BS(tok), "%lc\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
@@ -139,18 +140,10 @@ parse_go_output(Buffer *bdata, struct cmd_info *info, b_list *output)
                                 continue;
                 }
 
-                switch (data.ch) {
-                case 'p': case 'f': case 'm': case 'c':
-                case 't': case 's': case 'i': case 'v':
-                        group = find_group(bdata->ft, info, info->num, data.ch);
-                        if (group) {
-                                line_data const ln = {data.start.line, data.start.column, data.end.column};
-                                add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
-                        }
-                        break;
-                default:
-                        SHOUT("Unidentifiable string... %c\n", data.ch);
-                        break;
+                group = find_group(bdata->ft, data.ch);
+                if (group) {
+                        line_data const ln = {data.start.line, data.start.column, data.end.column};
+                        add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
                 }
         }
 
@@ -184,7 +177,10 @@ separate_and_sort(bstring *output)
 #endif
         output->data = bak;
         /* free(output); */
-        /* free(bak); */
+        /* frej(bak); */
+
+
+        qsort(ret->lst, ret->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
         return ret;
 }
 
@@ -194,34 +190,4 @@ ident_is_ignored(Buffer *bdata, bstring const *tok)
         if (!bdata->ft->ignored_tags)
                 return false;
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tok) != NULL;
-}
-
-
-static int
-b_list_remove_dups_2(b_list **listp)
-{
-        if (!listp || !*listp || !(*listp)->lst || (*listp)->qty == 0)
-                return (-1);
-
-        b_list *toks = *listp;
-
-        qsort(toks->lst, toks->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
-
-        b_list *uniq = b_list_create_alloc(toks->qty);
-        uniq->lst[0] = talloc_move(uniq->lst, &toks->lst[0]);
-        uniq->qty    = 1;
-
-        for (unsigned i = 1; i < toks->qty; ++i) {
-                int const ret = b_iseq(toks->lst[i], toks->lst[i-1]);
-                if (ret == (-1)) {
-                        //ECHO("bstrlib returned an error comparing: \"%s\"  and  \"%s\"", toks->lst[i], toks->lst[i-1]);
-                } else if (ret == 0) {
-                        uniq->lst[uniq->qty] = talloc_move(uniq->lst, &toks->lst[i]);
-                        ++uniq->qty;
-                }
-        }
-
-        talloc_free(*listp);
-        *listp = uniq;
-        return BSTR_OK;
 }

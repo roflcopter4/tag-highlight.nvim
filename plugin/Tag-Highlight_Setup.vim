@@ -17,15 +17,19 @@ function! s:InitVar(varname, val)
     endif
 endfunction
 
-call s:InitVar('file', '')
-call s:InitVar('ctags_bin', 'ctags')
+let s:ignored_tags = {
+            \  'c': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
+            \  'cpp': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
+            \}
 
 if !exists('g:tag_highlight#ignored_tags')
-    let g:tag_highlight#ignored_tags = { 'c': ['bool', 'static_assert', '__attribute__', 'TRUE', 'FALSE'] }
-    let g:tag_highlight#ignored_tags['cpp'] = g:tag_highlight#ignored_tags['c']
+    let g:tag_highlight#ignored_tags = copy(s:ignored_tags)
 endif
-call s:InitVar('ignored_dirs', [])
+" call extend(g:tag_highlight#ignored_tags['cpp'], ['noreturn', 'nodiscard'])
 
+call s:InitVar('file', '')
+call s:InitVar('ctags_bin', 'ctags')
+call s:InitVar('ignored_dirs', [])
 call s:InitVar('directory',     tag_highlight#install_info#GetCachePath())
 call s:InitVar('bin',           expand(g:tag_highlight#directory . '/bin/tag_highlight'))
 call s:InitVar('settings_file', expand(g:tag_highlight#directory . '/tag_highlight.txt'))

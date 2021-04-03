@@ -21,7 +21,10 @@ extern "C" {
 
 typedef enum { COMP_NONE, COMP_GZIP, COMP_LZMA } comp_type_t;
 
+P99_DECLARE_STRUCT(cmd_info);
+struct cmd_info;
 typedef struct bufdata Buffer;
+typedef struct filetype Filetype;
 
 struct settings_s {
         uint16_t    job_id;
@@ -34,6 +37,7 @@ struct settings_s {
         bstring    *cache_dir;
         bstring    *ctags_bin;
         bstring    *settings_file;
+        bstring    *go_binary;
         b_list     *ctags_args;
         b_list     *ignored_ftypes;
         b_list     *norecurse_dirs;
@@ -48,6 +52,7 @@ struct filetype {
         b_list          *ignored_tags;
         bstring         *restore_cmds;
         bstring         *order;
+        cmd_info        *cmd_info;
         bstring          vim_name;
         bstring          ctags_name;
         nvim_filetype_id id;
@@ -107,6 +112,12 @@ struct bufdata {
                         b_list          *cmd_cache;
                 };
         };
+};
+
+struct cmd_info {
+        unsigned num;
+        int      kind;
+        bstring *group;
 };
 
 extern struct settings_s   settings;
