@@ -5,28 +5,17 @@
 #include "lang/clang/intern.h"
 #include "lang/lang.h"
 #include "util/list.h"
+#include "clang-c/Index.h"
 
-static void do_typeswitch(Buffer            *bdata,
-                          mpack_arg_array   *calls,
-                          token_t           *tok,
-                          enum CXCursorKind *last_kind);
+static void do_typeswitch(Buffer *bdata, mpack_arg_array *calls,
+                          token_t *tok, enum CXCursorKind *last_kind);
 
 static bool tok_in_skip_list(Buffer *bdata, token_t *tok) __attribute__((pure));
-/* static void report_cursor(FILE *fp, CXCursor cursor, int ch); */
-
-#define TLOC(TOK) ((TOK)->line), ((TOK)->col), ((TOK)->col + (TOK)->line)
-
-#define ADD_CALL(CH)                                                                   \
-        do {                                                                           \
-                const bstring *group = find_group(bdata->ft, (CH));                    \
-                if (group) {                                                           \
-                        /*report_cursor(fp, cursor, (CH)); */                          \
-                        add_hl_call(calls, bdata->num, bdata->hl_id, group,            \
-                                    (line_data[]){{tok->line, tok->col1, tok->col2}}); \
-                }                                                                      \
-        } while (0)
+static bool sanity_check_name(token_t *tok, CXCursor cursor);
 
 /*======================================================================================*/
+
+//static thread_local FILE *dump_fp = NULL;
 
 mpack_arg_array *
 create_nvim_calls(Buffer *bdata, translationunit_t *stu)
@@ -39,6 +28,8 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
         else
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
+        //dump_fp = safe_fopen_fmt("%s/garbage.log", "wb", BS(settings.cache_dir));
+
         for (unsigned i = 0; i < stu->tokens->qty; ++i) {
                 token_t *tok = stu->tokens->lst[i];
                 if (((int)tok->line) == -1)
@@ -49,6 +40,8 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
                 do_typeswitch(bdata, calls, tok, &last);
         }
 
+        //fclose(dump_fp);
+
         lc_index_file(bdata, stu, calls);
 
         return calls;
@@ -56,30 +49,20 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
 
 /*======================================================================================*/
 
-static bool
-sanity_check_name(token_t *tok, CXCursor cursor)
-{
-        CXCursor newcurs = clang_getTypeDeclaration(tok->cursortype);
-        CXString name1   = clang_getCursorSpelling(cursor);
-        CXString name2   = clang_getCursorDisplayName(newcurs);
-        bool     tmp     = STREQ(tok->raw, CS(name1)) || STREQ(tok->raw, CS(name2));
-        free_cxstrings(name1, name2);
-        return tmp;
-}
+#define ADD_CALL(CH)                                                                   \
+        do {                                                                           \
+                const bstring *group = find_group(bdata->ft, (CH));                    \
+                if (group)                                                             \
+                        add_hl_call(calls, bdata->num, bdata->hl_id, group,            \
+                                    (line_data[]){{tok->line, tok->col1, tok->col2}}); \
+        } while (0)
 
 static void
-do_typeswitch(Buffer                   *bdata,
-              mpack_arg_array          *calls,
-              token_t                  *tok,
-              enum CXCursorKind *const  last_kind)
+do_typeswitch(Buffer *bdata, mpack_arg_array *calls,
+              token_t *tok, enum CXCursorKind *last_kind)
 {
         CXCursor cursor       = tok->cursor;
         int goto_safety_count = 0;
-
-#if 0
-        if (bdata->ft->id == FT_CXX && !sanity_check_name(tok, cursor))
-                goto skip;
-#endif
 
 retry:
         if (goto_safety_count < 2)
@@ -156,12 +139,11 @@ retry:
                 ADD_CALL(CTAGS_UNION);
                 break;
 
-        case CXCursor_ClassDecl: {
+        case CXCursor_ClassDecl:
                 if (goto_safety_count == 1 && !sanity_check_name(tok, cursor))
                         break;
                 ADD_CALL(CTAGS_CLASS);
                 break;
-        }
 
         /* An enumeration. */
         case CXCursor_EnumDecl:
@@ -232,10 +214,12 @@ retry:
                         ADD_CALL(CTAGS_ENUMCONST);
                         break;
                 case CXType_FunctionProto:
-                        ADD_CALL(CTAGS_FUNCTION);
+                        if (tok->tokenkind == CXToken_Punctuation)
+                                ADD_CALL(EXTENSION_OVERLOADEDOP);
+                        else
+                                ADD_CALL(CTAGS_FUNCTION);
                         break;
-                default:
-                        break;
+                default:;
                 }
 
                 break;
@@ -258,66 +242,32 @@ tok_in_skip_list(Buffer *bdata, token_t *tok)
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tmp) != NULL;
 }
 
-#if 0
-
-                assert (cursur != tok->cursor);
-#if 0
-                CXString name = clang_getCursorDisplayName(cursor);
-                bstring  tmp  = bt_fromblk(stu->buf->data + tok->offset, tok->len);
-                bool     ret  = b_iseq_cstr(&tmp, CS(name));
-                clang_disposeString(name);
-#endif
-                resolved_range_t rng;
-                memset(&rng, 0, sizeof rng);
-                if (resolve_range(clang_getCursorExtent(cursor), &rng))
-                {
-                        CXString    name = clang_getCursorDisplayName(cursor);
-                        char const *tmp  = (char *)stu->buf->data + rng.offset1;
-                        int const   ret  = strncmp(tmp, CS(name), rng.len);
-                        clang_disposeString(name);
-
-#define QM "\e[1;36m\"\e[0m"
-
-                        fprintf(sfp, QM"%.*s"QM" \e[1;31mvs\e[0m "QM"%s"QM"\n\n", rng.len, tmp, CS(name));
-
-                        if (ret != 0)
-                                return;
-                }
-        }
-
-static void
-report_parent(FILE *fp, CXCursor cursor)
+static bool
+sanity_check_name(token_t *tok, CXCursor cursor)
 {
-        CXCursor parent         = clang_getCursorLexicalParent(cursor);
-        CXType   parent_type    = clang_getCursorType(parent);
-        CXString typespell      = clang_getTypeSpelling(parent_type);
-        CXString typekindrepr   = clang_getTypeKindSpelling(parent_type.kind);
-        CXString curs_kindspell = clang_getCursorKindSpelling(parent.kind);
-
-        fprintf(fp, "     parent: %-17s - %-30s - %s\n",
-                CS(typekindrepr), CS(curs_kindspell), CS(typespell));
-
-        free_cxstrings(typespell, typekindrepr, curs_kindspell);
+        CXCursor newcurs = clang_getTypeDeclaration(tok->cursortype);
+        CXString name1   = clang_getCursorSpelling(cursor);
+        CXString name2   = clang_getCursorDisplayName(newcurs);
+        bool     tmp     = STREQ(tok->raw, CS(name1)) || STREQ(tok->raw, CS(name2));
+        free_cxstrings(name1, name2);
+        return tmp;
 }
 
-static void
-do_report_cursor(FILE *fp, CXCursor cursor, int const ch)
+#if 0
+static void braindead(token_t *tok)
 {
-        CXType   cursor_type    = clang_getCursorType(cursor);
-        CXString typespell      = clang_getTypeSpelling(cursor_type);
-        CXString typekindspell  = clang_getTypeKindSpelling(cursor_type.kind);
-        CXString kindspell      = clang_getCursorKindSpelling(cursor.kind);
+        CXString spell        = clang_getCursorSpelling(tok->cursor);
+        CXType   what         = clang_getCursorType(tok->cursor);
+        CXString typespell    = clang_getCursorKindSpelling(tok->cursor.kind);
+        CXString whatspell    = clang_getTypeSpelling(what);
+        CXString tkspell      = clang_getTypeKindSpelling(what.kind);
+        CXCursor ref          = clang_getCursorReferenced(tok->cursor);
+        CXString refspell     = clang_getCursorSpelling(ref);
+        CXString reftypespell = clang_getCursorKindSpelling(ref.kind);
 
-        fprintf(fp, "(%c)  cursor: %-17s - %-30s - %s\n", ch ?: '0',
-                CS(typekindspell), CS(kindspell), CS(typespell));
+        fprintf(dump_fp, "Have (%s): (`%s`  TYPE  `%s`) : TK = `%s` **** references `%s`  -->  `%s   -->  `%s`\n",
+                tok->raw, CS(spell), CS(typespell), CS(tkspell), CS(refspell), CS(reftypespell), CS(whatspell));
 
-        free_cxstrings(typespell, typekindspell, kindspell);
-}
-
-static void
-report_cursor(FILE *fp, CXCursor cursor, int const ch)
-{
-        do_report_cursor(fp, cursor, ch);
-        /* fputc('\n', fp); */
+        free_cxstrings(whatspell, spell, typespell, tkspell, refspell, reftypespell);
 }
 #endif

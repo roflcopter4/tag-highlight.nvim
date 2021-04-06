@@ -80,7 +80,7 @@ lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls)
                                                  CXIndexOpt_IndexFunctionLocalSymbols,
                                                  data.cdata->tu);
         if (r != 0)
-                errx(1, "Clang failed with error %data", r);
+                errx(1, "Clang failed with error %d", r);
 
         clang_IndexAction_dispose(iact);
 }

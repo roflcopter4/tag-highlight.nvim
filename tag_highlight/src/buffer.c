@@ -23,6 +23,7 @@
 
 #define CTX buffer_talloc_ctx_
 void *buffer_talloc_ctx_ = NULL;
+linked_list *buffer_list;
 
 P99_DECLARE_STRUCT(buffer_node);
 struct buffer_node {
@@ -32,17 +33,16 @@ struct buffer_node {
         Buffer           *bdata;
 };
 
-typedef struct top_dir  Top_Dir;
-
-
-linked_list *buffer_list;
+typedef struct top_dir Top_Dir;
 
 static p99_futex volatile destruction_futex[DATA_ARRSIZE];
 static pthread_mutex_t    ftdata_mutex;
 
-static int destroy_buffer_node(buffer_node *bnode);
-static int destroy_topdir(Top_Dir *topdir);
-static int destroy_buffer_wrapper(Buffer *bdata);
+static int      destroy_buffer_node(buffer_node *bnode);
+static int      destroy_topdir(Top_Dir *topdir);
+static void     init_filetype(Filetype *ft);
+static Top_Dir *init_topdir(Buffer *bdata);
+static int      destroy_buffer_wrapper(Buffer *bdata);
 
 /*======================================================================================
  * /------------------------------------\
@@ -148,9 +148,7 @@ should_skip_buffer(bstring const *ft)
 
 /*--------------------------------------------------------------------------------------*/
 
-static        Top_Dir *init_topdir         (Buffer *bdata);
-static inline void     init_buffer_mutexes (Buffer *bdata);
-static        void     init_filetype       (Filetype *ft);
+static inline void init_buffer_mutexes (Buffer *bdata);
 
 Buffer *
 get_bufdata(int const bufnum, Filetype *ft)
@@ -159,7 +157,7 @@ get_bufdata(int const bufnum, Filetype *ft)
         bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
-        bdata->lines     = ll_make_new();
+        bdata->lines     = ll_make_new(bdata);
         bdata->num       = (uint16_t)bufnum;
         bdata->ft        = ft;
         bdata->topdir    = init_topdir(bdata); // Topdir init must be the last step.
@@ -167,8 +165,6 @@ get_bufdata(int const bufnum, Filetype *ft)
         talloc_steal(bdata, bdata->name.full);
         talloc_steal(bdata, bdata->name.base);
         talloc_steal(bdata, bdata->name.path);
-        talloc_steal(bdata, bdata->lines);
-        /* talloc_steal(bdata, bdata->topdir); */
 
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
@@ -180,10 +176,8 @@ get_bufdata(int const bufnum, Filetype *ft)
         atomic_store_explicit(&bdata->is_normal_mode, 0, memory_order_relaxed);
         init_buffer_mutexes(bdata);
 
-        if (bdata->ft->id != FT_NONE && !bdata->ft->initialized) {
+        if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(bdata->ft);
-                //talloc_reference(bdata, bdata->ft);
-        }
 
         return bdata;
 }
@@ -213,10 +207,7 @@ find_buffer(int const bufnum)
                         ret = bnode->bdata;
                 pthread_rwlock_unlock(bnode->lock);
         }
-#if 0
-        if (bnode && bnode->bdata && bnode->isopen)
-                ret = bnode->bdata;
-#endif
+
         return ret;
 }
 
@@ -250,7 +241,7 @@ get_initial_lines(Buffer *bdata)
 static bool     check_norecurse_directories(bstring const *dir) __attribute__((pure));
 static bstring *check_project_directories  (bstring *dir, Filetype const *ft);
 static Top_Dir *check_open_topdirs         (Buffer const *bdata, bstring const *base);
-static void     get_tag_filename           (bstring *gzfile, bstring const *base, Buffer *const bdata);
+static void     get_tag_filename           (bstring *gzfile, bstring const *base, Buffer *bdata);
 
 static inline void ensure_cache_directory(char const *dir);
 static inline void set_vim_tags_opt      (char const *fname);
@@ -272,7 +263,7 @@ init_topdir(Buffer *bdata)
         /* Search to see if this topdir is already open. */
         Top_Dir *tdir = check_open_topdirs(bdata, base);
         if (tdir) {
-                TALLOC_FREE(base);
+                talloc_free(base);
                 talloc_reference(bdata, tdir);
                 return tdir;
         }
@@ -305,7 +296,7 @@ init_topdir(Buffer *bdata)
         get_tag_filename(tdir->gzfile, base, bdata);
         ll_append(top_dirs, tdir);
         if (!recurse)
-                TALLOC_FREE(base);
+                talloc_free(base);
 
         return tdir;
 }
@@ -327,33 +318,12 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
                         continue;
                 }
                 if (b_iseq(cur->pathname, base)) {
-                        SHOUT("Using already initialized project directory \"%s\"", BS(cur->pathname));
+                        ECHO("Using already initialized project directory \"%s\"", cur->pathname);
                         cur->refs++;
                         ret = cur;
                         break;
                 }
         }
-
-#if 0
-        for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                assert(top_dirs && top_dirs->lst);
-                Top_Dir *cur = top_dirs->lst[i];
-
-                if (!cur || !cur->pathname)
-                        continue;
-                if (cur->ftid != bdata->ft->id) {
-                        echo("cur->ftid (%d - %s) does not equal the current ft (%d - %s), skipping",
-                             cur->ftid, BTS(ftdata[cur->ftid]->vim_name), bdata->ft->id, BTS(bdata->ft->vim_name));
-                        continue;
-                }
-                if (b_iseq(cur->pathname, base)) {
-                        SHOUT("Using already initialized project directory \"%s\"", BS(cur->pathname));
-                        cur->refs++;
-                        ret = cur;
-                        break;
-                }
-        }
-#endif
 
         pthread_mutex_unlock(&top_dirs->lock);
         return ret;
@@ -392,7 +362,6 @@ check_project_directories(bstring *dir, Filetype const *ft)
 
         b_list  *candidates = b_list_create();
         bstring *tmp;
-        /* b_regularize_path(dir); */
 
         for (tmp = NULL; (tmp = B_GETS(fp, '\n', false)); talloc_free(tmp)) {
                 int64_t n = b_strchr(tmp, '\t');
@@ -414,7 +383,6 @@ check_project_directories(bstring *dir, Filetype const *ft)
                 }
 
                 if (strstr(BS(dir), BS(tmp))) {
-                        /* b_writeprotect(tmp); */
                         b_list_append(candidates, tmp);
                         tmp = NULL;
                 }
@@ -435,8 +403,8 @@ check_project_directories(bstring *dir, Filetype const *ft)
 
 
         talloc_steal(CTX, longest);
-        TALLOC_FREE(candidates);
-        TALLOC_FREE(dir);
+        talloc_free(candidates);
+        talloc_free(dir);
 
         return longest;
 }
@@ -453,7 +421,7 @@ get_tag_filename(bstring *gzfile, bstring const *base, Buffer *const bdata)
                 if (base->data[i] == SEPCHAR || DOSCHECK(base->data[i]))
                         b_catlit(gzfile, "__");
                 else
-                        b_conchar(gzfile, base->data[i]);
+                        b_catchar(gzfile, base->data[i]);
         }
 
         if (settings.comp_type == COMP_GZIP)
@@ -560,11 +528,7 @@ get_ignored_tags(Filetype *ft)
         b_list     *restored_groups = mpack_dict_get_key(tmp, E_STRLIST, &ft->vim_name).ptr;
 
         if (restored_groups) {
-                /* b_list_writeprotect(restored_groups); */
-                /* mpack_dict_destroy(tmp); */
                 talloc_steal(CTX, restored_groups);
-                TALLOC_FREE(tmp);
-                /* b_list_writeallow(restored_groups); */
 
                 if (ft->has_parser) {
                         get_tags_from_restored_groups(ft, restored_groups);
@@ -574,11 +538,9 @@ get_ignored_tags(Filetype *ft)
                 }
 
                 b_list_destroy(restored_groups);
-        } else {
-                TALLOC_FREE(tmp);
-                /* mpack_dict_destroy(tmp); */
         }
 
+        talloc_free(tmp);
         ft->restore_cmds_initialized = true;
 }
 
@@ -599,7 +561,7 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 if (!output)
                         continue;
                 if (!(ptr = strstr(BS(output), "xxx"))) {
-                        TALLOC_FREE(output);
+                        talloc_free(output);
                         continue;
                 }
 
@@ -630,9 +592,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                         }
                 }
 
-                TALLOC_FREE(bak);
-                TALLOC_FREE(output);
-                /* talloc_steal(NULL, output->data); */
+                talloc_free(bak);
+                talloc_free(output);
         }
 }
 
@@ -651,7 +612,7 @@ get_restore_cmds(b_list *restored_groups)
 
                 char *ptr = strstr(BS(output), "xxx");
                 if (!ptr) {
-                        TALLOC_FREE(output);
+                        talloc_free(output);
                         continue;
                 }
 
@@ -692,7 +653,7 @@ get_restore_cmds(b_list *restored_groups)
                         b_list_append(allcmds, cmd);
                 }
 
-                TALLOC_FREE(output);
+                talloc_free(output);
         }
 
         bstring *ret = b_join(allcmds, B(" | "));
@@ -729,6 +690,62 @@ get_cmd_info(Filetype *ft)
  *-------------------------------------------------------------------------------------*/
 
 static pthread_mutex_t wtf_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void
+(destroy_buffer)(Buffer *bdata, unsigned const flags)
+{
+        extern void destroy_clangdata(Buffer *bdata);
+        assert(bdata != NULL);
+
+        if (flags & DES_BUF_SHOULD_CLEAR)
+                clear_highlight(bdata);
+
+        if (flags & DES_BUF_DESTROY_NODE) {
+                buffer_node *bnode = find_buffer_node(bdata->num);
+                assert(bnode != NULL);
+                pthread_rwlock_wrlock(bnode->lock);
+                bnode->isopen = false;
+                bnode->bdata  = NULL;
+                pthread_rwlock_unlock(bnode->lock);
+        }
+
+        pthread_mutex_lock(&bdata->lock.total);
+        pthread_mutex_lock(&bdata->lock.ctick);
+
+        if (--bdata->topdir->refs == 0) {
+                echo("Destroying topdir (%s)", BS(bdata->topdir->pathname));
+                TALLOC_FREE(bdata->topdir);
+        }
+
+        if (bdata->ft->is_c) {
+                if (bdata->headers)
+                        TALLOC_FREE(bdata->headers);
+        } else {
+                if (bdata->calls)
+                        mpack_destroy_arg_array(bdata->calls);
+        }
+
+        pthread_mutex_unlock(&bdata->lock.ctick);
+        pthread_mutex_destroy(&bdata->lock.ctick);
+        pthread_mutex_unlock(&bdata->lock.total);
+        pthread_mutex_destroy(&bdata->lock.total);
+
+        p99_futex_wakeup(&destruction_futex[bdata->num]);
+        if (flags & DES_BUF_TALLOC_FREE) {
+                talloc_set_destructor(bdata, NULL);
+                TALLOC_FREE(bdata);
+        }
+}
+
+void
+clear_bnode(void *vdata, bool blocking)
+{
+        buffer_node *bnode = vdata;
+        if (bnode && bnode->bdata)
+                clear_highlight(bnode->bdata, blocking);
+}
+
+/*--------------------------------------------------------------------------------------*/
 
 /* 
  * Actually initializing these things seems to be mandatory on Windows.
@@ -772,21 +789,6 @@ destroy_topdir(Top_Dir *topdir)
         close(topdir->tmpfd);
         unlink(BS(topdir->tmpfname));
 
-#if 0
-        TALLOC_FREE(topdir->gzfile);
-        TALLOC_FREE(topdir->pathname);
-        TALLOC_FREE(topdir->tmpfname);
-        TALLOC_FREE(topdir->tags);
-#endif
-
-#if 0
-        for (unsigned i = 0; i < top_dirs->qty; ++i) {
-                if (top_dirs->lst[i] == topdir) {
-                        genlist_remove_index(top_dirs, i);
-                        top_dirs->lst[i] = NULL;
-                }
-        }
-#endif
         LL_FOREACH_F (top_dirs, node) {
                 if (node->data == topdir) {
                         talloc_steal(NULL, node->data);
@@ -795,6 +797,7 @@ destroy_topdir(Top_Dir *topdir)
                         break;
                 }
         }
+
         TALLOC_FREE(topdir);
         pthread_mutex_unlock(&wtf_mutex);
         return 0;
@@ -805,68 +808,4 @@ destroy_buffer_wrapper(Buffer *bdata)
 {
         destroy_buffer(bdata, 0);
         return 0;
-}
-
-void
-(destroy_buffer)(Buffer *bdata, unsigned const flags)
-{
-        extern void destroy_clangdata(Buffer *bdata);
-        assert(bdata != NULL);
-
-        if (flags & DES_BUF_SHOULD_CLEAR)
-                clear_highlight(bdata);
-
-        if (flags & DES_BUF_DESTROY_NODE) {
-                buffer_node *bnode = find_buffer_node(bdata->num);
-                assert(bnode != NULL);
-                pthread_rwlock_wrlock(bnode->lock);
-                bnode->isopen = false;
-                bnode->bdata  = NULL;
-                pthread_rwlock_unlock(bnode->lock);
-        }
-
-        pthread_mutex_lock(&bdata->lock.total);
-        pthread_mutex_lock(&bdata->lock.ctick);
-
-#if 0
-        TALLOC_FREE(bdata->name.full);
-        TALLOC_FREE(bdata->name.base);
-        TALLOC_FREE(bdata->name.path);
-        ll_destroy(bdata->lines);
-        talloc_unlink(bdata, bdata->topdir);
-#endif
-        if (--bdata->topdir->refs == 0) {
-                echo("Destroying topdir (%s)", BS(bdata->topdir->pathname));
-                TALLOC_FREE(bdata->topdir);
-        }
-                /* genlist_remove(top_dirs, bdata->topdir); */
-
-        if (bdata->ft->is_c) {
-                //if (bdata->clangdata)
-                //        destroy_clangdata(bdata);
-                if (bdata->headers)
-                        TALLOC_FREE(bdata->headers);
-        } else {
-                if (bdata->calls)
-                        mpack_destroy_arg_array(bdata->calls);
-        }
-
-        pthread_mutex_unlock(&bdata->lock.ctick);
-        pthread_mutex_destroy(&bdata->lock.ctick);
-        pthread_mutex_unlock(&bdata->lock.total);
-        pthread_mutex_destroy(&bdata->lock.total);
-
-        p99_futex_wakeup(&destruction_futex[bdata->num]);
-        if (flags & DES_BUF_TALLOC_FREE) {
-                talloc_set_destructor(bdata, NULL);
-                TALLOC_FREE(bdata);
-        }
-}
-
-void
-clear_bnode(void *vdata, bool blocking)
-{
-        buffer_node *bnode = vdata;
-        if (bnode && bnode->bdata)
-                clear_highlight(bnode->bdata, blocking);
 }

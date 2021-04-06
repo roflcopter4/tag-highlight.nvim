@@ -42,6 +42,7 @@ extern FILE *cmd_log;
 #define EXTENSION_TEMPLATE 'T'
 #define EXTENSION_CONSTANT 'c'
 #define EXTENSION_METHOD   'M'
+#define EXTENSION_OVERLOADEDOP 'O'
 
 
 /*======================================================================================*/

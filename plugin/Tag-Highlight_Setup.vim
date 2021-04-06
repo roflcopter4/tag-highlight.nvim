@@ -271,6 +271,7 @@ highlight def link tag_highlight_VariableTag		tag_highlight_ObjectTag
 highlight def link tag_highlight_FieldTag		tag_highlight_MemberTag
 highlight def link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
 
+highlight def link tag_highlight_OverloadedOperatorTag	SpecialChar
 highlight def link tag_highlight_GlobalVarTag		PreCondit
 highlight def link tag_highlight_ConstantTag		Constant
 highlight def link tag_highlight_EnumTag		Define

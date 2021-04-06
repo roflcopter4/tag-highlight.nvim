@@ -89,9 +89,9 @@ LLDECL void ll_insert_before       (linked_list *list, ll_node *at, void *data);
 LLDECL void ll_insert_blist_after  (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 LLDECL void ll_insert_blist_before (linked_list *list, ll_node *at, b_list *blist, int start, int end);
 LLDECL bool ll_verify_size         (linked_list *list);
-LLDECL bstring *ll_join_bstrings   (linked_list *list, int sepchar) __aWUR;
 LLDECL void *ll_pop                (linked_list *list) __aWUR;
 LLDECL void *ll_dequeue            (linked_list *list) __aWUR;
+LLDECL bstring *ll_join_bstrings   (linked_list *list, int sepchar) __aWUR;
 
 #define ll_make_new(...) P99_CALL_DEFARG(ll_make_new, 1, __VA_ARGS__)
 #define ll_make_new_defarg_0() NULL
@@ -113,18 +113,12 @@ LLDECL genlist *genlist_create       (void *talloc_ctx) __aWUR;
 LLDECL genlist *genlist_create_alloc (void *talloc_ctx, unsigned msz) __aWUR;
 LLDECL int      genlist_destroy      (genlist *list);
 LLDECL int      genlist_alloc        (genlist *list, unsigned msz);
-LLDECL int      genlist_append       (genlist *list, void *item /*, bool copy, size_t size */);
+LLDECL int      genlist_append       (genlist *list, void *item);
 LLDECL int      genlist_remove_index (genlist *list, unsigned index);
 LLDECL int      genlist_remove       (genlist *list, const void *obj);
 LLDECL void    *genlist_pop          (genlist *list) __aWUR;
 LLDECL void    *genlist_dequeue      (genlist *list) __aWUR;
-LLDECL genlist *genlist_copy         (genlist *list, const genlist_copy_func cpy) __aWUR;
-
-#if 0
-#define genlist_append(...) P99_CALL_DEFARG(genlist_append, 4, __VA_ARGS__)
-#define genlist_append_defarg_2() (false)
-#define genlist_append_defarg_3() (0llu)
-#endif
+LLDECL genlist *genlist_copy         (genlist *list, genlist_copy_func cpy) __aWUR;
 
 #define GENLIST_FOREACH(LIST, TYPE, VAR, ...)                                            \
         GENLIST_FOREACH_EXPLICIT_(LIST, TYPE, VAR,                                       \
@@ -147,10 +141,10 @@ struct argument_vector {
         unsigned mlen;
 };
 
-LLDECL str_vector *argv_create (const unsigned len) __aWUR;
-LLDECL void        argv_append (str_vector *argv, const char *str, const bool cpy);
+LLDECL str_vector *argv_create (unsigned len) __aWUR;
+LLDECL void        argv_append (str_vector *argv, const char *str, bool cpy);
 LLDECL void        argv_destroy(str_vector *argv);
-LLDECL void        argv_fmt    (str_vector *argv, const char *const __restrict fmt, ...) __aFMT(2, 3);
+LLDECL void        argv_fmt    (str_vector *argv, const char *__restrict fmt, ...) __aFMT(2, 3);
 
 INTERN void argv_dump__   (FILE *fp, const str_vector *argv, const char *listname, const char *, int);
 INTERN void argv_dump_fd__(int fd, const str_vector *argv, const char *listname, const char *, int);

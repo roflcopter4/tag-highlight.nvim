@@ -26,6 +26,7 @@ typedef struct token           token_t;
 typedef struct resolved_range  resolved_range_t;
 
 struct clangdata {
+        Buffer             *bdata;
         str_vector         *argv;
         CXIndex             idx;
         CXTranslationUnit   tu;
@@ -41,6 +42,7 @@ struct translationunit {
         CXTranslationUnit  tu;
         CXIndex            idx;
         unsigned           num;
+        nvim_filetype_id   ftid;
 };
 
 

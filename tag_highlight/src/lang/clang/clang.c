@@ -3,6 +3,7 @@
 #include "lang/clang/clang.h"
 #include "lang/clang/intern.h"
 #include "util/find.h"
+#include "clang-c/Index.h"
 #include <sys/stat.h>
 
 /* 
@@ -152,7 +153,7 @@ horrible_horrible_awful_hack(void)
 {
         execl(program_invocation_name, program_invocation_name, (char *)NULL);
         /* Not reached. */
-        _exit(1);
+        _Exit(1);
 }
 
 static noreturn void
@@ -180,6 +181,7 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
         translationunit_t *stu = talloc(CTX, translationunit_t);
         stu->tu  = CLD(bdata)->tu;
         stu->buf = talloc_move(stu, &buf);
+        stu->ftid = bdata->ft->id;
         talloc_set_destructor(stu, destroy_struct_translationunit);
         return stu;
 }
@@ -213,9 +215,11 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
 #endif
 
         clangdata_t *cld = talloc_zero(bdata, clangdata_t);
-        bdata->clangdata      = cld;
-        cld->idx  = clang_createIndex(0, 0);
-        cld->argv = comp_cmds;
+        bdata->clangdata = cld;
+        cld->bdata       = bdata;
+        cld->idx         = clang_createIndex(0, 0);
+        cld->argv        = comp_cmds;
+
         talloc_set_destructor(cld, do_destroy_clangdata);
 
         enum CXErrorCode clerror = clang_parseTranslationUnit2(
@@ -227,9 +231,10 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
                 handle_libclang_error(clerror);
 
         translationunit_t *stu = talloc(CTX, translationunit_t);
-        stu->buf = talloc_move(stu, &buf);
-        stu->tu  = cld->tu;
-        stu->idx = cld->idx;
+        stu->buf  = talloc_move(stu, &buf);
+        stu->tu   = cld->tu;
+        stu->idx  = cld->idx;
+        stu->ftid = bdata->ft->id;
         talloc_set_destructor(stu, destroy_struct_translationunit);
 
         memcpy(cld->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
@@ -525,8 +530,12 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
         if (num == 0) {
                 ECHO("Looking for backup files...");
                 clang_CompileCommands_dispose(comp);
-                bstring *file = find_file(BS(bdata->name.path), (bdata->ft->id == FT_C)
-                                          ? ".*\\.c$" : ".*\\.(cpp|cc|cxx|c++)$", FIND_FIRST);
+
+                bstring *file = find_file(BS(bdata->name.path),
+                                          (bdata->ft->id == FT_C) ? ".*\\.c$"
+                                                                  : ".*\\.(cpp|cc|cxx|c++)$",
+                                          FIND_FIRST);
+
                 if (file) {
                         ECHO("Found %s!\n", file);
                         comp = clang_CompilationDatabase_getCompileCommands(*db, BS(file));
@@ -596,6 +605,15 @@ destroy_clangdata(Buffer *bdata)
 
 /*======================================================================================*/
 
+static bool
+punctuation_sanity_check(CXCursor *cursor)
+{
+        CXString spell = clang_getCursorSpelling(*cursor);
+        bool     ret   = (strncmp(CS(spell), "operator", 8) == 0);
+        clang_disposeString(spell);
+        return ret;
+}
+
 static token_t *
 get_token_data(translationunit_t *stu, CXToken *tok, CXCursor *cursor)
 {
@@ -603,9 +621,13 @@ get_token_data(translationunit_t *stu, CXToken *tok, CXCursor *cursor)
         resolved_range_t  res;
         CXTokenKind       tokkind = clang_getTokenKind(*tok);
 
-        if (tokkind != CXToken_Identifier ||
+        if (!(tokkind == CXToken_Identifier ||
+              (tokkind == CXToken_Punctuation && stu->ftid == FT_CXX &&
+               punctuation_sanity_check(cursor))) ||
             !resolve_range(clang_getTokenExtent(stu->tu, *tok), &res))
+        {
                 return NULL;
+        }
 
         ret             = talloc_size(CTX, offsetof(token_t, raw) + res.len + 1);
         ret->token      = *tok;

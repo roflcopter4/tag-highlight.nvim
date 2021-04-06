@@ -1,5 +1,5 @@
 if !exists('g:tag_highlight#cpp#order')
-        let g:tag_highlight#cpp#order = 'TncgstuedfmM'
+        let g:tag_highlight#cpp#order = 'TncgstuedfmMO'
 endif
 
 let g:tag_highlight#cpp#T = { 'group': 'cppTemplateTag' }
@@ -12,6 +12,7 @@ let g:tag_highlight#cpp#e = { 'group': 'cppEnumTag' }
 let g:tag_highlight#cpp#d = { 'group': 'cppPreProcTag' }
 let g:tag_highlight#cpp#n = { 'group': 'cppNamespaceTag' }
 let g:tag_highlight#cpp#M = { 'group': 'cppMethodTag' }
+let g:tag_highlight#cpp#O = { 'group': 'cppOverloadedOperatorTag' }
 let g:tag_highlight#cpp#m = {
             \   'group': 'cppMemberTag',
             \   'prefix': '\%(\%(\>\|\]\|)\)\%(\.\|->\)\)\@5<=',
@@ -40,5 +41,7 @@ highlight def link cppPreProcTag	tag_highlight_PreProcTag
 highlight def link cppTypeTag		tag_highlight_TypeTag
 highlight def link cppNamespaceTag	tag_highlight_NamespaceTag
 highlight def link cppMethodTag		tag_highlight_MethodTag
+
+highlight def link cppOverloadedOperatorTag tag_highlight_OverloadedOperatorTag
 
 highlight def link cppDunno Error
