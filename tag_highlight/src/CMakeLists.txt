@@ -118,28 +118,39 @@ else()
     # properly. What a pain.
     add_library(mytalloc SHARED
                 "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
+                
+    set (mytalloc_compile_options_common
+        "-g"
+        "-fPIC"
+        "-fno-lto"
+        "-D_XOPEN_SOURCE_EXTENDED=1"
+        "-D__STDC_WANT_LIB_EXT1__=1"
+        "-fstack-clash-protection")
 
-    target_compile_options(
-        mytalloc
-        PUBLIC
-            "-g"
-            "-fPIC"
-            "-fno-lto"
-            "-D_XOPEN_SOURCE_EXTENDED=1"
-            "-D__STDC_WANT_LIB_EXT1__=1"
-            "-fstack-protector-strong"
-            "-fstack-clash-protection"
-            "-fvisibility=hidden"
-            "-DSTATIC_talloc_MODULES=NULL"
-            "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
-    )
+    if (WIN32)
+        target_compile_options(
+            mytalloc
+            PUBLIC
+                mytalloc_compile_options_common
+                "-DBUILDING_DLL_=1"
+        )
+    else()
+        target_compile_options(
+            mytalloc
+            PUBLIC
+                mytalloc_compile_options_common
+                "-fstack-protector-strong"
+                "-fvisibility=hidden"
+                "-DSTATIC_talloc_MODULES=NULL"
+                "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
+        )
+    endif()
     
     if (CC_IS_CLANG)
         target_link_options(mytalloc PRIVATE -fno-lto)
     else()
         target_link_options(mytalloc PRIVATE -fno-lto -fno-whole-program)
     endif()
-
 
     target_link_libraries(tag_highlight mytalloc)
 
