@@ -465,13 +465,13 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
         SECURITY_ATTRIBUTES attr = {sizeof(attr), NULL, true};
 
         if (!CreatePipe(&handles[0][0], &handles[0][1], &attr, 0)) 
-                ErrorExit("CreatePipe()", GetLastError());
+                error_exit("CreatePipe()", GetLastError());
         if (!CreatePipe(&handles[1][0], &handles[1][1], &attr, 0)) 
-                ErrorExit("CreatePipe()", GetLastError());
+                error_exit("CreatePipe()", GetLastError());
         if (!SetHandleInformation(handles[0][WRITE_FD], HANDLE_FLAG_INHERIT, 0))
-                ErrorExit("Stdin SetHandleInformation", GetLastError());
+                error_exit("Stdin SetHandleInformation", GetLastError());
         if (!SetHandleInformation(handles[1][READ_FD], HANDLE_FLAG_INHERIT, 0))
-                ErrorExit("Stdout SetHandleInformation", GetLastError());
+                error_exit("Stdout SetHandleInformation", GetLastError());
 
         memset(&info, 0, sizeof(info));
         memset(&pi, 0, sizeof(pi));
@@ -484,7 +484,7 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
         };
 
         if (!CreateProcessA(NULL, argv, NULL, NULL, true, 0, NULL, NULL, &info, &pi))
-                ErrorExit("CreateProcess() failed", GetLastError());
+                error_exit("CreateProcess() failed", GetLastError());
         CloseHandle(handles[0][READ_FD]);
         CloseHandle(handles[1][WRITE_FD]);
 
