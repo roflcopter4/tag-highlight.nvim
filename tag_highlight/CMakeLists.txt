@@ -89,7 +89,7 @@ endif()
 if (MINGW)
     # Nil I guess
 else ()
-    # find_package (Talloc)
+    find_package (Talloc)
     if (USE_LIBEV)
         if ("${USE_LIBEV}" STREQUAL "TRY")
             find_package (LibEV)
