@@ -89,7 +89,7 @@ endif()
 if (MINGW)
     # Nil I guess
 else ()
-    find_package (Talloc)
+    # find_package (Talloc)
     if (USE_LIBEV)
         if ("${USE_LIBEV}" STREQUAL "TRY")
             find_package (LibEV)
@@ -141,10 +141,7 @@ CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
 CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
 
 if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
-    pkg_check_modules(LIBBSD libbsd)
-    if (NOT LIBBSD_FOUND)
-        message(FATAL_ERROR "libbsd is required")
-    endif()
+     pkg_check_modules(LIBBSD libbsd)
 endif()
 
 ###############################################################################

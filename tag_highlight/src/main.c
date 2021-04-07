@@ -18,6 +18,11 @@ const char *__asan_default_options(void)
 const char *program_invocation_name;
 const char *program_invocation_short_name;
 #endif
+#ifndef STDIN_FILENO
+#  define STDIN_FILENO  (0)
+#  define STDOUT_FILENO (1)
+#  define STDERR_FILENO (2)
+#endif
 #define WAIT_TIME  (3.0)
 
 extern FILE *cmd_log, *echo_log, *main_log, *mpack_raw;
@@ -220,12 +225,13 @@ get_settings(void)
         settings.norecurse_dirs = nvim_get_var(B(PKG "norecurse_dirs"),    E_STRLIST   ).ptr;
         settings.settings_file  = nvim_get_var(B(PKG "settings_file"),     E_STRING    ).ptr;
         settings.verbose        = nvim_get_var(B(PKG "verbose"),           E_BOOL      ).num;
+
 #ifdef DEBUG /* Verbose output should be forcibly enabled in debug mode. */
         settings.verbose = true;
 #endif
 
         if (!settings.enabled || !settings.ctags_bin)
-                exit(0);
+                exit(EXIT_SUCCESS);
 
         settings.talloc_ctx = talloc_named_const(NULL, 0, "Settings talloc context.");
         talloc_steal(settings.talloc_ctx, settings.go_binary);
@@ -293,16 +299,6 @@ exit_cleanup(void)
         talloc_free(top_dirs);
         talloc_free(ftdata);
         talloc_free(settings.talloc_ctx);
-#if 0
-        talloc_free(settings.cache_dir);
-        talloc_free(settings.ctags_args);
-        talloc_free(settings.ctags_bin);
-        talloc_free(settings.ignored_ftypes);
-        talloc_free(settings.ignored_tags);
-        talloc_free(settings.norecurse_dirs);
-        talloc_free(settings.order);
-        talloc_free(settings.settings_file);
-#endif
 
         quick_cleanup();
 }
