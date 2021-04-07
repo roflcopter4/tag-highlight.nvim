@@ -155,7 +155,7 @@ else()
     target_link_libraries(tag_highlight mytalloc)
 
     if (LIBBSD_FOUND)
-        target_link_libraries(tag_highlight ${LIBBSD_LINK_LIBRARIES})
+        target_link_libraries(tag_highlight -lbsd)
     endif()
     
     set_property(TARGET tag_highlight PROPERTY INSTALL_RPATH "\$ORIGIN")
