@@ -141,7 +141,8 @@ CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
 CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
 
 if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
-     pkg_check_modules(LIBBSD libbsd)
+     # pkg_check_modules(LIBBSD libbsd)
+     find_package(LibBSD)
 endif()
 
 ###############################################################################
@@ -177,7 +178,7 @@ endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
 string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -pipe -std=gnu17 -fdiagnostics-color=always")
+                    " -pipe -std=gnu11 -fdiagnostics-color=always")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
@@ -215,7 +216,7 @@ if (CC_IS_CLANG)
 else() # GCC
 
     string (JOIN " " WARNS ${WARNS}
-         -Wsuggest-attribute=pure -Wsuggest-attribute=cold -Wsuggest-attribute=malloc
+         -Wsuggest-attribute=pure
          -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )

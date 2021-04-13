@@ -107,6 +107,7 @@ find_compiler() {
 ################################################################################
 
 init() {
+    git submodule update --init
     case "$system_type" in
     MinGW)
         binary_path="${project_dir}/build/src/tag_highlight.exe"

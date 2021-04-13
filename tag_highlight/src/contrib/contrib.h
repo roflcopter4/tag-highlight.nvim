@@ -29,7 +29,7 @@
 #endif
 
 #ifdef DOSISH
-#  include <WinSock2.h>
+#  include <winsock2.h>
 extern int dprintf(const SOCKET fd, const char *restrict fmt, ...);
 #endif
 

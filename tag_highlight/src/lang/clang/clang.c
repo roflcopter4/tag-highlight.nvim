@@ -17,7 +17,7 @@
          | CXTranslationUnit_KeepGoing                   \
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_Incomplete                  \
-         | CXTranslationUnit_CreatePreambleOnFirstParse  \
+         | CXTranslationUnit_CreatePreambleOnFirstParse \
          | CXTranslationUnit_IncludeAttributedTypes )
 
 #define INIT_ARGV (32)
@@ -104,7 +104,7 @@ void
                                          : init_compilation_unit(bdata, joined);
         }
 
-        CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, CLD(bdata)->tmp_name);
+        CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, BS(bdata->name.full));
         tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
 
         calls = create_nvim_calls(bdata, stu);
@@ -169,12 +169,10 @@ handle_libclang_error(unsigned const err)
 static translationunit_t *
 recover_compilation_unit(Buffer *bdata, bstring *buf)
 {
-        int const fd = open(CLD(bdata)->tmp_name, O_WRONLY|O_TRUNC, 0600);
-        if (b_write(fd, buf, B("\n")) != 0)
-                err(1, "Write failed");
-        close(fd);
+        struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
+                                        .Contents = BS(buf), .Length = buf->slen};
 
-        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 0, NULL, TUFLAGS);
+        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1, &unsaved, TUFLAGS);
         if (ret != 0)
                 handle_libclang_error(ret);
 
@@ -189,30 +187,9 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
 static translationunit_t *
 init_compilation_unit(Buffer *bdata, bstring *buf)
 {
-        if (!*libclang_tmp_path)
-                get_tmp_path(libclang_tmp_path);
-
-        int         tmpfd, tmplen;
-        char        tmp[SAFE_PATH_MAX];
         str_vector *comp_cmds = get_compile_commands(bdata);
-
-#ifdef HAVE_MKOSTEMPS
-        tmplen = snprintf(tmp, SAFE_PATH_MAX, "%s/XXXXXX%s", libclang_tmp_path, BS(bdata->name.base));
-        tmpfd  = mkostemps(tmp, (int)bdata->name.base->slen, O_DSYNC);
-#else
-        bstring *tmp_file;
-        tmpfd = _nvim_get_tmpfile(&tmp_file, btp_fromcstr(bdata->name.suffix));
-        memcpy(tmp, tmp_file->data, (tmplen = (int)tmp_file->slen) + 1);
-        b_destroy(tmp_file);
-#endif
-        
-        if (b_write(tmpfd, buf, B("\n")) != 0)
-                err(1, "Write error");
-        close(tmpfd);
-
-#if defined DEBUG && 0
-        argv_dump(stderr, comp_cmds);
-#endif
+        struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
+                                        .Contents = BS(buf), .Length = buf->slen};
 
         clangdata_t *cld = talloc_zero(bdata, clangdata_t);
         bdata->clangdata = cld;
@@ -223,8 +200,8 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         talloc_set_destructor(cld, do_destroy_clangdata);
 
         enum CXErrorCode clerror = clang_parseTranslationUnit2(
-            cld->idx, tmp, (char const **)comp_cmds->lst,
-            (int)comp_cmds->qty, NULL, 0, TUFLAGS, &cld->tu
+            cld->idx, BS(bdata->name.full), (char const **)comp_cmds->lst,
+            (int)comp_cmds->qty, &unsaved, 1, TUFLAGS, &cld->tu
         );
 
         if (!cld->tu || clerror != 0)
@@ -236,8 +213,6 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         stu->idx  = cld->idx;
         stu->ftid = bdata->ft->id;
         talloc_set_destructor(stu, destroy_struct_translationunit);
-
-        memcpy(cld->tmp_name, tmp, (size_t)tmplen + UINTMAX_C(1));
 
         return stu;
 }

@@ -40,8 +40,8 @@ extern "C" {
 #  else
 typedef signed long long int ssize_t;
 #  endif
-#  include <WinSock2.h>
-#  include <Windows.h>
+#  include <winsock2.h>
+#  include <windows.h>
 #  include <io.h>
 #  include <direct.h>
 #  include <pthread.h>
