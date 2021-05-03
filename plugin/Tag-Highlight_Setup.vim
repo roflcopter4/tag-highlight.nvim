@@ -261,27 +261,28 @@ runtime! plugin/Tag_Highlight/*.vim
 " nmap <silent> <leader>tag <Plug>tag_highlightToggle
 
 "============================================================================= 
-highlight def link tag_highlight_TemplateTag		tag_highlight_ClassTag
-highlight def link tag_highlight_ClassTag		tag_highlight_TypeTag
-highlight def link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
-highlight def link tag_highlight_StructTag		tag_highlight_TypeTag
-highlight def link tag_highlight_UnionTag		tag_highlight_TypeTag
-highlight def link tag_highlight_MethodTag		tag_highlight_FunctionTag
-highlight def link tag_highlight_VariableTag		tag_highlight_ObjectTag
-highlight def link tag_highlight_FieldTag		tag_highlight_MemberTag
-highlight def link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
 
-highlight def link tag_highlight_OverloadedOperatorTag	SpecialChar
-highlight def link tag_highlight_GlobalVarTag		PreCondit
-highlight def link tag_highlight_ConstantTag		Constant
-highlight def link tag_highlight_EnumTag		Define
-highlight def link tag_highlight_FunctionTag		Function
-highlight def link tag_highlight_InterfaceTag		Identifier
-highlight def link tag_highlight_MemberTag		Identifier
-highlight def link tag_highlight_ObjectTag		Identifier
-highlight def link tag_highlight_ModuleTag		PreProc
-highlight def link tag_highlight_PreProcTag		PreProc
-highlight def link tag_highlight_TypeTag		Type
+"highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
+"highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
+"highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
+"highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
+"highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
+"highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
+"highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
+"highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
+"highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
+"
+"highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+"highlight default link tag_highlight_GlobalVarTag		PreCondit
+"highlight default link tag_highlight_ConstantTag		Constant
+"highlight default link tag_highlight_EnumTag			Define
+"highlight default link tag_highlight_FunctionTag		Function
+"highlight default link tag_highlight_InterfaceTag		Identifier
+"highlight default link tag_highlight_MemberTag			Identifier
+"highlight default link tag_highlight_ObjectTag			Identifier
+"highlight default link tag_highlight_ModuleTag			PreProc
+"highlight default link tag_highlight_PreProcTag			PreProc
+"highlight default link tag_highlight_TypeTag			Type
 
 "============================================================================= 
 " Shim for C code.

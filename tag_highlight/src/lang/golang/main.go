@@ -31,6 +31,8 @@ const (
 	TYPE_METHOD      = 'F'
 )
 
+const debug_override = false
+
 //========================================================================================
 
 func main() {
@@ -44,40 +46,46 @@ func main() {
 	)
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
-	open_log(lfile, false && isdebug == 1, prog_name)
-	defer lfile.Close()
+	open_log(&lfile, debug_override || isdebug == 1, prog_name)
+	defer func() {
+		if lfile != nil && lfile != os.Stderr {
+			lfile.Close()
+		}
+	}()
 
 	data := Parse(our_fname, our_fpath)
 	data.Highlight()
 	os.Exit(0)
 }
 
-func open_log(lfile *os.File, isdebug bool, our_fname string) {
-	if isdebug {
+/*--------------------------------------------------------------------------------------*/
+
+func open_log(lfile **os.File, isdebug bool, our_fname string) {
+	if isdebug && false {
 		open_log_dbg(lfile, our_fname)
 	} else {
 		open_log_rel(lfile, our_fname)
 	}
 }
 
-func open_log_rel(lfile *os.File, prog_name string) {
+func open_log_rel(lfile **os.File, prog_name string) {
 	var err error
-	lfile, err = os.Open(os.DevNull)
+	*lfile, err = os.Open(os.DevNull)
 	if err != nil {
 		panic(err)
 	}
-	lg = log.New(lfile, prog_name+": ERROR: ", 0)
+	lg = log.New(*lfile, prog_name+": ERROR: ", 0)
 }
 
-func open_log_dbg(lfile *os.File, prog_name string) {
-	// lfile = os.Stderr
-	var err error
-	lfile, err = os.OpenFile("thl_go.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0600)
-	if err != nil {
-		panic(err)
-	}
+func open_log_dbg(lfile **os.File, prog_name string) {
+	lfile = &os.Stderr
+	//var err error
+	//*lfile, err = os.OpenFile("thl_go.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_SYNC, 0600)
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	lg = log.New(lfile, "  =====  ", 0)
+	lg = log.New(*lfile, "  =====  ", 0)
 }
 
 //========================================================================================
@@ -138,13 +146,15 @@ func Parse(our_fname, our_fpath string) *Parsed_Data {
 	return ret
 }
 
+/*--------------------------------------------------------------------------------------*/
+
 func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 	var (
 		astmap map[string]*ast.Package
 		err    error
 	)
 	if astmap, err = parser.ParseDir(fset, path, nil, 0); err != nil {
-		lg.Println(err)
+		lg.Printf("ParseDir: `%v`", err)
 	}
 	return astmap, err
 
@@ -167,6 +177,8 @@ func whyunofind(data *Parsed_Data) *ast.Package {
 	e := fmt.Errorf("Error: Want \"%s\", but it's not in ( %#+v )", data.AstFile.Name, data.Packages)
 	panic(e)
 }
+
+/*--------------------------------------------------------------------------------------*/
 
 func (this *Parsed_Data) Populate() error {
 	var (
@@ -197,7 +209,7 @@ func (this *Parsed_Data) Populate() error {
 	}
 
 	if pkg, err := conf.Check("", fset, this.FileSlice, this.Info); err != nil {
-		eprintln(err.Error())
+		//eprintln(err.Error())
 		lg.Println("check: ", err)
 		lg.Println(pkg)
 
@@ -217,6 +229,8 @@ func (this *Parsed_Data) Highlight() {
 		handle_ident(this.FileToken, ident, typeinfo)
 	}
 }
+
+/*--------------------------------------------------------------------------------------*/
 
 func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {

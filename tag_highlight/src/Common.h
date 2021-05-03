@@ -15,8 +15,7 @@ extern "C" {
 #  define _CRT_NONSTDC_NO_WARNINGS
 #endif
 #ifndef __GNUC__
-#  error "GCC or equivalent is required."
-#  define __attribute__(...)
+//#  define __attribute__(...)
 #endif
 #if defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"

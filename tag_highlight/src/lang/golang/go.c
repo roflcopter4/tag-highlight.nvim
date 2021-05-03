@@ -74,7 +74,6 @@ highlight_go(Buffer *bdata)
         }
 
         pthread_mutex_lock(&bdata->lock.total);
-        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
 
         char *const argv[] = {
                 BS(go_binary),
@@ -86,9 +85,12 @@ highlight_go(Buffer *bdata)
                 (char *)0
         };
 
-        bstring         *rd   = get_command_output(BS(go_binary), argv, tmp, &retval);
-        if (retval != 0)
-                errx(1, "Fuck! (%d)", retval);
+        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
+        bstring *rd  = get_command_output(BS(go_binary), argv, tmp, &retval);
+
+        if (retval != 0) {
+                warnx("Go binary returned with error status (%d)", retval);
+        }
         if (!rd || !rd->data || rd->slen == 0) {
                 b_free(rd);
                 retval = (-1);
