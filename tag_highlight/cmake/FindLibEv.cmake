@@ -10,6 +10,8 @@
 #    set(LIBEV_FIND_QUIETLY TRUE)
 #else()
 
+set (LIBEV_FOUND FALSE)
+
 find_path(
     LIBEV_INCLUDE_DIRS
     NAMES ev.h
@@ -22,14 +24,17 @@ find_library(
     HINTS ${LIBEV_ROOT_DIR}
     PATH_SUFFIXES ${CMAKE_INSTALL_LIBDIR})
 
+if (LIBEV_LIBRARIES)
+    set(LIBEV_FOUND TRUE CACHE INTERNAL BOOL "Found LibEv")
+else()
+    set(LIBEV_FOUND FALSE CACHE INTERNAL BOOL "Found LibEv")
+endif()
+
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(
-    LibEv DEFAULT_MSG LIBEV_LIBRARIES LIBEV_INCLUDE_DIRS)
+    LibEv DEFAULT_MSG LIBEV_LIBRARIES LIBEV_INCLUDE_DIRS LIBEV_FOUND)
 
-mark_as_advanced(LIBEV_LIBRARIES LIBEV_INCLUDE_DIRS)
+mark_as_advanced(LIBEV_LIBRARIES LIBEV_INCLUDE_DIRS LIBEV_FOUND)
 
 #endif()
 #
-#if (LIBEV_LIBRARIES)
-#    set(LIBEV_FOUND CACHE INTERNAL "Found LibEv")
-#endif()

@@ -20,6 +20,9 @@ static void        obj_read         (void *restrict src, uint8_t *restrict dest,
 
 static mpack_mask const *id_pack_type(uint8_t ch) __attribute__((pure));
 
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
 
 #define decode_int16(NUM)                                  \
@@ -43,7 +46,7 @@ struct mpack_mutex {
         int             fd;
         bool            init;
         pthread_mutex_t mut;
-};
+} __attribute__((aligned(64)));
 static mpack_mutex mpack_mutex_list[NUM_MUTEXES];
 
 extern FILE *mpack_raw;
@@ -94,7 +97,7 @@ mpack_decode_stream(int32_t fd)
         if (!ret)
                 errx(1, "Failed to decode stream.");
 
-        if (mpack_type(ret) != MPACK_ARRAY) {
+        if (unlikely(mpack_type(ret) != MPACK_ARRAY)) {
                 if (mpack_log) {
                         mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
@@ -115,7 +118,7 @@ mpack_decode_obj(bstring *buf)
         if (!ret)
                 errx(1, "Failed to decode stream.");
 
-        if (mpack_type(ret) != MPACK_ARRAY) {
+        if (unlikely(mpack_type(ret) != MPACK_ARRAY)) {
                 if (mpack_log) {
                         mpack_print_object(mpack_log, ret);
                         fflush(mpack_log);
@@ -476,11 +479,11 @@ stream_read(void *restrict src, uint8_t *restrict dest, size_t const nbytes)
                 nread += (size_t)n;
         }
 #else
-        int const n = recv(fd, dest, nbytes, MSG_WAITALL);
-        if (n < 0)
+        ssize_t const n = recv(fd, dest, nbytes, MSG_WAITALL);
+        if (unlikely(n < 0))
                 err(1, "recv() error");
-        if ((size_t)n != nbytes)
-                err(1, "recv() returned too few bytes (%d != %zu)!", n, nbytes);
+        if (unlikely((size_t)n != nbytes))
+                err(1, "recv() returned too few bytes (%zd != %zu)!", n, nbytes);
 #endif
 
 #if defined DEBUG && defined DEBUG_LOGS

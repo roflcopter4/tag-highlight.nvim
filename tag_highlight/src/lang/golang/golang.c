@@ -6,6 +6,7 @@
 #include "lang/lang.h"
 
 #include "contrib/p99/p99_count.h"
+#include <signal.h>
 #include <sys/stat.h>
 
 #ifndef WEXITSTATUS
@@ -39,9 +40,13 @@ static const char is_debug[] = "0";
 #define READ_FD  (0)
 #define WRITE_FD (1)
 
+static pid_t       start_binary(Buffer *bdata);
 static void        parse_go_output(Buffer *bdata, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
+
+static void write_buffer(Buffer *bdata, bstring *buf);
+static bstring * read_pipe(Buffer *bdata);
 
 /*======================================================================================*/
 
@@ -64,20 +69,62 @@ get_go_binary(void)
 int
 highlight_go(Buffer *bdata)
 {
-        bstring const *go_binary = settings.go_binary;
-
         int      retval  = 0;
         unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
-        if (cnt_val >= 2) {
+        if (cnt_val > 5) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return retval;
         }
 
         pthread_mutex_lock(&bdata->lock.total);
 
+        if (!atomic_flag_test_and_set(&bdata->godata.flg)) {
+                start_binary(bdata);
+        } else {
+                errno = 0;
+                kill(bdata->godata.pid, 0);
+                int e = errno;
+                if (e != 0) {
+                        char errbuf[256];
+                        echo("Binary not available: %d: %s", e, strerror_r(e, errbuf, 256));
+                        close(bdata->godata.rd_fd);
+                        close(bdata->godata.wr_fd);
+                        start_binary(bdata);
+                }
+        }
+
+        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
+        write_buffer(bdata, tmp);
+        b_free(tmp);
+        tmp = read_pipe(bdata);
+
+        if (!tmp || !tmp->data || tmp->slen == 0) {
+                retval = (-1);
+                goto cleanup;
+        }
+
+        b_list *data = separate_and_sort(tmp);
+        parse_go_output(bdata, data);
+        b_list_destroy(data);
+
+cleanup:
+        b_free(tmp);
+        p99_count_dec(&bdata->lock.num_workers);
+        pthread_mutex_unlock(&bdata->lock.total);
+        return retval;
+}
+
+/*--------------------------------------------------------------------------------------*/
+
+static void openpipe(int fds[2]);
+
+static pid_t
+start_binary(Buffer *bdata)
+{
+        bstring const *go_binary = settings.go_binary;
         char *const argv[] = {
                 BS(go_binary),
-                (char *)program_invocation_short_name,
+                program_invocation_short_name,
                 (char *)is_debug,
                 BS(bdata->name.full),
                 BS(bdata->name.path),
@@ -85,30 +132,97 @@ highlight_go(Buffer *bdata)
                 (char *)0
         };
 
-        bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
-        bstring *rd  = get_command_output(BS(go_binary), argv, tmp, &retval);
+        int fds[2][2], pid;
+        openpipe(fds[0]);
+        openpipe(fds[1]);
 
-        if (retval != 0) {
-                warnx("Go binary returned with error status (%d)", retval);
+        if ((pid = fork()) == 0) {
+                if (dup2(fds[0][READ_FD], STDIN_FILENO) == (-1))
+                        err(1, "dup2() failed\n");
+                if (dup2(fds[1][WRITE_FD], STDOUT_FILENO) == (-1))
+                        err(1, "dup2() failed\n");
+
+                close(fds[0][0]);
+                close(fds[0][1]);
+                close(fds[1][0]);
+                close(fds[1][1]);
+
+                if (execvp(BS(go_binary), argv) == (-1))
+                        err(1, "exec() failed\n");
         }
-        if (!rd || !rd->data || rd->slen == 0) {
-                b_free(rd);
-                retval = (-1);
-                goto cleanup;
-        }
 
-        b_list *data = separate_and_sort(rd);
+        close(fds[0][READ_FD]);
+        close(fds[1][WRITE_FD]);
+        bdata->godata.wr_fd = fds[0][WRITE_FD];
+        bdata->godata.rd_fd = fds[1][READ_FD];
+        bdata->godata.pid   = pid;
 
-        parse_go_output(bdata, data);
-        b_destroy_all(tmp, rd);
-        b_list_destroy(data);
-
-cleanup:
-        b_destroy(tmp);
-        p99_count_dec(&bdata->lock.num_workers);
-        pthread_mutex_unlock(&bdata->lock.total);
-        return retval;
+        return pid;
 }
+
+static void
+openpipe(int fds[2])
+{
+        int flg;
+        if (pipe(fds) == (-1))
+                err(1, "pipe()");
+        if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
+                err(2, "fcntl(F_SETPIPE_SZ)");
+
+        for (int i = 0; i < 2; ++i) {
+                if ((flg = fcntl(fds[i], F_GETFL)) == (-1))
+                        err(3+i, "fcntl(F_GETFL)");
+                if (fcntl(fds[i], F_SETFL, flg | O_CLOEXEC) == (-1))
+                        err(5+i, "fcntl(F_SETFL)");
+        }
+}
+
+/*--------------------------------------------------------------------------------------*/
+
+static void
+write_buffer(Buffer *bdata, bstring *buf)
+{
+        unsigned n;
+        {
+                char len_str[16];
+                unsigned slen = sprintf(len_str, "%010u", buf->slen);
+                /* echo("Writing %d as %s\n", buf->slen, len_str); */
+                n = write(bdata->godata.wr_fd, len_str, slen);
+                if (n != slen)
+                        err(1, "write() -> %u != %u", n, slen);
+        }
+        n = write(bdata->godata.wr_fd, buf->data, buf->slen);
+        if (n != buf->slen)
+                err(1, "write() -> %u != %u", n, buf->slen);
+}
+
+static bstring *
+read_pipe(Buffer *bdata)
+{
+        uint32_t num2read;
+        {
+                char buf[16], *p;
+                long nread = read(bdata->godata.rd_fd, buf, 10);
+                assert(nread == 10);
+                buf[10] = '\0';
+
+                num2read = strtoull(buf, &p, 10);
+                assert(p == buf + 10);
+        }
+
+        bstring *ret = b_create(num2read + 1);
+        do {
+                ret->slen += read(bdata->godata.rd_fd, ret->data + ret->slen, num2read);
+        } while (ret->slen != num2read);
+        if (ret->slen != num2read)
+                err(1, "read() -> %u != %u", ret->slen, num2read);
+        ret->data[ret->slen] = '\0';
+
+        return ret;
+
+}
+
+/*--------------------------------------------------------------------------------------*/
 
 noreturn void *
 highlight_go_pthread_wrapper(void *vdata)

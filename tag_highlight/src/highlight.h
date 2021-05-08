@@ -111,6 +111,12 @@ struct bufdata {
                         mpack_arg_array *calls;
                         b_list          *cmd_cache;
                 };
+                struct /* go */ {
+                        int         pid;
+                        int         wr_fd;
+                        int         rd_fd;
+                        atomic_flag flg;
+                } godata;
         };
 };
 

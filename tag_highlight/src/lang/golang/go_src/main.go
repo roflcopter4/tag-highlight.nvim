@@ -7,17 +7,28 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
-	"runtime"
+	"path/filepath"
 	"strconv"
+
+	"github.com/davecgh/go-spew/spew"
+	// "golang.org/x/tools/gcexportdata"
+	// "github.com/golang/tools/tree/master/go/gcexportdata"
 )
 
 var (
 	fset *token.FileSet = token.NewFileSet()
-	lg   *log.Logger
+	lg   *mylog         = new(mylog)
+
+	sigchan = make(chan os.Signal, 1)
 )
+
+type mylog struct {
+	*log.Logger
+	File *os.File
+}
 
 const (
 	TYPE_CONSTANT    = 'c'
@@ -53,15 +64,19 @@ func main() {
 		}
 	}()
 
-	data := Parse(our_fname, our_fpath)
-	data.Highlight()
+	data := InitialParse(our_fname, our_fpath)
+
+	for {
+		data.Update(wait())
+	}
+
 	os.Exit(0)
 }
 
 /*--------------------------------------------------------------------------------------*/
 
 func open_log(lfile **os.File, isdebug bool, our_fname string) {
-	if isdebug && false {
+	if true || isdebug {
 		open_log_dbg(lfile, our_fname)
 	} else {
 		open_log_rel(lfile, our_fname)
@@ -74,18 +89,54 @@ func open_log_rel(lfile **os.File, prog_name string) {
 	if err != nil {
 		panic(err)
 	}
-	lg = log.New(*lfile, prog_name+": ERROR: ", 0)
+	lg.Logger = log.New(*lfile, prog_name+": ERROR: ", 0)
 }
 
 func open_log_dbg(lfile **os.File, prog_name string) {
-	lfile = &os.Stderr
-	//var err error
-	//*lfile, err = os.OpenFile("thl_go.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_SYNC, 0600)
-	//if err != nil {
-	//	panic(err)
-	//}
+	// lfile = &os.Stderr
+	var err error
+	*lfile, err = os.OpenFile("thl_go.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_SYNC, 0600)
+	if err != nil {
+		panic(err)
+	}
 
-	lg = log.New(*lfile, "  =====  ", 0)
+	lg.Logger = log.New(*lfile, "  =====  ", 0)
+	lg.File = *lfile
+}
+
+func (l *mylog) Spew(things ...interface{}) {
+	lg.Println(spew.Sdump(things...))
+	lg.File.Sync()
+}
+
+/*--------------------------------------------------------------------------------------*/
+
+func wait() string {
+	/* The number 4294967296 (aka UINT32_MAX), which is the largest size a buffer can
+	 * be (in my app anyway) is 10 characters. The actual size of the buffer will be
+	 * padded with zeros on the left if necessary. */
+	var (
+		buf   = make([]byte, 10)
+		inlen int
+		err   error
+	)
+
+	if _, err = io.ReadFull(os.Stdin, buf); err != nil {
+		panic(err)
+	}
+	if inlen, err = strconv.Atoi(string(buf)); err != nil {
+		panic(err)
+	}
+	// eprintf("Reading %d bytes\n", inlen)
+	// var n int
+
+	buf = make([]byte, inlen)
+	if _, err = io.ReadFull(os.Stdin, buf); err != nil {
+		panic(err)
+	}
+	// eprintf("Read %d bytes!\n", n)
+
+	return string(buf)
 }
 
 //========================================================================================
@@ -100,12 +151,14 @@ type Parsed_Data struct {
 	FileToken *token.File
 	Pkg       *ast.Package
 	Info      *types.Info
+
+	Imports []interface{}
+	Output  string
 }
 
-func Parse(our_fname, our_fpath string) *Parsed_Data {
+func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
-		buf []byte
 
 		ret = &Parsed_Data{
 			FileName:  our_fname,
@@ -120,33 +173,12 @@ func Parse(our_fname, our_fpath string) *Parsed_Data {
 		}
 	)
 
-	if buf, err = ioutil.ReadAll(os.Stdin); err != nil {
-		panic(err)
-	}
 	if ret.Packages, err = parse_whole_dir(ret.FilePath); err != nil {
 		lg.Printf("parse_files: %v\n", err)
 	}
-	if ret.AstFile, err = parser.ParseFile(fset, ret.FileName, buf, 0); err != nil {
-		lg.Printf("parser.Parsefile: %v\n", err)
-	}
 
-	// ret.Pkg = ret.Packages[ret.AstFile.Name.String()]
-	ret.Pkg = whyunofind(ret)
-	ret.FileMap = ret.Pkg.Files
-	ret.FileMap[ret.FileName] = ret.AstFile
-	ret.FileSlice = []*ast.File{}
-
-	// spew.Fdump(lg.Writer(), ret)
-
-	for _, f := range ret.FileMap {
-		ret.FileSlice = append(ret.FileSlice, f)
-	}
-
-	ret.Populate()
 	return ret
 }
-
-/*--------------------------------------------------------------------------------------*/
 
 func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 	var (
@@ -160,9 +192,15 @@ func parse_whole_dir(path string) (map[string]*ast.Package, error) {
 
 }
 
-func whyunofind(data *Parsed_Data) *ast.Package {
+func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 	var pack *ast.Package
-	if pack = data.Packages[data.AstFile.Name.String()]; pack != nil {
+	if pack = data.Packages[fname]; pack != nil {
+		return pack
+	}
+
+	bname := filepath.Base(fname)
+
+	if pack = data.Packages[bname]; pack != nil {
 		return pack
 	}
 
@@ -172,21 +210,52 @@ func whyunofind(data *Parsed_Data) *ast.Package {
 				return v
 			}
 		}
+	} else {
+		eprintf("wtf there are %d packages", len(data.Packages))
 	}
 
-	e := fmt.Errorf("Error: Want \"%s\", but it's not in ( %#+v )", data.AstFile.Name, data.Packages)
+	e := fmt.Errorf("Error: Want \"%s\" or \"%s\", but it's not in ( %#+v )", fname, bname, data.Packages)
 	panic(e)
 }
 
 /*--------------------------------------------------------------------------------------*/
 
+func (this *Parsed_Data) Update(buf string) {
+	var err error
+	if this.AstFile, err = parser.ParseFile(fset, this.FileName, buf, 0); err != nil {
+		lg.Printf("parser.Parsefile: %v\n", err)
+	}
+
+	// this.Pkg = whyunofind(this, this.FileName)
+	this.Pkg = whyunofind(this, this.AstFile.Name.String())
+	this.FileMap = this.Pkg.Files
+	this.FileMap[this.FileName] = this.AstFile
+	this.FileSlice = []*ast.File{}
+	this.Output = ""
+
+	for _, f := range this.FileMap {
+		this.FileSlice = append(this.FileSlice, f)
+	}
+
+	this.Populate()
+	this.Highlight()
+	this.WriteOutput()
+}
+
 func (this *Parsed_Data) Populate() error {
+	// lookup := func(path string) (io.ReadCloser, error) {
+	//       return this.my_lookup(path)
+	// }
 	var (
 		conf = types.Config{
 			// Importer: importer.Default(),
-			Importer: importer.ForCompiler(fset, runtime.Compiler, nil),
+			Importer: importer.ForCompiler(fset, "source", nil),
+			// Importer: this.get_importer(),
+			// Importer: importer.ForCompiler(fset, "gc", nil),
+
 			// Ignore errors so we can support packages that import "C"
-			Error: func(error) {},
+			Error:                    func(error) {},
+			DisableUnusedImportCheck: true,
 		}
 	)
 
@@ -208,7 +277,7 @@ func (this *Parsed_Data) Populate() error {
 		errx(1, "Current file not in fileset.\n")
 	}
 
-	if pkg, err := conf.Check("", fset, this.FileSlice, this.Info); err != nil {
+	if pkg, err := conf.Check(this.FilePath, fset, this.FileSlice, this.Info); err != nil {
 		//eprintln(err.Error())
 		lg.Println("check: ", err)
 		lg.Println(pkg)
@@ -223,16 +292,16 @@ func (this *Parsed_Data) Populate() error {
 
 func (this *Parsed_Data) Highlight() {
 	for ident, typeinfo := range this.Info.Defs {
-		handle_ident(this.FileToken, ident, typeinfo)
+		this.handle_ident(ident, typeinfo)
 	}
 	for ident, typeinfo := range this.Info.Uses {
-		handle_ident(this.FileToken, ident, typeinfo)
+		this.handle_ident(ident, typeinfo)
 	}
 }
 
 /*--------------------------------------------------------------------------------------*/
 
-func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
+func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
 		return
 	}
@@ -241,7 +310,7 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 	if kind == 0 {
 		return
 	}
-	if file.Name() != fset.File(ident.Pos()).Name() {
+	if this.FileToken.Name() != fset.File(ident.Pos()).Name() {
 		return
 	}
 	p := get_range(ident.Pos(), len(ident.Name))
@@ -249,7 +318,10 @@ func handle_ident(file *token.File, ident *ast.Ident, typeinfo types.Object) {
 		return
 	}
 
-	write_output(kind, p, ident.Name)
+	this.Output += fmt.Sprintf(
+		"%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
+		kind, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column,
+		len(ident.Name), ident.Name)
 }
 
 func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
@@ -286,8 +358,7 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
 		}
 		if x.IsField() {
 			ret = TYPE_FIELD
-		}
-		if typeinfo.Parent() != nil && typeinfo.Parent().Parent() == types.Universe {
+		} else if typeinfo.Parent() != nil && typeinfo.Parent().Parent() == types.Universe {
 			ret = TYPE_VARIABLE
 		}
 	}
@@ -302,19 +373,39 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 	}
 }
 
-func write_output(ch int, p [2]token.Position, ident string) {
-	s := fmt.Sprintf("%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
-		ch, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column, len(ident), ident)
-	_, err := os.Stdout.WriteString(s)
-	if err != nil {
+func (this *Parsed_Data) WriteOutput() {
+	var (
+		err    error
+		s      = this.Output
+		lenstr = fmt.Sprintf("%010d", len(s))
+	)
+
+	// eprintf("Writing %d bytes as %s\n", len(s), lenstr)
+
+	if _, err = os.Stdout.WriteString(lenstr); err != nil {
+		panic(err)
+	}
+	if _, err = os.Stdout.WriteString(s); err != nil {
 		panic(err)
 	}
 }
 
 //========================================================================================
 
-func eprintln(a ...interface{})               { fmt.Fprintln(os.Stderr, a...) }
-func eprintf(format string, a ...interface{}) { fmt.Fprintf(os.Stderr, format, a...) }
+func init() {
+	spew.Config.Indent = "   "
+	// unix.Prctl(unix.PR_SET_PDEATHSIG, uintptr(unix.SIGHUP), 0, 0, 0)
+	// signal.Notify(sigchan, unix.SIGHUP)
+	// go sighandler(sigchan)
+}
+
+// func sighandler(c chan os.Signal) {
+//       sig := <-c
+//       panic(sig)
+// }
+
+func eprintln(a ...interface{})               { fmt.Fprintln(os.Stderr, a...); os.Stderr.Sync() }
+func eprintf(format string, a ...interface{}) { fmt.Fprintf(os.Stderr, format, a...); os.Stderr.Sync() }
 
 func errx(code int, format string, a ...interface{}) {
 	eprintf(format, a...)

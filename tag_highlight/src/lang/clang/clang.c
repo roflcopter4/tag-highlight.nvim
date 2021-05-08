@@ -66,12 +66,17 @@ void
         if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
                 return;
 
+        static atomic_uint ctick = ATOMIC_VAR_INIT(0);
+
         pthread_mutex_lock(&bdata->lock.ctick);
-        unsigned const new = atomic_load(&bdata->ctick);
-        unsigned const old = atomic_exchange(&bdata->last_ctick, new);
+        unsigned const new = nvim_buf_get_changedtick(bdata->num);
+        atomic_store_explicit(&bdata->last_ctick,
+                              atomic_exchange_explicit(&bdata->ctick, new,
+                                                       memory_order_acq_rel),
+                              memory_order_seq_cst);
         pthread_mutex_unlock(&bdata->lock.ctick);
 
-        if (type == HIGHLIGHT_NORMAL && new > 0 && old >= new)
+        if (type == HIGHLIGHT_NORMAL && new > 0 && new <= ctick)
                 return;
 
         mpack_arg_array   *calls;
@@ -80,14 +85,16 @@ void
         uint32_t  cnt_val = p99_count_inc(&bdata->lock.num_workers);
         bstring  *joined  = NULL;
 
-        if (cnt_val >= 2) {
+        if (cnt_val > 2) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return;
         }
 
         pthread_mutex_lock(&lc_mutex);
 
+        atomic_store(&ctick, new);
         joined = ll_join_bstrings(bdata->lines, '\n');
+
         if (last == (-1)) {
                 startend[0] = 0;
                 startend[1] = joined->slen;

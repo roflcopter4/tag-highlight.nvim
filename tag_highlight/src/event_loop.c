@@ -40,62 +40,89 @@ static struct ev_io     input_watcher;
 static struct ev_signal signal_watcher[4];
 static void event_loop_io_cb(EV_P, ev_io *w, int revents);
 static void event_loop_graceful_signal_cb(EV_P, ev_signal *w, int revents);
-static noreturn void event_loop_signal_cb(EV_P, ev_signal *w, int revents);
+static void event_loop_signal_cb(EV_P, ev_signal *w, int revents);
+
+static inline void event_loop_stop(struct ev_loop *loop);
+static inline void event_loop_init_watchers(struct ev_loop *loop);
+
+struct userdata {
+        bool grace;
+};
 
 /*extern*/ void
 run_event_loop(int const fd)
 {
+        static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
+        if (atomic_flag_test_and_set(&event_loop_called))
+                return;
+
+        struct userdata data = {0};
         struct ev_loop *loop = EV_DEFAULT;
         event_loop_thread    = pthread_self();
+
+        ev_set_userdata(loop, &data);
+        event_loop_init_watchers(loop);
         ev_io_init(&input_watcher, event_loop_io_cb, fd, EV_READ);
         ev_io_start(loop, &input_watcher);
 
-        ev_signal_init(&signal_watcher[0], event_loop_signal_cb, SIGTERM);
-        // ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGPIPE);
-        // ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGHUP);
-        ev_signal_init(&signal_watcher[3], event_loop_graceful_signal_cb, SIGUSR1);
-        ev_signal_start(loop, &signal_watcher[0]);
-        // ev_signal_start(loop, &signal_watcher[1]);
-        // ev_signal_start(loop, &signal_watcher[2]);
-        ev_signal_start(loop, &signal_watcher[3]);
-
         /* This actually runs the show. */
         ev_run(loop, 0);
+
+        if (!data.grace)
+                pthread_exit();
 }
 
 static void
 event_loop_io_cb(UNUSED EV_P, ev_io *w, UNUSED int revents)
 {
-        //pthread_mutex_lock(&event_loop_cb_mutex);
-
         int const  fd  = w->fd;
         mpack_obj *obj = mpack_decode_stream(fd);
         talloc_steal(CTX, obj);
-        /* handle_nvim_message(fd, obj); */
 
         struct event_data *data = malloc(sizeof *data);
         data->obj = obj;
         data->fd  = fd;
         START_DETACHED_PTHREAD(handle_nvim_message, data);
-
-        //pthread_mutex_unlock(&event_loop_cb_mutex);
 }
 
 static void
 event_loop_graceful_signal_cb(struct ev_loop *loop,
                               UNUSED ev_signal *w, UNUSED int revents)
 {
-        ev_signal_stop(loop, &signal_watcher[0]);
-        // ev_signal_stop(loop, &signal_watcher[1]);
-        // ev_signal_stop(loop, &signal_watcher[2]);
-        ev_signal_stop(loop, &signal_watcher[3]);
-        ev_io_stop(loop, &input_watcher);
+        struct userdata *data = ev_userdata(loop);
+        data->grace = true;
+        event_loop_stop(loop);
 }
 
-static noreturn void
+static void
 event_loop_signal_cb(UNUSED EV_P, UNUSED ev_signal *w, UNUSED int revents)
 {
-        exit(0);
+        struct userdata *data = ev_userdata(loop);
+        data->grace = false;
+        event_loop_stop(loop);
+}
+
+static inline void
+event_loop_stop(struct ev_loop *loop)
+{
+        ev_io_stop(loop, &input_watcher);
+        ev_signal_stop(loop, &signal_watcher[0]);
+        ev_signal_stop(loop, &signal_watcher[1]);
+        ev_signal_stop(loop, &signal_watcher[2]);
+        ev_signal_stop(loop, &signal_watcher[3]);
+}
+
+static inline void
+event_loop_init_watchers(struct ev_loop *loop)
+{
+        ev_signal_init(&signal_watcher[0], event_loop_graceful_signal_cb, SIGUSR1);
+        ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGTERM);
+        ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGPIPE);
+        ev_signal_init(&signal_watcher[3], event_loop_signal_cb, SIGHUP);
+        ev_signal_start(loop, &signal_watcher[0]);
+        ev_signal_start(loop, &signal_watcher[1]);
+        ev_signal_start(loop, &signal_watcher[2]);
+        ev_signal_start(loop, &signal_watcher[3]);
 }
 
 /*======================================================================================*/
@@ -141,9 +168,7 @@ run_event_loop(int const fd)
                 sigaction(SIGUSR1, &act, NULL);
                 sigaction(SIGTERM, &act, NULL);
                 sigaction(SIGPIPE, &act, NULL);
-                //sigaction(SIGINT, &act, NULL);
                 sigaction(SIGHUP, &act, NULL);
-                //sigaction(SIGCHLD, &act, NULL);
 # endif
                 /* Run the show. */
                 event_loop(fd);

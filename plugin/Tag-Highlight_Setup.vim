@@ -5,7 +5,6 @@
 "              Released under the MIT license
 " ============================================================================
 
-" Options {{{
 if exists('g:tag_highlight#loaded')
     finish
 endif
@@ -18,7 +17,7 @@ function! s:InitVar(varname, val)
 endfunction
 
 let s:ignored_tags = {
-            \  'c': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
+            \  'c':   ['bool', 'static_assert', '__attribute__', 'true', 'false'],
             \  'cpp': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
             \}
 
@@ -158,8 +157,6 @@ call s:InitVar('ft_conv', {
 
 call s:InitVar('allbut', '.*Comment.*,.*String.*,.*Quote.*')
 
-" }}}
-
 if !isdirectory(g:tag_highlight#directory)
     call mkdir(g:tag_highlight#directory)
 endif
@@ -251,38 +248,34 @@ endfunction
 command! -nargs=? -complete=file THLAddProject call s:Add_Remove_Project(0, <q-args>)
 command! -nargs=? -complete=file THLRemoveProject call s:Add_Remove_Project(1, <q-args>)
 
-runtime! plugin/Tag_Highlight/*.vim
-
-" command! tag_highlightToggle call Tag_HighlightToggle()
-" command! tag_highlightVerbosity call tag_highlight#Toggle_Verbosity()
-" command! tag_highlightBinaryToggle call tag_highlight#Toggle_C_Binary()
-
-" nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
+nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
 " nmap <silent> <leader>tag <Plug>tag_highlightToggle
+
+" runtime! fnamemodify('./Tag_Highlight', ':p')
 
 "============================================================================= 
 
-"highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
-"highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
-"highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
-"highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
-"highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
-"highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
-"highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
-"highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
-"highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
-"
-"highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
-"highlight default link tag_highlight_GlobalVarTag		PreCondit
-"highlight default link tag_highlight_ConstantTag		Constant
-"highlight default link tag_highlight_EnumTag			Define
-"highlight default link tag_highlight_FunctionTag		Function
-"highlight default link tag_highlight_InterfaceTag		Identifier
-"highlight default link tag_highlight_MemberTag			Identifier
-"highlight default link tag_highlight_ObjectTag			Identifier
-"highlight default link tag_highlight_ModuleTag			PreProc
-"highlight default link tag_highlight_PreProcTag			PreProc
-"highlight default link tag_highlight_TypeTag			Type
+highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
+highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
+highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
+highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
+highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
+highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
+highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
+highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
+highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
+
+highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+highlight default link tag_highlight_GlobalVarTag		PreCondit
+highlight default link tag_highlight_ConstantTag		Constant
+highlight default link tag_highlight_EnumTag			Constant
+highlight default link tag_highlight_FunctionTag		Function
+highlight default link tag_highlight_InterfaceTag		Identifier
+highlight default link tag_highlight_MemberTag			Operator
+highlight default link tag_highlight_ObjectTag			Identifier
+highlight default link tag_highlight_ModuleTag			PreProc
+highlight default link tag_highlight_PreProcTag			PreProc
+highlight default link tag_highlight_TypeTag			Type
 
 "============================================================================= 
 " Shim for C code.
@@ -292,11 +285,11 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
-            if g:tag_highlight#verbose
-                try
-                    call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
-                endtry
-            endif
+            "if g:tag_highlight#verbose
+            "    try
+            "        call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
+            "    endtry
+            "endif
         endif
     endfor
 endfunction
@@ -408,7 +401,6 @@ function! s:InitTagHighlight()
     let s:seen_bufs = [l:cur]
     let s:new_bufs = [l:cur]
 
-    echom "DIR: " g:tag_highlight#directory
     try
         call delete(expand(g:tag_highlight#directory . '/stderr.log'))
     catch
@@ -418,7 +410,7 @@ function! s:InitTagHighlight()
     try
         let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
-        echom "tag-highlight executable not found."
+        echom 'tag-highlight executable not found.'
     endtry
 endfunction
 

@@ -1,5 +1,10 @@
 #!/bin/sh
 
+binary_path=
+binary_install_path=
+final_path=
+cache_path=
+
 bin_dir=
 top_dir=
 project_dir=
@@ -8,6 +13,14 @@ link_cmd=
 link_bin=false
 _CC=''
 progname=$(basename "$0")
+
+ninja_flag=false
+verbose_flag=false
+quiet_flag=false
+jemalloc_opt=NO
+libev_opt=TRY
+sanitize_opt=''
+buildtype_opt='Release'
 
 ################################################################################
 # Utilities
@@ -88,9 +101,9 @@ get_link_command() {
 find_compiler() {
     local MY_CC
     MY_CC=''
-    if [ "$1" ] && Exists "$1"; then
+    if [ "$1" ]; then
         MY_CC="$1"
-    elif [ "$CC" ] && Exists "$CC"; then
+    elif [ "$CC" ]; then
         MY_CC="$CC"
     elif Exists 'gcc'; then
         MY_CC=gcc
@@ -104,24 +117,18 @@ find_compiler() {
     unset MY_CC
 }
 
+conf_cond() {
+    if [ "$1" ] && [ "x$1" != "xfalse" ]; then
+        printf -- "%s" "$2"
+    elif [ "$3" ]; then
+        printf
+    fi
+}
+
 ################################################################################
 
 init() {
     git submodule update --init
-    case "$system_type" in
-    MinGW)
-        binary_path="${project_dir}/build/src/tag_highlight.exe"
-        final_path=$(cygpath -wa "${bin_dir}/tag_highlight.exe")
-        binary_install_path=$(cygpath -wa "${bin_dir}")
-        cache_path=$(cygpath -wa "${top_dir}/cache")
-        ;;
-    *)
-        binary_path="${project_dir}/build/src/tag_highlight"
-        final_path="${bin_dir}/tag_highlight"
-        binary_install_path="${bin_dir}"
-        cache_path="${top_dir}/cache"
-        ;;
-    esac
 
     cat >"${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#GetBinaryName()
@@ -144,18 +151,28 @@ EOF
 do_all() {
     init
     do_go_binary
-    compile "$@"
-    install
+    do_c_binary "$@"
 }
 
 do_go_binary() {
     build_go_binary || warn "Failed to build the go binary"
 }
 
+do_c_binary() {
+    compile "$@"
+    install
+}
+
 build_go_binary() {
-    cd "${project_dir}/src/lang/golang" || return 1
-    go build ./main.go || return 2
-    mv main "${top_dir}/bin/golang" || return 3
+    cd "${project_dir}/src/lang/golang/go_src" || return 1
+    go build || return 2
+    if [ -x './golang' ]; then
+        mv 'golang' "${top_dir}/bin/golang" || return 3
+    elif [ -x './golang.exe' ]; then
+        mv 'golang.exe' "${top_dir}/bin/golang.exe" || return 3
+    else
+        return 4
+    fi
     return 0
 }
 
@@ -164,22 +181,43 @@ compile() {
     check
     cd "$project_dir" || die
     if [ -d 'build' ]; then
-        mv build _build_bak || die
+        mv build _build_bak >/dev/null 2>&1 || rm -rf build || die
     fi
     { mkdir build && cd build; } || die
 
-    cmake_make_system='Unix Makefiles'
-    [ "$system_type" = 'MinGW' ] && cmake_make_system='MSYS Makefiles'
-
-    cmake -DCMAKE_BUILD_TYPE="${2:-Release}" -DCMAKE_EXPORT_COMPILE_COMMANDS=YES \
-          -DCMAKE_C_COMPILER="$(find_compiler "${_CC}")" -G "${cmake_make_system}" \
-          -DUSE_LIBV=TRY .. ||
-        die 'Cmake configuration failed.'
+    local num_jobs config_cmd cmake_make_system build_command
 
     num_jobs=$(nproc)
     [ "$num_jobs" ] || num_jobs=4
 
-    make -j "$num_jobs" || die 'Compilation failed'
+    if [ "$system_type" = 'MinGW' ]; then
+        cmake_make_system='MSYS Makefiles'
+        build_command="make -j '$num_jobs' 'VERBOSE=$(conf_cond "$verbose_flag" 1 0)'"
+    elif $ninja_flag; then
+        cmake_make_system='Ninja'
+        build_command="ninja -j '$num_jobs' $(conf_cond "$verbose_flag" -v)"
+    else
+        cmake_make_system='Unix Makefiles'
+        build_command="make -j '$num_jobs' 'VERBOSE=$(conf_cond "$verbose_flag" 1 0)'"
+    fi
+
+    config_cmd="cmake                                                           \
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=YES                             \
+                -DCMAKE_BUILD_TYPE='${buildtype_opt:-Release}'                  \
+                -DCMAKE_C_COMPILER='$(find_compiler "${_CC}")'                  \
+                -DUSE_LIBEV='${libev_opt}'                                      \
+                -DUSE_JEMALLOC='${jemalloc_opt}'                                \
+                -DSANITIZE='$(conf_cond "$sanitize_opt" "$sanitize_opt" 'OFF')' \
+                -G '${cmake_make_system}' .."
+
+    echo $config_cmd
+    eval $config_cmd || die "Cmake configuration failed."
+
+    if $quiet_flag; then
+        eval $build_command >/dev/null 2>&1 || die 'Compilation failed'
+    else
+        eval $build_command || die 'Compilation failed'
+    fi
 }
 
 install() {
@@ -194,7 +232,7 @@ install() {
     if $link_bin; then
         make_link "${binary_path}" "${bin_dir}"
     else
-        make -C "${project_dir}/build" 'install/strip'
+        "$(conf_cond $ninja_flag ninja make)" -C "${project_dir}/build" 'install/strip'
         rm -r "${project_dir}/build"
     fi
 }
@@ -206,8 +244,17 @@ show_help() {
     cat <<EOF
 Usage: $0 -[hl] <command>
 Options:
-  -h   Show this help
-  -l   Link the binary rather than copy it
+  -h      Show this help
+  -l      Link the binary rather than copy it
+  -j      Use jemalloc
+  -e      Force use of libev (default action is to use if it is available)
+  -E      Do not use libev even if it is available
+  -q      Do not echo build
+  -v      Enable verbose build
+  -N      Use ninja(1) instead of make(1) for the build.
+  -S str  Sanitizer setting
+  -B str  Cmake build type setting
+  -C str  C compiler to use
 Valid commands:
   setup     Create the directory structure and the necessary vim files
   update    Rebuild the binary only
@@ -234,47 +281,64 @@ mkdir -p "${top_dir}/cache"
 mkdir -p "${top_dir}/cache/tags"
 mkdir -p "${top_dir}/bin"
 
-while getopts 'lh' ARG "$@"; do
+case "$system_type" in
+MinGW)
+    binary_path="${project_dir}/build/src/tag_highlight.exe"
+    final_path=$(cygpath -wa "${bin_dir}/tag_highlight.exe")
+    binary_install_path=$(cygpath -wa "${bin_dir}")
+    cache_path=$(cygpath -wa "${top_dir}/cache")
+    ;;
+*)
+    binary_path="${project_dir}/build/src/tag_highlight"
+    final_path="${bin_dir}/tag_highlight"
+    binary_install_path="${bin_dir}"
+    cache_path="${top_dir}/cache"
+    ;;
+esac
+
+while getopts 'lhjeEvqNS:B:C:' ARG "$@"; do
     case $ARG in
-        l) link_bin=true ;;
-        h) show_help; exit 0 ;;
-        *) show_help; exit 1 ;;
+        (l) link_bin=true ;;
+        (h) show_help; exit 0 ;;
+        (j) jemalloc_opt=YES ;;
+        (e) libev_opt=YES ;;
+        (E) libev_opt=NO ;;
+        (v) verbose_flag=true ;;
+        (q) quiet_flag=true ;;
+        (N) ninja_flag=true ;;
+        (S) sanitize_opt="$OPTARG" ;;
+        (B) buildtype_opt="$OPTARG" ;;
+        (C) _CC="$OPTARG" ;;
+        (*) show_help; exit 1 ;;
     esac
 done
 shift $((OPTIND - 1))
 
 while [ "$1" ]; do
-    _ARG="$1"
-    shift 1
-    case "$_ARG" in
-    CC=*)
+    case "$1" in
+    (dirs | setup | info)  init;             exit 0 ;;
+    (update | make | all)  do_all "$@";      exit 0 ;;
+    (build)                do_c_binary "$@"; exit 0 ;;
+    (go | golang)          do_go_binary;     exit 0 ;;
+
+    (CC=*)
         _CC="$(echo "$1" | sed 's/CC=//')"
         ;;
+    (install)
+        if [ -d "${project_dir}/build" ]; then
+            init
+            install
+            exit 0
+        else
+            do_all "$@"
+            exit 0
+        fi
+        ;;
+    (*)
+        die 'Invalid command'
+        ;;
     esac
+    shift 1
 done
 
-if [ "$1" ]; then
-    case "$1" in
-        dirs | setup | info)
-            init
-            ;;
-        update | make | all)
-            do_all "$@"
-            ;;
-        install)
-            if [ -d "${project_dir}/build" ]; then
-                init
-                install
-            else
-                do_all "$@"
-            fi
-            ;;
-        go|golang)
-            do_go_binary
-            ;;
-        *)
-            die 'Invalid command'
-    esac
-else
-    do_all
-fi
+do_all

@@ -33,7 +33,7 @@ set (tag_highlight_SOURCES
     lang/ctags_scan/scan.c
     lang/ctags_scan/strip.c
     lang/ctags_scan/tok.c
-    lang/golang/go.c
+    lang/golang/golang.c
     lang/lang.c
 
     contrib/bstring/additions.c
@@ -47,6 +47,39 @@ set (tag_highlight_SOURCES
     util/generic_list.c
     util/linked_list.c
     util/util.c
+)
+
+set (tag_highlight_headers
+    Common.h
+    events.h
+    highlight.h
+    mingw_config.h
+    my_p99_common.h
+
+    mpack/intern.h
+    mpack/mpack.h
+
+    nvim_api/api.h
+    nvim_api/intern.h
+    nvim_api/read.h
+    nvim_api/wait_node.h
+
+    lang/clang/clang.h
+    lang/clang/intern.h
+    lang/ctags_scan/scan.h
+    lang/lang.h
+
+    contrib/bstring/additions.h
+    contrib/bstring/bstring.h
+    contrib/bstring/defines.h
+    contrib/bstring/mingw_config.h
+    contrib/bstring/private.h
+
+    util/archive.h
+    util/find.h
+    util/list.h
+    util/util.h
+    contrib/contrib.h
 )
 
 if (LZMA_SUPPORT)
@@ -98,7 +131,9 @@ else()
     # Unfortunately, apparently talloc *must* be a shared library to work
     # properly. What a pain.
     add_library(mytalloc SHARED
-                "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
+                "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c"
+                "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc.h"
+                "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc_config.h")
                 
     set (mytalloc_compile_options_common
         "-g"

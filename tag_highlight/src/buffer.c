@@ -178,6 +178,8 @@ get_bufdata(int const bufnum, Filetype *ft)
 
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(bdata->ft);
+        if (bdata->ft->id == FT_GO)
+                atomic_flag_clear(&bdata->godata.flg);
 
         return bdata;
 }
@@ -720,6 +722,10 @@ void
         if (bdata->ft->is_c) {
                 if (bdata->headers)
                         TALLOC_FREE(bdata->headers);
+        } else if (bdata->ft->id == FT_GO) {
+                kill(bdata->godata.pid, SIGTERM);
+                close(bdata->godata.rd_fd);
+                close(bdata->godata.wr_fd);
         } else {
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);

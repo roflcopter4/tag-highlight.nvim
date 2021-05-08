@@ -178,7 +178,7 @@ endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
 string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -pipe -std=gnu11 -fdiagnostics-color=always")
+                    " -pipe -std=gnu11 -fdiagnostics-color=always -m64")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
@@ -190,7 +190,7 @@ endif()
 
 set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
-set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -ffunction-sections")
+set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -ffunction-sections -U_FORTIFY_SOURCE")
 
 if (SANITIZE)
     string (JOIN " " CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
@@ -208,10 +208,12 @@ if (CC_IS_CLANG)
          -Wno-sign-compare
     )
     string (CONCAT BASE "${BASE} ${WARNS}")
-    set (LTO_STR "-flto=full")
+    #set (LTO_STR "-flto=full")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-        " -fuse-ld=lld -flto=full")
+        " -fuse-ld=lld "
+        #"-flto=full -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
+    )
 
 else() # GCC
 
