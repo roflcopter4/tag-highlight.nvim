@@ -57,8 +57,8 @@ event_autocmd(void *vdata)
                 free(vdata);
         }
 
-        echo("Recieved \"%s\" (%d): waking up!",
-             vimscript_message_type_getname(val), val);
+        //echo("Recieved \"%s\" (%d): waking up!",
+        //     vimscript_message_type_getname(val), val);
 
         switch (val) {
         case VIML_BUF_NEW:
@@ -148,17 +148,19 @@ event_syntax_changed(atomic_int *prev_num)
 }
 
 static void
-event_want_update(atomic_int *prev_num, vimscript_message_type val)
+event_want_update(atomic_int *prev_num, UNUSED vimscript_message_type val)
 {
         int const num = nvim_get_current_buf();
-        atomic_store_explicit(prev_num, num, memory_order_release);
+        atomic_store(prev_num, num);
         Buffer *bdata = find_buffer(num);
 
         if (bdata) {
+#if 0
                 if (update_taglist(bdata, UPDATE_TAGLIST_NORMAL)) {
                         clear_highlight(bdata);
                         update_highlight(bdata, HIGHLIGHT_UPDATE);
                 }
+#endif
         } else {
                 if (have_seen_bufnum(num))
                         attach_new_buffer(num);

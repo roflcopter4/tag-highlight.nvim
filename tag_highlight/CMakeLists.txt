@@ -133,17 +133,17 @@ CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
 
-CHECK_INCLUDE_FILE ("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
+# CHECK_INCLUDE_FILE ("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
 CHECK_INCLUDE_FILE ("execinfo.h"    HAVE_EXECINFO_H)
 CHECK_INCLUDE_FILE ("stdatomic.h"   HAVE_STDATOMIC_H)
 CHECK_INCLUDE_FILE ("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
 CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
 
-if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
-     # pkg_check_modules(LIBBSD libbsd)
-     find_package(LibBSD)
-endif()
+# if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
+#      # pkg_check_modules(LIBBSD libbsd)
+#      find_package(LibBSD)
+# endif()
 
 ###############################################################################
 # General flags
@@ -188,7 +188,7 @@ if (NOT CLANG_STR_SEARCH EQUAL -1)
     set (CC_IS_CLANG 1)
 endif()
 
-set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat")
+set (CFLAGS_DEBUG_COMMON          "-O0 -g3 -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
 set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -ffunction-sections -U_FORTIFY_SOURCE")
 

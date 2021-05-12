@@ -66,6 +66,7 @@ void
         if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
                 return;
 
+#if 0
         static atomic_uint ctick = ATOMIC_VAR_INIT(0);
 
         pthread_mutex_lock(&bdata->lock.ctick);
@@ -78,22 +79,32 @@ void
 
         if (type == HIGHLIGHT_NORMAL && new > 0 && new <= ctick)
                 return;
+#endif
 
         mpack_arg_array   *calls;
         translationunit_t *stu;
         int64_t   startend[2];
-        uint32_t  cnt_val = p99_count_inc(&bdata->lock.num_workers);
         bstring  *joined  = NULL;
 
-        if (cnt_val > 2) {
+        uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
+        if (cnt_val > 4) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return;
         }
 
-        pthread_mutex_lock(&lc_mutex);
 
+        pthread_mutex_lock(&bdata->lock.total);
+#if 0
+        pthread_mutex_lock(&lc_mutex);
+#endif
+
+#if 0
         atomic_store(&ctick, new);
+#endif
         joined = ll_join_bstrings(bdata->lines, '\n');
+
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
+        pthread_mutex_unlock(&bdata->lock.total);
 
         if (last == (-1)) {
                 startend[0] = 0;
@@ -120,7 +131,10 @@ void
         talloc_free(stu);
 
         p99_count_dec(&bdata->lock.num_workers);
+        pthread_mutex_unlock(&bdata->lock.lang_mtx);
+#if 0
         pthread_mutex_unlock(&lc_mutex);
+#endif
 }
 
 void *
@@ -169,8 +183,9 @@ handle_libclang_error(unsigned const err)
         extern void exit_cleanup(void);
 
         shout("Libclang error (%u). Unfortunately this is fatal at the moment.", err);
-        exit_cleanup();
-        horrible_horrible_awful_hack();
+        /* exit_cleanup(); */
+        _Exit(1);
+        /* horrible_horrible_awful_hack(); */
 }
 
 static translationunit_t *

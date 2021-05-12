@@ -97,6 +97,8 @@ make_new_buffer(buffer_node *bnode)
                 talloc_set_destructor(ret, destroy_buffer_wrapper);
         }
 
+        ret->ctick = nvim_buf_get_changedtick(ret->num);
+
         talloc_free(ftname);
         pthread_rwlock_unlock(bnode->lock);
         return ret;
@@ -169,9 +171,9 @@ get_bufdata(int const bufnum, Filetype *ft)
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
                 for (unsigned i = loc, b = 0; i < bdata->name.base->slen && b < 8; ++i, ++b)
-                        bdata->name.suffix[b] = bdata->name.base->data[i];
+                        bdata->name.suffix[b] = (char)bdata->name.base->data[i];
 
-        atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed);
+        /* atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed); */
         atomic_store_explicit(&bdata->last_ctick, 0, memory_order_relaxed);
         atomic_store_explicit(&bdata->is_normal_mode, 0, memory_order_relaxed);
         init_buffer_mutexes(bdata);
@@ -187,13 +189,29 @@ get_bufdata(int const bufnum, Filetype *ft)
 static inline void
 init_buffer_mutexes(Buffer *bdata)
 {
-        pthread_mutexattr_t attr;
-        pthread_mutexattr_init(&attr);
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&bdata->lock.total, &attr);
-        pthread_mutex_init(&bdata->lock.ctick, &attr);
+        {
+                pthread_mutexattr_t attr;
+                pthread_mutexattr_init(&attr);
+                pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+                pthread_mutex_init(&bdata->lock.total, &attr);
+                pthread_mutex_init(&bdata->lock.ctick, &attr);
+                pthread_mutex_init(&bdata->lock.lang_mtx, &attr);
+                pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
+                pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
+                pthread_mutex_init(&bdata->lock.cond_mtx, &attr);
+        }
+        {
+                pthread_condattr_t attr;
+                pthread_condattr_init(&attr);
+                pthread_cond_init(&bdata->lock.cond, NULL);
+        }
 
+        p99_count_init((p99_count *)&bdata->lock.cond_waiters, 0);
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
+        p99_futex_init(&bdata->ctick, 0);
+        p99_futex_init(&bdata->ctick, 0);
+        atomic_flag_clear_explicit(&bdata->ctick_seen_2, memory_order_relaxed);
+        atomic_flag_clear_explicit(&bdata->ctick_seen_3, memory_order_relaxed);
 }
 
 /*--------------------------------------------------------------------------------------*/

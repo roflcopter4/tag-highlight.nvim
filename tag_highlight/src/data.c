@@ -30,8 +30,6 @@ struct filetype **ftdata;
 __attribute__((constructor)) void init_ftdata(void)
 {
         ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
-        //ftdata = talloc_pool(NULL, (size_t)(ftdata_len * sizeof(struct filetype *)) +
-        //                           (size_t)(ftdata_len * sizeof(struct filetype)));
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 ftdata[i] = talloc(ftdata, struct filetype);
@@ -56,5 +54,5 @@ FILE           *echo_log;
 FILE           *main_log;
 jmp_buf         exit_buf;
 
-struct settings_s settings = {0,    0,    0,    0,    0,    0,    NULL, NULL, NULL,
-                              NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+struct settings_s settings = {0,    0,    0,    0,    0,    0,    NULL, NULL,
+                              NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};

@@ -5,7 +5,7 @@
 #include "nvim_api/api.h"
 #include "nvim_api/wait_node.h"
 
-P99_FIFO(_nvim_wait_node_ptr) _nvim_wait_queue;
+P99_FIFO(nvim_wait_node_ptr) nvim_wait_queue;
 
 typedef volatile p99_futex vfutex_t;
 
@@ -16,18 +16,18 @@ struct gencall {
 };
 
 extern _Atomic(mpack_obj *) event_loop_mpack_obj;
-extern vfutex_t             event_loop_futex, _nvim_wait_futex;
+extern vfutex_t             event_loop_futex, nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
-       vfutex_t             _nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
+       vfutex_t             nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
-static mpack_obj *make_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count);
+static mpack_obj *make_call(bool blocking, const bstring *fn, mpack_obj *pack,  int count);
 static noreturn void *make_async_call(void *arg);
 static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func, FILE *logfp);
 
 #define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
 #define write_and_clean_defarg_3() (NULL)
 
-static          mpack_obj *await_package  (_nvim_wait_node *node) __aWUR;
+static          mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
 static noreturn void      *discard_package(void *arg);
 
 void *nvim_common_talloc_ctx_ = NULL;
@@ -100,7 +100,7 @@ _nvim_api_wrapper_init(void)
 {
         pthread_mutex_init(&await_package_mutex);
         p99_futex_init((p99_futex *)&event_loop_futex, 0u);
-        p99_futex_init((p99_futex *)&_nvim_wait_futex, 0u);
+        p99_futex_init((p99_futex *)&nvim_wait_futex, 0u);
 }
 
 /**
@@ -109,7 +109,7 @@ _nvim_api_wrapper_init(void)
  * reference, at one point this funcion was over 100 lines long.
  */
 static mpack_obj *
-await_package(_nvim_wait_node *node)
+await_package(nvim_wait_node *node)
 {
         /* mpack_obj *obj; */
         /* p99_futex_wait(&_nvim_wait_futex); */
@@ -129,7 +129,7 @@ await_package(_nvim_wait_node *node)
 static noreturn void *
 discard_package(void *arg)
 {
-        _nvim_wait_node *node = arg;
+        nvim_wait_node *node = arg;
 
         /* mpack_obj *obj; */
         /* p99_futex_wait(&_nvim_wait_futex); */
@@ -177,7 +177,7 @@ static mpack_obj *
 #endif
 
         mpack_obj       *ret;
-        _nvim_wait_node *node;
+        nvim_wait_node *node;
 
         b_write(1, *pack->packed);
 
@@ -186,7 +186,7 @@ static mpack_obj *
         node->count = count;
 
         p99_futex_init(&node->fut, 0);
-        P99_FIFO_APPEND(&_nvim_wait_queue, node);
+        P99_FIFO_APPEND(&nvim_wait_queue, node);
         /* mpack_destroy_object(pack); */
         //b_free(*pack->packed);
         talloc_free(pack);

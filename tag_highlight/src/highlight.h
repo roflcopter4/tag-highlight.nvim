@@ -77,7 +77,12 @@ struct top_dir {
 };
 
 struct bufdata {
-        atomic_uint ctick;
+        /* atomic_uint ctick; */
+        p99_futex   ctick;
+        p99_futex   highest_ctick;
+        atomic_flag ctick_seen_2;
+        atomic_flag ctick_seen_3;
+
         atomic_uint last_ctick;
         atomic_bool is_normal_mode;
         uint16_t    num;
@@ -87,8 +92,13 @@ struct bufdata {
         struct {
                 pthread_mutex_t total;
                 pthread_mutex_t ctick;
+                pthread_mutex_t lang_mtx;
                 p99_count       num_workers;
-                p99_futex       fut;
+
+                p99_count          cond_waiters;
+                pthread_spinlock_t spinlock;
+                pthread_cond_t     cond;
+                pthread_mutex_t    cond_mtx;
         } lock;
 
         struct {
@@ -103,20 +113,23 @@ struct bufdata {
         struct top_dir  *topdir;
 
         union {
-                struct /* C, C++ */ {
+                /* c_family */ 
+                struct {
                         void   *clangdata;
                         b_list *headers;
                 };
-                struct /* Everything else */ {
-                        mpack_arg_array *calls;
-                        b_list          *cmd_cache;
-                };
-                struct /* go */ {
+                /* golang */ 
+                struct {
                         int         pid;
                         int         wr_fd;
                         int         rd_fd;
                         atomic_flag flg;
                 } godata;
+                /* generic */
+                struct {
+                        mpack_arg_array *calls;
+                        b_list          *cmd_cache;
+                };
         };
 };
 
@@ -173,7 +186,7 @@ extern int  get_initial_taglist(Buffer *bdata);
 extern void clear_highlight    (Buffer *bdata, bool blocking);
 extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
-extern void _b_list_dump_nvim  (const b_list *list, const char *listname);
+extern void b_list_dump_nvim  (const b_list *list, const char *listname);
 
 /*===========================================================================*/
 /* cpp shenanigans */
@@ -185,7 +198,7 @@ find_current_buffer(void)
 }
 
 ALWAYS_INLINE void __attribute__((__nonnull__))
-_nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
+$nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 {
         nvim_buf_attach(bdata->num);
 }
@@ -200,7 +213,7 @@ _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 #define destroy_buffer(...)         P99_CALL_DEFARG(destroy_buffer, 2, __VA_ARGS__)
 #define destroy_buffer_defarg_1()   (DES_BUF_TALLOC_FREE | DES_BUF_DESTROY_NODE)
 
-#define b_list_dump_nvim(LST) _b_list_dump_nvim((LST), #LST)
+#define b_list_dump_nvim(LST) (b_list_dump_nvim)((LST), #LST)
 
 #define nvim_buf_attach(buf_)                                \
         (                                                    \
@@ -208,7 +221,7 @@ _nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
                       int:      nvim_buf_attach,             \
                       unsigned: nvim_buf_attach,             \
                       uint16_t: nvim_buf_attach,             \
-                      Buffer *: _nvim_buf_attach_bdata_wrap) \
+                      Buffer *: $nvim_buf_attach_bdata_wrap) \
             )(buf_)                                          \
         )
 
