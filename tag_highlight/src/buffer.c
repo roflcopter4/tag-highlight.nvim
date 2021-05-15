@@ -97,7 +97,8 @@ make_new_buffer(buffer_node *bnode)
                 talloc_set_destructor(ret, destroy_buffer_wrapper);
         }
 
-        ret->ctick = nvim_buf_get_changedtick(ret->num);
+        unsigned tmp = nvim_buf_get_changedtick(ret->num);
+        p99_futex_init(&ret->ctick, tmp);
 
         talloc_free(ftname);
         pthread_rwlock_unlock(bnode->lock);

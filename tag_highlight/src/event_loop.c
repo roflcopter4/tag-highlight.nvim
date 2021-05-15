@@ -16,6 +16,8 @@ pthread_t event_loop_thread;
 void *event_loop_talloc_ctx_ = NULL;
 static pthread_mutex_t event_loop_cb_mutex;
 
+static noreturn void * handle_nvim_message_wrapper(void *data);
+
 /*
  * Explicitly initializing every mutex seems strictly necessary under MinGW's
  * implementation of pthreads on Windows. Things break otherwise.
@@ -79,10 +81,13 @@ event_loop_io_cb(UNUSED EV_P, ev_io *w, UNUSED int revents)
         mpack_obj *obj = mpack_decode_stream(fd);
         talloc_steal(CTX, obj);
 
-        struct event_data *data = malloc(sizeof *data);
-        data->obj = obj;
-        data->fd  = fd;
-        START_DETACHED_PTHREAD(handle_nvim_message, data);
+        //struct event_data *data = malloc(sizeof *data);
+        struct event_data data;
+        data.obj = obj;
+        data.fd  = fd;
+        //START_DETACHED_PTHREAD(handle_nvim_message, data);
+        handle_nvim_message(&data);
+        //free(data);
 }
 
 static void
@@ -185,8 +190,16 @@ event_loop(int const fd)
                 struct event_data *data = malloc(sizeof *data);
                 data->fd  = fd;
                 data->obj = mpack_decode_stream(fd);
-                START_DETACHED_PTHREAD(handle_nvim_message, data);
+                START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
         }
 }
 
 #endif /* No event lib */
+
+static noreturn void *
+handle_nvim_message_wrapper(void *data)
+{
+        handle_nvim_message(data);
+        free(data);
+        pthread_exit(NULL);
+}

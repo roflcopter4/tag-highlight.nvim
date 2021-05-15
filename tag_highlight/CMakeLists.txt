@@ -38,6 +38,10 @@ if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL
     set (DEBUG 1)
 endif()
 
+if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|OpenBSD|DragonFly|NetBSD")
+    set (IS_BSD 1)
+endif()
+
 ###############################################################################
 # Includes and defines
 
@@ -59,6 +63,7 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
+include_directories("/usr/local/include")
 
 set (CMAKE_REQUIRED_DEFINITIONS -D__USE_ISOC11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
 
@@ -115,6 +120,7 @@ CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
 CHECK_SYMBOL_EXISTS (arc4random     "stdlib.h"   HAVE_ARC4RANDOM)
 CHECK_SYMBOL_EXISTS (mkostemps      "stdlib.h"   HAVE_MKOSTEMPS)
 CHECK_SYMBOL_EXISTS (reallocarray   "stdlib.h"   HAVE_REALLOCARRAY)
+CHECK_SYMBOL_EXISTS (strtonum       "stdlib.h"   HAVE_STRTONUM)
 CHECK_SYMBOL_EXISTS (asprintf       "stdio.h"    HAVE_ASPRINTF)
 CHECK_SYMBOL_EXISTS (open_memstream "stdio.h"    HAVE_OPEN_MEMSTREAM)
 CHECK_SYMBOL_EXISTS (vasprintf      "stdio.h"    HAVE_VASPRINTF)
@@ -125,7 +131,6 @@ CHECK_SYMBOL_EXISTS (stricmp        "string.h"   HAVE_STRICMP)
 CHECK_SYMBOL_EXISTS (strlcat        "string.h"   HAVE_STRLCAT)
 CHECK_SYMBOL_EXISTS (strlcpy        "string.h"   HAVE_STRLCPY)
 CHECK_SYMBOL_EXISTS (strsep         "string.h"   HAVE_STRSEP)
-CHECK_SYMBOL_EXISTS (strtonum       "string.h"   HAVE_STRTONUM)
 CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
 CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
 CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)

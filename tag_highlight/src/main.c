@@ -15,14 +15,17 @@ const char *__asan_default_options(void)
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
-const char *program_invocation_name;
-const char *program_invocation_short_name;
 #endif
 #ifndef STDIN_FILENO
 #  define STDIN_FILENO  (0)
 #  define STDOUT_FILENO (1)
 #  define STDERR_FILENO (2)
 #endif
+#ifndef __GNU_LIBRARY__
+const char *program_invocation_name;
+const char *program_invocation_short_name;
+#endif
+
 #define WAIT_TIME  (3.0)
 
 extern FILE *cmd_log, *echo_log, *main_log, *mpack_raw;

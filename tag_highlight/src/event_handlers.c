@@ -53,13 +53,11 @@ static inline bool check_mutex_consistency(pthread_mutex_t *mtx, int val, const 
 static bool      handle_line_event(Buffer *bdata, mpack_array *arr);
 static event_idp id_event(mpack_obj *event) __attribute__((__pure__));
 
-noreturn void *
-handle_nvim_message(void *vdata)
+void
+handle_nvim_message(struct event_data *data)
 {
-        struct event_data *data = vdata;
-        mpack_obj *        obj  = data->obj;
-        int const          fd   = data->fd;
-        free(data);
+        mpack_obj *obj = data->obj;
+        int const  fd  = data->fd;
 
         nvim_message_type const mtype = mpack_expect(mpack_index(obj, 0), E_NUM).num;
 
@@ -75,16 +73,10 @@ handle_nvim_message(void *vdata)
                 break;
         }
         case MES_REQUEST:
-                errx(1,
-                     "Recieved request in %s somehow. "
-                     "This should be \"impossible\"?\n",
-                     FUNC_NAME);
+                errx(1, "Recieved request in %s somehow. This should be \"impossible\"?\n", FUNC_NAME);
         default:
-                errx(1, "Recieved invalid object type from neovim. "
-                        "This should be \"impossible\"?\n");
+                errx(1, "Recieved invalid object type from neovim. This should be \"impossible\"?\n");
         }
-
-        pthread_exit();
 }
 
 static void
@@ -141,32 +133,34 @@ handle_nvim_notification(mpack_obj *event)
 static void
 handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
 {
+        bool empty = false;
+#if 0
         uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
         unsigned tmp;
-        bool     empty = 0, fuck = true;
+        bool     killme = true;
 
         int mret;
 
         mret = pthread_mutex_lock(&bdata->lock.cond_mtx);
         if (check_mutex_consistency(&bdata->lock.cond_mtx, mret, "1st")) {
-                if ((fuck = atomic_flag_test_and_set(&bdata->ctick_seen_3))) {
-                        atomic_fetch_add(&bdata->ctick, 1);
+                if ((killme = atomic_flag_test_and_set(&bdata->ctick_seen_3))) {
+                        //atomic_fetch_add(&bdata->ctick, 1);
                         pthread_cond_broadcast(&bdata->lock.cond);
                 } else {
-                        bdata->ctick = new_tick - 1;
+                        p99_futex_add(&bdata->ctick, 1U);
                 }
         }
 
         p99_count_inc(&bdata->lock.cond_waiters);
-        /* struct timespec ts; */
+        struct timespec ts;
         mret = 0;
-        while (!((tmp = atomic_load(&bdata->ctick)) == (new_tick - 1))) {
+        while (!((tmp = p99_futex_load(&bdata->ctick)) == (new_tick - 1))) {
                 if (tmp > new_tick) {
-                        echo("Sigh. %u > %u -- also %s", tmp, new_tick, BTS(type->name));
+                        //echo("Sigh. %u > %u -- also %s", tmp, new_tick, BTS(type->name));
                         if (type->id == EVENT_BUF_CHANGED_TICK) {
                                 /* XXX This just has to be wrong XXX */
-                                if (!fuck || atomic_flag_test_and_set(&bdata->ctick_seen_2)) {
-                                        atomic_fetch_add(&bdata->ctick, -1);
+                                if (!killme || atomic_flag_test_and_set(&bdata->ctick_seen_2)) {
+                                        //atomic_fetch_add(&bdata->ctick, -1);
                                         pthread_cond_broadcast(&bdata->lock.cond);
                                 }
                                 p99_count_dec(&bdata->lock.cond_waiters);
@@ -177,25 +171,119 @@ handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
                         }
                 }
 
-                // clock_gettime(CLOCK_REALTIME, &ts);
-                /* ts.tv_sec += 1; */
-                // ts.tv_nsec += ((uintmax_t)NSEC2SECOND / UINTMAX_C(75));
-                /* mret = pthread_cond_timedwait(&bdata->lock.cond, &bdata->lock.cond_mtx, &ts); */
+                clock_gettime(CLOCK_REALTIME, &ts);
+                ts.tv_sec += 1;
+                ts.tv_nsec += ((uintmax_t)NSEC2SECOND / UINTMAX_C(200));
+                mret = pthread_cond_timedwait(&bdata->lock.cond, &bdata->lock.cond_mtx, &ts);
 
                 /*
                  * I don't actually like the timed wait. But it might
                  * simply be a better idea.
                  */
-                mret = pthread_cond_wait(&bdata->lock.cond, &bdata->lock.cond_mtx);
+                /* mret = pthread_cond_wait(&bdata->lock.cond, &bdata->lock.cond_mtx); */
+                check_mutex_consistency(&bdata->lock.cond_mtx, mret, "loop");
+        }
+
+        check_mutex_consistency(&bdata->lock.cond_mtx, mret, "2nd");
+#endif
+#if 0
+        killme = atomic_flag_test_and_set(&bdata->ctick_seen_3);
+        
+        P99_FUTEX_COMPARE_EXCHANGE(&bdata->ctick, value,
+                value == (new_tick - 1) || !killme,
+                value, 0U, 0U
+        );
+
+        if (type->id == EVENT_BUF_LINES)
+                empty = handle_line_event(bdata, arr);
+
+        p99_count_dec(&bdata->lock.cond_waiters);
+        P99_FUTEX_COMPARE_EXCHANGE(&bdata->ctick, value,
+                true, value + 1, 0U, P99_FUTEX_MAX_WAITERS
+        );
+
+                if (type->id == EVENT_BUF_LINES)
+                        empty = handle_line_event(bdata, arr);
+
+                //if (!seen)
+                p99_futex_exchange(&bdata->ctick, new_tick,
+                                0U, UINT_MAX, 0U, P99_FUTEX_MAX_WAITERS);
+#endif
+        if (type->id == EVENT_BUF_LINES)
+                empty = handle_line_event(bdata, arr);
+#if 0
+        p99_count_dec(&bdata->lock.cond_waiters);
+        pthread_mutex_unlock(&bdata->lock.cond_mtx);
+        p99_futex_exchange(&bdata->ctick, new_tick, 0, 0, 0, 0);
+        /* atomic_fetch_add(&bdata->ctick, 1); */
+        pthread_cond_broadcast(&bdata->lock.cond);
+#endif
+
+        if (bdata->ft->has_parser && !empty \
+                        /*&& p99_futex_load(&bdata->lock.cond_waiters) <= 1*/) {
+                update_highlight(bdata);
+        }
+}
+
+#if 0
+static void
+handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
+{
+        uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
+        unsigned tmp;
+        bool     empty = 0, killme = true;
+
+        int mret;
+
+        mret = pthread_mutex_lock(&bdata->lock.cond_mtx);
+        if (check_mutex_consistency(&bdata->lock.cond_mtx, mret, "1st")) {
+                if ((killme = atomic_flag_test_and_set(&bdata->ctick_seen_3))) {
+                        //atomic_fetch_add(&bdata->ctick, 1);
+                        pthread_cond_broadcast(&bdata->lock.cond);
+                } else {
+                        p99_futex_add(&bdata->ctick, 1U);
+                }
+        }
+
+        p99_count_inc(&bdata->lock.cond_waiters);
+        struct timespec ts;
+        mret = 0;
+        while (!((tmp = p99_futex_load(&bdata->ctick)) == (new_tick - 1))) {
+                if (tmp > new_tick) {
+                        //echo("Sigh. %u > %u -- also %s", tmp, new_tick, BTS(type->name));
+                        if (type->id == EVENT_BUF_CHANGED_TICK) {
+                                /* XXX This just has to be wrong XXX */
+                                if (!killme || atomic_flag_test_and_set(&bdata->ctick_seen_2)) {
+                                        //atomic_fetch_add(&bdata->ctick, -1);
+                                        pthread_cond_broadcast(&bdata->lock.cond);
+                                }
+                                p99_count_dec(&bdata->lock.cond_waiters);
+                                return;
+                        } else {
+                                errx(1, "Fatal: A buffer update was skipped somehow. "
+                                        "State of internal buffer is suspect.");
+                        }
+                }
+
+                clock_gettime(CLOCK_REALTIME, &ts);
+                ts.tv_sec += 1;
+                ts.tv_nsec += ((uintmax_t)NSEC2SECOND / UINTMAX_C(200));
+                mret = pthread_cond_timedwait(&bdata->lock.cond, &bdata->lock.cond_mtx, &ts);
+
+                /*
+                 * I don't actually like the timed wait. But it might
+                 * simply be a better idea.
+                 */
+                /* mret = pthread_cond_wait(&bdata->lock.cond, &bdata->lock.cond_mtx); */
                 check_mutex_consistency(&bdata->lock.cond_mtx, mret, "loop");
         }
 
         check_mutex_consistency(&bdata->lock.cond_mtx, mret, "2nd");
 #if 0
-        fuck = atomic_flag_test_and_set(&bdata->ctick_seen_3);
+        killme = atomic_flag_test_and_set(&bdata->ctick_seen_3);
         
         P99_FUTEX_COMPARE_EXCHANGE(&bdata->ctick, value,
-                value == (new_tick - 1) || !fuck,
+                value == (new_tick - 1) || !killme,
                 value, 0U, 0U
         );
 
@@ -218,13 +306,15 @@ handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
                 empty = handle_line_event(bdata, arr);
         p99_count_dec(&bdata->lock.cond_waiters);
         pthread_mutex_unlock(&bdata->lock.cond_mtx);
-        atomic_fetch_add(&bdata->ctick, 1);
+        p99_futex_exchange(&bdata->ctick, new_tick, 0, 0, 0, 0);
+        /* atomic_fetch_add(&bdata->ctick, 1); */
         pthread_cond_broadcast(&bdata->lock.cond);
 
-        if (bdata->ft->has_parser && !empty && bdata->lock.cond_waiters <= 1) {
+        if (bdata->ft->has_parser && !empty && p99_futex_load(&bdata->lock.cond_waiters) <= 1) {
                 update_highlight(bdata);
         }
 }
+#endif
 
 /*======================================================================================*/
 
@@ -240,7 +330,8 @@ handle_nvim_response(mpack_obj *obj, int fd)
         for (;;) {
                 node = P99_FIFO_POP(&nvim_wait_queue);
                 if (!node) {
-                        eprintf("Queue is empty.");
+                        fprintf(stderr, "Queue is empty.\n");
+                        fflush(stderr);
                         TALLOC_FREE(obj);
                         return;
                 }
@@ -252,7 +343,8 @@ handle_nvim_response(mpack_obj *obj, int fd)
         }
 
         atomic_store(&node->obj, obj);
-        p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
+        /* p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS); */
+        pthread_cond_signal(&node->cond);
 }
 
 static event_idp

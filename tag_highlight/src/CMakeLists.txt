@@ -98,6 +98,10 @@ target_link_libraries(tag_highlight
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
+if (IS_BSD)
+    target_link_libraries(tag_highlight -lstdthreads -lexecinfo)
+endif()
+
 if (MINGW)
     # For some reason clang wants libstdc++ linked in on Windows.
     target_link_libraries(tag_highlight -lstdc++)

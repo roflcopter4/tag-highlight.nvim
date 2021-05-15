@@ -55,7 +55,7 @@ extern noreturn void *event_autocmd(void *vdata);
 /*===========================================================================*/
 /* Event handlers */
 
-extern noreturn void *handle_nvim_message(void *data);
+extern void handle_nvim_message(struct event_data *data);
 
 
 /*======================================================================================*/

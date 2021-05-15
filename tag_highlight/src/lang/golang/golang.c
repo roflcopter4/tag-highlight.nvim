@@ -86,7 +86,8 @@ highlight_go(Buffer *bdata)
                 int e = errno;
                 if (e != 0) {
                         char errbuf[256];
-                        echo("Binary not available: %d: %s", e, strerror_r(e, errbuf, 256));
+                        strerror_r(e, errbuf, 256);
+                        echo("Binary not available: %d: %s", e, errbuf);
                         close(bdata->godata.rd_fd);
                         close(bdata->godata.wr_fd);
                         start_binary(bdata);
@@ -124,7 +125,7 @@ start_binary(Buffer *bdata)
         bstring const *go_binary = settings.go_binary;
         char *const argv[] = {
                 BS(go_binary),
-                program_invocation_short_name,
+                (char *)program_invocation_short_name,
                 (char *)is_debug,
                 BS(bdata->name.full),
                 BS(bdata->name.path),
@@ -166,8 +167,10 @@ openpipe(int fds[2])
         int flg;
         if (pipe(fds) == (-1))
                 err(1, "pipe()");
+#ifdef __linux__
         if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
                 err(2, "fcntl(F_SETPIPE_SZ)");
+#endif
 
         for (int i = 0; i < 2; ++i) {
                 if ((flg = fcntl(fds[i], F_GETFL)) == (-1))

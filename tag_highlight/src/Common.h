@@ -51,9 +51,8 @@ typedef signed long long int ssize_t;
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
 extern char *basename(char *path);
-extern const char *program_invocation_short_name;
-extern const char *program_invocation_name;
 #else
+#  include <libgen.h>
 #  include <pthread.h>
 #  include <sys/socket.h>
 #  include <sys/stat.h>
@@ -64,6 +63,11 @@ extern const char *program_invocation_name;
 #if (defined(__MINGW32__) || defined(__MINGW64__)) && (!defined(__MINGW__) || !defined(DOSISH))
 #  error "Something really messed up here."
 #endif
+#ifndef __GNU_LIBRARY__
+extern const char *program_invocation_short_name;
+extern const char *program_invocation_name;
+#endif
+
 #define SAFE_PATH_MAX (4096)
 
 #include <assert.h>

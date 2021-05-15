@@ -11,6 +11,8 @@
 #include "highlight.h"
 #include "util/archive.h"
 
+extern char **environ;
+
 static inline void write_gzfile(struct top_dir *topdir);
 static int         exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
 
@@ -106,14 +108,15 @@ get_initial_taglist(Buffer *bdata)
 int
 update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
 {
-        if (opts == UPDATE_TAGLIST_NORMAL && bdata->ctick == bdata->last_ctick) {
+        register unsigned ctick = p99_futex_load(&bdata->ctick);
+        if (opts == UPDATE_TAGLIST_NORMAL && ctick == bdata->last_ctick) {
                 ECHO("ctick unchanged");
                 return false;
         }
         bool ret = true;
         pthread_mutex_lock(&bdata->lock.total);
 
-        bdata->last_ctick = bdata->ctick;
+        bdata->last_ctick = ctick;
         if (!run_ctags(bdata, opts))
                 warnx("Ctags exited with errors; trying to continue anyway.");
 

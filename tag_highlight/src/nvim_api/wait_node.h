@@ -19,6 +19,8 @@ struct nvim_wait_node {
         unsigned   count;
         p99_futex  fut;
         _Atomic(mpack_obj *) obj;
+        pthread_mutex_t mtx;
+        pthread_cond_t cond;
 
         nvim_wait_node_ptr p99_fifo;
 };

@@ -288,7 +288,7 @@ free_all__(void *ptr, ...)
 #define WRITE_FD (1)
 
 #if defined HAVE_FORK
-#  include <wait.h>
+#  include <sys/wait.h>
 #  define CLOSE(fd) (((close)(fd) == (-1)) ? err(1, "close()") : ((void)0))
 
 static void

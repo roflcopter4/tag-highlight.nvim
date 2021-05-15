@@ -111,19 +111,32 @@ _nvim_api_wrapper_init(void)
 static mpack_obj *
 await_package(nvim_wait_node *node)
 {
+#if 0
         /* mpack_obj *obj; */
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
         p99_futex_wait(&node->fut);
         /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_relaxed); */
-        mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst);
+        /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst); */
+        mpack_obj *ret = atomic_load(&node->obj);
+#endif
 
-        if (!ret)
+        pthread_mutex_lock(&node->mtx);
+        mpack_obj *obj = NULL;
+
+        while (!obj) {
+                if (pthread_cond_wait(&node->cond, &node->mtx))
+                        err(1, "pthread_cond_wait");
+
+                obj = atomic_load(&node->obj);
+        }
+
+        if (!obj)
                 errx(1, "null object");
 
         /* p99_futex_wakeup(&event_loop_futex, 1u, 1u); */
 
-        return ret;
+        return obj;
 }
 
 static noreturn void *
@@ -135,12 +148,20 @@ discard_package(void *arg)
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
 
-        p99_futex_wait(&node->fut);
+        /* p99_futex_wait(&node->fut); */
+        pthread_mutex_lock(&node->mtx);
+        mpack_obj *obj = NULL;
+
+        while (!obj) {
+                if (pthread_cond_wait(&node->cond, &node->mtx))
+                        err(1, "pthread_cond_wait");
+
+                obj = atomic_load(&node->obj);
+        }
 
         if (!node->obj)
                 errx(1, "null object");
 
-        mpack_obj *obj = atomic_load(&node->obj);
         talloc_free(obj);
         free(node);
         pthread_exit();
@@ -184,6 +205,9 @@ static mpack_obj *
         node        = calloc(1, sizeof(*node));
         node->fd    = 1;
         node->count = count;
+
+        pthread_mutex_init(&node->mtx, NULL);
+        pthread_cond_init(&node->cond, NULL);
 
         p99_futex_init(&node->fut, 0);
         P99_FIFO_APPEND(&nvim_wait_queue, node);

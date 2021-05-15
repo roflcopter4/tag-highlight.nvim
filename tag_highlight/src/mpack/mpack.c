@@ -19,7 +19,7 @@ FILE  *mpack_log;
 #  define PRAGMA_NO_NONHEAP_POP()
 #endif
 
-pthread_mutex_t mpack_rw_lock = PTHREAD_MUTEX_INITIALIZER;
+#if 0
 __attribute__((__constructor__))
 static void mpack_mutex_constructor(void)
 {
@@ -28,6 +28,7 @@ static void mpack_mutex_constructor(void)
         pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&mpack_rw_lock, &attr);
 }
+#endif
 
 /*======================================================================================*/
 
