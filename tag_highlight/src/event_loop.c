@@ -187,10 +187,12 @@ static noreturn void
 event_loop(int const fd)
 {
         for (;;) {
-                struct event_data *data = malloc(sizeof *data);
-                data->fd  = fd;
-                data->obj = mpack_decode_stream(fd);
-                START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
+                /* struct event_data *data = malloc(sizeof *data); */
+                struct event_data data;
+                data.fd  = fd;
+                data.obj = mpack_decode_stream(fd);
+                handle_nvim_message(&data);
+                //START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
         }
 }
 

@@ -28,7 +28,7 @@ write_plain(struct top_dir *topdir)
 
         uint8_t      *buf    = talloc_zero_size(NULL, st.st_size + 1);
         FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
+        const size_t nread   = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
         DIE_UNLESSX(nread == (ssize_t)st.st_size);
@@ -61,11 +61,14 @@ write_gzip(struct top_dir *topdir)
         uint8_t *buf = talloc_size(NULL, st.st_size);
         /* assert(read(topdir->tmpfd, buf, st.st_size) == st.st_size); */
 
-        FILE         *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
-        const ssize_t nread  = fread(buf, 1, st.st_size + 1, readfp);
-        fclose(readfp);
+        FILE  *readfp = safe_fopen(BS(topdir->tmpfname), "rb");
+        errno = 0;
+        const size_t nread   = fread(buf, 1, st.st_size + 1, readfp);
 
-        DIE_UNLESS(nread == (ssize_t)st.st_size);
+        if (nread != st.st_size && !feof(readfp))
+                err(1, "fread(): %zu != %zu", nread, st.st_size);
+
+        fclose(readfp);
 
         gzFile gfp = gzopen(BS(topdir->gzfile), "wb");
         gzwrite(gfp, buf, st.st_size);

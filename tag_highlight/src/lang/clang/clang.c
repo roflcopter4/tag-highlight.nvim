@@ -96,15 +96,12 @@ void
         pthread_mutex_lock(&bdata->lock.total);
 #if 0
         pthread_mutex_lock(&lc_mutex);
-#endif
-
-#if 0
         atomic_store(&ctick, new);
 #endif
         joined = ll_join_bstrings(bdata->lines, '\n');
 
-        pthread_mutex_lock(&bdata->lock.lang_mtx);
         pthread_mutex_unlock(&bdata->lock.total);
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
 
         if (last == (-1)) {
                 startend[0] = 0;

@@ -63,7 +63,6 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
-include_directories("/usr/local/include")
 
 set (CMAKE_REQUIRED_DEFINITIONS -D__USE_ISOC11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
 

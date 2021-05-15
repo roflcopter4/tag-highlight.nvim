@@ -111,16 +111,15 @@ _nvim_api_wrapper_init(void)
 static mpack_obj *
 await_package(nvim_wait_node *node)
 {
-#if 0
         /* mpack_obj *obj; */
         /* p99_futex_wait(&_nvim_wait_futex); */
         /* obj = atomic_load(&event_loop_mpack_obj); */
         p99_futex_wait(&node->fut);
         /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_relaxed); */
         /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst); */
-        mpack_obj *ret = atomic_load(&node->obj);
-#endif
+        mpack_obj *obj = atomic_load(&node->obj);
 
+#if 0
         pthread_mutex_lock(&node->mtx);
         mpack_obj *obj = NULL;
 
@@ -130,11 +129,12 @@ await_package(nvim_wait_node *node)
 
                 obj = atomic_load(&node->obj);
         }
+#endif
 
         if (!obj)
                 errx(1, "null object");
 
-        /* p99_futex_wakeup(&event_loop_futex, 1u, 1u); */
+        //p99_futex_wakeup(&event_loop_futex, 1u, 1u);
 
         return obj;
 }

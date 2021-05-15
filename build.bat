@@ -1,8 +1,10 @@
 @echo off
 setlocal
 
+
 set SRCDIR=%CD%\tag_highlight
 
+REM Really gotta admire the dedication to inconsistency.
 where /Q sh
 if !errorlevel! EQU 0 (
     set PATH=!PATH:C:\Program Files\Git\usr\bin=!

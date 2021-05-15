@@ -98,6 +98,12 @@ target_link_libraries(tag_highlight
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
+target_compile_options(
+    tag_highlight
+    PUBLIC
+    -isystem /usr/local/include
+)
+
 if (IS_BSD)
     target_link_libraries(tag_highlight -lstdthreads -lexecinfo)
 endif()
@@ -140,6 +146,7 @@ else()
                 "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc_config.h")
                 
     set (mytalloc_compile_options_common
+        -isystem /usr/local/include
         "-g"
         "-fPIC"
         "-fno-lto"
