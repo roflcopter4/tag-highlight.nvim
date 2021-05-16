@@ -18,7 +18,7 @@ ninja_flag=false
 verbose_flag=false
 quiet_flag=false
 jemalloc_opt=NO
-libev_opt=TRY
+libev_opt=NO
 sanitize_opt=''
 buildtype_opt='Release'
 
@@ -121,7 +121,7 @@ conf_cond() {
     if [ "$1" ] && [ "x$1" != "xfalse" ]; then
         printf -- "%s" "$2"
     elif [ "$3" ]; then
-        printf
+        printf "%s" "$3"
     fi
 }
 
@@ -256,10 +256,11 @@ Options:
   -B str  Cmake build type setting
   -C str  C compiler to use
 Valid commands:
-  setup     Create the directory structure and the necessary vim files
-  update    Rebuild the binary only
-  install   Setup and install
-  dirs      Create or update the vim directories and/or files
+  setup      Create the directory structure and the necessary vim files
+  update     Rebuild the binary only
+  install    Setup and install
+  dirs       Create or update the vim directories and/or files
+  go|golang  Build or rebuild the go binary
 Defaults to 'install' if no command is specified.
 EOF
 }

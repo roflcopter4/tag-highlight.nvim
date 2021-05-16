@@ -39,7 +39,7 @@ static void event_loop_initializer(void)
 
 # include <ev.h>
 static struct ev_io     input_watcher;
-static struct ev_signal signal_watcher[4];
+static struct ev_signal signal_watcher[5];
 static void event_loop_io_cb(EV_P, ev_io *w, int revents);
 static void event_loop_graceful_signal_cb(EV_P, ev_signal *w, int revents);
 static void event_loop_signal_cb(EV_P, ev_signal *w, int revents);
@@ -115,19 +115,22 @@ event_loop_stop(struct ev_loop *loop)
         ev_signal_stop(loop, &signal_watcher[1]);
         ev_signal_stop(loop, &signal_watcher[2]);
         ev_signal_stop(loop, &signal_watcher[3]);
+        ev_signal_stop(loop, &signal_watcher[4]);
 }
 
 static inline void
 event_loop_init_watchers(struct ev_loop *loop)
 {
         ev_signal_init(&signal_watcher[0], event_loop_graceful_signal_cb, SIGUSR1);
-        ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGTERM);
+        ev_signal_init(&signal_watcher[1], event_loop_signal_cb, SIGINT);
         ev_signal_init(&signal_watcher[2], event_loop_signal_cb, SIGPIPE);
         ev_signal_init(&signal_watcher[3], event_loop_signal_cb, SIGHUP);
+        ev_signal_init(&signal_watcher[4], event_loop_signal_cb, SIGTERM);
         ev_signal_start(loop, &signal_watcher[0]);
         ev_signal_start(loop, &signal_watcher[1]);
         ev_signal_start(loop, &signal_watcher[2]);
         ev_signal_start(loop, &signal_watcher[3]);
+        ev_signal_start(loop, &signal_watcher[4]);
 }
 
 /*======================================================================================*/
@@ -143,11 +146,15 @@ static jmp_buf event_loop_jmp_buf;
 static noreturn void
 event_loop_sighandler(int signum)
 {
-        if (signum == SIGUSR1)
+        switch (signum) {
+        case SIGUSR1:
                 longjmp(event_loop_jmp_buf, 1);
-        else
+                break;
+        case SIGTERM:
+                quick_exit(0);
+        default:
                 exit(0);
-        //longjmp(event_loop_jmp_buf, signum);
+        }
 }
 # endif
 
@@ -157,27 +164,30 @@ run_event_loop(int const fd)
         /* I wanted to use pthread_once but it requires a function that takes no
          * arguments. Getting around that would defeat the whole point. */
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
+        if (atomic_flag_test_and_set(&event_loop_called))
+                return;
 
-        if (!atomic_flag_test_and_set(&event_loop_called)) {
-                /* Don't bother handling signals at all on Windows. */
 # ifndef DOSISH
-                event_loop_thread = pthread_self();
-                int signum;
-                if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
-                        eprintf("I gone and got a (%d)\n", signum);
-                        return;
-                }
-                struct sigaction act;
-                memset(&act, 0, sizeof(act));
-                act.sa_handler = event_loop_sighandler;
-                sigaction(SIGUSR1, &act, NULL);
-                sigaction(SIGTERM, &act, NULL);
-                sigaction(SIGPIPE, &act, NULL);
-                sigaction(SIGHUP, &act, NULL);
-# endif
-                /* Run the show. */
-                event_loop(fd);
+        /* Don't bother handling signals at all on Windows. */
+        event_loop_thread = pthread_self();
+        int signum;
+
+        if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
+                eprintf("I gone and got a (%d)\n", signum);
+                return;
         }
+
+        struct sigaction act;
+        memset(&act, 0, sizeof(act));
+        act.sa_handler = event_loop_sighandler;
+        sigaction(SIGUSR1, &act, NULL);
+        sigaction(SIGPIPE, &act, NULL);
+        sigaction(SIGHUP, &act, NULL);
+        sigaction(SIGINT, &act, NULL);
+        sigaction(SIGTERM, &act, NULL);
+# endif
+        /* Run the show. */
+        event_loop(fd);
 }
 
 /*

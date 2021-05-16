@@ -51,9 +51,9 @@ ll_strsep(b_list *tags, uint8_t *buf)
         uint8_t *bak = buf;
 
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
-                if (*tok == '\0')
-                        continue;
-                b_list_append(tags, b_fromblk(tok, (char *)(buf)-tok - 1));
+                if (buf && *buf)
+                        b_list_append(tags, b_fromblk(tok, (ptrdiff_t)buf - (ptrdiff_t)tok -
+                                                               (ptrdiff_t)1ULL));
         }
 
         talloc_free(bak);
@@ -124,7 +124,7 @@ gz_getlines(b_list *tags, const bstring *filename)
         ALWAYS_ASSERT(numread == 0 || numread == (int64_t)size.uncompressed);
         gzclose(gfp);
 
-        out_buf[size.uncompressed] = '\0';
+        out_buf[numread] = '\0';
         ll_strsep(tags, out_buf);
         return 1;
 }
