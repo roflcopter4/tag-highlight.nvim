@@ -83,6 +83,8 @@ make_new_buffer(buffer_node *bnode)
         Buffer   *ret    = NULL;
         Filetype *ft     = NULL;
         bstring  *ftname = nvim_buf_get_option(bnode->num, B("ft"), E_STRING).ptr;
+        if (!ftname || ftname->slen == 0)
+                goto error;
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
                 if (b_iseq(ftname, &ftdata[i]->vim_name)) {
@@ -93,13 +95,15 @@ make_new_buffer(buffer_node *bnode)
 
         if (ft && !should_skip_buffer(ftname)) {
                 bnode->bdata = ret = get_bufdata(bnode->num, ft);
+                if (!ret)
+                        goto error;
                 talloc_steal(bnode, ret);
                 talloc_set_destructor(ret, destroy_buffer_wrapper);
+                unsigned tmp = nvim_buf_get_changedtick(ret->num);
+                p99_futex_init(&ret->ctick, tmp);
         }
 
-        unsigned tmp = nvim_buf_get_changedtick(ret->num);
-        p99_futex_init(&ret->ctick, tmp);
-
+error:
         talloc_free(ftname);
         pthread_rwlock_unlock(bnode->lock);
         return ret;
@@ -156,7 +160,9 @@ static inline void init_buffer_mutexes (Buffer *bdata);
 Buffer *
 get_bufdata(int const bufnum, Filetype *ft)
 {
-        Buffer *bdata    = talloc_zero(CTX, Buffer);
+        /* Buffer *bdata    = talloc_zero(CTX, Buffer); */
+        Buffer *bdata    = talloc(CTX, Buffer);
+        explicit_bzero(bdata, sizeof *bdata);
         bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
@@ -207,7 +213,7 @@ init_buffer_mutexes(Buffer *bdata)
                 pthread_cond_init(&bdata->lock.cond, NULL);
         }
 
-        p99_count_init((p99_count *)&bdata->lock.cond_waiters, 0);
+        p99_count_init((p99_count *)&bdata->lock.hl_waiters, 0);
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
         p99_futex_init(&bdata->ctick, 0);
         p99_futex_init(&bdata->ctick, 0);

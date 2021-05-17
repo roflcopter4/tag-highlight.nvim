@@ -87,19 +87,18 @@ void
         bstring  *joined  = NULL;
 
         uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
-        if (cnt_val > 4) {
+        if (cnt_val >= 3) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return;
         }
 
-
-        pthread_mutex_lock(&bdata->lock.total);
 #if 0
         pthread_mutex_lock(&lc_mutex);
         atomic_store(&ctick, new);
 #endif
-        joined = ll_join_bstrings(bdata->lines, '\n');
 
+        pthread_mutex_lock(&bdata->lock.total);
+        joined = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
         pthread_mutex_lock(&bdata->lock.lang_mtx);
 

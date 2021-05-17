@@ -57,9 +57,6 @@ event_autocmd(void *vdata)
                 free(vdata);
         }
 
-        //echo("Recieved \"%s\" (%d): waking up!",
-        //     vimscript_message_type_getname(val), val);
-
         switch (val) {
         case VIML_BUF_NEW:
         case VIML_BUF_CHANGED:

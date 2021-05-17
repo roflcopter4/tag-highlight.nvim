@@ -12,7 +12,7 @@
 
 /*======================================================================================*/
 
-struct obj_wrapper {
+struct message_args {
         mpack_obj *obj;
         int fd;
 };
@@ -77,7 +77,7 @@ handle_nvim_message(struct event_data *data)
         }
         case MES_RESPONSE: {
                 talloc_steal(CTX, obj);
-                struct obj_wrapper *tmp = malloc(sizeof *tmp);
+                struct message_args *tmp = malloc(sizeof *tmp);
                 tmp->obj = obj;
                 tmp->fd  = fd;
                 START_DETACHED_PTHREAD(wrap_handle_nvim_response, tmp);
@@ -131,116 +131,22 @@ static void
 handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
 {
         uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
-        bool empty = false;
 
-        p99_futex_exchange(&bdata->ctick, new_tick, 0, 0, 0, 0);
+        p99_futex_exchange(&bdata->ctick, new_tick);
 
         if (type->id == EVENT_BUF_LINES)
-                empty = handle_line_event(bdata, arr);
-        if (bdata->ft->has_parser && !empty )
+                handle_line_event(bdata, arr);
+        if (bdata->ft->has_parser)
                 START_DETACHED_PTHREAD(wrap_update_highlight, bdata);
-
-                //update_highlight(bdata);
 }
-
-#if 0
-static void
-handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
-{
-        uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
-        unsigned tmp;
-        bool     empty = 0, killme = true;
-
-        int mret;
-
-        mret = pthread_mutex_lock(&bdata->lock.cond_mtx);
-        if (check_mutex_consistency(&bdata->lock.cond_mtx, mret, "1st")) {
-                if ((killme = atomic_flag_test_and_set(&bdata->ctick_seen_3))) {
-                        //atomic_fetch_add(&bdata->ctick, 1);
-                        pthread_cond_broadcast(&bdata->lock.cond);
-                } else {
-                        p99_futex_add(&bdata->ctick, 1U);
-                }
-        }
-
-        p99_count_inc(&bdata->lock.cond_waiters);
-        struct timespec ts;
-        mret = 0;
-        while (!((tmp = p99_futex_load(&bdata->ctick)) == (new_tick - 1))) {
-                if (tmp > new_tick) {
-                        //echo("Sigh. %u > %u -- also %s", tmp, new_tick, BTS(type->name));
-                        if (type->id == EVENT_BUF_CHANGED_TICK) {
-                                /* XXX This just has to be wrong XXX */
-                                if (!killme || atomic_flag_test_and_set(&bdata->ctick_seen_2)) {
-                                        //atomic_fetch_add(&bdata->ctick, -1);
-                                        pthread_cond_broadcast(&bdata->lock.cond);
-                                }
-                                p99_count_dec(&bdata->lock.cond_waiters);
-                                return;
-                        } else {
-                                errx(1, "Fatal: A buffer update was skipped somehow. "
-                                        "State of internal buffer is suspect.");
-                        }
-                }
-
-                clock_gettime(CLOCK_REALTIME, &ts);
-                ts.tv_sec += 1;
-                ts.tv_nsec += ((uintmax_t)NSEC2SECOND / UINTMAX_C(200));
-                mret = pthread_cond_timedwait(&bdata->lock.cond, &bdata->lock.cond_mtx, &ts);
-
-                /*
-                 * I don't actually like the timed wait. But it might
-                 * simply be a better idea.
-                 */
-                /* mret = pthread_cond_wait(&bdata->lock.cond, &bdata->lock.cond_mtx); */
-                check_mutex_consistency(&bdata->lock.cond_mtx, mret, "loop");
-        }
-
-        check_mutex_consistency(&bdata->lock.cond_mtx, mret, "2nd");
-#if 0
-        killme = atomic_flag_test_and_set(&bdata->ctick_seen_3);
-        
-        P99_FUTEX_COMPARE_EXCHANGE(&bdata->ctick, value,
-                value == (new_tick - 1) || !killme,
-                value, 0U, 0U
-        );
-
-        if (type->id == EVENT_BUF_LINES)
-                empty = handle_line_event(bdata, arr);
-
-        p99_count_dec(&bdata->lock.cond_waiters);
-        P99_FUTEX_COMPARE_EXCHANGE(&bdata->ctick, value,
-                true, value + 1, 0U, P99_FUTEX_MAX_WAITERS
-        );
-
-                if (type->id == EVENT_BUF_LINES)
-                        empty = handle_line_event(bdata, arr);
-
-                //if (!seen)
-                p99_futex_exchange(&bdata->ctick, new_tick,
-                                0U, UINT_MAX, 0U, P99_FUTEX_MAX_WAITERS);
-#endif
-        if (type->id == EVENT_BUF_LINES)
-                empty = handle_line_event(bdata, arr);
-        p99_count_dec(&bdata->lock.cond_waiters);
-        pthread_mutex_unlock(&bdata->lock.cond_mtx);
-        p99_futex_exchange(&bdata->ctick, new_tick, 0, 0, 0, 0);
-        /* atomic_fetch_add(&bdata->ctick, 1); */
-        pthread_cond_broadcast(&bdata->lock.cond);
-
-        if (bdata->ft->has_parser && !empty && p99_futex_load(&bdata->lock.cond_waiters) <= 1) {
-                update_highlight(bdata);
-        }
-}
-#endif
 
 /*======================================================================================*/
 
 static noreturn void *
 wrap_handle_nvim_response(void *wrapper)
 {
-        mpack_obj *obj = ((struct obj_wrapper *)wrapper)->obj;
-        int        fd  = ((struct obj_wrapper *)wrapper)->fd;
+        mpack_obj *obj = ((struct message_args *)wrapper)->obj;
+        int        fd  = ((struct message_args *)wrapper)->fd;
         free(wrapper);
         handle_nvim_response(obj, fd);
         pthread_exit(NULL);
@@ -272,7 +178,6 @@ handle_nvim_response(mpack_obj *obj, int fd)
 
         atomic_store(&node->obj, obj);
         p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
-        /* pthread_cond_signal(&node->cond); */
 }
 
 static event_idp
@@ -287,6 +192,7 @@ id_event(mpack_obj *event)
         errx(1, "Failed to identify event type \"%s\".\n", BS(typename));
 }
 
+UNUSED
 static inline bool
 check_mutex_consistency(pthread_mutex_t *mtx, int val, const char *const msg)
 {
@@ -307,7 +213,6 @@ check_mutex_consistency(pthread_mutex_t *mtx, int val, const char *const msg)
         case EINVAL:
                 ret = false;
                 break;
-                /* errx(1, "%s: Mutex is (somehow?) invalid.", msg); */
         default:
                 errx(1, "%s: Impossible?! %d -> %s", msg, val, strerror(val));
         }
@@ -324,8 +229,6 @@ static noreturn void *update_highlight_wrapper(void *bdata);
 static bool
 handle_line_event(Buffer *bdata, mpack_array *arr)
 {
-        // pthread_mutex_lock(&handle_mutex);
-
         if (arr->qty < 5)
                 errx(1, "Received an array from neovim that is too small. This "
                         "shouldn't be possible.");
@@ -445,9 +348,38 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
         }
 }
 
+
+/* 
+ * This just tries to address the fact that under the current scheme in which only a
+ * limited number of threads will be allowed to wait for a chance to update, it's possible
+ * to fail to update for the last handful of changes. This waiting thread should hopefully
+ * belatedly fix the situation.
+ */
+static noreturn void *
+delayed_update_highlight(void *vdata)
+{
+        struct timespec cur, res;
+        clock_gettime(CLOCK_MONOTONIC, &cur);
+        TIMESPEC_ADD(&cur, MKTIMESPEC(1.5), &res);
+
+#if 0
+        echo("Sleeping from %f to %f, ie %fs", TIMESPEC2DOUBLE(&cur),
+             TIMESPEC2DOUBLE(&res), TIMESPECDIFF(&cur, &res));
+#endif
+
+        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &res, NULL);
+        update_highlight(vdata);
+        pthread_exit();
+}
+
 static noreturn void *
 wrap_update_highlight(void *vdata)
 {
+        Buffer *bdata = vdata;
+        if (p99_futex_add(&bdata->lock.hl_waiters, 1U) == 0) {
+                START_DETACHED_PTHREAD(delayed_update_highlight, bdata);
+        }
         update_highlight(vdata);
+        p99_futex_add(&bdata->lock.hl_waiters, -(1U));
         pthread_exit();
 }

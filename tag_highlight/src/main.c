@@ -21,12 +21,10 @@ const char *__asan_default_options(void)
 #  define STDOUT_FILENO (1)
 #  define STDERR_FILENO (2)
 #endif
-#ifndef __GNU_LIBRARY__
+#if !(defined __GLIBC__ || defined __GNU_LIBRARY__)
 const char *program_invocation_name;
 const char *program_invocation_short_name;
 #endif
-
-#define WAIT_TIME  (3.0)
 
 extern FILE *cmd_log, *echo_log, *main_log, *mpack_raw;
 FILE        *talloc_log_file;
@@ -189,7 +187,7 @@ static noreturn void *
 neovim_init(UNUSED void *arg)
 {
         get_settings();
-        nvim_set_client_info(B(PKG), 0, 4, B("alpha"));
+        nvim_set_client_info(B(PKG), 0, 5, B("alpha"));
 
         int     initial_buf = nvim_get_current_buf();
         Buffer *bdata       = new_buffer(initial_buf);
@@ -262,8 +260,8 @@ get_compression_type(void)
                 ret = COMP_LZMA;
 #else
                 ret = COMP_GZIP;
-                shout("Compression type is set to '%s', but only gzip is "
-                      "supported in this build. Defaulting to 'gzip'.", BS(tmp));
+                echo("Compression type is set to '%s', but only gzip is "
+                     "supported in this build. Defaulting to 'gzip'.", BS(tmp));
 #endif
         }
         else if (b_iseq_lit(tmp, "none"))

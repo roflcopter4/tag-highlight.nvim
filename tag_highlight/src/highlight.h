@@ -95,7 +95,7 @@ struct bufdata {
                 pthread_mutex_t lang_mtx;
                 p99_count       num_workers;
 
-                p99_count          cond_waiters;
+                p99_count          hl_waiters;
                 pthread_spinlock_t spinlock;
                 pthread_cond_t     cond;
                 pthread_mutex_t    cond_mtx;

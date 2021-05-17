@@ -37,11 +37,11 @@ struct timer {
                 TIMER_START(T_);                 \
                 SHOUT("----------------------"); \
         } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                                 \
-        do {                                                                     \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                       \
-                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                        \
-                      (int)(35 - sizeof(MSG_)), SPECDIFF((T_)->tv1, (T_)->tv2)); \
+#  define TIMER_REPORT(T_, MSG_)                                                     \
+        do {                                                                         \
+                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                           \
+                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                            \
+                      (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
         } while (0)
 
 #else
@@ -93,12 +93,27 @@ struct timer {
         (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
-#define SPECDIFF(STV1, STV2)                                         \
-        (((double)((STV2).tv_nsec - (STV1).tv_nsec) / NSEC2SECOND) + \
-         ((double)((STV2).tv_sec - (STV1).tv_sec)))
+/* Taken from glibc */
+#define TIMESPEC_ADD(a, b, result)                               \
+        do {                                                     \
+                (result)->tv_sec  = (a)->tv_sec + (b)->tv_sec;   \
+                (result)->tv_nsec = (a)->tv_nsec + (b)->tv_nsec; \
+                if ((result)->tv_nsec >= 1000000000) {           \
+                        ++(result)->tv_sec;                      \
+                        (result)->tv_nsec -= 1000000000;         \
+                }                                                \
+        } while (0)
 
-#define TSPEC2DOUBLE(STV) \
-        ((double)((((double)(STV).tv_sec)) + (((double)(STV).tv_nsec) / NSEC2SECOND)))
+#define TIMESPECDIFF(STV1, STV2)                                         \
+        (((double)((STV2)->tv_nsec - (STV1)->tv_nsec) / NSEC2SECOND) + \
+         ((double)((STV2)->tv_sec - (STV1)->tv_sec)))
+
+#define TIMESPEC2DOUBLE(STV) \
+        ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / NSEC2SECOND)))
+
+#define DOUBLE2TIMESPEC(STV, FLT)            \
+        ((STV)->tv_sec  = (int64_t)(FLT), \
+         (STV)->tv_nsec = (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND))
 
 /*===========================================================================*/
 /* Generic Utility Functions */

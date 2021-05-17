@@ -58,14 +58,6 @@ get_initial_taglist(Buffer *bdata)
         top->tags = b_list_create();
         talloc_steal(top, top->tags);
 
-#if 0
-        if (have_seen_bufnum(bdata->num)) {
-                ECHO("Seen file before, running ctags in case there was just a "
-                     "momentary disconnect on write...");
-                goto force_ctags;
-        }
-#endif
-
         /* Read the compressed tags file if it exists, otherwise we run ctags
          * and read the file it creates. If there is a read error in the saved
          * file, run ctags as a backup. */
@@ -212,6 +204,7 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
         assert(bdata->topdir->tmpfname != NULL &&
                bdata->topdir->tmpfname->data != NULL &&
                bdata->topdir->tmpfname->data[0] != '\0');
+
         argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
         if (opts != UPDATE_TAGLIST_FORCE_LANGUAGE && bdata->topdir->recurse)
@@ -230,7 +223,6 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
                         argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
 
                 argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);
-
                 if (headers)
                         B_LIST_FOREACH (headers, bstr, i)
                                 argv_append(argv, b_bstr2cstr(bstr, 0), false);
@@ -239,7 +231,6 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
         argv_append(argv, (char const *)0, false);
 
         int pid, status;
-
 #ifdef HAVE_POSIX_SPAWNP
         if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
                 err(1, "Exec failed");
@@ -248,7 +239,6 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
                 if (execvpe(BS(settings.ctags_bin), argv->lst, environ) != 0)
                         err(1, "Exec failed");
 #endif
-
         waitpid(pid, &status, 0);
         talloc_free(argv);
         return (status > 0) ? status << 8

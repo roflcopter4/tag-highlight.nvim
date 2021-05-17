@@ -208,6 +208,7 @@ event_loop(int const fd)
 
 #endif /* No event lib */
 
+UNUSED
 static noreturn void *
 handle_nvim_message_wrapper(void *data)
 {
