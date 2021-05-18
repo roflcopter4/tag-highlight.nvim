@@ -163,9 +163,12 @@ extern FILE *   safe_fopen    (const char *filename, const char *mode) __aWUR __
 extern FILE *   safe_fopen_fmt(const char *fmt, const char *mode, ...) __aWUR __aFMT(1,3);
 extern int      safe_open     (const char *filename, int flags, int mode) __aWUR;
 extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR __aFMT(1, 4);
+extern void     fd_set_open_flag(int fd, int flag);
+
 
 extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input, int *status);
 #ifdef DOSISH
+extern int win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
 #endif
 

@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck shell=ash
 
 binary_path=
 binary_install_path=

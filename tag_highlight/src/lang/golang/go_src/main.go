@@ -151,6 +151,7 @@ type Parsed_Data struct {
 	FileToken *token.File
 	Pkg       *ast.Package
 	Info      *types.Info
+	Conf      types.Config
 
 	Imports []interface{}
 	Output  string
@@ -170,6 +171,12 @@ func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 			AstFile:   nil,
 			Pkg:       nil,
 			Info:      nil,
+			Conf: types.Config{
+				Importer: importer.ForCompiler(fset, "source", nil),
+				Error:    func(error) {},
+
+				DisableUnusedImportCheck: true,
+			},
 		}
 	)
 
@@ -246,18 +253,18 @@ func (this *Parsed_Data) Populate() error {
 	// lookup := func(path string) (io.ReadCloser, error) {
 	//       return this.my_lookup(path)
 	// }
-	var (
-		conf = types.Config{
-			// Importer: importer.Default(),
-			Importer: importer.ForCompiler(fset, "source", nil),
-			// Importer: this.get_importer(),
-			// Importer: importer.ForCompiler(fset, "gc", nil),
-
-			// Ignore errors so we can support packages that import "C"
-			Error:                    func(error) {},
-			DisableUnusedImportCheck: true,
-		}
-	)
+	// var (
+	//       conf = types.Config{
+	//             // Importer: importer.Default(),
+	//             Importer: importer.ForCompiler(fset, "source", nil),
+	//             // Importer: this.get_importer(),
+	//             // Importer: importer.ForCompiler(fset, "gc", nil),
+	//
+	//             // Ignore errors so we can support packages that import "C"
+	//             Error:                    func(error) {},
+	//             DisableUnusedImportCheck: true,
+	//       }
+	// )
 
 	this.Info = &types.Info{
 		Defs: make(map[*ast.Ident]types.Object),
@@ -277,7 +284,7 @@ func (this *Parsed_Data) Populate() error {
 		errx(1, "Current file not in fileset.\n")
 	}
 
-	if pkg, err := conf.Check(this.FilePath, fset, this.FileSlice, this.Info); err != nil {
+	if pkg, err := this.Conf.Check(this.FilePath, fset, this.FileSlice, this.Info); err != nil {
 		//eprintln(err.Error())
 		lg.Println("check: ", err)
 		lg.Println(pkg)
@@ -380,6 +387,9 @@ func (this *Parsed_Data) WriteOutput() {
 		lenstr = fmt.Sprintf("%010d", len(s))
 	)
 
+	// if len(lenstr) != 10 {
+	//       panic("Invalid string output! " + lenstr)
+	// }
 	// eprintf("Writing %d bytes as %s\n", len(s), lenstr)
 
 	if _, err = os.Stdout.WriteString(lenstr); err != nil {

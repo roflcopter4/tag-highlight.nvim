@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 
 #ifndef WEXITSTATUS
-#  define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
+# define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
 #endif
 
 extern void try_go_crap(Buffer *bdata);
@@ -20,12 +20,12 @@ struct go_output {
         struct {
                 unsigned line;
                 unsigned column;
-        } start, end;
+        } __attribute__((aligned(8))) start, end;
         struct {
                 unsigned len;
                 char     str[1024];
-        } ident;
-};
+        } __attribute__((aligned(128))) ident;
+} __attribute__((aligned(128), packed));
 
 #ifdef DEBUG
 static const char is_debug[] = "1";
@@ -33,9 +33,9 @@ static const char is_debug[] = "1";
 static const char is_debug[] = "0";
 #endif
 #ifdef DOSISH
-#  define CMD_SUFFIX ".exe"
+# define CMD_SUFFIX ".exe"
 #else
-#  define CMD_SUFFIX
+# define CMD_SUFFIX
 #endif
 #define READ_FD  (0)
 #define WRITE_FD (1)
@@ -77,24 +77,29 @@ highlight_go(Buffer *bdata)
         }
 
         pthread_mutex_lock(&bdata->lock.total);
-
         if (!atomic_flag_test_and_set(&bdata->godata.flg)) {
                 start_binary(bdata);
-        } else {
+        } 
+#ifndef DOSISH
+        else {
                 errno = 0;
                 kill(bdata->godata.pid, 0);
                 int e = errno;
                 if (e != 0) {
                         char errbuf[256];
                         strerror_r(e, errbuf, 256);
-                        echo("Binary not available: %d: %s", e, errbuf);
+                        shout("Binary not available: %d: %s", e, errbuf);
                         close(bdata->godata.rd_fd);
                         close(bdata->godata.wr_fd);
                         start_binary(bdata);
                 }
         }
-
+#endif
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
+        pthread_mutex_unlock(&bdata->lock.total);
+
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
+
         write_buffer(bdata, tmp);
         b_free(tmp);
         tmp = read_pipe(bdata);
@@ -111,11 +116,50 @@ highlight_go(Buffer *bdata)
 cleanup:
         b_free(tmp);
         p99_count_dec(&bdata->lock.num_workers);
-        pthread_mutex_unlock(&bdata->lock.total);
+        pthread_mutex_unlock(&bdata->lock.lang_mtx);
         return retval;
 }
 
 /*--------------------------------------------------------------------------------------*/
+
+#ifdef DOSISH
+
+static pid_t
+start_binary(Buffer *bdata)
+{
+        PROCESS_INFORMATION pi;
+        HANDLE hand[2];
+        int    fds[2];
+        bstring const *go_binary = settings.go_binary;
+        char *const argv[] = {
+                BS(go_binary),
+                (char *)program_invocation_short_name,
+                (char *)is_debug,
+                BS(bdata->name.full),
+                BS(bdata->name.path),
+                BS(bdata->topdir->pathname),
+                (char *)0
+        };
+        bstring *commandline = b_fromcstr("");
+        for (char **s = (char **)argv; *s; ++s) {
+                b_catchar(commandline, '"');
+                b_catcstr(commandline, *s);
+                b_catlit(commandline, "\" ");
+        }
+
+        win32_start_process_with_pipe(BS(commandline), hand, &pi);
+        b_free(commandline);
+
+        if ((fds[0] = _open_osfhandle((intptr_t)hand[0], 0)) == (-1))
+                errx(1, "_open_osfhandle failed");
+        if ((fds[1] = _open_osfhandle((intptr_t)hand[1], 0)) == (-1))
+                errx(1, "_open_osfhandle failed");
+        bdata->godata.wr_fd = fds[WRITE_FD];
+        bdata->godata.rd_fd = fds[READ_FD];
+        bdata->godata.pid   = 0;
+}
+
+#else
 
 static void openpipe(int fds[2]);
 
@@ -164,21 +208,28 @@ start_binary(Buffer *bdata)
 static void
 openpipe(int fds[2])
 {
+# ifdef HAVE_PIPE2
+        if (pipe2(fds, O_CLOEXEC) == (-1))
+                err(1, "pipe2()");
+# else
         int flg;
         if (pipe(fds) == (-1))
                 err(1, "pipe()");
-#ifdef __linux__
-        if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
-                err(2, "fcntl(F_SETPIPE_SZ)");
-#endif
-
+        /* Surely the compiler will unroll this... */
         for (int i = 0; i < 2; ++i) {
                 if ((flg = fcntl(fds[i], F_GETFL)) == (-1))
                         err(3+i, "fcntl(F_GETFL)");
                 if (fcntl(fds[i], F_SETFL, flg | O_CLOEXEC) == (-1))
                         err(5+i, "fcntl(F_SETFL)");
         }
+# endif
+# ifdef __linux__  /* Can't do this on the BSDs. */
+        if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
+                err(2, "fcntl(F_SETPIPE_SZ)");
+# endif
 }
+
+#endif
 
 /*--------------------------------------------------------------------------------------*/
 
@@ -210,7 +261,10 @@ read_pipe(Buffer *bdata)
                 buf[10] = '\0';
 
                 num2read = strtoull(buf, &p, 10);
-                assert(p == buf + 10);
+#ifndef NDEBUG
+                if (p != buf + 10)
+                        errx(1, "Invalid input %d, %s (%s)", num2read, buf, p);
+#endif
         }
 
         bstring *ret = b_create(num2read + 1);
@@ -285,20 +339,7 @@ separate_and_sort(bstring *output)
                         errx(1, "Fatal BSTRING runtime error");
         }
 
-        //if (b_list_remove_dups_2(&ret) != BSTR_OK)
-        //        errx(1, "Fatal BSTRING runtime error");
-
-#if 0
-        ECHO("Sorted. List is now %u in size\n", ret->qty);
-        for (unsigned i = 0; i < ret->qty; ++i) {
-                eprintf("%s\n", BS(ret->lst[i]));
-        }
-#endif
         output->data = bak;
-        /* free(output); */
-        /* frej(bak); */
-
-
         qsort(ret->lst, ret->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
         return ret;
 }

@@ -166,7 +166,7 @@ string (JOIN " " WARNS
 )
 
 if (NOT BUILD_DIST) 
-    set (MARCH_SETTING "-march=native")
+    set (MARCH_SETTING "-mtune=native -march=native")
 endif()
 
 if (SANITIZE)
@@ -196,7 +196,7 @@ endif()
 
 set (CFLAGS_DEBUG_COMMON          "-O0 -g3 -Wextra -Wpedantic -Wformat")
 set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
-set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -ffunction-sections -U_FORTIFY_SOURCE")
+set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE")
 
 if (SANITIZE)
     string (JOIN " " CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
@@ -213,13 +213,21 @@ if (CC_IS_CLANG)
          -Wno-gnu-statement-expression -Werror=return-type
          -Wno-sign-compare
     )
-    string (CONCAT BASE "${BASE} ${WARNS}")
-    #set (LTO_STR "-flto=full")
+    string (CONCAT BASE "${BASE} ${WARNS} -Ofast")
+    set (LTO_STR "-flto=full")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-        " -fuse-ld=lld "
-        #"-flto=full -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
+        " -mprefer-vector-width=512"
+        " -fuse-ld=lld"
+        " ${LTO_STR}"
+        " -Wl,--lto-O3"
+        " -Wl,--lto-whole-program-visibility"
+        # " -masm=intel -fverbose-asm -Wl,--lto-emit-asm"
     )
+    
+    set (CMAKE_AR "/usr/lib/llvm/12/bin/llvm-ar")
+    set (CMAKE_NM "/usr/lib/llvm/12/bin/llvm-nm")
+    set (CMAKE_RANLIB "/usr/lib/llvm/12/bin/llvm-ranlib")
 
 else() # GCC
 
@@ -228,10 +236,16 @@ else() # GCC
          -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )
-    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init)
-    set (LTO_STR "-flto")
+    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init -Ofast
+        -mprefer-vector-width=512 -fvect-cost-model=unlimited
+    )
+    set (LTO_STR "-flto -fuse-linker-plugin")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto -fwhole-program")
+    set (CMAKE_AR "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ar")
+    set (CMAKE_NM "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-nm")
+    set (CMAKE_RANLIB "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ranlib")
+
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}")
 endif()
 
 #####################################################################################################

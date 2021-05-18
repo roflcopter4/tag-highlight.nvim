@@ -142,8 +142,9 @@ else()
     # properly. What a pain.
     add_library(mytalloc SHARED
                 "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c"
-                "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc.h"
-                "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc_config.h")
+                # "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc.h"
+                # "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc_config.h"
+    )
                 
     set (mytalloc_compile_options_common
         -isystem /usr/local/include

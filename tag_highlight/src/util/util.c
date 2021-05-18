@@ -291,13 +291,13 @@ free_all__(void *ptr, ...)
 #  include <sys/wait.h>
 #  define CLOSE(fd) (((close)(fd) == (-1)) ? err(1, "close()") : ((void)0))
 
-static void
-apply_cloexec(int fd)
+void
+fd_set_open_flag(int const fd, int const flag)
 {
-        int flg = fcntl(fd, F_GETFL);
-        if (flg == (-1))
+        int cur = fcntl(fd, F_GETFL);
+        if (cur == (-1))
                 err(1, "fcntl()");
-        if (fcntl(fd, F_SETFL, flg | O_CLOEXEC) == (-1))
+        if (fcntl(fd, F_SETFL, cur | flag) == (-1))
                 err(1, "fcntl()");
 }
 
@@ -455,9 +455,46 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
         return ret;
 }
 
+int
+win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi)
+{
+        HANDLE              handles[2][2];
+        STARTUPINFOA        info;
+        SECURITY_ATTRIBUTES attr = {sizeof(attr), NULL, true};
+
+        if (!CreatePipe(&handles[0][0], &handles[0][1], &attr, 0)) 
+                error_exit("CreatePipe()", GetLastError());
+        if (!CreatePipe(&handles[1][0], &handles[1][1], &attr, 0)) 
+                error_exit("CreatePipe()", GetLastError());
+        if (!SetHandleInformation(handles[0][WRITE_FD], HANDLE_FLAG_INHERIT, 0))
+                error_exit("Stdin SetHandleInformation", GetLastError());
+        if (!SetHandleInformation(handles[1][READ_FD], HANDLE_FLAG_INHERIT, 0))
+                error_exit("Stdout SetHandleInformation", GetLastError());
+
+        memset(&info, 0, sizeof(info));
+        memset(pi, 0, sizeof(*pi));
+        info = (STARTUPINFOA){
+            .cb         = sizeof(info),
+            .dwFlags    = STARTF_USESTDHANDLES,
+            .hStdInput  = handles[0][READ_FD],
+            .hStdOutput = handles[1][WRITE_FD],
+            .hStdError  = GetStdHandle(STD_ERROR_HANDLE),
+        };
+
+        if (!CreateProcessA(NULL, BS(commandline), NULL, NULL, true, 0, NULL, NULL, &info, pi))
+                error_exit("CreateProcess() failed", GetLastError());
+        CloseHandle(handles[0][READ_FD]);
+        CloseHandle(handles[1][WRITE_FD]);
+
+        pipehandles[WRITE_FD] = handles[0][WRITE_FD];
+        pipehandles[READ_FD]  = handles[1][READ_FD]
+        return 0;
+}
+
 bstring *
 _win32_get_command_output(char *argv, bstring *input, int *status)
 {
+#if 0
         HANDLE              handles[2][2];
         DWORD               st, written;
         STARTUPINFOA        info;
@@ -487,14 +524,19 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
                 error_exit("CreateProcess() failed", GetLastError());
         CloseHandle(handles[0][READ_FD]);
         CloseHandle(handles[1][WRITE_FD]);
+#endif
+        PROCESS_INFORMATION pi;
+        HANDLE handles[2];
+        DWORD  written, st;
+        win32_start_process_with_pipe(argv, handles, &pi);
 
-        if (!WriteFile(handles[0][WRITE_FD], input->data,
+        if (!WriteFile(handles[WRITE_FD], input->data,
                        input->slen, &written, NULL) || written != input->slen)
                 error_exit("WriteFile()", GetLastError());
-        CloseHandle(handles[0][WRITE_FD]);
+        CloseHandle(handles[WRITE_FD]);
         
-        bstring *ret = read_from_pipe(handles[1][READ_FD]);
-        CloseHandle(handles[1][READ_FD]);
+        bstring *ret = read_from_pipe(handles[READ_FD]);
+        CloseHandle(handles[READ_FD]);
 
         WaitForSingleObject(pi.hProcess, INFINITE);
         GetExitCodeProcess(pi.hProcess, &st);

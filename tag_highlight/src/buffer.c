@@ -160,9 +160,7 @@ static inline void init_buffer_mutexes (Buffer *bdata);
 Buffer *
 get_bufdata(int const bufnum, Filetype *ft)
 {
-        /* Buffer *bdata    = talloc_zero(CTX, Buffer); */
-        Buffer *bdata    = talloc(CTX, Buffer);
-        explicit_bzero(bdata, sizeof *bdata);
+        Buffer *bdata    = talloc_zero(CTX, Buffer);
         bdata->name.full = nvim_buf_get_name(bufnum);
         bdata->name.base = b_basename(bdata->name.full);
         bdata->name.path = b_dirname(bdata->name.full);
@@ -204,7 +202,9 @@ init_buffer_mutexes(Buffer *bdata)
                 pthread_mutex_init(&bdata->lock.ctick, &attr);
                 pthread_mutex_init(&bdata->lock.lang_mtx, &attr);
                 pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
+#ifndef DOSISH
                 pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
+#endif
                 pthread_mutex_init(&bdata->lock.cond_mtx, &attr);
         }
         {
@@ -301,7 +301,7 @@ init_topdir(Buffer *bdata)
         bstring *cdir = b_strcpy(settings.cache_dir);
 
         tdir            = talloc_zero(CTX, Top_Dir);
-        tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_TRUNC|O_BINARY, 0600);
+        tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_TRUNC|O_BINARY|O_CLOEXEC, 0600);
         tdir->gzfile    = talloc_move(tdir, &cdir);
         tdir->pathname  = talloc_move(tdir, &dir);
         tdir->tmpfname  = talloc_move(tdir, &tnam);
@@ -383,7 +383,7 @@ check_norecurse_directories(bstring const *const dir)
 static bstring *
 check_project_directories(bstring *dir, Filetype const *ft)
 {
-        FILE *fp = fopen(BS(settings.settings_file), "rb");
+        FILE *fp = fopen(BS(settings.settings_file), "reb");
         if (!fp)
                 return dir;
 

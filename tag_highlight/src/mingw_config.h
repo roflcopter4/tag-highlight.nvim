@@ -4,7 +4,9 @@
 
 # define __USE_MINGW_ANSI_STDIO 1
 # include <stdio.h>
+# define P99_WANT_THREADS 1
 
+#define pipe(fds) _pipe((fds), 8192, 0)
 # define asprintf(buf, ...)       __mingw_asprintf((buf), __VA_ARGS__)
 # define fprintf(strm, ...)       __mingw_fprintf((strm), __VA_ARGS__)
 # define printf(...)              __mingw_printf(__VA_ARGS__)

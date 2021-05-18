@@ -203,7 +203,9 @@ check_mutex_consistency(pthread_mutex_t *mtx, int val, const char *const msg)
                 ret = false;
                 break;
         case EOWNERDEAD:
+#ifndef __MINGW__
                 val = pthread_mutex_consistent(mtx);
+#endif
                 if (val != 0)
                         err(1, "%s: Failed to make mutex consistent (%d)", msg, val);
                 ret = true;
