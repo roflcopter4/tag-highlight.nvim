@@ -197,12 +197,10 @@ static noreturn void
 event_loop(int const fd)
 {
         for (;;) {
-                /* struct event_data *data = malloc(sizeof *data); */
                 struct event_data data;
                 data.fd  = fd;
                 data.obj = mpack_decode_stream(fd);
                 handle_nvim_message(&data);
-                //START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
         }
 }
 
@@ -214,5 +212,5 @@ handle_nvim_message_wrapper(void *data)
 {
         handle_nvim_message(data);
         free(data);
-        pthread_exit(NULL);
+        pthread_exit();
 }

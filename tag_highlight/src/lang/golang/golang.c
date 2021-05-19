@@ -25,7 +25,7 @@ struct go_output {
                 unsigned len;
                 char     str[1024];
         } __attribute__((aligned(128))) ident;
-} __attribute__((aligned(128), packed));
+} __attribute__((aligned(128)));
 
 #ifdef DEBUG
 static const char is_debug[] = "1";
@@ -157,6 +157,8 @@ start_binary(Buffer *bdata)
         bdata->godata.wr_fd = fds[WRITE_FD];
         bdata->godata.rd_fd = fds[READ_FD];
         bdata->godata.pid   = 0;
+
+        return 0;
 }
 
 #else
@@ -303,7 +305,7 @@ parse_go_output(Buffer *bdata, b_list *output)
         B_LIST_FOREACH (output, tok) {
                 /* The data is so regular that we can get away with using scanf.
                  * I feel a bit dirty though. */
-                sscanf(BS(tok), "%lc\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
+                sscanf(BS(tok), "%d\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 

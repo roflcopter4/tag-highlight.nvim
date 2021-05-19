@@ -213,11 +213,11 @@ if (CC_IS_CLANG)
          -Wno-gnu-statement-expression -Werror=return-type
          -Wno-sign-compare
     )
-    string (CONCAT BASE "${BASE} ${WARNS} -Ofast")
+    string (CONCAT BASE "${BASE} ${WARNS}")
     set (LTO_STR "-flto=full")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-        " -mprefer-vector-width=512"
+        #" -mprefer-vector-width=512"
         " -fuse-ld=lld"
         " ${LTO_STR}"
         " -Wl,--lto-O3"
@@ -225,9 +225,9 @@ if (CC_IS_CLANG)
         # " -masm=intel -fverbose-asm -Wl,--lto-emit-asm"
     )
     
-    set (CMAKE_AR "/usr/lib/llvm/12/bin/llvm-ar")
-    set (CMAKE_NM "/usr/lib/llvm/12/bin/llvm-nm")
-    set (CMAKE_RANLIB "/usr/lib/llvm/12/bin/llvm-ranlib")
+    #set (CMAKE_AR "/usr/lib/llvm/12/bin/llvm-ar")
+    #set (CMAKE_NM "/usr/lib/llvm/12/bin/llvm-nm")
+    #set (CMAKE_RANLIB "/usr/lib/llvm/12/bin/llvm-ranlib")
 
 else() # GCC
 
@@ -236,14 +236,17 @@ else() # GCC
          -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )
-    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init -Ofast
-        -mprefer-vector-width=512 -fvect-cost-model=unlimited
+    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
+        #-Ofast
+        -mprefer-vector-width=512
+        -fvect-cost-model=unlimited
+        -masm=intel -fverbose-asm
     )
     set (LTO_STR "-flto -fuse-linker-plugin")
 
-    set (CMAKE_AR "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ar")
-    set (CMAKE_NM "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-nm")
-    set (CMAKE_RANLIB "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ranlib")
+    #set (CMAKE_AR "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ar")
+    #set (CMAKE_NM "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-nm")
+    #set (CMAKE_RANLIB "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ranlib")
 
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}")
 endif()

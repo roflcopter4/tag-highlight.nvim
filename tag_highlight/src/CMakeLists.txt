@@ -101,7 +101,7 @@ target_link_libraries(tag_highlight
 target_compile_options(
     tag_highlight
     PUBLIC
-    -isystem /usr/local/include
+    # -isystem /usr/local/include
 )
 
 if (IS_BSD)
@@ -147,9 +147,8 @@ else()
     )
                 
     set (mytalloc_compile_options_common
-        -isystem /usr/local/include
+        #-isystem /usr/local/include
         "-g"
-        "-fPIC"
         "-fno-lto"
         "-D_XOPEN_SOURCE_EXTENDED=1"
         "-D__STDC_WANT_LIB_EXT1__=1")
@@ -177,7 +176,7 @@ else()
     if (CC_IS_CLANG)
         target_link_options(mytalloc PRIVATE -fno-lto)
     else()
-        target_link_options(mytalloc PRIVATE -fno-lto -fno-whole-program)
+        target_link_options(mytalloc PRIVATE -fno-lto)
     endif()
 
     target_link_libraries(tag_highlight mytalloc)

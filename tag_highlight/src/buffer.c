@@ -172,6 +172,9 @@ get_bufdata(int const bufnum, Filetype *ft)
         talloc_steal(bdata, bdata->name.full);
         talloc_steal(bdata, bdata->name.base);
         talloc_steal(bdata, bdata->name.path);
+        b_regularize_path_sep(bdata->name.full, '\\');
+        b_regularize_path_sep(bdata->name.base, '\\');
+        b_regularize_path_sep(bdata->name.path, '\\');
 
         int64_t loc = b_strrchr(bdata->name.base, '.');
         if (loc > 0)
@@ -383,7 +386,11 @@ check_norecurse_directories(bstring const *const dir)
 static bstring *
 check_project_directories(bstring *dir, Filetype const *ft)
 {
+#ifdef DOSISH
+        FILE *fp = fopen(BS(settings.settings_file), "rb");
+#else
         FILE *fp = fopen(BS(settings.settings_file), "reb");
+#endif
         if (!fp)
                 return dir;
 
@@ -396,6 +403,8 @@ check_project_directories(bstring *dir, Filetype const *ft)
                         continue;
                 if (n > UINT_MAX)
                         errx(1, "Index %"PRId64" is too large.", n);
+
+                echo("Looking at %s and %s", BS(dir), BS(tmp));
 
                 tmp->data[n]      = '\0';
                 tmp->slen         = (unsigned)n;
@@ -748,7 +757,9 @@ void
                 if (bdata->headers)
                         TALLOC_FREE(bdata->headers);
         } else if (bdata->ft->id == FT_GO) {
+#ifndef DOSISH
                 kill(bdata->godata.pid, SIGTERM);
+#endif
                 close(bdata->godata.rd_fd);
                 close(bdata->godata.wr_fd);
         } else {

@@ -52,7 +52,6 @@ typedef signed long long int ssize_t;
 #  define mkdir(PATH, MODE) mkdir(PATH)
 #  ifndef O_CLOEXEC
 #    define O_CLOEXEC 0
-#    define kill(a,b) pthread_kill((a), (b))
 #  endif
 extern char *basename(char *path);
 #else

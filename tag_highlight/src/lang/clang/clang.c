@@ -187,6 +187,7 @@ handle_libclang_error(unsigned const err)
 static translationunit_t *
 recover_compilation_unit(Buffer *bdata, bstring *buf)
 {
+        b_regularize_path_sep(bdata->name.full, '\\');
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
@@ -199,6 +200,7 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
         stu->buf = talloc_move(stu, &buf);
         stu->ftid = bdata->ft->id;
         talloc_set_destructor(stu, destroy_struct_translationunit);
+
         return stu;
 }
 
@@ -206,6 +208,7 @@ static translationunit_t *
 init_compilation_unit(Buffer *bdata, bstring *buf)
 {
         str_vector *comp_cmds = get_compile_commands(bdata);
+        b_regularize_path_sep(bdata->name.full, '\\');
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
@@ -256,6 +259,13 @@ stupid_windows_bullshit(char const *const path)
         *ptr = '\0';
 
         return ret;
+}
+
+static inline void fixup_path_sep(char *orig)
+{
+        for (char *ptr = orig; *ptr; ++ptr)
+                if (*ptr == '/')
+                        *ptr = '\\';
 }
 
 static void
@@ -363,10 +373,11 @@ handle_include_compile_command(str_vector *lst, char const *s, CXString director
                 }
         } else {
                 if (is_i)
-                        argv_append(lst, talloc_asprintf(NULL, "-I%s/%s", CS(directory), s), false);
+                        argv_append(lst, talloc_asprintf(NULL, "-I%s\\%s", CS(directory), s), false);
                 else
-                        argv_append(lst, talloc_asprintf(NULL, "%s/%s", CS(directory), s), false);
+                        argv_append(lst, talloc_asprintf(NULL, "%s\\%s", CS(directory), s), false);
         }
+        fixup_path_sep(lst->lst[lst->qty - 1]);
 }
 
 #else /* ! defined DOSISH */
@@ -493,6 +504,9 @@ get_compile_commands(Buffer *bdata)
 
         clang_CompileCommands_dispose(cmds);
         clang_CompilationDatabase_dispose(db);
+
+        argv_dump(stderr, ret);
+        fflush(stderr);
         return ret;
 }
 

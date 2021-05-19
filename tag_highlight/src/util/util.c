@@ -437,7 +437,6 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
 #  define READ_BUFSIZE (8192LLU << 2)
 
 static bstring *read_from_pipe(HANDLE han);
-static void     error_exit(const char *msg, DWORD dw);
 
 bstring *
 get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
@@ -463,13 +462,13 @@ win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMA
         SECURITY_ATTRIBUTES attr = {sizeof(attr), NULL, true};
 
         if (!CreatePipe(&handles[0][0], &handles[0][1], &attr, 0)) 
-                error_exit("CreatePipe()", GetLastError());
+                win32_error_exit(1, "CreatePipe()", GetLastError());
         if (!CreatePipe(&handles[1][0], &handles[1][1], &attr, 0)) 
-                error_exit("CreatePipe()", GetLastError());
+                win32_error_exit(1, "CreatePipe()", GetLastError());
         if (!SetHandleInformation(handles[0][WRITE_FD], HANDLE_FLAG_INHERIT, 0))
-                error_exit("Stdin SetHandleInformation", GetLastError());
+                win32_error_exit(1, "Stdin SetHandleInformation", GetLastError());
         if (!SetHandleInformation(handles[1][READ_FD], HANDLE_FLAG_INHERIT, 0))
-                error_exit("Stdout SetHandleInformation", GetLastError());
+                win32_error_exit(1, "Stdout SetHandleInformation", GetLastError());
 
         memset(&info, 0, sizeof(info));
         memset(pi, 0, sizeof(*pi));
@@ -481,50 +480,19 @@ win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMA
             .hStdError  = GetStdHandle(STD_ERROR_HANDLE),
         };
 
-        if (!CreateProcessA(NULL, BS(commandline), NULL, NULL, true, 0, NULL, NULL, &info, pi))
-                error_exit("CreateProcess() failed", GetLastError());
+        if (!CreateProcessA(NULL, argv, NULL, NULL, true, 0, NULL, NULL, &info, pi))
+                win32_error_exit(1, "CreateProcess() failed", GetLastError());
         CloseHandle(handles[0][READ_FD]);
         CloseHandle(handles[1][WRITE_FD]);
 
         pipehandles[WRITE_FD] = handles[0][WRITE_FD];
-        pipehandles[READ_FD]  = handles[1][READ_FD]
+        pipehandles[READ_FD]  = handles[1][READ_FD];
         return 0;
 }
 
 bstring *
 _win32_get_command_output(char *argv, bstring *input, int *status)
 {
-#if 0
-        HANDLE              handles[2][2];
-        DWORD               st, written;
-        STARTUPINFOA        info;
-        PROCESS_INFORMATION pi;
-        SECURITY_ATTRIBUTES attr = {sizeof(attr), NULL, true};
-
-        if (!CreatePipe(&handles[0][0], &handles[0][1], &attr, 0)) 
-                error_exit("CreatePipe()", GetLastError());
-        if (!CreatePipe(&handles[1][0], &handles[1][1], &attr, 0)) 
-                error_exit("CreatePipe()", GetLastError());
-        if (!SetHandleInformation(handles[0][WRITE_FD], HANDLE_FLAG_INHERIT, 0))
-                error_exit("Stdin SetHandleInformation", GetLastError());
-        if (!SetHandleInformation(handles[1][READ_FD], HANDLE_FLAG_INHERIT, 0))
-                error_exit("Stdout SetHandleInformation", GetLastError());
-
-        memset(&info, 0, sizeof(info));
-        memset(&pi, 0, sizeof(pi));
-        info = (STARTUPINFOA){
-            .cb         = sizeof(info),
-            .dwFlags    = STARTF_USESTDHANDLES,
-            .hStdInput  = handles[0][READ_FD],
-            .hStdOutput = handles[1][WRITE_FD],
-            .hStdError  = GetStdHandle(STD_ERROR_HANDLE),
-        };
-
-        if (!CreateProcessA(NULL, argv, NULL, NULL, true, 0, NULL, NULL, &info, &pi))
-                error_exit("CreateProcess() failed", GetLastError());
-        CloseHandle(handles[0][READ_FD]);
-        CloseHandle(handles[1][WRITE_FD]);
-#endif
         PROCESS_INFORMATION pi;
         HANDLE handles[2];
         DWORD  written, st;
@@ -532,7 +500,7 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
 
         if (!WriteFile(handles[WRITE_FD], input->data,
                        input->slen, &written, NULL) || written != input->slen)
-                error_exit("WriteFile()", GetLastError());
+                win32_error_exit(1, "WriteFile()", GetLastError());
         CloseHandle(handles[WRITE_FD]);
         
         bstring *ret = read_from_pipe(handles[READ_FD]);
@@ -569,8 +537,8 @@ read_from_pipe(HANDLE han)
         return ret;
 } 
 
-static void
-error_exit(const char *msg, DWORD dw)
+noreturn void
+win32_error_exit(int const status, const char *msg, DWORD const dw)
 {
         char *lpMsgBuf;
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -578,7 +546,7 @@ error_exit(const char *msg, DWORD dw)
         SHOUT("%s: Error: %s: %s\n", program_invocation_short_name, msg, lpMsgBuf);
         fflush(stderr);
         LocalFree(lpMsgBuf);
-        abort();
+        exit(status);
 }
 #else
 #  error "Impossible operating system detected. VMS? OS/2? DOS? Maybe System/360? Yeesh."

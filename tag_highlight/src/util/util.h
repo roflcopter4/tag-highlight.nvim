@@ -170,6 +170,7 @@ extern bstring *get_command_output(const char *command, char *const *const argv,
 #ifdef DOSISH
 extern int win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
+extern noreturn void win32_error_exit(int status, const char *msg, DWORD dw);
 #endif
 
 #ifdef __cplusplus

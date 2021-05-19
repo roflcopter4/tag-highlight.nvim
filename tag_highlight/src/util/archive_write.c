@@ -31,7 +31,8 @@ write_plain(struct top_dir *topdir)
         const size_t nread   = fread(buf, 1, st.st_size + 1, readfp);
         fclose(readfp);
 
-        DIE_UNLESSX(nread == (ssize_t)st.st_size);
+        if (nread == (size_t)st.st_size)
+                err(1, "fread(): %zu != %zu", nread, (size_t)st.st_size);
 
 #if 0
         ftruncate(topdir->tmpfd, 0);
@@ -65,8 +66,8 @@ write_gzip(struct top_dir *topdir)
         errno = 0;
         const size_t nread   = fread(buf, 1, st.st_size + 1, readfp);
 
-        if (nread != st.st_size && !feof(readfp))
-                err(1, "fread(): %zu != %zu", nread, st.st_size);
+        if (nread != (size_t)st.st_size && !feof(readfp))
+                err(1, "fread(): %zu != %zu", nread, (size_t)st.st_size);
 
         fclose(readfp);
 
