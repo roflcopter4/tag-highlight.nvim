@@ -5,8 +5,10 @@
 #cmakedefine LIBEV_FOUND
 #cmakedefine SANITIZE
 
+#cmakedefine HAVE_ARC4RANDOM
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_CLOCK_GETTIME
+#cmakedefine HAVE_DPRINTF
 #cmakedefine HAVE_ERR
 #cmakedefine HAVE_FORK
 #cmakedefine HAVE_GETTIMEOFDAY
@@ -17,27 +19,26 @@
 #cmakedefine HAVE_PIPE2
 #cmakedefine HAVE_POSIX_SPAWNP
 #cmakedefine HAVE_REALLOCARRAY
+#cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRCHRNUL
 #cmakedefine HAVE_STRDUPA
+#cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRLCAT
 #cmakedefine HAVE_STRLCPY
 #cmakedefine HAVE_STRSEP
-#cmakedefine HAVE_STRCASECMP
-#cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
-#cmakedefine HAVE_ARC4RANDOM
 
 #cmakedefine HAVE_BSD_STDLIB_H
-#cmakedefine HAVE_SYS_AUXV_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_STDATOMIC_H
 #cmakedefine HAVE_STDNORETURN_H
+#cmakedefine HAVE_SYS_AUXV_H
 #cmakedefine HAVE_THREADS_H
 
 #define SANITIZER_LOG_PLACE "@SANITIZER_LOG_PLACE@"
 
 #define GCC_ALL_INCLUDE_DIRECTORIES ${COMPILER_INCLUDE_DIRECTORIES}
 
-#define VERSION "0.0.4"
-#define PACKAGE_STRING "tag_highlight " VERSION
+#define VERSION "0.1.0"
+#define PACKAGE_STRING "tag-highlight " VERSION

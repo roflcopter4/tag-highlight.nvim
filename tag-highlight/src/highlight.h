@@ -229,8 +229,8 @@ $nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
         do {                                                                                                      \
                 if (settings.verbose) {                                                                           \
                         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
-                          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
-                          (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+                          (nvim_out_write(B("tag-highlight: " __VA_ARGS__ "\n")))                                 \
+                          (nvim_printf("tag-highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
                 }                                                                                                 \
         } while (0)
 
@@ -238,15 +238,15 @@ $nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
         do {                                                                                                           \
                 if (settings.verbose) {                                                                                \
                         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                             \
-                          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                      \
-                          (nvim_b_printf(B("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
+                          (nvim_out_write(B("tag-highlight: " __VA_ARGS__ "\n")))                                      \
+                          (nvim_b_printf(B("tag-highlight: " P99_CHS(0, __VA_ARGS__) "\n"), P99_SKP(1, __VA_ARGS__))); \
                 }                                                                                                      \
         } while (0)
 
 #define SHOUT(...)                                                                                \
         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
-          (nvim_out_write(B("tag_highlight: " __VA_ARGS__ "\n")))                                 \
-          (nvim_printf("tag_highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+          (nvim_out_write(B("tag-highlight: " __VA_ARGS__ "\n")))                                 \
+          (nvim_printf("tag-highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
 
 
 /*===========================================================================*/

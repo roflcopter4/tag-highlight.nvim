@@ -2,7 +2,7 @@
 setlocal
 
 
-set SRCDIR=%CD%\tag_highlight
+set SRCDIR=%CD%\tag-highlight
 
 REM Really gotta admire the dedication to inconsistency.
 where /Q sh
@@ -48,7 +48,7 @@ if defined CC (
 :found_cc
 
 mkdir "%CD%\autoload" 2>NUL
-mkdir "%CD%\autoload\tag_highlight" 2>NUL
+mkdir "%CD%\autoload\tag-highlight" 2>NUL
 mkdir "%CD%\cache" 2>NUL
 
 echo %SRCDIR%\
@@ -62,17 +62,17 @@ if exist "%SRCDIR%\build" (
 
 mkdir "%SRCDIR%\build"
 
-echo function! tag_highlight#install_info#GetBinaryName()  > "%CD%\autoload\tag_highlight\install_info.vim"
-echo     return '%CD%/bin/tag_highlight.exe'              >> "%CD%\autoload\tag_highlight\install_info.vim"
-echo endfunction                                          >> "%CD%\autoload\tag_highlight\install_info.vim"
+echo function! tag_highlight#install_info#GetBinaryName()  > "%CD%\autoload\tag-highlight\install_info.vim"
+echo     return '%CD%/bin/tag-highlight.exe'              >> "%CD%\autoload\tag-highlight\install_info.vim"
+echo endfunction                                          >> "%CD%\autoload\tag-highlight\install_info.vim"
 
-echo function! tag_highlight#install_info#GetBinaryPath() >> "%CD%\autoload\tag_highlight\install_info.vim"
-echo     return '%CD%/bin'                                >> "%CD%\autoload\tag_highlight\install_info.vim"
-echo endfunction                                          >> "%CD%\autoload\tag_highlight\install_info.vim"
+echo function! tag_highlight#install_info#GetBinaryPath() >> "%CD%\autoload\tag-highlight\install_info.vim"
+echo     return '%CD%/bin'                                >> "%CD%\autoload\tag-highlight\install_info.vim"
+echo endfunction                                          >> "%CD%\autoload\tag-highlight\install_info.vim"
 
-echo function! tag_highlight#install_info#GetCachePath()  >> "%CD%\autoload\tag_highlight\install_info.vim"
-echo     return '%CD%/cache'                              >> "%CD%\autoload\tag_highlight\install_info.vim"
-echo endfunction                                          >> "%CD%\autoload\tag_highlight\install_info.vim"
+echo function! tag_highlight#install_info#GetCachePath()  >> "%CD%\autoload\tag-highlight\install_info.vim"
+echo     return '%CD%/cache'                              >> "%CD%\autoload\tag-highlight\install_info.vim"
+echo endfunction                                          >> "%CD%\autoload\tag-highlight\install_info.vim"
 
 set OutputDir=%CD%\bin
 cd %SRCDIR%\build
@@ -82,7 +82,7 @@ if %errorlevel% GEQ 1 goto leave
 mingw32-make -j%NUMBER_OF_PROCESSORS% -C "%SRCDIR%\build"
 if %errorlevel% GEQ 1 goto leave
 
-move /Y "%SRCDIR%\build\src\tag_highlight.exe" "%OutputDir%\tag_highlight.exe"
+move /Y "%SRCDIR%\build\src\tag-highlight.exe" "%OutputDir%\tag-highlight.exe"
 cd ..
 rmdir /Q /S "%SRCDIR%\build"
 

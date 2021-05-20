@@ -6,7 +6,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_definitions(-D_BUILD_)
 
-set (tag_highlight_SOURCES
+set (tag-highlight_SOURCES
     buffer.c
     ctags.c
     data.c
@@ -49,7 +49,7 @@ set (tag_highlight_SOURCES
     util/util.c
 )
 
-set (tag_highlight_headers
+set (tag-highlight_headers
     Common.h
     events.h
     highlight.h
@@ -83,15 +83,15 @@ set (tag_highlight_headers
 )
 
 if (LZMA_SUPPORT)
-   set (tag_highlight_SOURCES ${tag_highlight_SOURCES} util/archive_lzma.c)
+   set (tag-highlight_SOURCES ${tag-highlight_SOURCES} util/archive_lzma.c)
 endif()
 
-add_executable(tag_highlight ${tag_highlight_SOURCES})
+add_executable(tag-highlight ${tag-highlight_SOURCES})
 
 ################################################################################
 # Libraries
 
-target_link_libraries(tag_highlight
+target_link_libraries(tag-highlight
     ${LIBCLANG_LIBRARY}
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
@@ -99,40 +99,40 @@ target_link_libraries(tag_highlight
 )
 
 target_compile_options(
-    tag_highlight
-    PUBLIC
+    tag-highlight
+    PRIVATE
     # -isystem /usr/local/include
 )
 
 if (IS_BSD)
-    target_link_libraries(tag_highlight -lstdthreads -lexecinfo)
+    target_link_libraries(tag-highlight -lstdthreads -lexecinfo)
 endif()
 
 if (MINGW)
     # For some reason clang wants libstdc++ linked in on Windows.
-    target_link_libraries(tag_highlight -lstdc++)
+    target_link_libraries(tag-highlight -lstdc++)
 endif ()
 
 if (LIBEV_FOUND)
-    target_link_libraries(tag_highlight ${LIBEV_LIBRARIES})
+    target_link_libraries(tag-highlight ${LIBEV_LIBRARIES})
 endif ()
 
 if (LIBBSD_FOUND)
-    target_link_libraries(tag_highlight ${LIBBSD_LIBRARIES})
+    target_link_libraries(tag-highlight ${LIBBSD_LIBRARIES})
 endif()
 
 if (LZMA_SUPPORT)
-    target_link_libraries(tag_highlight LibLZMA::LibLZMA)
+    target_link_libraries(tag-highlight LibLZMA::LibLZMA)
 endif ()
 
 if (USE_JEMALLOC STREQUAL "YES")
-    target_link_libraries(tag_highlight ${JEMALLOC_LIBRARY})
+    target_link_libraries(tag-highlight ${JEMALLOC_LIBRARY})
 endif()
 
 if (TALLOC_FOUND)
-    target_link_libraries(tag_highlight ${TALLOC_LIBRARIES})
+    target_link_libraries(tag-highlight ${TALLOC_LIBRARIES})
 
-    install(TARGETS tag_highlight
+    install(TARGETS tag-highlight
             RUNTIME DESTINATION "bin"
     )
 else()
@@ -148,7 +148,6 @@ else()
                 
     set (mytalloc_compile_options_common
         #-isystem /usr/local/include
-        "-g"
         "-fno-lto"
         "-D_XOPEN_SOURCE_EXTENDED=1"
         "-D__STDC_WANT_LIB_EXT1__=1")
@@ -156,14 +155,14 @@ else()
     if (MINGW)
         target_compile_options(
             mytalloc
-            PUBLIC
+            PRIVATE
                 ${mytalloc_compile_options_common}
                 "-DBUILDING_DLL_=1"
         )
     else()
         target_compile_options(
             mytalloc
-            PUBLIC
+            PRIVATE
                 ${mytalloc_compile_options_common}
                 "-fstack-clash-protection"
                 "-fstack-protector-strong"
@@ -179,15 +178,15 @@ else()
         target_link_options(mytalloc PRIVATE -fno-lto)
     endif()
 
-    target_link_libraries(tag_highlight mytalloc)
+    target_link_libraries(tag-highlight mytalloc)
 
     if (LibBSD_FOUND)
-        target_link_libraries(tag_highlight ${LibBSD_LIBRARIES})
+        target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
     endif()
     
-    set_property(TARGET tag_highlight PROPERTY INSTALL_RPATH "\$ORIGIN")
+    set_property(TARGET tag-highlight PROPERTY INSTALL_RPATH "\$ORIGIN")
 
-    install(TARGETS tag_highlight mytalloc
+    install(TARGETS tag-highlight mytalloc
             RUNTIME DESTINATION "bin"
             LIBRARY DESTINATION "bin"
     )

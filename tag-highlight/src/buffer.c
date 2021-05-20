@@ -379,7 +379,7 @@ check_norecurse_directories(bstring const *const dir)
 }
 
 /*
- * Check the file `tag_highlight.txt' for any directories the user has specified
+ * Check the file `tag-highlight.txt' for any directories the user has specified
  * to be `project' directories. Anything under them in the directory tree will
  * use that directory as its base.
  */

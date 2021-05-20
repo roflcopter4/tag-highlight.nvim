@@ -291,7 +291,7 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 
 /* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
-#define shout(...) (fprintf(stderr, "tag_highlight: " __VA_ARGS__), fflush(stderr))
+#define shout(...) (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fflush(stderr))
 #ifdef DEBUG
 #  define eprintf(...) shout(__VA_ARGS__)
 #else

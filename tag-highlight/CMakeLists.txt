@@ -1,14 +1,14 @@
 cmake_minimum_required (VERSION 3.14.0)
-project (Tag_Highlight_Nvim C)
+project (Tag-Highlight_Nvim C)
 include (FindPkgConfig)
 include (CheckFunctionExists)
 include (CheckSymbolExists)
 include (CheckIncludeFile)
 
-if (MSVC)
-    message(FATAL_ERROR
-            "MSVC is not and will probably never be supported. Use MinGW")
-endif()
+#if (MSVC)
+#    message(FATAL_ERROR
+#            "MSVC is not and will probably never be supported. Use MinGW")
+#endif()
 
 ###############################################################################
 # Options
@@ -121,6 +121,7 @@ CHECK_SYMBOL_EXISTS (mkostemps      "stdlib.h"   HAVE_MKOSTEMPS)
 CHECK_SYMBOL_EXISTS (reallocarray   "stdlib.h"   HAVE_REALLOCARRAY)
 CHECK_SYMBOL_EXISTS (strtonum       "stdlib.h"   HAVE_STRTONUM)
 CHECK_SYMBOL_EXISTS (asprintf       "stdio.h"    HAVE_ASPRINTF)
+CHECK_SYMBOL_EXISTS (dprintf        "stdio.h"    HAVE_DPRINTF)
 CHECK_SYMBOL_EXISTS (open_memstream "stdio.h"    HAVE_OPEN_MEMSTREAM)
 CHECK_SYMBOL_EXISTS (vasprintf      "stdio.h"    HAVE_VASPRINTF)
 CHECK_SYMBOL_EXISTS (memrchr        "string.h"   HAVE_MEMRCHR)
@@ -225,11 +226,14 @@ if (CC_IS_CLANG)
         # " -masm=intel -fverbose-asm -Wl,--lto-emit-asm"
     )
     
-    #set (CMAKE_AR "/usr/lib/llvm/12/bin/llvm-ar")
-    #set (CMAKE_NM "/usr/lib/llvm/12/bin/llvm-nm")
-    #set (CMAKE_RANLIB "/usr/lib/llvm/12/bin/llvm-ranlib")
+    find_program(LLVM_AR "llvm-ar" REQUIRED)
+    find_program(LLVM_NM "llvm-nm" REQUIRED)
+    find_program(LLVM_RANLIB "llvm-ranlib" REQUIRED)
+    set (CMAKE_AR "${LLVM_AR}")
+    set (CMAKE_NM "${LLVM_NM}")
+    set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
-else() # GCC
+elseif(NOT MSVC) # GCC
 
     string (JOIN " " WARNS ${WARNS}
          -Wsuggest-attribute=pure
@@ -244,10 +248,13 @@ else() # GCC
     )
     set (LTO_STR "-flto -fuse-linker-plugin")
 
-    #set (CMAKE_AR "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ar")
-    #set (CMAKE_NM "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-nm")
-    #set (CMAKE_RANLIB "/usr/x86_64-pc-linux-gnu/gcc-bin/11.1.0/gcc-ranlib")
-
+    find_program(GCC_AR "gcc-ar" REQUIRED)
+    find_program(GCC_NM "gcc-nm" REQUIRED)
+    find_program(GCC_RANLIB "gcc-ranlib" REQUIRED)
+    set (CMAKE_AR "${GCC_AR}")
+    set (CMAKE_NM "${GCC_NM}")
+    set (CMAKE_RANLIB "${GCC_RANLIB}")
+    
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}")
 endif()
 

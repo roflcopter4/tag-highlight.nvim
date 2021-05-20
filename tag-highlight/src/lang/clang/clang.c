@@ -505,8 +505,6 @@ get_compile_commands(Buffer *bdata)
         clang_CompileCommands_dispose(cmds);
         clang_CompilationDatabase_dispose(db);
 
-        argv_dump(stderr, ret);
-        fflush(stderr);
         return ret;
 }
 

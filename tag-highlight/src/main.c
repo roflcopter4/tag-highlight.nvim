@@ -170,7 +170,7 @@ open_logs(void)
 {
 #if defined DEBUG && defined DEBUG_LOGS
         extern char LOGDIR[];
-        snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag_highlight_log", HOME);
+        snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag-highlight_log", HOME);
         mkdir(LOGDIR, 0777);
         mpack_log = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
         mpack_raw = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);

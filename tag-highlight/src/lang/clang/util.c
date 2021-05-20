@@ -30,7 +30,7 @@ get_tmp_path(char *buf)
         b_destroy(name);
         mkdir(buf, 0700);
 #else
-        memcpy(buf, SLS(TMP_LOCATION "/tag_highlight_XXXXXX"));
+        memcpy(buf, SLS(TMP_LOCATION "/tag-highlight-XXXXXX"));
         errno = 0;
         if (!mkdtemp(buf))
                 err(1, "mkdtemp failed");

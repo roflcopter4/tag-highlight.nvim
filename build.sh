@@ -131,7 +131,7 @@ conf_cond() {
 init() {
     git submodule update --init
 
-    cat >"${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
+    cat >"${top_dir}/autoload/tag-highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#GetBinaryName()
     return '${final_path}'
 endfunction
@@ -272,27 +272,27 @@ A Posix build environment is required. How you have a working shell with no
 EOF
 
 top_dir=$(dirname "$(realpath "$0")")
-project_dir="${top_dir}/tag_highlight"
+project_dir="${top_dir}/tag-highlight"
 bin_dir="${top_dir}/bin"
 system_type=$(guess_system)
 link_cmd=$(get_link_command)
 
 mkdir -p "${top_dir}/autoload"
-mkdir -p "${top_dir}/autoload/tag_highlight"
+mkdir -p "${top_dir}/autoload/tag-highlight"
 mkdir -p "${top_dir}/cache"
 mkdir -p "${top_dir}/cache/tags"
 mkdir -p "${top_dir}/bin"
 
 case "$system_type" in
 MinGW)
-    binary_path="${project_dir}/build/src/tag_highlight.exe"
-    final_path=$(cygpath -wa "${bin_dir}/tag_highlight.exe")
+    binary_path="${project_dir}/build/src/tag-highlight.exe"
+    final_path=$(cygpath -wa "${bin_dir}/tag-highlight.exe")
     binary_install_path=$(cygpath -wa "${bin_dir}")
     cache_path=$(cygpath -wa "${top_dir}/cache")
     ;;
 *)
-    binary_path="${project_dir}/build/src/tag_highlight"
-    final_path="${bin_dir}/tag_highlight"
+    binary_path="${project_dir}/build/src/tag-highlight"
+    final_path="${bin_dir}/tag-highlight"
     binary_install_path="${bin_dir}"
     cache_path="${top_dir}/cache"
     ;;

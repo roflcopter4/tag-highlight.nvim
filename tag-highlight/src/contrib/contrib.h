@@ -28,8 +28,7 @@
    extern char *strchrnul(const char *ptr, int ch);
 #endif
 
-#ifdef DOSISH
-#  include <winsock2.h>
+#ifndef HAVE_DPRINTF
 extern int dprintf(const SOCKET fd, const char *restrict fmt, ...);
 #endif
 

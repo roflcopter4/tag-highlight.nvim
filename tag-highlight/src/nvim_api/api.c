@@ -370,7 +370,7 @@ void
         static bool first = true;
         if (first) {
                 char tmp[PATH_MAX];
-                snprintf(tmp, PATH_MAX, "%s/.tag_highlight_log/atomic.log", HOME);
+                snprintf(tmp, PATH_MAX, "%s/.tag-highlight_log/atomic.log", HOME);
                 unlink(tmp);
                 first = false;
         }

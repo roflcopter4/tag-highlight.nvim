@@ -404,7 +404,7 @@ gettimeofday(struct timeval *tp, struct timezone *tzp)
 
 /*============================================================================*/
 /*============================================================================*/
-#ifdef DOSISH
+#ifndef HAVE_DPRINTF
 int dprintf(const SOCKET fd, const char *const restrict fmt, ...)
 {
         int          fdx = _open_osfhandle(fd, 0);
