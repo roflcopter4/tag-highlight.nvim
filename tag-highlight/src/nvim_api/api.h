@@ -35,51 +35,57 @@ struct nvim_wait {
 /*============================================================================*/
 /* API Wrappers */
 
-extern void           _nvim_write              (enum nvim_write_type type, const bstring *mes);
-extern void           nvim_printf              (const char *restrict fmt, ...) __aFMT(1, 2);
-extern void           nvim_vprintf             (const char *restrict fmt, va_list args) __aFMT(1, 0);
-extern void           nvim_b_printf            (const bstring *fmt, ...);
-extern mpack_retval   nvim_get_var_fmt         (mpack_expect_t expect, const char *fmt, ...) __aFMT(2, 3) __aWUR;
-extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, const bstring *group, unsigned line, unsigned start, int end);
-extern mpack_dict   * nvim_get_hl_by_name      (const bstring *name, bool rgb) __aWUR;
+extern void           $nvim_write              (enum nvim_write_type type, bstring const *mes);
+extern void           nvim_printf              (char const *restrict fmt, ...) __aFMT(1, 2);
+extern void           nvim_vprintf             (char const *restrict fmt, va_list args) __aFMT(1, 0);
+extern void           nvim_b_printf            (bstring const *fmt, ...);
+extern mpack_retval   nvim_get_var_fmt         (mpack_expect_t expect, char const *fmt, ...) __aFMT(2, 3) __aWUR;
+extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, bstring const *group, unsigned line, unsigned start, int end);
+extern mpack_dict   * nvim_get_hl_by_name      (bstring const *name, bool rgb) __aWUR;
 extern mpack_dict   * nvim_get_hl_by_id        (int hlid, bool rgb) __aWUR;
 extern void           nvim_buf_attach          (int bufnum);
-extern void           nvim_buf_clear_highlight (unsigned bufnum, int hl_id, unsigned start, int end, bool blocking);
+extern void           nvim_buf_clear_namespace (unsigned bufnum, int ns_id, unsigned start, int end, bool blocking);
 extern unsigned       nvim_buf_get_changedtick (int bufnum);
 extern b_list       * nvim_buf_get_lines       (unsigned bufnum, int start, int end) __aWUR;
 extern bstring      * nvim_buf_get_name        (int bufnum) __aWUR;
-extern mpack_retval   nvim_buf_get_option      (int bufnum, const bstring *optname, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_buf_get_var         (int bufnum, const bstring *varname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_buf_get_option      (int bufnum, bstring const *optname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_buf_get_var         (int bufnum, bstring const *varname, mpack_expect_t expect) __aWUR;
 extern unsigned       nvim_buf_line_count      (int bufnum);
-extern void           nvim_call_atomic         (const struct mpack_arg_array *calls);
-extern mpack_retval   nvim_call_function       (const bstring *function, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_call_function_args  (const bstring *function, mpack_expect_t expect, const bstring *fmt, ...) __aWUR;
-extern bool           nvim_command             (const bstring *cmd);
-extern mpack_retval   nvim_command_output      (const bstring *cmd, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_eval                (const bstring *eval, mpack_expect_t expect) __aWUR;
+extern void           nvim_call_atomic         (struct mpack_arg_array const *calls);
+extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_call_function_args  (bstring const *function, mpack_expect_t expect, bstring const *fmt, ...) __aWUR;
+extern bool           nvim_command             (bstring const *cmd);
+extern mpack_retval   nvim_command_output      (bstring const *cmd, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_eval                (bstring const *eval, mpack_expect_t expect) __aWUR;
 extern void           nvim_get_api_info        (void);
 extern int            nvim_get_current_buf     (void);
 extern bstring      * nvim_get_current_line    (void) __aWUR;
-extern mpack_retval   nvim_get_option          (const bstring *optname, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_get_var             (const bstring *varname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_get_option          (bstring const *optname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_get_var             (bstring const *varname, mpack_expect_t expect) __aWUR;
 extern mpack_retval   nvim_list_bufs           (void) __aWUR;
-extern void           nvim_subscribe           (const bstring *event);
-extern bool           nvim_set_var             (const bstring *varname, const bstring *fmt, ...);
+extern void           nvim_subscribe           (bstring const *event);
+extern bool           nvim_set_var             (bstring const *varname, bstring const *fmt, ...);
+extern bool           nvim_set_option          (bstring const *optname, bstring const *value);
 
-extern void nvim_set_client_info(const bstring *name, unsigned major, unsigned minor, const bstring *dev,
-                                 const bstring *type, const void *methods, const void *attributes);
+extern void nvim_set_client_info(bstring const *name, unsigned major, unsigned minor, bstring const *dev,
+                                 bstring const *type, void const *methods, void const *attributes);
 
 extern bstring * _nvim_get_notification();
 
+__attribute__((__deprecated__("Removed from neovim's documentation")))
+extern void nvim_buf_clear_highlight (unsigned bufnum, int hl_id, unsigned start, int end, bool blocking);
+
+/*----------------------------------------------------------------------------*/
+
 /* Convenience Macros */
-#define nvim_out_write(MES) _nvim_write(NW_STANDARD, (MES))
-#define nvim_err_write(MES) _nvim_write(NW_ERROR, (MES))
+#define nvim_out_write(MES) $nvim_write(NW_STANDARD, (MES))
+#define nvim_err_write(MES) $nvim_write(NW_ERROR, (MES))
 #define NVIM_GET_FUTEX_EXPECT(FD, CNT) (((unsigned)((uint8_t)(FD) << 030) | ((unsigned)(CNT) & 0x00FFFFFFu)) + 1u)
 
-/*============================================================================*/
+/*----------------------------------------------------------------------------*/
 /* Misc helper functions */
 
-/**
+/*
  * Request for Neovim to create an additional server socket/fifo, then connect
  * to it. Multiple connections can make multithreaded applications easier to
  * write safely.
@@ -87,6 +93,7 @@ extern bstring * _nvim_get_notification();
 extern int  _nvim_create_socket(void);
 extern void _nvim_init(void) __attribute__((__constructor__));
 extern int  _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
+
 
 /*============================================================================*/
 extern int _nvim_api_read_fd;

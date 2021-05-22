@@ -304,7 +304,7 @@ init_topdir(Buffer *bdata)
         bstring *cdir = b_strcpy(settings.cache_dir);
 
         tdir            = talloc_zero(CTX, Top_Dir);
-        tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_TRUNC|O_BINARY|O_CLOEXEC, 0600);
+        tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_EXCL|O_BINARY|O_CLOEXEC, 0600);
         tdir->gzfile    = talloc_move(tdir, &cdir);
         tdir->pathname  = talloc_move(tdir, &dir);
         tdir->tmpfname  = talloc_move(tdir, &tnam);
@@ -483,9 +483,15 @@ ensure_cache_directory(char const *dir)
 static inline void
 set_vim_tags_opt(char const *fname)
 {
-        char buf[8192];
-        size_t n = snprintf(buf, 8192, "set tags+=%s", fname);
-        nvim_command(btp_fromblk(buf, n));
+        char     buf[2048];
+        bstring *oldval = nvim_get_option(B("tags"), E_STRING).ptr;
+
+        int n = snprintf(buf, 2048, "%s,%s", BS(oldval), fname);
+
+        if (!nvim_set_option(B("tags"), btp_fromblk(buf, n)))
+                shout("Nvim rejected my option :(");
+
+        talloc_free(oldval);
 }
 
 /*======================================================================================
@@ -515,8 +521,10 @@ init_filetype(Filetype *ft)
         mpack_array *tmp = mpack_dict_get_key(settings.ignored_tags, E_MPACK_ARRAY,
                                               &ft->vim_name).ptr;
 
-        if (ft->order)
-                talloc_steal(ft, ft->order);
+        if (!ft->order)
+                ft->order = b_create(0);
+
+        talloc_steal(ft, ft->order);
 
         if (tmp) {
                 ft->ignored_tags = mpack_array_to_blist(tmp, true);

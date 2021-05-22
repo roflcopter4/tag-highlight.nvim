@@ -194,7 +194,7 @@ id_event(mpack_obj *event)
 
 UNUSED
 static inline bool
-check_mutex_consistency(pthread_mutex_t *mtx, int val, const char *const msg)
+check_mutex_consistency(UNUSED pthread_mutex_t *mtx, int val, const char *const msg)
 {
         bool ret;
         switch (val) {
@@ -226,7 +226,6 @@ check_mutex_consistency(pthread_mutex_t *mtx, int val, const char *const msg)
 static inline void replace_line(Buffer *bdata, b_list *new_strings, int lineno, int index);
 static inline void
 line_event_multi_op(Buffer *bdata, b_list *new_strings, int first, int num_to_modify);
-static noreturn void *update_highlight_wrapper(void *bdata);
 
 static bool
 handle_line_event(Buffer *bdata, mpack_array *arr)
@@ -360,9 +359,10 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
 static noreturn void *
 delayed_update_highlight(void *vdata)
 {
-        struct timespec cur, res;
+        struct timespec cur, add, res;
         clock_gettime(CLOCK_MONOTONIC, &cur);
-        TIMESPEC_ADD(&cur, MKTIMESPEC(1.5), &res);
+        add = (struct timespec){.tv_sec = 1, .tv_nsec = NSEC2SECOND/2};
+        TIMESPEC_ADD(&cur, &add, &res);
 
 #if 0
         echo("Sleeping from %f to %f, ie %fs", TIMESPEC2DOUBLE(&cur),

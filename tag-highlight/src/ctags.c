@@ -154,7 +154,7 @@ write_gzfile(struct top_dir *topdir)
 
 #ifdef DOSISH
 static int
-exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
+exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const opts)
 {
         bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
 

@@ -169,7 +169,7 @@ event_want_update(atomic_int *prev_num, UNUSED vimscript_message_type val)
 static void
 event_force_update(atomic_int *prev_num)
 {
-        struct timer t = STRUCT_TIMER_INITIALIZER;
+        UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
         TIMER_START_BAR(&t);
         int const num = nvim_get_current_buf();
         atomic_store_explicit(prev_num, num, memory_order_release);
@@ -228,7 +228,7 @@ event_exit(void)
 static void
 attach_new_buffer(int num)
 {
-        struct timer t = STRUCT_TIMER_INITIALIZER;
+        UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
         Buffer *bdata = new_buffer(num);
 
         if (bdata) {

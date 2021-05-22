@@ -221,8 +221,8 @@ if (CC_IS_CLANG)
         #" -mprefer-vector-width=512"
         " -fuse-ld=lld"
         " ${LTO_STR}"
-        " -Wl,--lto-O3"
-        " -Wl,--lto-whole-program-visibility"
+        #" -Wl,--lto-O3"
+        #" -Wl,--lto-whole-program-visibility"
         # " -masm=intel -fverbose-asm -Wl,--lto-emit-asm"
     )
     
@@ -233,7 +233,7 @@ if (CC_IS_CLANG)
     set (CMAKE_NM "${LLVM_NM}")
     set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
-elseif(NOT MSVC) # GCC
+else(MSVC) # GCC
 
     string (JOIN " " WARNS ${WARNS}
          -Wsuggest-attribute=pure

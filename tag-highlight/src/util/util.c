@@ -192,8 +192,8 @@ err_(UNUSED const int status, const bool print_err, const char *file, const int 
         SHOW_STACKTRACE();
         fputc('\n', stderr);
         fflush(stderr);
-        /* exit(status); */
-        abort();
+        exit(status);
+        //abort();
 }
 
 extern FILE *echo_log;
