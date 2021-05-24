@@ -20,15 +20,14 @@ extern vfutex_t             event_loop_futex, nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
-static mpack_obj *make_call(bool blocking, const bstring *fn, mpack_obj *pack,  int count);
 static noreturn void *make_async_call(void *arg);
+static mpack_obj *make_call(bool blocking, const bstring *fn, mpack_obj *pack,  int count);
 static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func, FILE *logfp);
+static mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
 
 #define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
 #define write_and_clean_defarg_3() (NULL)
 
-static          mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
-static noreturn void      *discard_package(void *arg);
 
 void *nvim_common_talloc_ctx_ = NULL;
 #define CTX nvim_common_talloc_ctx_
@@ -66,7 +65,7 @@ make_async_call(void *arg)
 }
 
 mpack_obj *
-_nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *const fmt, ...)
+$nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *const fmt, ...)
 {
         mpack_obj *pack;
         const int  count = INC_COUNT();
@@ -88,7 +87,7 @@ _nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *co
 }
 
 mpack_obj *
-_nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
+$nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
 {
         return make_call(blocking, fn, pack, count);
 }
@@ -96,7 +95,7 @@ _nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, 
 /*======================================================================================*/
 
 __attribute__((__constructor__)) static void
-_nvim_api_wrapper_init(void)
+nvim_api_wrapper_init(void)
 {
         pthread_mutex_init(&await_package_mutex);
         p99_futex_init((p99_futex *)&event_loop_futex, 0u);
@@ -139,39 +138,8 @@ await_package(nvim_wait_node *node)
         return obj;
 }
 
-static noreturn void *
-discard_package(void *arg)
-{
-        nvim_wait_node *node = arg;
-
-        /* mpack_obj *obj; */
-        /* p99_futex_wait(&_nvim_wait_futex); */
-        /* obj = atomic_load(&event_loop_mpack_obj); */
-
-        /* p99_futex_wait(&node->fut); */
-        pthread_mutex_lock(&node->mtx);
-        mpack_obj *obj = NULL;
-
-        while (!obj) {
-                if (pthread_cond_wait(&node->cond, &node->mtx))
-                        err(1, "pthread_cond_wait");
-
-                obj = atomic_load(&node->obj);
-        }
-
-        if (!node->obj)
-                errx(1, "null object");
-
-        talloc_free(obj);
-        free(node);
-        pthread_exit();
-
-        /* p99_futex_wakeup(&event_loop_futex, 1u, 1u); */
-        /* return node->obj; */
-}
-
 static mpack_obj *
-(write_and_clean)(mpack_obj *pack, const int count, const bstring *func, FILE *logfp)
+(write_and_clean)(mpack_obj *pack, const int count, UNUSED const bstring *func, UNUSED FILE *logfp)
 {
 #if 0 && defined DEBUG
 #  ifdef LOG_RAW_MPACK

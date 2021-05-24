@@ -187,12 +187,39 @@ exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const
         return system(BS(cmd));
 }
 #else
+static inline str_vector *get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
+
 /*
  * In a unix environment, let's avoid the headache of quoting arguments by
  * calling fork/exec, even at the cost of a bunch of extra allocations and copying.
+ *
+ * What a mess though.
  */
 static int
 exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
+{
+        int pid, status;
+        str_vector *argv = get_ctags_argv(bdata, headers, opts);
+        warnd("Running ctags:");
+
+#ifdef HAVE_POSIX_SPAWNP
+        if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
+                err(1, "Exec failed");
+#else
+        if ((pid = fork()) == 0)
+                if (execvpe(BS(settings.ctags_bin), argv->lst, environ) != 0)
+                        err(1, "Exec failed");
+#endif
+
+        waitpid(pid, &status, 0);
+        talloc_free(argv);
+        return (status > 0) ? ((status & 0xFF00) >> 8)
+                            : status;
+}
+
+
+static inline str_vector *
+get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 {
         str_vector *argv = argv_create(128);
         argv_append(argv, BS(settings.ctags_bin), true);
@@ -201,6 +228,7 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
                 if (arg)
                         argv_append(argv, b_bstr2cstr(arg, 0), false);
 
+        argv_append(argv, "--pattern-length-limit=0", true);
         assert(bdata->topdir->tmpfname != NULL &&
                bdata->topdir->tmpfname->data != NULL &&
                bdata->topdir->tmpfname->data[0] != '\0');
@@ -230,18 +258,7 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
 
         argv_append(argv, (char const *)0, false);
 
-        int pid, status;
-#ifdef HAVE_POSIX_SPAWNP
-        if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
-                err(1, "Exec failed");
-#else
-        if ((pid = fork()) == 0)
-                if (execvpe(BS(settings.ctags_bin), argv->lst, environ) != 0)
-                        err(1, "Exec failed");
-#endif
-        waitpid(pid, &status, 0);
-        talloc_free(argv);
-        return (status > 0) ? status << 8
-                            : status;
+        return argv;
 }
+
 #endif

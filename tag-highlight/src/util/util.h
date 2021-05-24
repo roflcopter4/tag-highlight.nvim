@@ -150,11 +150,12 @@ struct timer {
 
 #define err(EVAL, ...)  err_((EVAL), true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define errx(EVAL, ...) err_((EVAL), false, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warn(...)       warn_(true,  false, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warnx(...)      warn_(false, false, __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warn(...)       warn_(true,  true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnx(...)      warn_(false, true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnd(...)      warn_(false, false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
 
-extern          void warn_(bool print_err, bool force, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
-extern noreturn void err_ (int status, bool print_err, const char *file, const int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
+extern          void warn_(bool print_err, bool force, const char *file, int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
+extern noreturn void err_ (int status, bool print_err, const char *file, int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
 
 extern void     free_all__    (void *ptr, ...);
 extern int64_t  xatoi__       (const char *str, bool strict);
@@ -166,7 +167,7 @@ extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR
 extern void     fd_set_open_flag(int fd, int flag);
 
 
-extern bstring *get_command_output(const char *command, char *const *const argv, bstring *input, int *status);
+extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
 #ifdef DOSISH
 extern int win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);

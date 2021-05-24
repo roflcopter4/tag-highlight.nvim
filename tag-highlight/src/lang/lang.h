@@ -20,8 +20,9 @@ extern void add_hl_call (mpack_arg_array *calls, int bufnum, int hl_id,
                          const bstring *group, const line_data *data);
 extern void add_clr_call(mpack_arg_array *calls, int bufnum, int hl_id, int line, int end);
 
-extern mpack_arg_array  *new_arg_array(void);
-extern const bstring   *find_group   (struct filetype *ft, int ctags_kind);
+extern mpack_arg_array *new_arg_array(void);
+extern const bstring *find_group(struct filetype *ft, int ctags_kind)
+        __attribute__((__pure__, __warn_unused_result__));
 
 /*======================================================================================*/
 

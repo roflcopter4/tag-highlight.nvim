@@ -77,6 +77,9 @@
 #endif /* USE_P99_TRY */
 
 
+#define P01_CLOSE_FD(fd) close(fd)
+#define P44_CLOSE_ALL_FDS(...) P99_BLOCK(P99_SEP(P01_CLOSE_FD, __VA_ARGS__))
+
 #define P01_POINTLESS_MACRO(...) (__VA_ARGS__)
 #define P01_ANDALL(MACRO, ...) P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (&&), __VA_ARGS__)
 #define P01_ORALL(MACRO, ...)  P00_MAP_(P99_NARG(__VA_ARGS__), MACRO, (||), __VA_ARGS__)
@@ -101,7 +104,6 @@
 #define P99_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_B_ISEQ_LIT, __VA_ARGS__)
 
 #define STREQ(S1, S2)  (strcmp((S1), (S2)) == 0)
-/* #define STREQ_ANY      P99_STREQ_ANY */
 #define b_iseq_any     P99_B_ISEQ_ANY
 #define b_iseq_lit_any P99_B_ISEQ_LIT_ANY
 
@@ -115,11 +117,7 @@
         P99_POINTER_TYPE(NAME);   \
         P99_LIFO_DECLARE(NAME##_ptr)
 
-#define P01_FREE_BSTRING(BSTR)         b_destroy(BSTR)
-#define P01_WRITEPROTECT_BSTRING(BSTR) b_writeprotect(BSTR)
-#define P01_WRITEALLOW_BSTRING(BSTR)   b_writeallow(BSTR)
-#define b_destroy_all(...)      P99_BLOCK(P99_SEP(P01_FREE_BSTRING, __VA_ARGS__);)
-#define b_writeprotect_all(...) P99_BLOCK(P99_SEP(P01_WRITEPROTECT_BSTRING, __VA_ARGS__);)
-#define b_writeallow_all(...)   P99_BLOCK(P99_SEP(P01_WRITEALLOW_BSTRING, __VA_ARGS__);)
+#define P01_FREE_BSTRING(BSTR) b_destroy(BSTR)
+#define b_destroy_all(...)     P99_BLOCK(P99_SEP(P01_FREE_BSTRING, __VA_ARGS__);)
 
 #endif /* p99_common.h */

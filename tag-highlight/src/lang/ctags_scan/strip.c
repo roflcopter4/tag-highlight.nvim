@@ -193,8 +193,8 @@ handle_cstyle(bstring **vim_bufp)
                 }
         }
 
-        free(bak);
-        free(*vim_bufp);
+        talloc_free(bak);
+        talloc_free(*vim_bufp);
         *vim_bufp = b_list_join(list, NULL);
         b_list_destroy(list);
 }
@@ -271,7 +271,7 @@ handle_python(bstring *vim_buf)
         uchar *buf, *buf_orig;
         bool escape, comment, skip;
 
-        buf    = buf_orig = malloc(vim_buf->slen + 2LLU);
+        buf    = buf_orig = talloc_size(NULL, vim_buf->slen + 2LLU);
         escape = comment  = skip = false;
 
         if (*pos == '\0')
@@ -359,7 +359,8 @@ handle_python(bstring *vim_buf)
 
         *buf = '\0';
 
-        free(vim_buf->data);
+        talloc_free(vim_buf->data);
         vim_buf->data = buf_orig;
         vim_buf->slen = vim_buf->mlen = buf - buf_orig - 1;
+        talloc_steal(vim_buf, vim_buf->data);
 }

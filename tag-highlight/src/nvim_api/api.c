@@ -25,6 +25,7 @@ void
         default:          errx(1, "Should be unreachable!");
         }
 
+        UNUSED
         mpack_obj *result = generic_call(false, func, B("s"), mes);
         assert(result == NULL);
 }
@@ -54,7 +55,7 @@ nvim_b_printf(bstring const *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-        bstring *tmp = _b_vsprintf(fmt, ap);
+        bstring *tmp = b_explicit_vsprintf(fmt, ap);
         va_end(ap);
         nvim_out_write(tmp);
         if (tmp)
@@ -375,6 +376,7 @@ void
                        UNUSED void const *attributes)
 {
         static const bstring fn = BS_FROMARR(__func__);
+        UNUSED
         mpack_obj *result = generic_call(false, &fn, B("s; {s:d, s:d, s:s}; s; {}; {}"),
                                          name,
                                          B("major"), major,
@@ -415,6 +417,7 @@ void
         mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
                                             count, &fn, calls->args);
         b_destroy(fmt);
+        UNUSED
         mpack_obj *result = special_call(false, &fn, pack, count);
         assert(result == NULL);
 }

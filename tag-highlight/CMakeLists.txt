@@ -212,7 +212,7 @@ if (CC_IS_CLANG)
     string (JOIN " " WARNS ${WARNS}
          -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
          -Wno-gnu-statement-expression -Werror=return-type
-         -Wno-sign-compare
+         -Wno-sign-compare -Wno-dollar-in-identifier-extension
     )
     string (CONCAT BASE "${BASE} ${WARNS}")
     set (LTO_STR "-flto=full")

@@ -122,7 +122,7 @@ int
 }
 
 int
-_get_fd_count(const int fd, const bool inc)
+$get_fd_count(UNUSED const int fd, const bool inc)
 {
         static atomic_int count = ATOMIC_VAR_INIT(0);
         int ret;

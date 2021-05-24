@@ -6,6 +6,8 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_definitions(-D_BUILD_)
 
+add_subdirectory(lang/python)
+
 set (tag-highlight_SOURCES
     buffer.c
     ctags.c
@@ -96,6 +98,7 @@ target_link_libraries(tag-highlight
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
+    lang-python
 )
 
 target_compile_options(
@@ -129,7 +132,7 @@ if (USE_JEMALLOC STREQUAL "YES")
     target_link_libraries(tag-highlight ${JEMALLOC_LIBRARY})
 endif()
 
-if (TALLOC_FOUND)
+if (TALLOC_FOUND AND FALSE)
     target_link_libraries(tag-highlight ${TALLOC_LIBRARIES})
 
     install(TARGETS tag-highlight

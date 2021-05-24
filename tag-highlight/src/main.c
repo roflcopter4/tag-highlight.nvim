@@ -54,8 +54,8 @@ extern void *clang_talloc_ctx_;
 extern void *buffer_talloc_ctx_;
 extern void *tok_scan_talloc_ctx_;
 extern void *update_top_talloc_ctx_;
-extern void *__bstring_talloc_top_ctx;
-static void *main_top_talloc_ctx_ = NULL;
+extern void *BSTR_talloc_top_ctx;
+UNUSED static void *main_top_talloc_ctx_ = NULL;
 #define CTX main_top_talloc_ctx
 
 

@@ -246,8 +246,21 @@ $nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 #define SHOUT(...)                                                                                \
         P99_IF_EQ_1(P99_NARG(__VA_ARGS__))                                                        \
           (nvim_out_write(B("tag-highlight: " __VA_ARGS__ "\n")))                                 \
-          (nvim_printf("tag-highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__))); \
+          (nvim_printf("tag-highlight: " P99_CHS(0, __VA_ARGS__) "\n", P99_SKP(1, __VA_ARGS__)));
 
+
+#if 0
+#define echo(...) \
+        warn_(UTIL_ERRWARN_USE_NVIM_IO, __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+#define ECHO(...)                                                      \
+        warn_(UTIL_ERRWARN_USE_NVIM_IO | UTIL_ERRWARN_USE_BSTR_PRINTF, \
+              __FILE__, __LINE__, __func__, __VA_ARGS__)
+
+#define SHOUT(...)                                                                          \
+        warn_(UTIL_ERRWARN_USE_NVIM_IO | UTIL_ERRWARN_FORCE, \
+              __FILE__, __LINE__, __func__, __VA_ARGS__)
+#endif
 
 /*===========================================================================*/
 #ifdef __cplusplus

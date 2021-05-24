@@ -72,9 +72,11 @@ void
                 }
         } else {
         parser_failed:
+#if 0
                 if (bdata->calls)
                         update_from_cache(bdata);
                 else
+#endif
                         update_other(bdata);
         }
 
@@ -104,13 +106,14 @@ update_from_cache(Buffer *bdata)
 static void
 update_other(Buffer *bdata)
 {
-        bstring        *joined;
-        b_list         *toks;
         struct taglist *tags;
-        bool            retry = true;
+        bstring        *joined = NULL;
+        b_list         *toks   = NULL;
+        bool            retry  = true;
 
         pthread_mutex_lock(&bdata->lock.total);
 retry:
+        update_taglist(bdata, UPDATE_TAGLIST_NORMAL);
         joined = strip_comments(bdata);
         toks   = tokenize(bdata, joined); 
         tags   = process_tags(bdata, toks);
@@ -126,7 +129,7 @@ retry:
 
                 for (unsigned i = 0; i < tags->qty; ++i) {
                         b_free(tags->lst[i]->b);
-                        talloc_free(tags->lst[i]);
+                        TALLOC_FREE(tags->lst[i]);
                 }
                 talloc_free(tags->lst);
                 talloc_free(tags);
@@ -138,7 +141,7 @@ retry:
         }
 
         b_list_destroy(toks);
-        b_free(joined);
+        talloc_free(joined);
 
         if (retry) {
                 echo("Nothing whatsoever found. Re-running ctags with the "
@@ -298,7 +301,7 @@ void
         }
 
         if (bdata->hl_id > 0)
-                nvim_buf_clear_highlight(bdata->num, bdata->hl_id, 0, (-1), blocking);
+                nvim_buf_clear_namespace(bdata->num, bdata->hl_id, 0, (-1), blocking);
 
         pthread_mutex_unlock(&bdata->lock.total);
 }

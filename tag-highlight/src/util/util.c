@@ -173,6 +173,22 @@ basename(char *path)
 }
 #endif
 
+static inline bstring *
+get_project_base(const char *fullpath)
+{
+        static const bstring searchfor = BT("/src/");
+        bstring *path = b_fromcstr(fullpath);
+
+        b_regularize_path_sep(path, '/');
+        int64_t ind = b_strstr(path, &searchfor, 0);
+        if (ind > 0) {
+                path->slen -= (ind += 1); // Exclude the leading slash
+                memmove(path->data, path->data + ind, path->slen + 1);
+        }
+
+        return path;
+}
+
 #define ERRSTACKSIZE (6384)
 void
 err_(UNUSED const int status, const bool print_err, const char *file, const int line, const char *func, const char *const restrict fmt, ...)
@@ -180,20 +196,22 @@ err_(UNUSED const int status, const bool print_err, const char *file, const int 
         error_t const e = errno;
         va_list       ap;
         va_start(ap, fmt);
+        bstring *base = get_project_base(file);
 
-        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, file, line, func);
+        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
         vfprintf(stderr, fmt, ap);
         if (print_err)
                 fprintf(stderr, ": %s\n", strerror(e));
         else
                 fputc('\n', stderr);
         va_end(ap);
+        talloc_free(base);
 
         SHOW_STACKTRACE();
         fputc('\n', stderr);
         fflush(stderr);
-        exit(status);
-        //abort();
+        /* exit(status); */
+        abort();
 }
 
 extern FILE *echo_log;
@@ -205,12 +223,12 @@ warn_(const bool print_err, const bool force, const char *file, const int line, 
         if (!settings.verbose && !force)
                 return;
 
+        bstring      *base = get_project_base(file);
         va_list       ap;
         error_t const e = errno;
         pthread_mutex_lock(&mut);
 
-        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, file, line, func);
-        //fprintf(stderr, "%s: ", program_invocation_short_name);
+        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
 
         va_start(ap, fmt);
         vfprintf(stderr, fmt, ap);
@@ -221,6 +239,7 @@ warn_(const bool print_err, const bool force, const char *file, const int line, 
         else
                 fputc('\n', stderr);
 
+        talloc_free(base);
         fflush(stderr);
         pthread_mutex_unlock(&mut);
 }
@@ -302,24 +321,27 @@ fd_set_open_flag(int const fd, int const flag)
 }
 
 static void
-setup_pipe(int fds[2])
+open_pipe(int fds[2])
 {
-        // int flags;
-
+# ifdef HAVE_PIPE2
+        if (pipe2(fds, O_CLOEXEC) == (-1))
+                err(1, "pipe2()");
+# else
+        int flg;
         if (pipe(fds) == (-1))
                 err(1, "pipe()");
-
-        // if ((flags = fcntl(fds[0], F_GETFL)) == (-1))
-        //         err(10, "fcntl()");
-        // if (fcntl(fds[0], F_SETFL, flags | O_CLOEXEC) == (-1))
-        //         err(10, "fcntl()");
-        // if ((flags = fcntl(fds[1], F_GETFL)) == (-1))
-        //         err(10, "fcntl()");
-        // if (fcntl(fds[1], F_SETFL, flags | O_CLOEXEC) == (-1))
-        //         err(10, "fcntl()");
-
-        // if (fcntl(fds[0], F_SETPIPE_SZ, 254) == (-1))
-        //        err(10, "fcntl(F_SETPIPE_SZ)");
+        /* Surely the compiler will unroll this... */
+        for (int i = 0; i < 2; ++i) {
+                if ((flg = fcntl(fds[i], F_GETFL)) == (-1))
+                        err(3+i, "fcntl(F_GETFL)");
+                if (fcntl(fds[i], F_SETFL, flg | O_CLOEXEC) == (-1))
+                        err(5+i, "fcntl(F_SETFL)");
+        }
+# endif
+# ifdef __linux__  /* Can't do this on the BSDs. */
+        if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
+                err(2, "fcntl(F_SETPIPE_SZ)");
+# endif
 }
 
 bstring *
@@ -328,24 +350,8 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
         bstring *rd;
         int fds[2][2], pid, st = ~0;
 
-        setup_pipe(fds[0]);
-        setup_pipe(fds[1]);
-
-#if 0
-        if (pipe(fds[0]) == (-1))
-                err(1, "pipe()");
-        if (pipe(fds[1]) == (-1))
-                err(1, "pipe()");
-
-        for (int i = 0; i < 2; ++i)
-                for (int x = 0; x < 2; ++x)
-                        apply_cloexec(fds[i][x]);
-
-        if (fcntl(fds[0][0], F_SETPIPE_SZ, 256) == (-1))
-               err(10, "fcntl(F_SETPIPE_SZ)");
-        if (fcntl(fds[1][0], F_SETPIPE_SZ, 256) == (-1))
-               err(11, "fcntl(F_SETPIPE_SZ)");
-#endif
+        open_pipe(fds[0]);
+        open_pipe(fds[1]);
 
         if ((pid = fork()) == 0) {
                 if (dup2(fds[0][READ_FD], STDIN_FILENO) == (-1))

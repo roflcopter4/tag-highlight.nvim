@@ -1,7 +1,3 @@
-// +build ignore
-
-/* Above lines (including the blank line) are necessary to keep go from trying
- * to include this file in its build. */
 #include "Common.h"
 #include "lang/lang.h"
 
@@ -124,6 +120,10 @@ cleanup:
 
 #ifdef DOSISH
 
+/* 
+ * I *could* try to use _pipe(), but... I dunno. Still have to start the damned process,
+ * which requires Win32 HANDLEs.
+ */
 static pid_t
 start_binary(Buffer *bdata)
 {
@@ -163,6 +163,7 @@ start_binary(Buffer *bdata)
 
 #else
 
+/* If you're lazy and you know it clap your hands CLAP CLAP */
 static void openpipe(int fds[2]);
 
 static pid_t
@@ -258,7 +259,7 @@ read_pipe(Buffer *bdata)
         uint32_t num2read;
         {
                 char buf[16], *p;
-                long nread = read(bdata->godata.rd_fd, buf, 10);
+                UNUSED long nread = read(bdata->godata.rd_fd, buf, 10);
                 assert(nread == 10);
                 buf[10] = '\0';
 

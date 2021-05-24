@@ -47,16 +47,26 @@ getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
 static void
 ll_strsep(b_list *tags, uint8_t *buf)
 {
-        char    *tok;
-        uint8_t *bak = buf;
+#if 0
+        char *tok, *c, *buf;
+        buf = tok = (char *)orig_buf;
+
+        while ((c = strchrnul(buf, '\n'))) {
+                *c = '\0';
+                i
+        }
+#endif
+        char *tok;
+        uchar *orig_buf = buf;
 
         while ((tok = strsep((char **)(&buf), "\n")) != NULL) {
-                if (buf && *buf)
-                        b_list_append(tags, b_fromblk(tok, (ptrdiff_t)buf - (ptrdiff_t)tok -
-                                                               (ptrdiff_t)1ULL));
+                if (buf)
+                        b_list_append(tags, b_fromblk(tok, (unsigned)((ptrdiff_t)buf -
+                                                                      (ptrdiff_t)tok -
+                                                                      (ptrdiff_t)1ULL)));
         }
 
-        talloc_free(bak);
+        talloc_free(orig_buf);
 }
 
 

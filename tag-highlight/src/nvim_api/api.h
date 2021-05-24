@@ -124,6 +124,8 @@ extern int _nvim_api_read_fd;
 
 #define nvim_buf_clear_highlight(...)       P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
 #define nvim_buf_clear_highlight_defarg_4() false
+#define nvim_buf_clear_namespace(...)       P99_CALL_DEFARG(nvim_buf_clear_namespace, 5, __VA_ARGS__)
+#define nvim_buf_clear_namespace_defarg_4() false
 
 /*============================================================================*/
 #ifdef __cplusplus

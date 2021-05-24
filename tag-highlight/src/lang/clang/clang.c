@@ -166,22 +166,12 @@ lines2bytes(Buffer *bdata, int64_t *startend, int const first, int const last)
 /*======================================================================================*/
 
 static noreturn void
-horrible_horrible_awful_hack(void)
-{
-        execl(program_invocation_name, program_invocation_name, (char *)NULL);
-        /* Not reached. */
-        _Exit(1);
-}
-
-static noreturn void
 handle_libclang_error(unsigned const err)
 {
         extern void exit_cleanup(void);
 
         shout("Libclang error (%u). Unfortunately this is fatal at the moment.", err);
-        /* exit_cleanup(); */
-        _Exit(1);
-        /* horrible_horrible_awful_hack(); */
+        quick_exit(1);
 }
 
 static translationunit_t *

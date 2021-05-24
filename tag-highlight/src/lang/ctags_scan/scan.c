@@ -25,8 +25,6 @@ process_tags(Buffer *bdata, b_list *toks)
 {
         is_c_or_cpp = (bdata->ft->id == FT_C || bdata->ft->id == FT_CXX);
         struct taglist *list = tok_search(bdata, toks);
-        if (!list)
-                return NULL;
         return list;
 }
 
@@ -158,20 +156,19 @@ struct aDESINIT_ pdata {
         bstring const  *filename;
         bstring       **lst;
         unsigned        num;
-};
+} __attribute__((aligned(64)));
 
 
 static struct taglist *
 tok_search(Buffer const *bdata, b_list *vimbuf)
 {
         if (!bdata)
-                errx(1, "NEOTAGS ERROR: bdata is null\n");
+                errx(1, "bdata is null\n");
         if (!bdata->topdir)
-                errx(1, "NEOTAGS ERROR: bdata->topdir is NULL\n");
+                errx(1, "bdata->topdir is NULL\n");
         if (!vimbuf)
-                errx(1, "NEOTAGS ERROR: vimbuf is NULL\n");
+                errx(1, "vimbuf is NULL\n");
         if (vimbuf->qty == 0) {
-                warnx("NEOTAGS WARNING: vimbuf->qty is 0\n");
                 return NULL;
         }
 
@@ -186,7 +183,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
 
         struct top_dir  *topdir = bdata->topdir;
         b_list          *tags   = topdir->tags;
-        pthread_t       *tid    = nalloca(num_threads, sizeof(pthread_t));
+        pthread_t       *tid    = alloca(sizeof(pthread_t) * (size_t)num_threads);
         struct taglist **out    = talloc_array(CTX, struct taglist *, num_threads);
 
         ECHO("Sorting through %d tags with %d cpus.", tags->qty, num_threads);
@@ -207,7 +204,8 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         /* Launch the actual search in separate threads, with each handling as
          * close to an equal number of tags as the math allows. */
         for (unsigned i = 0; i < num_threads; ++i) {
-                struct pdata  *tmp  = malloc(sizeof(*tmp));
+                struct pdata  *tmp  = aligned_alloc(64, sizeof(struct pdata));
+                assert(tmp);
                 unsigned const quot = tags->qty / num_threads;
                 unsigned const num  = (i == num_threads - 1)
                                          ? (tags->qty - ((num_threads - 1) * quot))
@@ -227,9 +225,11 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         }
 
         /* Collect the threads. */
-        for (unsigned i = 0; i < num_threads; ++i)
+        for (unsigned i = 0; i < num_threads; ++i) {
                 pthread_join(tid[i], (void **)(&out[i]));
+        }
 
+        /* talloc_free(tid); */
         talloc_free(uniq);
         unsigned total = 0, offset = 0;
 
@@ -274,8 +274,10 @@ static void *
 do_tok_search(void *vdata)
 {
         struct pdata *data = vdata;
-        if (data->num == 0)
+        if (data->num == 0) {
+                free(data);
                 pthread_exit(NULL);
+        }
 
         struct taglist *ret = talloc(CTX, struct taglist);
         *ret = (struct taglist){ talloc_array(ret, struct tag *, INIT_MAX), 0, INIT_MAX };
@@ -343,6 +345,6 @@ do_tok_search(void *vdata)
                 talloc_free(cpy);
         }
 
-        free(vdata);
+        free(data);
         pthread_exit(ret);
 }
