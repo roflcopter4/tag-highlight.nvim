@@ -404,8 +404,6 @@ check_project_directories(bstring *dir, Filetype const *ft)
                 if (n > UINT_MAX)
                         errx(1, "Index %"PRId64" is too large.", n);
 
-                echo("Looking at %s and %s", BS(dir), BS(tmp));
-
                 tmp->data[n]      = '\0';
                 tmp->slen         = (unsigned)n;
                 char const *tmpft = (char *)(tmp->data + n + 1);

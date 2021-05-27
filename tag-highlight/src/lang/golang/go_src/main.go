@@ -47,6 +47,9 @@ const debug_override = false
 //========================================================================================
 
 func main() {
+	if len(os.Args) != 5 {
+		os.Exit(1)
+	}
 	var (
 		lfile     *os.File
 		isdebug   int
@@ -76,7 +79,7 @@ func main() {
 /*--------------------------------------------------------------------------------------*/
 
 func open_log(lfile **os.File, isdebug bool, our_fname string) {
-	if true || isdebug {
+	if isdebug {
 		open_log_dbg(lfile, our_fname)
 	} else {
 		open_log_rel(lfile, our_fname)
@@ -128,13 +131,14 @@ func wait() string {
 		panic(err)
 	}
 	// eprintf("Reading %d bytes\n", inlen)
-	// var n int
+	var n int
 
 	buf = make([]byte, inlen)
-	if _, err = io.ReadFull(os.Stdin, buf); err != nil {
+	if n, err = io.ReadFull(os.Stdin, buf); err != nil {
 		panic(err)
 	}
 	// eprintf("Read %d bytes!\n", n)
+	_ = n
 
 	return string(buf)
 }
@@ -142,6 +146,7 @@ func wait() string {
 //========================================================================================
 
 type Parsed_Data struct {
+	Output    string
 	FileName  string
 	FilePath  string
 	FileSlice []*ast.File
@@ -150,27 +155,16 @@ type Parsed_Data struct {
 	AstFile   *ast.File
 	FileToken *token.File
 	Pkg       *ast.Package
-	Info      *types.Info
+	Info      types.Info
 	Conf      types.Config
-
-	Imports []interface{}
-	Output  string
 }
 
 func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
-
 		ret = &Parsed_Data{
-			FileName:  our_fname,
-			FilePath:  our_fpath,
-			FileMap:   nil,
-			FileSlice: nil,
-			Packages:  nil,
-			FileToken: nil,
-			AstFile:   nil,
-			Pkg:       nil,
-			Info:      nil,
+			FileName: our_fname,
+			FilePath: our_fpath,
 			Conf: types.Config{
 				Importer: importer.ForCompiler(fset, "source", nil),
 				Error:    func(error) {},
@@ -229,48 +223,35 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 
 func (this *Parsed_Data) Update(buf string) {
 	var err error
-	if this.AstFile, err = parser.ParseFile(fset, this.FileName, buf, 0); err != nil {
+
+	this.AstFile, err = parser.ParseFile(fset, this.FileName, buf, 0)
+	if err != nil {
 		lg.Printf("parser.Parsefile: %v\n", err)
 	}
 
-	// this.Pkg = whyunofind(this, this.FileName)
 	this.Pkg = whyunofind(this, this.AstFile.Name.String())
 	this.FileMap = this.Pkg.Files
 	this.FileMap[this.FileName] = this.AstFile
-	this.FileSlice = []*ast.File{}
+
 	this.Output = ""
+	this.FileSlice = []*ast.File{}
+	this.Info.Defs = make(map[*ast.Ident]types.Object)
+	this.Info.Uses = make(map[*ast.Ident]types.Object)
 
 	for _, f := range this.FileMap {
 		this.FileSlice = append(this.FileSlice, f)
 	}
 
-	this.Populate()
+	if err = this.Populate(); err != nil {
+		return
+	}
 	this.Highlight()
 	this.WriteOutput()
 }
 
+/*--------------------------------------------------------------------------------------*/
+
 func (this *Parsed_Data) Populate() error {
-	// lookup := func(path string) (io.ReadCloser, error) {
-	//       return this.my_lookup(path)
-	// }
-	// var (
-	//       conf = types.Config{
-	//             // Importer: importer.Default(),
-	//             Importer: importer.ForCompiler(fset, "source", nil),
-	//             // Importer: this.get_importer(),
-	//             // Importer: importer.ForCompiler(fset, "gc", nil),
-	//
-	//             // Ignore errors so we can support packages that import "C"
-	//             Error:                    func(error) {},
-	//             DisableUnusedImportCheck: true,
-	//       }
-	// )
-
-	this.Info = &types.Info{
-		Defs: make(map[*ast.Ident]types.Object),
-		Uses: make(map[*ast.Ident]types.Object),
-	}
-
 	fset.Iterate(
 		func(f *token.File) bool {
 			if f.Name() == this.FileName {
@@ -284,18 +265,15 @@ func (this *Parsed_Data) Populate() error {
 		errx(1, "Current file not in fileset.\n")
 	}
 
-	if pkg, err := this.Conf.Check(this.FilePath, fset, this.FileSlice, this.Info); err != nil {
-		//eprintln(err.Error())
+	pkg, err := this.Conf.Check(this.FilePath, fset, this.FileSlice, &this.Info)
+	if err != nil {
 		lg.Println("check: ", err)
 		lg.Println(pkg)
-
 		return err
 	}
 
 	return nil
 }
-
-//========================================================================================
 
 func (this *Parsed_Data) Highlight() {
 	for ident, typeinfo := range this.Info.Defs {
@@ -306,7 +284,25 @@ func (this *Parsed_Data) Highlight() {
 	}
 }
 
-/*--------------------------------------------------------------------------------------*/
+func (this *Parsed_Data) WriteOutput() {
+	var (
+		err    error
+		s      = this.Output
+		lenstr = fmt.Sprintf("%010d", len(s))
+	)
+
+	if len(lenstr) != 10 {
+		panic("Invalid string output! " + lenstr)
+	}
+	if _, err = os.Stdout.WriteString(lenstr); err != nil {
+		panic(err)
+	}
+	if _, err = os.Stdout.WriteString(s); err != nil {
+		panic(err)
+	}
+}
+
+//========================================================================================
 
 func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
@@ -326,8 +322,8 @@ func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	}
 
 	this.Output += fmt.Sprintf(
-		"%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
-		kind, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column,
+		"%d\t%d\t%d\t%d\t%d\t%d\t%s\n",
+		int(kind), p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column,
 		len(ident.Name), ident.Name)
 }
 
@@ -380,26 +376,6 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 	}
 }
 
-func (this *Parsed_Data) WriteOutput() {
-	var (
-		err    error
-		s      = this.Output
-		lenstr = fmt.Sprintf("%010d", len(s))
-	)
-
-	// if len(lenstr) != 10 {
-	//       panic("Invalid string output! " + lenstr)
-	// }
-	// eprintf("Writing %d bytes as %s\n", len(s), lenstr)
-
-	if _, err = os.Stdout.WriteString(lenstr); err != nil {
-		panic(err)
-	}
-	if _, err = os.Stdout.WriteString(s); err != nil {
-		panic(err)
-	}
-}
-
 //========================================================================================
 
 func init() {
@@ -408,11 +384,6 @@ func init() {
 	// signal.Notify(sigchan, unix.SIGHUP)
 	// go sighandler(sigchan)
 }
-
-// func sighandler(c chan os.Signal) {
-//       sig := <-c
-//       panic(sig)
-// }
 
 func eprintln(a ...interface{})               { fmt.Fprintln(os.Stderr, a...); os.Stderr.Sync() }
 func eprintf(format string, a ...interface{}) { fmt.Fprintf(os.Stderr, format, a...); os.Stderr.Sync() }

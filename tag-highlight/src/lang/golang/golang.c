@@ -9,6 +9,10 @@
 # define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma GCC diagnostic ignored "-Wformat="
+
 extern void try_go_crap(Buffer *bdata);
 
 struct go_output {
@@ -96,11 +100,16 @@ highlight_go(Buffer *bdata)
 
         pthread_mutex_lock(&bdata->lock.lang_mtx);
 
+        if (!tmp || tmp->slen == 0)
+                goto cleanup;
+
         write_buffer(bdata, tmp);
         b_free(tmp);
         tmp = read_pipe(bdata);
+        /* echo("Read %'u bytes", tmp->slen); */
 
         if (!tmp || !tmp->data || tmp->slen == 0) {
+                warnx("What is it empty or somethin?");
                 retval = (-1);
                 goto cleanup;
         }
@@ -140,7 +149,7 @@ start_binary(Buffer *bdata)
                 BS(bdata->topdir->pathname),
                 (char *)0
         };
-        bstring *commandline = b_fromcstr("");
+        bstring *commandline = b_create(128);
         for (char **s = (char **)argv; *s; ++s) {
                 b_catchar(commandline, '"');
                 b_catcstr(commandline, *s);
@@ -163,8 +172,11 @@ start_binary(Buffer *bdata)
 
 #else
 
+#include <wait.h>
+
 /* If you're lazy and you know it clap your hands CLAP CLAP */
 static void openpipe(int fds[2]);
+static noreturn void *await_certain_death(void *vdata);
 
 static pid_t
 start_binary(Buffer *bdata)
@@ -185,10 +197,9 @@ start_binary(Buffer *bdata)
         openpipe(fds[1]);
 
         if ((pid = fork()) == 0) {
-                if (dup2(fds[0][READ_FD], STDIN_FILENO) == (-1))
-                        err(1, "dup2() failed\n");
-                if (dup2(fds[1][WRITE_FD], STDOUT_FILENO) == (-1))
-                        err(1, "dup2() failed\n");
+                if (dup2(fds[0][READ_FD],  STDIN_FILENO)  == (-1) ||
+                    dup2(fds[1][WRITE_FD], STDOUT_FILENO) == (-1))
+                        err(1, "dup2() failed (somehow?!)\n");
 
                 close(fds[0][0]);
                 close(fds[0][1]);
@@ -199,6 +210,10 @@ start_binary(Buffer *bdata)
                         err(1, "exec() failed\n");
         }
 
+        pid_t *arg = malloc(sizeof(pid_t));
+        *arg = pid;
+        START_DETACHED_PTHREAD(await_certain_death, arg);
+
         close(fds[0][READ_FD]);
         close(fds[1][WRITE_FD]);
         bdata->godata.wr_fd = fds[0][WRITE_FD];
@@ -206,6 +221,15 @@ start_binary(Buffer *bdata)
         bdata->godata.pid   = pid;
 
         return pid;
+}
+
+static noreturn void *
+await_certain_death(void *vdata)
+{
+        pid_t const pid = *((pid_t *)vdata);
+        free(vdata);
+        waitpid(pid, NULL, 0);
+        pthread_exit();
 }
 
 static void
@@ -243,12 +267,15 @@ write_buffer(Buffer *bdata, bstring *buf)
         {
                 char len_str[16];
                 unsigned slen = sprintf(len_str, "%010u", buf->slen);
-                /* echo("Writing %d as %s\n", buf->slen, len_str); */
+                /* echo("Writing %'d as %s\n", buf->slen, len_str); */
                 n = write(bdata->godata.wr_fd, len_str, slen);
                 if (n != slen)
                         err(1, "write() -> %u != %u", n, slen);
+                /* echo("Wrote %'u bytes.", n); */
         }
+        /* echo("Writing %'u bytes (the buffer)\n", buf->slen); */
         n = write(bdata->godata.wr_fd, buf->data, buf->slen);
+        /* echo("Wrote %'u bytes.", n); */
         if (n != buf->slen)
                 err(1, "write() -> %u != %u", n, buf->slen);
 }
@@ -284,13 +311,6 @@ read_pipe(Buffer *bdata)
 
 /*--------------------------------------------------------------------------------------*/
 
-noreturn void *
-highlight_go_pthread_wrapper(void *vdata)
-{
-        highlight_go((Buffer *)vdata);
-        pthread_exit();
-}
-
 static void
 parse_go_output(Buffer *bdata, b_list *output)
 {
@@ -306,7 +326,8 @@ parse_go_output(Buffer *bdata, b_list *output)
         B_LIST_FOREACH (output, tok) {
                 /* The data is so regular that we can get away with using scanf.
                  * I feel a bit dirty though. */
-                sscanf(BS(tok), "%d\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
+                /* warnx("lookin at \"%*s\"", (int)tok->slen, BS(tok)); */
+                sscanf(BS(tok), "%u\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
@@ -317,8 +338,10 @@ parse_go_output(Buffer *bdata, b_list *output)
                 }
 
                 group = find_group(bdata->ft, data.ch);
+                /* warnx("%s %s %c", BS(group), BTS(bdata->ft->ctags_name), data.ch); */
                 if (group) {
                         line_data const ln = {data.start.line, data.start.column, data.end.column};
+                        /* warnx("%u - %u - %u", data.start.line, data.start.column, data.end.column); */
                         add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
                 }
         }
@@ -328,6 +351,13 @@ parse_go_output(Buffer *bdata, b_list *output)
 }
 
 /*======================================================================================*/
+
+noreturn void *
+highlight_go_pthread_wrapper(void *vdata)
+{
+        highlight_go((Buffer *)vdata);
+        pthread_exit();
+}
 
 static b_list *
 separate_and_sort(bstring *output)
@@ -354,3 +384,4 @@ ident_is_ignored(Buffer *bdata, bstring const *tok)
                 return false;
         return B_LIST_BSEARCH_FAST(bdata->ft->ignored_tags, tok) != NULL;
 }
+#pragma GCC diagnostic pop

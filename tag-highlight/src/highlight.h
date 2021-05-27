@@ -198,7 +198,7 @@ find_current_buffer(void)
 }
 
 ALWAYS_INLINE void __attribute__((__nonnull__))
-$nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
+nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 {
         nvim_buf_attach(bdata->num);
 }
@@ -221,7 +221,7 @@ $nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
                       int:      nvim_buf_attach,             \
                       unsigned: nvim_buf_attach,             \
                       uint16_t: nvim_buf_attach,             \
-                      Buffer *: $nvim_buf_attach_bdata_wrap) \
+                      Buffer *: nvim_buf_attach_bdata_wrap)  \
             )(buf_)                                          \
         )
 

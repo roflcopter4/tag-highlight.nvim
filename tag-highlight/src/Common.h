@@ -15,7 +15,7 @@ extern "C" {
 #  define _CRT_NONSTDC_NO_WARNINGS
 #endif
 #ifndef __GNUC__
-//#  define __attribute__(...)
+#  define __attribute__(a)
 #endif
 #if defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"
@@ -33,9 +33,8 @@ extern "C" {
 #  define WIN32_LEAN_AND_MEAN
 #  ifdef __MINGW__
 #    include <dirent.h>
-#    include <sys/time.h>
 #    include <unistd.h>
-#    pragma GCC diagnostic ignored "-Wattributes"
+/* #    pragma GCC diagnostic ignored "-Wattributes" */
 #  else
 typedef signed long long int ssize_t;
 #  endif
@@ -59,12 +58,16 @@ extern char *basename(char *path);
 #  include <pthread.h>
 #  include <sys/socket.h>
 #  include <sys/stat.h>
-#  include <sys/time.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
 #endif
 #if (defined(__MINGW32__) || defined(__MINGW64__)) && (!defined(__MINGW__) || !defined(DOSISH))
 #  error "Something really messed up here."
+#endif
+#if defined(HAVE_TIME_H)
+#  include <time.h>
+#elif defined(HAVE_SYS_TIME_H)
+#  include <sys/time.h>
 #endif
 #ifndef __GNU_LIBRARY__
 extern const char *program_invocation_short_name;
@@ -184,10 +187,10 @@ extern char *HOME;
 #  endif
 #endif
 
-#ifdef realpath
-#  undef realpath
-#endif
 #ifdef DOSISH
+#  ifdef realpath
+#    undef realpath
+#  endif
 #  ifdef __MINGW__
 #    ifndef WINPTHREAD_API
 #      define WINPTHREAD_API __declspec(dllimport)
@@ -198,7 +201,7 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define strcasecmp   _stricmp
 #  define strncasecmp  _strnicmp
 #endif
-#if defined(__MINGW__) || !defined(DOSISH)
+#ifdef HAVE_NANOSLEEP //defined(__MINGW__) || !defined(DOSISH)
 #  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
 #else
 #  define fsleep(VAL)  Sleep((long long)((double)(VAL) * (1000.0L)))
@@ -212,6 +215,12 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #endif
 #ifndef O_DIRECTORY
 #  define O_DIRECTORY (0)
+#endif
+#ifndef O_CLOEXEC
+#  define O_CLOEXEC (0)
+#endif
+#ifndef O_EXCL
+#  define O_EXCL (0)
 #endif
 
 #ifndef __WORDSIZE

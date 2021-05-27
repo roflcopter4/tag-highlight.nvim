@@ -114,6 +114,9 @@ endif()
 ###############################################################################
 # Symbol and header checks
 
+CHECK_INCLUDE_FILE ("time.h"     HAVE_TIME_H)
+CHECK_INCLUDE_FILE ("sys/time.h" HAVE_SYS_TIME_H)
+
 check_symbol_exists (err            "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
 CHECK_SYMBOL_EXISTS (arc4random     "stdlib.h"   HAVE_ARC4RANDOM)
@@ -132,11 +135,23 @@ CHECK_SYMBOL_EXISTS (strlcat        "string.h"   HAVE_STRLCAT)
 CHECK_SYMBOL_EXISTS (strlcpy        "string.h"   HAVE_STRLCPY)
 CHECK_SYMBOL_EXISTS (strsep         "string.h"   HAVE_STRSEP)
 CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
-CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
-CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
 CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
+
+if (HAVE_TIME_H)
+    CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
+    CHECK_SYMBOL_EXISTS (gettimeofday   "time.h"     HAVE_GETTIMEOFDAY)
+    CHECK_SYMBOL_EXISTS (nanosleep      "time.h"     HAVE_NANOSLEEP)
+elseif (HAVE_SYS_TIME_H)
+    CHECK_SYMBOL_EXISTS (clock_gettime  "sys/time.h" HAVE_CLOCK_GETTIME)
+    CHECK_SYMBOL_EXISTS (gettimeofday   "sys/time.h" HAVE_GETTIMEOFDAY)
+    CHECK_SYMBOL_EXISTS (nanosleep      "sys/time.h" HAVE_NANOSLEEP)
+else()
+    CHECK_SYMBOL_EXISTS (clock_gettime  "pthread.h"  HAVE_CLOCK_GETTIME)
+    CHECK_SYMBOL_EXISTS (gettimeofday   "pthread.h"  HAVE_GETTIMEOFDAY)
+    CHECK_SYMBOL_EXISTS (nanosleep      "pthread.h"  HAVE_NANOSLEEP)
+endif()
 
 # CHECK_INCLUDE_FILE ("bsd/stdlib.h"  HAVE_BSD_STDLIB_H)
 CHECK_INCLUDE_FILE ("execinfo.h"    HAVE_EXECINFO_H)
@@ -241,9 +256,7 @@ else(MSVC) # GCC
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )
     string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
-        #-Ofast
         -mprefer-vector-width=512
-        -fvect-cost-model=unlimited
         -masm=intel -fverbose-asm
     )
     set (LTO_STR "-flto -fuse-linker-plugin")

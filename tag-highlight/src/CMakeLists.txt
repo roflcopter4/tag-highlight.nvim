@@ -6,7 +6,7 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_definitions(-D_BUILD_)
 
-add_subdirectory(lang/python)
+# add_subdirectory(lang/python)
 
 set (tag-highlight_SOURCES
     buffer.c
@@ -98,7 +98,7 @@ target_link_libraries(tag-highlight
     ${LLVM_SYSTEM_LIBRARIES}
     ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
-    lang-python
+    # lang-python
 )
 
 target_compile_options(

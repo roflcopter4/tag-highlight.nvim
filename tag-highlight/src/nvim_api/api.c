@@ -413,6 +413,8 @@ void
         }
         b_catlit(fmt, ":]]");
 
+        /* warnx("%u ->  << %s >>", calls->qty, BS(fmt)); */
+
         int const  count = INC_COUNT();
         mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
                                             count, &fn, calls->args);

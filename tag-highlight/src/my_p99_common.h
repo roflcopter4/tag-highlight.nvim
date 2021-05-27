@@ -14,6 +14,8 @@
 #define pthread_create_defarg_3() NULL
 #define pthread_exit(...)       P99_CALL_DEFARG(pthread_exit, 1, __VA_ARGS__)
 #define pthread_exit_defarg_0() NULL
+#define pthread_mutex_init(...) P99_CALL_DEFARG(pthread_mutex_init, 2, __VA_ARGS__)
+#define pthread_mutex_init_defarg_1() NULL
 
 #ifdef USE_P99_TRY
 # include "contrib/p99/p99_try.h"

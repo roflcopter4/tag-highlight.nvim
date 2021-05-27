@@ -22,12 +22,8 @@ static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static noreturn void *make_async_call(void *arg);
 static mpack_obj *make_call(bool blocking, const bstring *fn, mpack_obj *pack,  int count);
-static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func, FILE *logfp);
+static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func);
 static mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
-
-#define write_and_clean(...) P99_CALL_DEFARG(write_and_clean, 4, __VA_ARGS__)
-#define write_and_clean_defarg_3() (NULL)
-
 
 void *nvim_common_talloc_ctx_ = NULL;
 #define CTX nvim_common_talloc_ctx_
@@ -65,7 +61,7 @@ make_async_call(void *arg)
 }
 
 mpack_obj *
-$nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *const fmt, ...)
+_nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *const fmt, ...)
 {
         mpack_obj *pack;
         const int  count = INC_COUNT();
@@ -87,7 +83,7 @@ $nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *co
 }
 
 mpack_obj *
-$nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
+_nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
 {
         return make_call(blocking, fn, pack, count);
 }
@@ -139,7 +135,7 @@ await_package(nvim_wait_node *node)
 }
 
 static mpack_obj *
-(write_and_clean)(mpack_obj *pack, const int count, UNUSED const bstring *func, UNUSED FILE *logfp)
+write_and_clean(mpack_obj *pack, const int count, UNUSED const bstring *func)
 {
 #if 0 && defined DEBUG
 #  ifdef LOG_RAW_MPACK
@@ -162,8 +158,8 @@ static mpack_obj *
                 fprintf(logfp, "=================================\n"
                         "Writing request no %d: \"%s\"\n", 0, BS(func));
 
-        mpack_print_object(logfp, pack);
 #endif
+        mpack_print_object(mpack_log, pack);
 
         mpack_obj       *ret;
         nvim_wait_node *node;
@@ -179,19 +175,7 @@ static mpack_obj *
 
         p99_futex_init(&node->fut, 0);
         P99_FIFO_APPEND(&nvim_wait_queue, node);
-        /* mpack_destroy_object(pack); */
-        //b_free(*pack->packed);
         talloc_free(pack);
-
-#if 0
-        if (blocking) {
-                ret = await_package(node);
-                free(node);
-        } else {
-                ret = NULL;
-                START_DETACHED_PTHREAD(discard_package, node);
-        }
-#endif
 
         ret = await_package(node);
         free(node);

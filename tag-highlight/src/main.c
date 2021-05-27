@@ -172,7 +172,6 @@ open_logs(void)
         extern char LOGDIR[];
         snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag-highlight_log", HOME);
         mkdir(LOGDIR, 0777);
-        mpack_log = safe_fopen_fmt("%s/mpack.log", "wb", LOGDIR);
         mpack_raw = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
         setvbuf(mpack_raw, NULL, 0, _IONBF);
         cmd_log   = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
@@ -181,6 +180,9 @@ open_logs(void)
 
         /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
 #endif
+        char *tmp = strdupa(program_invocation_name);
+        tmp = dirname(tmp);
+        mpack_log = safe_fopen_fmt("%s/mpack.log", "web", tmp);
 }
 
 static noreturn void *
