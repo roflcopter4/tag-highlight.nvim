@@ -197,6 +197,12 @@ run_event_loop(int const fd)
         sigaction(SIGHUP, &act, NULL);
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
+
+#if 0
+        memset(&act, 0, sizeof(act));
+        act.sa_handler = SIG_IGN;
+        sigaction(SIGURG, &act, NULL);
+#endif
 #if 0
         memset(&act, 0, sizeof(act));
         act.sa_sigaction = child_murderer;

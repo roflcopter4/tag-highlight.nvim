@@ -6,8 +6,6 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_definitions(-D_BUILD_)
 
-# add_subdirectory(lang/python)
-
 set (tag-highlight_SOURCES
     buffer.c
     ctags.c
@@ -27,16 +25,6 @@ set (tag-highlight_SOURCES
     nvim_api/api.c
     nvim_api/common.c
     nvim_api/misc.c
-
-    lang/clang/clang.c
-    lang/clang/index.c
-    lang/clang/typeid.c
-    lang/clang/util.c
-    lang/ctags_scan/scan.c
-    lang/ctags_scan/strip.c
-    lang/ctags_scan/tok.c
-    lang/golang/golang.c
-    lang/lang.c
 
     contrib/bstring/additions.c
     contrib/bstring/bstrlib.c
@@ -88,23 +76,19 @@ if (LZMA_SUPPORT)
    set (tag-highlight_SOURCES ${tag-highlight_SOURCES} util/archive_lzma.c)
 endif()
 
+add_subdirectory(lang)
+
 add_executable(tag-highlight ${tag-highlight_SOURCES})
 
 ################################################################################
 # Libraries
 
 target_link_libraries(tag-highlight
-    ${LIBCLANG_LIBRARY}
-    ${LLVM_SYSTEM_LIBRARIES}
-    ${ZLIB_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
-    # lang-python
-)
-
-target_compile_options(
-    tag-highlight
-    PRIVATE
-    # -isystem /usr/local/include
+    ${ZLIB_LIBRARIES}
+    ${LLVM_SYSTEM_LIBRARIES}
+    ${LIBCLANG_LIBRARY}
+    tag_highlight_lang
 )
 
 if (IS_BSD)
@@ -132,7 +116,7 @@ if (USE_JEMALLOC STREQUAL "YES")
     target_link_libraries(tag-highlight ${JEMALLOC_LIBRARY})
 endif()
 
-if (TALLOC_FOUND AND FALSE)
+if (TALLOC_FOUND)
     target_link_libraries(tag-highlight ${TALLOC_LIBRARIES})
 
     install(TARGETS tag-highlight
@@ -193,6 +177,5 @@ else()
             RUNTIME DESTINATION "bin"
             LIBRARY DESTINATION "bin"
     )
-
 endif()
 

@@ -1,9 +1,8 @@
 #include "Common.h"
 #include "lang/lang.h"
+#include "lang/golang/golang.h"
 
 #include "contrib/p99/p99_count.h"
-#include <signal.h>
-#include <sys/stat.h>
 
 #ifndef WEXITSTATUS
 # define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
@@ -11,7 +10,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
-#pragma GCC diagnostic ignored "-Wformat="
+#pragma GCC diagnostic ignored "-Wformat"
 
 extern void try_go_crap(Buffer *bdata);
 
@@ -27,11 +26,6 @@ struct go_output {
         } __attribute__((aligned(128))) ident;
 } __attribute__((aligned(128)));
 
-#ifdef DEBUG
-static const char is_debug[] = "1";
-#else
-static const char is_debug[] = "0";
-#endif
 #ifdef DOSISH
 # define CMD_SUFFIX ".exe"
 #else
@@ -40,13 +34,15 @@ static const char is_debug[] = "0";
 #define READ_FD  (0)
 #define WRITE_FD (1)
 
-static pid_t       start_binary(Buffer *bdata);
-static void        parse_go_output(Buffer *bdata, b_list *output);
+static mpack_arg_array *parse_go_output(Buffer *bdata, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
 
+#if 0
+static pid_t       start_binary(Buffer *bdata);
 static void write_buffer(Buffer *bdata, bstring *buf);
 static bstring * read_pipe(Buffer *bdata);
+#endif
 
 /*======================================================================================*/
 
@@ -71,55 +67,75 @@ highlight_go(Buffer *bdata)
 {
         int      retval  = 0;
         unsigned cnt_val = p99_count_inc(&bdata->lock.num_workers);
-        if (cnt_val > 5) {
+        if (cnt_val > 3) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return retval;
         }
 
-        pthread_mutex_lock(&bdata->lock.total);
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
+
+#if 0 //ndef DOSISH
         if (!atomic_flag_test_and_set(&bdata->godata.flg)) {
                 start_binary(bdata);
         } 
-#ifndef DOSISH
         else {
                 errno = 0;
                 kill(bdata->godata.pid, 0);
                 int e = errno;
                 if (e != 0) {
-                        char errbuf[256];
-                        strerror_r(e, errbuf, 256);
-                        shout("Binary not available: %d: %s", e, errbuf);
+                        shout("Binary not available: %d : %s", e, strerror(e));
                         close(bdata->godata.rd_fd);
                         close(bdata->godata.wr_fd);
                         start_binary(bdata);
                 }
         }
 #endif
+
+        pthread_mutex_lock(&bdata->lock.total);
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
 
-        pthread_mutex_lock(&bdata->lock.lang_mtx);
-
         if (!tmp || tmp->slen == 0)
-                goto cleanup;
+                goto error;
 
+        struct golang_data *gd = bdata->godata.sock_info;
+
+#if 0
         write_buffer(bdata, tmp);
         b_free(tmp);
         tmp = read_pipe(bdata);
-        /* echo("Read %'u bytes", tmp->slen); */
+#endif
+        /* eprintf("Read %'u bytes (go output)", tmp->slen); */
+        /* eprintf("Writing %u bytes.\n", tmp->slen); */
+        golang_send_msg(gd->write_sock, tmp);
+        talloc_free(tmp);
+        tmp = golang_recv_msg(gd->read_fd);
 
         if (!tmp || !tmp->data || tmp->slen == 0) {
                 warnx("What is it empty or somethin?");
                 retval = (-1);
-                goto cleanup;
+                goto error;
         }
 
         b_list *data = separate_and_sort(tmp);
-        parse_go_output(bdata, data);
-        b_list_destroy(data);
+        mpack_arg_array *calls = parse_go_output(bdata, data);
+        talloc_free(data);
 
-cleanup:
         b_free(tmp);
+
+        pthread_mutex_lock(&bdata->lock.total);
+        pthread_mutex_unlock(&bdata->lock.lang_mtx);
+        p99_count_dec(&bdata->lock.num_workers);
+
+        nvim_call_atomic(calls);
+        talloc_free(calls);
+
+        pthread_mutex_unlock(&bdata->lock.total);
+
+
+        return retval;
+
+error:
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.lang_mtx);
         return retval;
@@ -127,6 +143,7 @@ cleanup:
 
 /*--------------------------------------------------------------------------------------*/
 
+#if 0
 #ifdef DOSISH
 
 /* 
@@ -227,8 +244,11 @@ static noreturn void *
 await_certain_death(void *vdata)
 {
         pid_t const pid = *((pid_t *)vdata);
+        int         st;
         free(vdata);
-        waitpid(pid, NULL, 0);
+        if (waitpid(pid, &st, 0) == (-1))
+                err(1, "wtf");
+        shout("Catastrophe! Binary exited! Status %d.", st);
         pthread_exit();
 }
 
@@ -250,7 +270,7 @@ openpipe(int fds[2])
                         err(5+i, "fcntl(F_SETFL)");
         }
 # endif
-# ifdef __linux__  /* Can't do this on the BSDs. */
+# if 0 //def __linux__  /* Can't do this on the BSDs. */
         if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
                 err(2, "fcntl(F_SETPIPE_SZ)");
 # endif
@@ -267,15 +287,15 @@ write_buffer(Buffer *bdata, bstring *buf)
         {
                 char len_str[16];
                 unsigned slen = sprintf(len_str, "%010u", buf->slen);
-                /* echo("Writing %'d as %s\n", buf->slen, len_str); */
+                /* eprintf("Writing %'d as %s (num2read)\n", buf->slen, len_str); */
                 n = write(bdata->godata.wr_fd, len_str, slen);
                 if (n != slen)
                         err(1, "write() -> %u != %u", n, slen);
-                /* echo("Wrote %'u bytes.", n); */
+                /* eprintf("Wrote %'u bytes (num2read).", n); */
         }
-        /* echo("Writing %'u bytes (the buffer)\n", buf->slen); */
+        /* eprintf("Writing %'u bytes (the buffer)\n", buf->slen); */
         n = write(bdata->godata.wr_fd, buf->data, buf->slen);
-        /* echo("Wrote %'u bytes.", n); */
+        /* eprintf("Wrote %'u bytes (the buffer).", n); */
         if (n != buf->slen)
                 err(1, "write() -> %u != %u", n, buf->slen);
 }
@@ -309,14 +329,18 @@ read_pipe(Buffer *bdata)
 
 }
 
+#endif
+
 /*--------------------------------------------------------------------------------------*/
 
-static void
+static mpack_arg_array *
 parse_go_output(Buffer *bdata, b_list *output)
 {
         struct go_output data;
         bstring const   *group;
         mpack_arg_array *calls = new_arg_array();
+
+        memset(&data, 0, sizeof(data));
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(bdata->num);
@@ -327,7 +351,7 @@ parse_go_output(Buffer *bdata, b_list *output)
                 /* The data is so regular that we can get away with using scanf.
                  * I feel a bit dirty though. */
                 /* warnx("lookin at \"%*s\"", (int)tok->slen, BS(tok)); */
-                sscanf(BS(tok), "%u\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
+                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
                        &data.start.line, &data.start.column, &data.end.line,
                        &data.end.column, &data.ident.len, data.ident.str);
 
@@ -346,8 +370,7 @@ parse_go_output(Buffer *bdata, b_list *output)
                 }
         }
 
-        nvim_call_atomic(calls);
-        mpack_destroy_arg_array(calls);
+        return calls;
 }
 
 /*======================================================================================*/

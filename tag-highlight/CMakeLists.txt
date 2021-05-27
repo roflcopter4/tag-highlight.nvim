@@ -4,6 +4,7 @@ include (FindPkgConfig)
 include (CheckFunctionExists)
 include (CheckSymbolExists)
 include (CheckIncludeFile)
+include (GNUInstallDirs)
 
 #if (MSVC)
 #    message(FATAL_ERROR
@@ -259,7 +260,7 @@ else(MSVC) # GCC
         -mprefer-vector-width=512
         -masm=intel -fverbose-asm
     )
-    set (LTO_STR "-flto -fuse-linker-plugin")
+    # set (LTO_STR "-flto -fuse-linker-plugin")
 
     find_program(GCC_AR "gcc-ar" REQUIRED)
     find_program(GCC_NM "gcc-nm" REQUIRED)

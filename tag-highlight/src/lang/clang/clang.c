@@ -61,7 +61,8 @@ static void clang_initializer(void)
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
 {
-        if (!bdata || !bdata->initialized)
+        /* if (!bdata || !bdata->initialized) */
+        if (!bdata || !atomic_load(&bdata->initialized))
                 return;
         if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
                 return;

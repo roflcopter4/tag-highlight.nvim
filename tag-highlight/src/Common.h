@@ -58,6 +58,10 @@ extern char *basename(char *path);
 #  include <pthread.h>
 #  include <sys/socket.h>
 #  include <sys/stat.h>
+#  include <sys/time.h>
+#  include <sys/types.h>
+#  include <sys/un.h>
+#  include <sys/wait.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
 #endif
@@ -300,7 +304,7 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 
 /* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
-#define shout(...) (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fflush(stderr))
+#define shout(...) (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fputc('\n', stderr), fflush(stderr))
 #ifdef DEBUG
 #  define eprintf(...) shout(__VA_ARGS__)
 #else

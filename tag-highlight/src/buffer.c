@@ -1,5 +1,6 @@
 #include "Common.h"
 #include "highlight.h"
+#include "lang/golang/golang.h"
 
 /* #include "buffers.h" */
 #include <signal.h>
@@ -188,8 +189,9 @@ get_bufdata(int const bufnum, Filetype *ft)
 
         if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
                 init_filetype(bdata->ft);
-        if (bdata->ft->id == FT_GO)
-                atomic_flag_clear(&bdata->godata.flg);
+        if (bdata->ft->id == FT_GO) {
+                golang_buffer_init(bdata);
+        }
 
         return bdata;
 }
@@ -258,7 +260,7 @@ get_initial_lines(Buffer *bdata)
         ll_insert_blist_after(bdata->lines, bdata->lines->head, tmp, 0, (-1));
 
         talloc_free(tmp);
-        bdata->initialized = true;
+        atomic_store(&bdata->initialized, true);
         pthread_mutex_unlock(&bdata->lock.total);
 }
 
@@ -343,8 +345,10 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
                 if (!cur || !cur->pathname)
                         continue;
                 if (cur->ftid != bdata->ft->id) {
+#if 0
                         echo("cur->ftid (%d - %s) does not equal the current ft (%d - %s), skipping",
                              cur->ftid, BTS(ftdata[cur->ftid]->vim_name), bdata->ft->id, BTS(bdata->ft->vim_name));
+#endif
                         continue;
                 }
                 if (b_iseq(cur->pathname, base)) {
@@ -753,6 +757,7 @@ void
 
         pthread_mutex_lock(&bdata->lock.total);
         pthread_mutex_lock(&bdata->lock.ctick);
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
 
         if (--bdata->topdir->refs == 0) {
                 echo("Destroying topdir (%s)", BS(bdata->topdir->pathname));
@@ -763,11 +768,11 @@ void
                 if (bdata->headers)
                         TALLOC_FREE(bdata->headers);
         } else if (bdata->ft->id == FT_GO) {
-#ifndef DOSISH
-                kill(bdata->godata.pid, SIGTERM);
-#endif
+                golang_clear_data(bdata);
+#if 0
                 close(bdata->godata.rd_fd);
                 close(bdata->godata.wr_fd);
+#endif
         } else {
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);
@@ -777,6 +782,8 @@ void
         pthread_mutex_destroy(&bdata->lock.ctick);
         pthread_mutex_unlock(&bdata->lock.total);
         pthread_mutex_destroy(&bdata->lock.total);
+        pthread_mutex_unlock(&bdata->lock.lang_mtx);
+        pthread_mutex_destroy(&bdata->lock.lang_mtx);
 
         p99_futex_wakeup(&destruction_futex[bdata->num]);
         if (flags & DES_BUF_TALLOC_FREE) {

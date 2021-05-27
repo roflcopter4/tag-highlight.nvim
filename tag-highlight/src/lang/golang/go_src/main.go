@@ -7,13 +7,10 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"github.com/davecgh/go-spew/spew"
 	// "golang.org/x/tools/gcexportdata"
 	// "github.com/golang/tools/tree/master/go/gcexportdata"
 )
@@ -21,8 +18,6 @@ import (
 var (
 	fset *token.FileSet = token.NewFileSet()
 	lg   *mylog         = new(mylog)
-
-	sigchan = make(chan os.Signal, 1)
 )
 
 type mylog struct {
@@ -47,17 +42,24 @@ const debug_override = false
 //========================================================================================
 
 func main() {
-	if len(os.Args) != 5 {
+	if len(os.Args) != 8 {
 		os.Exit(1)
 	}
 	var (
-		lfile     *os.File
-		isdebug   int
-		prog_name string = os.Args[1]
-		isdebug_s string = os.Args[2]
-		our_fname string = os.Args[3]
-		our_fpath string = os.Args[4]
+		lfile        *os.File
+		isdebug      int
+		prog_name    string = os.Args[1]
+		isdebug_s    string = os.Args[2]
+		our_fname    string = os.Args[3]
+		our_fpath    string = os.Args[4]
+		our_projpath string = os.Args[5]
+
+		sock = connect_socket_c([2]string{os.Args[6], os.Args[7]})
 	)
+
+	if err := os.Chdir(our_projpath); err != nil {
+		panic(err)
+	}
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
 	open_log(&lfile, debug_override || isdebug == 1, prog_name)
@@ -70,78 +72,42 @@ func main() {
 	data := InitialParse(our_fname, our_fpath)
 
 	for {
-		data.Update(wait())
+		data.Update(sock, wait(sock))
 	}
 
 	os.Exit(0)
 }
 
-/*--------------------------------------------------------------------------------------*/
-
-func open_log(lfile **os.File, isdebug bool, our_fname string) {
-	if isdebug {
-		open_log_dbg(lfile, our_fname)
-	} else {
-		open_log_rel(lfile, our_fname)
-	}
-}
-
-func open_log_rel(lfile **os.File, prog_name string) {
-	var err error
-	*lfile, err = os.Open(os.DevNull)
-	if err != nil {
-		panic(err)
-	}
-	lg.Logger = log.New(*lfile, prog_name+": ERROR: ", 0)
-}
-
-func open_log_dbg(lfile **os.File, prog_name string) {
-	// lfile = &os.Stderr
-	var err error
-	*lfile, err = os.OpenFile("thl_go.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_SYNC, 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	lg.Logger = log.New(*lfile, "  =====  ", 0)
-	lg.File = *lfile
-}
-
-func (l *mylog) Spew(things ...interface{}) {
-	lg.Println(spew.Sdump(things...))
-	lg.File.Sync()
-}
-
-/*--------------------------------------------------------------------------------------*/
-
-func wait() string {
-	/* The number 4294967296 (aka UINT32_MAX), which is the largest size a buffer can
-	 * be (in my app anyway) is 10 characters. The actual size of the buffer will be
-	 * padded with zeros on the left if necessary. */
-	var (
-		buf   = make([]byte, 10)
-		inlen int
-		err   error
-	)
-
-	if _, err = io.ReadFull(os.Stdin, buf); err != nil {
-		panic(err)
-	}
-	if inlen, err = strconv.Atoi(string(buf)); err != nil {
-		panic(err)
-	}
-	// eprintf("Reading %d bytes\n", inlen)
-	var n int
-
-	buf = make([]byte, inlen)
-	if n, err = io.ReadFull(os.Stdin, buf); err != nil {
-		panic(err)
-	}
-	// eprintf("Read %d bytes!\n", n)
-	_ = n
-
-	return string(buf)
-}
+// func wait() string {
+/* The number 4294967296 (aka UINT32_MAX), which is the largest size a buffer can
+ * be (in my app anyway) is 10 characters. The actual size of the buffer will be
+ * padded with zeros on the left if necessary. */
+//       var (
+//             buf   = make([]byte, 10)
+//             inlen int
+//             n     int
+//             err   error
+//       )
+//
+//       // eprintf("Reading 10 bytes (num2read)\n")
+//       if n, err = io.ReadFull(os.Stdin, buf); err != nil {
+//             panic(err)
+//       }
+//       // eprintf("Read %d bytes! (num2read)\n", n)
+//       if inlen, err = strconv.Atoi(string(buf)); err != nil {
+//             panic(err)
+//       }
+//       // eprintf("Reading %d bytes (buffer)\n", inlen)
+//
+//       buf = make([]byte, inlen)
+//       if n, err = io.ReadFull(os.Stdin, buf); err != nil {
+//             panic(err)
+//       }
+//       // eprintf("Read %d bytes (buffer)!\n", n)
+//       _ = n
+//
+//       return string(buf)
+// }
 
 //========================================================================================
 
@@ -155,17 +121,26 @@ type Parsed_Data struct {
 	AstFile   *ast.File
 	FileToken *token.File
 	Pkg       *ast.Package
-	Info      types.Info
+	Info      *types.Info
 	Conf      types.Config
 }
 
 func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
+
 		ret = &Parsed_Data{
-			FileName: our_fname,
-			FilePath: our_fpath,
+			FileName:  our_fname,
+			FilePath:  our_fpath,
+			FileMap:   nil,
+			FileSlice: nil,
+			Packages:  nil,
+			FileToken: nil,
+			AstFile:   nil,
+			Pkg:       nil,
+			Info:      new(types.Info),
 			Conf: types.Config{
+				// Importer: importer.ForCompiler(fset, "gc", nil),
 				Importer: importer.ForCompiler(fset, "source", nil),
 				Error:    func(error) {},
 
@@ -212,7 +187,7 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 			}
 		}
 	} else {
-		eprintf("wtf there are %d packages", len(data.Packages))
+		// eprintf("wtf there are %d packages", len(data.Packages))
 	}
 
 	e := fmt.Errorf("Error: Want \"%s\" or \"%s\", but it's not in ( %#+v )", fname, bname, data.Packages)
@@ -221,7 +196,7 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 
 /*--------------------------------------------------------------------------------------*/
 
-func (this *Parsed_Data) Update(buf string) {
+func (this *Parsed_Data) Update(sock *sockets, buf string) {
 	var err error
 
 	this.AstFile, err = parser.ParseFile(fset, this.FileName, buf, 0)
@@ -235,21 +210,22 @@ func (this *Parsed_Data) Update(buf string) {
 
 	this.Output = ""
 	this.FileSlice = []*ast.File{}
-	this.Info.Defs = make(map[*ast.Ident]types.Object)
-	this.Info.Uses = make(map[*ast.Ident]types.Object)
+	this.Info = &types.Info{
+		Defs: make(map[*ast.Ident]types.Object),
+		Uses: make(map[*ast.Ident]types.Object),
+	}
 
 	for _, f := range this.FileMap {
 		this.FileSlice = append(this.FileSlice, f)
 	}
 
 	if err = this.Populate(); err != nil {
-		return
+		// eprintf("Error: %v", err)
+		// return
 	}
 	this.Highlight()
-	this.WriteOutput()
+	this.WriteOutput(sock)
 }
-
-/*--------------------------------------------------------------------------------------*/
 
 func (this *Parsed_Data) Populate() error {
 	fset.Iterate(
@@ -265,7 +241,7 @@ func (this *Parsed_Data) Populate() error {
 		errx(1, "Current file not in fileset.\n")
 	}
 
-	pkg, err := this.Conf.Check(this.FilePath, fset, this.FileSlice, &this.Info)
+	pkg, err := this.Conf.Check(this.FilePath, fset, this.FileSlice, this.Info)
 	if err != nil {
 		lg.Println("check: ", err)
 		lg.Println(pkg)
@@ -284,23 +260,32 @@ func (this *Parsed_Data) Highlight() {
 	}
 }
 
-func (this *Parsed_Data) WriteOutput() {
-	var (
-		err    error
-		s      = this.Output
-		lenstr = fmt.Sprintf("%010d", len(s))
-	)
+//----------------------------------------------------------------------------------------
 
-	if len(lenstr) != 10 {
-		panic("Invalid string output! " + lenstr)
-	}
-	if _, err = os.Stdout.WriteString(lenstr); err != nil {
-		panic(err)
-	}
-	if _, err = os.Stdout.WriteString(s); err != nil {
-		panic(err)
-	}
-}
+//func (this *Parsed_Data) WriteOutput() {
+//	var (
+//		err    error
+//		n      int
+//		s      = []byte(this.Output)
+//		lenstr = []byte(fmt.Sprintf("%010d", len(s)))
+//	)
+//
+//	if len(lenstr) != 10 {
+//		panic(fmt.Sprintf("Invalid string output! %s", lenstr))
+//	}
+//	if n, err = os.Stdout.Write(lenstr); err != nil {
+//		panic(err)
+//	}
+//	if n != len(lenstr) {
+//		panic(fmt.Sprintf("Undersized write (%d != %d)", n, len(lenstr)))
+//	}
+//	if n, err = os.Stdout.Write(s); err != nil {
+//		panic(err)
+//	}
+//	if n != len(s) {
+//		panic(fmt.Sprintf("Undersized write (%d != %d)", n, len(s)))
+//	}
+//}
 
 //========================================================================================
 
@@ -322,8 +307,8 @@ func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	}
 
 	this.Output += fmt.Sprintf(
-		"%d\t%d\t%d\t%d\t%d\t%d\t%s\n",
-		int(kind), p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column,
+		"%c\t%d\t%d\t%d\t%d\t%d\t%s\n",
+		kind, p[0].Line-1, p[0].Column, p[1].Line-1, p[1].Column,
 		len(ident.Name), ident.Name)
 }
 
@@ -374,21 +359,4 @@ func get_range(init_pos token.Pos, length int) [2]token.Position {
 		fset.Position(init_pos - 1),
 		fset.Position(init_pos - 1 + token.Pos(length)),
 	}
-}
-
-//========================================================================================
-
-func init() {
-	spew.Config.Indent = "   "
-	// unix.Prctl(unix.PR_SET_PDEATHSIG, uintptr(unix.SIGHUP), 0, 0, 0)
-	// signal.Notify(sigchan, unix.SIGHUP)
-	// go sighandler(sigchan)
-}
-
-func eprintln(a ...interface{})               { fmt.Fprintln(os.Stderr, a...); os.Stderr.Sync() }
-func eprintf(format string, a ...interface{}) { fmt.Fprintf(os.Stderr, format, a...); os.Stderr.Sync() }
-
-func errx(code int, format string, a ...interface{}) {
-	eprintf(format, a...)
-	os.Exit(code)
 }
