@@ -5,7 +5,7 @@ if (NOT CMAKE_GOLANG_EXECUTABLE)
 endif()
 
 if (CMAKE_GOLANG_EXECUTABLE)
-    set (golang_SOURCES go_src/main.go go_src/sock.go)
+    set (golang_SOURCES go_src/main.go go_src/pipe.go)
     set (golang_TARGET  golang) 
     set (golang_OUTPUT  "${CMAKE_CURRENT_BINARY_DIR}/${golang_TARGET}")
     set (golang_MODDIR  "${CMAKE_CURRENT_SOURCE_DIR}/go_src")

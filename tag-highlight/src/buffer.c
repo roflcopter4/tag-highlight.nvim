@@ -769,10 +769,6 @@ void
                         TALLOC_FREE(bdata->headers);
         } else if (bdata->ft->id == FT_GO) {
                 golang_clear_data(bdata);
-#if 0
-                close(bdata->godata.rd_fd);
-                close(bdata->godata.wr_fd);
-#endif
         } else {
                 if (bdata->calls)
                         mpack_destroy_arg_array(bdata->calls);

@@ -18,6 +18,7 @@ import (
 var (
 	fset *token.FileSet = token.NewFileSet()
 	lg   *mylog         = new(mylog)
+	fds                 = make(map[string]int)
 )
 
 type mylog struct {
@@ -37,7 +38,7 @@ const (
 	TYPE_METHOD      = 'F'
 )
 
-const debug_override = false
+const debug_override = 2
 
 //========================================================================================
 
@@ -54,15 +55,18 @@ func main() {
 		our_fpath    string = os.Args[4]
 		our_projpath string = os.Args[5]
 
-		sock = connect_socket_c([2]string{os.Args[6], os.Args[7]})
+		// sock = connect_socket_c([2]string{os.Args[6], os.Args[7]})
 	)
+
+	// fds["read"], _ = strconv.Atoi(os.Args[6])
+	// fds["write"], _ = strconv.Atoi(os.Args[7])
 
 	if err := os.Chdir(our_projpath); err != nil {
 		panic(err)
 	}
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
-	open_log(&lfile, debug_override || isdebug == 1, prog_name)
+	open_log(&lfile, debug_override != 2 && (debug_override == 1 || isdebug == 1), prog_name)
 	defer func() {
 		if lfile != nil && lfile != os.Stderr {
 			lfile.Close()
@@ -72,42 +76,16 @@ func main() {
 	data := InitialParse(our_fname, our_fpath)
 
 	for {
-		data.Update(sock, wait(sock))
+		data.Update(Wait())
+		data.WriteOutput()
 	}
+
+	// for {
+	//       data.Update(sock, wait(sock))
+	// }
 
 	os.Exit(0)
 }
-
-// func wait() string {
-/* The number 4294967296 (aka UINT32_MAX), which is the largest size a buffer can
- * be (in my app anyway) is 10 characters. The actual size of the buffer will be
- * padded with zeros on the left if necessary. */
-//       var (
-//             buf   = make([]byte, 10)
-//             inlen int
-//             n     int
-//             err   error
-//       )
-//
-//       // eprintf("Reading 10 bytes (num2read)\n")
-//       if n, err = io.ReadFull(os.Stdin, buf); err != nil {
-//             panic(err)
-//       }
-//       // eprintf("Read %d bytes! (num2read)\n", n)
-//       if inlen, err = strconv.Atoi(string(buf)); err != nil {
-//             panic(err)
-//       }
-//       // eprintf("Reading %d bytes (buffer)\n", inlen)
-//
-//       buf = make([]byte, inlen)
-//       if n, err = io.ReadFull(os.Stdin, buf); err != nil {
-//             panic(err)
-//       }
-//       // eprintf("Read %d bytes (buffer)!\n", n)
-//       _ = n
-//
-//       return string(buf)
-// }
 
 //========================================================================================
 
@@ -196,7 +174,8 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 
 /*--------------------------------------------------------------------------------------*/
 
-func (this *Parsed_Data) Update(sock *sockets, buf string) {
+// func (this *Parsed_Data) Update(sock *sockets, buf string) {
+func (this *Parsed_Data) Update(buf string) {
 	var err error
 
 	this.AstFile, err = parser.ParseFile(fset, this.FileName, buf, 0)
@@ -220,11 +199,12 @@ func (this *Parsed_Data) Update(sock *sockets, buf string) {
 	}
 
 	if err = this.Populate(); err != nil {
+		/* Ugh. Just ignore the errors. */
 		// eprintf("Error: %v", err)
 		// return
 	}
 	this.Highlight()
-	this.WriteOutput(sock)
+	// this.WriteOutput(sock)
 }
 
 func (this *Parsed_Data) Populate() error {
@@ -259,33 +239,6 @@ func (this *Parsed_Data) Highlight() {
 		this.handle_ident(ident, typeinfo)
 	}
 }
-
-//----------------------------------------------------------------------------------------
-
-//func (this *Parsed_Data) WriteOutput() {
-//	var (
-//		err    error
-//		n      int
-//		s      = []byte(this.Output)
-//		lenstr = []byte(fmt.Sprintf("%010d", len(s)))
-//	)
-//
-//	if len(lenstr) != 10 {
-//		panic(fmt.Sprintf("Invalid string output! %s", lenstr))
-//	}
-//	if n, err = os.Stdout.Write(lenstr); err != nil {
-//		panic(err)
-//	}
-//	if n != len(lenstr) {
-//		panic(fmt.Sprintf("Undersized write (%d != %d)", n, len(lenstr)))
-//	}
-//	if n, err = os.Stdout.Write(s); err != nil {
-//		panic(err)
-//	}
-//	if n != len(s) {
-//		panic(fmt.Sprintf("Undersized write (%d != %d)", n, len(s)))
-//	}
-//}
 
 //========================================================================================
 

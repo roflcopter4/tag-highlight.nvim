@@ -7,6 +7,11 @@
 #ifndef WEXITSTATUS
 # define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
 #endif
+#ifdef DOSISH
+# define CMD_SUFFIX ".exe"
+#else
+# define CMD_SUFFIX
+#endif
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
@@ -26,23 +31,11 @@ struct go_output {
         } __attribute__((aligned(128))) ident;
 } __attribute__((aligned(128)));
 
-#ifdef DOSISH
-# define CMD_SUFFIX ".exe"
-#else
-# define CMD_SUFFIX
-#endif
-#define READ_FD  (0)
-#define WRITE_FD (1)
+
 
 static mpack_arg_array *parse_go_output(Buffer *bdata, b_list *output);
 static b_list     *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
-
-#if 0
-static pid_t       start_binary(Buffer *bdata);
-static void write_buffer(Buffer *bdata, bstring *buf);
-static bstring * read_pipe(Buffer *bdata);
-#endif
 
 /*======================================================================================*/
 
@@ -107,8 +100,17 @@ highlight_go(Buffer *bdata)
 #endif
         /* eprintf("Read %'u bytes (go output)", tmp->slen); */
         /* eprintf("Writing %u bytes.\n", tmp->slen); */
-        golang_send_msg(gd->write_sock, tmp);
+
+        golang_send_msg(gd->write_fd, tmp);
         talloc_free(tmp);
+        /* NANOSLEEP(3, NSEC2SECOND / 2); */
+#if 0
+        {
+                struct timespec *tmp = MKTIMESPEC(3, (NSEC2SECOND / 2));
+                eprintf("Sleeping for %g seconds", TIMESPEC2DOUBLE(tmp));
+                nanosleep(tmp, NULL);
+        }
+#endif
         tmp = golang_recv_msg(gd->read_fd);
 
         if (!tmp || !tmp->data || tmp->slen == 0) {
@@ -140,196 +142,6 @@ error:
         pthread_mutex_unlock(&bdata->lock.lang_mtx);
         return retval;
 }
-
-/*--------------------------------------------------------------------------------------*/
-
-#if 0
-#ifdef DOSISH
-
-/* 
- * I *could* try to use _pipe(), but... I dunno. Still have to start the damned process,
- * which requires Win32 HANDLEs.
- */
-static pid_t
-start_binary(Buffer *bdata)
-{
-        PROCESS_INFORMATION pi;
-        HANDLE hand[2];
-        int    fds[2];
-        bstring const *go_binary = settings.go_binary;
-        char *const argv[] = {
-                BS(go_binary),
-                (char *)program_invocation_short_name,
-                (char *)is_debug,
-                BS(bdata->name.full),
-                BS(bdata->name.path),
-                BS(bdata->topdir->pathname),
-                (char *)0
-        };
-        bstring *commandline = b_create(128);
-        for (char **s = (char **)argv; *s; ++s) {
-                b_catchar(commandline, '"');
-                b_catcstr(commandline, *s);
-                b_catlit(commandline, "\" ");
-        }
-
-        win32_start_process_with_pipe(BS(commandline), hand, &pi);
-        b_free(commandline);
-
-        if ((fds[0] = _open_osfhandle((intptr_t)hand[0], 0)) == (-1))
-                errx(1, "_open_osfhandle failed");
-        if ((fds[1] = _open_osfhandle((intptr_t)hand[1], 0)) == (-1))
-                errx(1, "_open_osfhandle failed");
-        bdata->godata.wr_fd = fds[WRITE_FD];
-        bdata->godata.rd_fd = fds[READ_FD];
-        bdata->godata.pid   = 0;
-
-        return 0;
-}
-
-#else
-
-#include <wait.h>
-
-/* If you're lazy and you know it clap your hands CLAP CLAP */
-static void openpipe(int fds[2]);
-static noreturn void *await_certain_death(void *vdata);
-
-static pid_t
-start_binary(Buffer *bdata)
-{
-        bstring const *go_binary = settings.go_binary;
-        char *const argv[] = {
-                BS(go_binary),
-                (char *)program_invocation_short_name,
-                (char *)is_debug,
-                BS(bdata->name.full),
-                BS(bdata->name.path),
-                BS(bdata->topdir->pathname),
-                (char *)0
-        };
-
-        int fds[2][2], pid;
-        openpipe(fds[0]);
-        openpipe(fds[1]);
-
-        if ((pid = fork()) == 0) {
-                if (dup2(fds[0][READ_FD],  STDIN_FILENO)  == (-1) ||
-                    dup2(fds[1][WRITE_FD], STDOUT_FILENO) == (-1))
-                        err(1, "dup2() failed (somehow?!)\n");
-
-                close(fds[0][0]);
-                close(fds[0][1]);
-                close(fds[1][0]);
-                close(fds[1][1]);
-
-                if (execvp(BS(go_binary), argv) == (-1))
-                        err(1, "exec() failed\n");
-        }
-
-        pid_t *arg = malloc(sizeof(pid_t));
-        *arg = pid;
-        START_DETACHED_PTHREAD(await_certain_death, arg);
-
-        close(fds[0][READ_FD]);
-        close(fds[1][WRITE_FD]);
-        bdata->godata.wr_fd = fds[0][WRITE_FD];
-        bdata->godata.rd_fd = fds[1][READ_FD];
-        bdata->godata.pid   = pid;
-
-        return pid;
-}
-
-static noreturn void *
-await_certain_death(void *vdata)
-{
-        pid_t const pid = *((pid_t *)vdata);
-        int         st;
-        free(vdata);
-        if (waitpid(pid, &st, 0) == (-1))
-                err(1, "wtf");
-        shout("Catastrophe! Binary exited! Status %d.", st);
-        pthread_exit();
-}
-
-static void
-openpipe(int fds[2])
-{
-# ifdef HAVE_PIPE2
-        if (pipe2(fds, O_CLOEXEC) == (-1))
-                err(1, "pipe2()");
-# else
-        int flg;
-        if (pipe(fds) == (-1))
-                err(1, "pipe()");
-        /* Surely the compiler will unroll this... */
-        for (int i = 0; i < 2; ++i) {
-                if ((flg = fcntl(fds[i], F_GETFL)) == (-1))
-                        err(3+i, "fcntl(F_GETFL)");
-                if (fcntl(fds[i], F_SETFL, flg | O_CLOEXEC) == (-1))
-                        err(5+i, "fcntl(F_SETFL)");
-        }
-# endif
-# if 0 //def __linux__  /* Can't do this on the BSDs. */
-        if (fcntl(fds[0], F_SETPIPE_SZ, 16384) == (-1))
-                err(2, "fcntl(F_SETPIPE_SZ)");
-# endif
-}
-
-#endif
-
-/*--------------------------------------------------------------------------------------*/
-
-static void
-write_buffer(Buffer *bdata, bstring *buf)
-{
-        unsigned n;
-        {
-                char len_str[16];
-                unsigned slen = sprintf(len_str, "%010u", buf->slen);
-                /* eprintf("Writing %'d as %s (num2read)\n", buf->slen, len_str); */
-                n = write(bdata->godata.wr_fd, len_str, slen);
-                if (n != slen)
-                        err(1, "write() -> %u != %u", n, slen);
-                /* eprintf("Wrote %'u bytes (num2read).", n); */
-        }
-        /* eprintf("Writing %'u bytes (the buffer)\n", buf->slen); */
-        n = write(bdata->godata.wr_fd, buf->data, buf->slen);
-        /* eprintf("Wrote %'u bytes (the buffer).", n); */
-        if (n != buf->slen)
-                err(1, "write() -> %u != %u", n, buf->slen);
-}
-
-static bstring *
-read_pipe(Buffer *bdata)
-{
-        uint32_t num2read;
-        {
-                char buf[16], *p;
-                UNUSED long nread = read(bdata->godata.rd_fd, buf, 10);
-                assert(nread == 10);
-                buf[10] = '\0';
-
-                num2read = strtoull(buf, &p, 10);
-#ifndef NDEBUG
-                if (p != buf + 10)
-                        errx(1, "Invalid input %d, %s (%s)", num2read, buf, p);
-#endif
-        }
-
-        bstring *ret = b_create(num2read + 1);
-        do {
-                ret->slen += read(bdata->godata.rd_fd, ret->data + ret->slen, num2read);
-        } while (ret->slen != num2read);
-        if (ret->slen != num2read)
-                err(1, "read() -> %u != %u", ret->slen, num2read);
-        ret->data[ret->slen] = '\0';
-
-        return ret;
-
-}
-
-#endif
 
 /*--------------------------------------------------------------------------------------*/
 

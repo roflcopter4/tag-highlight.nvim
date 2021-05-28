@@ -118,7 +118,6 @@ struct bufdata {
                 struct {
                         atomic_flag flg;
                         pid_t pid;
-                        int   rd_fd;
                         void *sock_info;
                 } godata;
                 /* generic */

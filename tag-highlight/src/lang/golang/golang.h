@@ -12,6 +12,7 @@ struct golang_data {
         bstring *path2;
         int      write_sock;
         int      read_sock;
+        int      write_fd;
         int      read_fd;
         pthread_mutex_t mut;
 };

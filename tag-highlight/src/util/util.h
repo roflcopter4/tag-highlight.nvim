@@ -82,15 +82,17 @@ struct timer {
 
 /*======================================================================================*/
 
-#define USEC2SECOND (1000000.0)
-#define NSEC2SECOND (1000000000.0)
+#define USEC2SECOND (1000000LLU)
+#define NSEC2SECOND (1000000000LLU)
 
+#if 0
 #define MKTIMESPEC(FLT) ((struct timespec[]){{ \
           (int64_t)(FLT),                    \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND)}})
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
+#endif
 
 #define TDIFF(STV1, STV2)                                            \
-        (((double)((STV2).tv_usec - (STV1).tv_usec) / USEC2SECOND) + \
+        (((double)((STV2).tv_usec - (STV1).tv_usec) / (double)USEC2SECOND) + \
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
 /* Taken from glibc */
@@ -105,15 +107,23 @@ struct timer {
         } while (0)
 
 #define TIMESPECDIFF(STV1, STV2)                                         \
-        (((double)((STV2)->tv_nsec - (STV1)->tv_nsec) / NSEC2SECOND) + \
+        (((double)((STV2)->tv_nsec - (STV1)->tv_nsec) / (double)NSEC2SECOND) + \
          ((double)((STV2)->tv_sec - (STV1)->tv_sec)))
 
 #define TIMESPEC2DOUBLE(STV) \
-        ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / NSEC2SECOND)))
+        ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / (double)NSEC2SECOND)))
 
+#define DOUBLE2TIMESPEC(FLT) ((struct timespec[]){{ \
+          (int64_t)(FLT),                           \
+          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
+#if 0
 #define DOUBLE2TIMESPEC(STV, FLT)            \
         ((STV)->tv_sec  = (int64_t)(FLT), \
-         (STV)->tv_nsec = (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * NSEC2SECOND))
+         (STV)->tv_nsec = (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND))
+#endif
+
+#define MKTIMESPEC(s, n) ((struct timespec[]){{s, n}})
+#define NANOSLEEP(s, n) nanosleep(MKTIMESPEC((s), (n)), NULL)
 
 /*===========================================================================*/
 /* Generic Utility Functions */
