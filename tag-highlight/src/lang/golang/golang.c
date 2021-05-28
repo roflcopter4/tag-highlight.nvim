@@ -12,6 +12,7 @@
 #else
 # define CMD_SUFFIX
 #endif
+#define ALIGN
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
@@ -19,22 +20,25 @@
 
 extern void try_go_crap(Buffer *bdata);
 
+
+/* Clang doesn't shut up unless you use __attribute__((aligned)). Someone should tell
+ * the LLVM devs that alignas exists. */
 struct go_output {
         int ch;
-        struct {
+        alignas(8) struct {
                 unsigned line;
                 unsigned column;
-        } __attribute__((aligned(8))) start, end;
-        struct {
+        } start, end;
+        alignas(128) struct {
                 unsigned len;
                 char     str[1024];
-        } __attribute__((aligned(128))) ident;
-} __attribute__((aligned(128)));
-
+        } ident;
+}
+__attribute__((aligned(128)));
 
 
 static mpack_arg_array *parse_go_output(Buffer *bdata, b_list *output);
-static b_list     *separate_and_sort(bstring *output);
+static b_list          *separate_and_sort(bstring *output);
 static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribute__((pure));
 
 /*======================================================================================*/
@@ -88,56 +92,36 @@ highlight_go(Buffer *bdata)
         bstring *tmp = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
 
+        struct golang_data *gd = bdata->godata.sock_info;
+        mpack_arg_array    *calls;
+        b_list *data;
+
         if (!tmp || tmp->slen == 0)
                 goto error;
 
-        struct golang_data *gd = bdata->godata.sock_info;
-
-#if 0
-        write_buffer(bdata, tmp);
-        b_free(tmp);
-        tmp = read_pipe(bdata);
-#endif
-        /* eprintf("Read %'u bytes (go output)", tmp->slen); */
-        /* eprintf("Writing %u bytes.\n", tmp->slen); */
-
         golang_send_msg(gd->write_fd, tmp);
         talloc_free(tmp);
-        /* NANOSLEEP(3, NSEC2SECOND / 2); */
-#if 0
-        {
-                struct timespec *tmp = MKTIMESPEC(3, (NSEC2SECOND / 2));
-                eprintf("Sleeping for %g seconds", TIMESPEC2DOUBLE(tmp));
-                nanosleep(tmp, NULL);
-        }
-#endif
         tmp = golang_recv_msg(gd->read_fd);
 
-        if (!tmp || !tmp->data || tmp->slen == 0) {
-                warnx("What is it empty or somethin?");
-                retval = (-1);
+        if (!tmp || !tmp->data || tmp->slen == 0)
                 goto error;
-        }
 
-        b_list *data = separate_and_sort(tmp);
-        mpack_arg_array *calls = parse_go_output(bdata, data);
+        data  = separate_and_sort(tmp);
+        calls = parse_go_output(bdata, data);
         talloc_free(data);
-
         b_free(tmp);
 
         pthread_mutex_lock(&bdata->lock.total);
-        pthread_mutex_unlock(&bdata->lock.lang_mtx);
         p99_count_dec(&bdata->lock.num_workers);
+        pthread_mutex_unlock(&bdata->lock.lang_mtx);
 
         nvim_call_atomic(calls);
         talloc_free(calls);
-
         pthread_mutex_unlock(&bdata->lock.total);
-
-
         return retval;
 
 error:
+        retval = retval == 0 ? (-1) : retval;
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.lang_mtx);
         return retval;
@@ -148,11 +132,10 @@ error:
 static mpack_arg_array *
 parse_go_output(Buffer *bdata, b_list *output)
 {
-        struct go_output data;
+        struct go_output out;
         bstring const   *group;
         mpack_arg_array *calls = new_arg_array();
-
-        memset(&data, 0, sizeof(data));
+        memset(&out, 0, sizeof(out));
 
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(bdata->num);
@@ -160,24 +143,18 @@ parse_go_output(Buffer *bdata, b_list *output)
                 add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
 
         B_LIST_FOREACH (output, tok) {
-                /* The data is so regular that we can get away with using scanf.
+                /* The out is so regular that we can get away with using scanf.
                  * I feel a bit dirty though. */
-                /* warnx("lookin at \"%*s\"", (int)tok->slen, BS(tok)); */
-                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%1023s", &data.ch,
-                       &data.start.line, &data.start.column, &data.end.line,
-                       &data.end.column, &data.ident.len, data.ident.str);
+                sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%1023s", &out.ch,
+                       &out.start.line, &out.start.column, &out.end.line,
+                       &out.end.column, &out.ident.len, out.ident.str);
 
-                {
-                        bstring tmp = bt_fromblk(data.ident.str, data.ident.len);
-                        if (ident_is_ignored(bdata, &tmp))
-                                continue;
-                }
+                if (ident_is_ignored(bdata, btp_fromblk(out.ident.str, out.ident.len)))
+                        continue;
 
-                group = find_group(bdata->ft, data.ch);
-                /* warnx("%s %s %c", BS(group), BTS(bdata->ft->ctags_name), data.ch); */
+                group = find_group(bdata->ft, out.ch);
                 if (group) {
-                        line_data const ln = {data.start.line, data.start.column, data.end.column};
-                        /* warnx("%u - %u - %u", data.start.line, data.start.column, data.end.column); */
+                        line_data const ln = {out.start.line, out.start.column, out.end.column};
                         add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
                 }
         }

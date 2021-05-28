@@ -18,7 +18,6 @@ import (
 var (
 	fset *token.FileSet = token.NewFileSet()
 	lg   *mylog         = new(mylog)
-	fds                 = make(map[string]int)
 )
 
 type mylog struct {
@@ -57,9 +56,6 @@ func main() {
 
 		// sock = connect_socket_c([2]string{os.Args[6], os.Args[7]})
 	)
-
-	// fds["read"], _ = strconv.Atoi(os.Args[6])
-	// fds["write"], _ = strconv.Atoi(os.Args[7])
 
 	if err := os.Chdir(our_projpath); err != nil {
 		panic(err)
@@ -106,17 +102,9 @@ type Parsed_Data struct {
 func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 	var (
 		err error
-
 		ret = &Parsed_Data{
-			FileName:  our_fname,
-			FilePath:  our_fpath,
-			FileMap:   nil,
-			FileSlice: nil,
-			Packages:  nil,
-			FileToken: nil,
-			AstFile:   nil,
-			Pkg:       nil,
-			Info:      new(types.Info),
+			FileName: our_fname,
+			FilePath: our_fpath,
 			Conf: types.Config{
 				// Importer: importer.ForCompiler(fset, "gc", nil),
 				Importer: importer.ForCompiler(fset, "source", nil),
@@ -128,6 +116,7 @@ func InitialParse(our_fname, our_fpath string) *Parsed_Data {
 	)
 
 	if ret.Packages, err = parse_whole_dir(ret.FilePath); err != nil {
+		/* Errors don't really matter. There are bound to be some. */
 		lg.Printf("parse_files: %v\n", err)
 	}
 
@@ -246,7 +235,8 @@ func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	if ident == nil {
 		return
 	}
-	var kind int = identify_kind(ident, typeinfo)
+
+	kind := identify_kind(ident, typeinfo)
 
 	if kind == 0 {
 		return
@@ -254,7 +244,9 @@ func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	if this.FileToken.Name() != fset.File(ident.Pos()).Name() {
 		return
 	}
+
 	p := get_range(ident.Pos(), len(ident.Name))
+
 	if p[0].Line <= 0 || p[1].Line <= 0 {
 		return
 	}
@@ -300,6 +292,7 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
 		if x.IsField() {
 			ret = TYPE_FIELD
 		} else if typeinfo.Parent() != nil && typeinfo.Parent().Parent() == types.Universe {
+			/* Variable is in the 'Universe' scope, meaning it is global. */
 			ret = TYPE_VARIABLE
 		}
 	}

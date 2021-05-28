@@ -145,16 +145,6 @@ static noreturn void event_loop(int fd);
 #  include <wait.h>
 static jmp_buf event_loop_jmp_buf;
 
-#if 0
-static void
-child_murderer(int signum, siginfo_t *info, UNUSED void *vdata)
-{
-        if (signum != SIGCHLD)
-                abort();
-        if (waitpid(info->si_pid, NULL, 0) == (-1))
-}
-#endif
-
 static noreturn void
 event_loop_sighandler(int signum)
 {
@@ -197,20 +187,6 @@ run_event_loop(int const fd)
         sigaction(SIGHUP, &act, NULL);
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
-
-#if 0
-        memset(&act, 0, sizeof(act));
-        act.sa_handler = SIG_IGN;
-        sigaction(SIGURG, &act, NULL);
-#endif
-#if 0
-        memset(&act, 0, sizeof(act));
-        act.sa_sigaction = child_murderer;
-        act.sa_flags = SA_SIGINFO | SA_RESTART;
-        act.sa_handler = SIG_IGN;
-        act.sa_flags = SA_SIGINFO | SA_RESTART | SA_NOCLDWAIT;
-        sigaction(SIGCHLD, &act, NULL);
-#endif
 # endif
         /* Run the show. */
         event_loop(fd);

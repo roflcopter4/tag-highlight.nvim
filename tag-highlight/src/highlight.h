@@ -126,7 +126,7 @@ struct bufdata {
                         b_list          *cmd_cache;
                 };
         };
-};
+} __attribute__((aligned(128)));
 
 struct cmd_info {
         unsigned num;
