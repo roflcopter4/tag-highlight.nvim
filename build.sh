@@ -60,11 +60,11 @@ make_link() {
 
 ################################################################################
 
-check() {
-    Exists 'cmake' || die 'Cmake not found'
-    Exists 'llvm-config' || die 'llvm not found'
-    Exists "$CC" || Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
-}
+# check() {
+#     Exists 'cmake' || die 'Cmake not found'
+#     Exists 'llvm-config' || die 'llvm not found'
+#     Exists "$CC" || Exists 'gcc' || Exists 'clang' || die 'No appropriate compiler found.'
+# }
 
 guess_system() {
     _output=$(uname)
@@ -131,7 +131,7 @@ conf_cond() {
 init() {
     git submodule update --init
 
-    cat >"${top_dir}/autoload/tag-highlight/install_info.vim" <<EOF
+    cat >"${top_dir}/autoload/tag_highlight/install_info.vim" <<EOF
 function! tag_highlight#install_info#GetBinaryName()
     return '${final_path}'
 endfunction
@@ -179,7 +179,7 @@ build_go_binary() {
 
 compile() {
     # echo 'Compiling Tag-Highlight.nvim' >&2
-    check
+    # check
     cd "$project_dir" || die
     if [ -d 'build' ]; then
         mv build _build_bak >/dev/null 2>&1 || rm -rf build || die
@@ -278,7 +278,7 @@ system_type=$(guess_system)
 link_cmd=$(get_link_command)
 
 mkdir -p "${top_dir}/autoload"
-mkdir -p "${top_dir}/autoload/tag-highlight"
+mkdir -p "${top_dir}/autoload/tag_highlight"
 mkdir -p "${top_dir}/cache"
 mkdir -p "${top_dir}/cache/tags"
 mkdir -p "${top_dir}/bin"

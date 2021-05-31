@@ -286,7 +286,7 @@ start_binary(Buffer *bdata)
 /*--------------------------------------------------------------------------------------*/
 #else
 
-#include <wait.h>
+#include <sys/wait.h>
 
 /* If you're lazy and you know it clap your hands CLAP CLAP */
 static void openpipe(int fds[2]);

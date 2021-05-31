@@ -142,7 +142,7 @@ event_loop_init_watchers(struct ev_loop *loop)
 static noreturn void event_loop(int fd);
 
 # ifndef DOSISH
-#  include <wait.h>
+#  include <sys/wait.h>
 static jmp_buf event_loop_jmp_buf;
 
 static noreturn void

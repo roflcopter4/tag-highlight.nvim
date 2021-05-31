@@ -16,6 +16,13 @@ function! s:InitVar(varname, val)
     endif
 endfunction
 
+try
+    call s:InitVar('directory',     tag_highlight#install_info#GetCachePath())
+" catch /E116\|E117\|E121/
+"     echom 'Tag-Highlight is not initialized/installed. Exiting early.'
+"     finish
+endtry
+
 let s:ignored_tags = {
             \  'c':   ['bool', 'static_assert', '__attribute__', 'true', 'false'],
             \  'cpp': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
@@ -29,7 +36,6 @@ endif
 call s:InitVar('file', '')
 call s:InitVar('ctags_bin', 'ctags')
 call s:InitVar('ignored_dirs', [])
-call s:InitVar('directory',     tag_highlight#install_info#GetCachePath())
 call s:InitVar('bin',           expand(g:tag_highlight#directory . '/bin/tag_highlight'))
 call s:InitVar('settings_file', expand(g:tag_highlight#directory . '/tag_highlight.txt'))
 call s:InitVar('use_compression',   1)

@@ -65,6 +65,12 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
 
+if (UNIX)
+    # Why some compilers don't include this by default is something I think
+    # I'll never understand.
+    include_directories("/usr/local/include")
+endif()
+
 set (CMAKE_REQUIRED_DEFINITIONS -D__USE_ISOC11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
 
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")

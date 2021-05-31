@@ -180,9 +180,10 @@ open_logs(void)
 
         /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
 #endif
-        char *tmp = strdupa(program_invocation_name);
-        tmp = dirname(tmp);
-        mpack_log = safe_fopen_fmt("%s/mpack.log", "web", tmp);
+        char *tmp = strdup(program_invocation_name);
+        char *dname = dirname(tmp);
+        mpack_log = safe_fopen_fmt("%s/mpack.log", "web", dname);
+        free(tmp);
 }
 
 static noreturn void *
