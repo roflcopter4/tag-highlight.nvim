@@ -173,7 +173,7 @@ retry:
         /* --- Mainly C++ Stuff --- */
         case CXCursor_Constructor:
         case CXCursor_Destructor:
-                ADD_CALL(CTAGS_CLASS);
+                ADD_CALL(EXTENSION_METHOD);
                 break;
 
         case CXCursor_TemplateTypeParameter:

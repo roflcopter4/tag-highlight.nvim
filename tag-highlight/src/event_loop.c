@@ -151,7 +151,6 @@ event_loop_sighandler(int signum)
         switch (signum) {
         case SIGUSR1:
                 longjmp(event_loop_jmp_buf, 1);
-                break;
         case SIGTERM:
                 quick_exit(0);
         default:
@@ -172,12 +171,6 @@ run_event_loop(int const fd)
 # ifndef DOSISH
         /* Don't bother handling signals at all on Windows. */
         event_loop_thread = pthread_self();
-        int signum;
-
-        if ((signum = setjmp(event_loop_jmp_buf)) != 0) {
-                eprintf("I gone and got a (%d)\n", signum);
-                return;
-        }
 
         struct sigaction act;
         memset(&act, 0, sizeof(act));
@@ -187,6 +180,9 @@ run_event_loop(int const fd)
         sigaction(SIGHUP, &act, NULL);
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
+
+        if (setjmp(event_loop_jmp_buf) != 0)
+                return;
 # endif
         /* Run the show. */
         event_loop(fd);

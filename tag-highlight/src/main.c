@@ -58,7 +58,6 @@ extern void *BSTR_talloc_top_ctx;
 UNUSED static void *main_top_talloc_ctx_ = NULL;
 #define CTX main_top_talloc_ctx
 
-
 /*======================================================================================*/
 
 int
@@ -112,7 +111,7 @@ static void
 general_init(void)
 {
 #ifdef DEBUG
-        talloc_log_file = safe_fopen_fmt("%s/talloc_report.log", "wb", HOME);
+        talloc_log_file = safe_fopen_fmt("wb", "%s/talloc_report.log", HOME);
 #endif
 #if defined SANITIZE && !defined SANITIZER_LOG_PLACE
         {
@@ -172,17 +171,17 @@ open_logs(void)
         extern char LOGDIR[];
         snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag-highlight_log", HOME);
         mkdir(LOGDIR, 0777);
-        mpack_raw = safe_fopen_fmt("%s/mpack_raw", "wb", LOGDIR);
+        mpack_raw = safe_fopen_fmt("wb", "%s/mpack_raw", LOGDIR);
         setvbuf(mpack_raw, NULL, 0, _IONBF);
-        cmd_log   = safe_fopen_fmt("%s/commandlog.log", "wb", LOGDIR);
-        echo_log  = safe_fopen_fmt("%s/echo.log", "wb", LOGDIR);
-        main_log  = safe_fopen_fmt("%s/buf.log", "wb+", LOGDIR);
+        cmd_log   = safe_fopen_fmt("wb", "%s/commandlog.log", LOGDIR);
+        echo_log  = safe_fopen_fmt("wb", "%s/echo.log", LOGDIR);
+        main_log  = safe_fopen_fmt("wb+", "%s/buf.log", LOGDIR);
 
         /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
 #endif
         char *tmp = strdup(program_invocation_name);
         char *dname = dirname(tmp);
-        mpack_log = safe_fopen_fmt("%s/mpack.log", "web", dname);
+        mpack_log = safe_fopen_fmt("web", "%s/mpack.log", dname);
         free(tmp);
 }
 

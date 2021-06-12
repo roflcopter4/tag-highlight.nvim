@@ -79,12 +79,12 @@ safe_fopen(const char *filename, const char *mode)
 }
 
 FILE *
-safe_fopen_fmt(const char *const restrict fmt,
-               const char *const restrict mode,
+safe_fopen_fmt(const char *const restrict mode,
+               const char *const restrict fmt,
                ...)
 {
         va_list va;
-        va_start(va, mode);
+        va_start(va, fmt);
         char buf[SAFE_PATH_MAX + 1];
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
@@ -116,11 +116,10 @@ safe_open(const char *const filename, const int flags, const int mode)
 }
 
 int
-safe_open_fmt(const char *const restrict fmt,
-              const int flags, const int mode, ...)
+safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, ...)
 {
         va_list va;
-        va_start(va, mode);
+        va_start(va, fmt);
         char buf[SAFE_PATH_MAX + 1];
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
@@ -191,7 +190,13 @@ get_project_base(const char *fullpath)
 
 #define ERRSTACKSIZE (6384)
 void
-err_(UNUSED const int status, const bool print_err, const char *file, const int line, const char *func, const char *const restrict fmt, ...)
+err_(int  const UNUSED    status,
+     bool const           print_err,
+     char const *restrict file,
+     int  const           line,
+     char const *restrict func,
+     char const *restrict fmt,
+     ...)
 {
         error_t const e = errno;
         va_list       ap;
@@ -216,7 +221,13 @@ err_(UNUSED const int status, const bool print_err, const char *file, const int 
 
 extern FILE *echo_log;
 void
-warn_(const bool print_err, const bool force, const char *file, const int line, const char *func, const char *const restrict fmt, ...)
+warn_(bool const           print_err,
+      bool const           force,
+      char const *restrict file,
+      int  const           line,
+      char const *restrict func,
+      char const *restrict fmt,
+      ...)
 {
         static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 

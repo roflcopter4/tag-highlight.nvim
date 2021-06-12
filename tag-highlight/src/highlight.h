@@ -23,6 +23,7 @@ typedef struct bufdata Buffer;
 typedef struct filetype Filetype;
 
 struct settings_s {
+    alignas(__WORDSIZE * 2)
         uint16_t    job_id;
         uint8_t     comp_level;
         bool        enabled;
@@ -76,14 +77,13 @@ struct bufdata {
         /* atomic_uint ctick; */
         p99_futex   ctick;
         p99_futex   highest_ctick;
-        atomic_flag ctick_seen_2;
-        atomic_flag ctick_seen_3;
 
         atomic_uint last_ctick;
         atomic_bool is_normal_mode;
         uint16_t    num;
         uint8_t     hl_id;
         atomic_bool initialized;
+        jmp_buf jbuf;
 
         struct {
                 pthread_mutex_t total;
@@ -126,7 +126,7 @@ struct bufdata {
                         b_list          *cmd_cache;
                 };
         };
-} __attribute__((aligned(128)));
+};
 
 struct cmd_info {
         unsigned num;

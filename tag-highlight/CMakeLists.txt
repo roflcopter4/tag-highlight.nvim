@@ -6,11 +6,6 @@ include (CheckSymbolExists)
 include (CheckIncludeFile)
 include (GNUInstallDirs)
 
-#if (MSVC)
-#    message(FATAL_ERROR
-#            "MSVC is not and will probably never be supported. Use MinGW")
-#endif()
-
 ###############################################################################
 # Options
 
@@ -34,12 +29,13 @@ if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE "Release")
 endif()
 
-if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL
-                                            "RelWithDebInfo"))
+if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
     set (DEBUG 1)
 endif()
 
-if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|OpenBSD|DragonFly|NetBSD")
+# if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|OpenBSD|DragonFly|NetBSD")
+# Only FreeBSD and friends work right now.
+if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|DragonFly")
     set (IS_BSD 1)
 endif()
 
@@ -167,10 +163,9 @@ CHECK_INCLUDE_FILE ("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
 CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
 
-# if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
-#      # pkg_check_modules(LIBBSD libbsd)
-#      find_package(LibBSD)
-# endif()
+if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
+     find_package(LibBSD)
+endif()
 
 ###############################################################################
 # General flags
@@ -207,7 +202,7 @@ endif()
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
 string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -pipe -std=gnu11 -fdiagnostics-color=always -m64")
+                    " -pipe -std=gnu11 -fdiagnostics-color=always")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
@@ -255,7 +250,10 @@ if (CC_IS_CLANG)
     set (CMAKE_NM "${LLVM_NM}")
     set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
-else(MSVC) # GCC
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+    string(CONCAT CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
+
+elseif (NOT MSVC) # GCC
 
     string (JOIN " " WARNS ${WARNS}
          -Wsuggest-attribute=pure
@@ -266,7 +264,7 @@ else(MSVC) # GCC
         -mprefer-vector-width=512
         -masm=intel -fverbose-asm
     )
-    # set (LTO_STR "-flto -fuse-linker-plugin")
+    set (LTO_STR "-flto -fuse-linker-plugin")
 
     find_program(GCC_AR "gcc-ar" REQUIRED)
     find_program(GCC_NM "gcc-nm" REQUIRED)

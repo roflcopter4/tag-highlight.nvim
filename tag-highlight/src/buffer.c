@@ -222,8 +222,6 @@ init_buffer_mutexes(Buffer *bdata)
         p99_count_init((p99_count *)&bdata->lock.num_workers, 0);
         p99_futex_init(&bdata->ctick, 0);
         p99_futex_init(&bdata->ctick, 0);
-        atomic_flag_clear_explicit(&bdata->ctick_seen_2, memory_order_relaxed);
-        atomic_flag_clear_explicit(&bdata->ctick_seen_3, memory_order_relaxed);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -306,7 +304,7 @@ init_topdir(Buffer *bdata)
         bstring *cdir = b_strcpy(settings.cache_dir);
 
         tdir            = talloc_zero(CTX, Top_Dir);
-        tdir->tmpfd     = safe_open(BS(tnam), O_CREAT|O_RDWR|O_EXCL|O_BINARY|O_CLOEXEC, 0600);
+        tdir->tmpfd     = (int16_t)safe_open(BS(tnam), O_CREAT|O_RDWR|O_EXCL|O_BINARY|O_CLOEXEC, 0600);
         tdir->gzfile    = talloc_move(tdir, &cdir);
         tdir->pathname  = talloc_move(tdir, &dir);
         tdir->tmpfname  = talloc_move(tdir, &tnam);
@@ -342,15 +340,8 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
         LL_FOREACH_F (top_dirs, node) {
                 Top_Dir *cur = node->data;
 
-                if (!cur || !cur->pathname)
+                if (!cur || !cur->pathname || cur->ftid != bdata->ft->id)
                         continue;
-                if (cur->ftid != bdata->ft->id) {
-#if 0
-                        echo("cur->ftid (%d - %s) does not equal the current ft (%d - %s), skipping",
-                             cur->ftid, BTS(ftdata[cur->ftid]->vim_name), bdata->ft->id, BTS(bdata->ft->vim_name));
-#endif
-                        continue;
-                }
                 if (b_iseq(cur->pathname, base)) {
                         ECHO("Using already initialized project directory \"%s\"", cur->pathname);
                         cur->refs++;
@@ -380,71 +371,6 @@ check_norecurse_directories(bstring const *const dir)
                         return false;
 
         return true;
-}
-
-/*
- * Check the file `tag-highlight.txt' for any directories the user has specified
- * to be `project' directories. Anything under them in the directory tree will
- * use that directory as its base.
- */
-static bstring *
-check_project_directories(bstring *dir, Filetype const *ft)
-{
-#ifdef DOSISH
-        FILE *fp = fopen(BS(settings.settings_file), "rb");
-#else
-        FILE *fp = fopen(BS(settings.settings_file), "reb");
-#endif
-        if (!fp)
-                return dir;
-
-        b_list  *candidates = b_list_create();
-        bstring *tmp;
-
-        for (tmp = NULL; (tmp = B_GETS(fp, '\n', false)); talloc_free(tmp)) {
-                int64_t n = b_strchr(tmp, '\t');
-                if (n < 0)
-                        continue;
-                if (n > UINT_MAX)
-                        errx(1, "Index %"PRId64" is too large.", n);
-
-                tmp->data[n]      = '\0';
-                tmp->slen         = (unsigned)n;
-                char const *tmpft = (char *)(tmp->data + n + 1);
-
-                if (ft->is_c) {
-                        if (!STREQ(tmpft, "c") && !STREQ(tmpft, "cpp"))
-                                continue;
-                } else {
-                        if (!STREQ(tmpft, BTS(ft->vim_name)))
-                                continue;
-                }
-
-                if (strstr(BS(dir), BS(tmp))) {
-                        b_list_append(candidates, tmp);
-                        tmp = NULL;
-                }
-        }
-
-        fclose(fp);
-
-        if (candidates->qty == 0) {
-                b_list_destroy(candidates);
-                return dir;
-        }
-
-        /* Find the longest match */
-        bstring *longest = (candidates->lst[0]);
-        for (unsigned i = 0; i < candidates->qty; ++i)
-                if (candidates->lst[i]->slen > longest->slen)
-                        longest = candidates->lst[i];
-
-
-        talloc_steal(CTX, longest);
-        talloc_free(candidates);
-        talloc_free(dir);
-
-        return longest;
 }
 
 static void
@@ -494,6 +420,80 @@ set_vim_tags_opt(char const *fname)
                 shout("Nvim rejected my option :(");
 
         talloc_free(oldval);
+}
+
+/*--------------------------------------------------------------------------------------*/
+
+static b_list *
+get_project_directory_candidates(FILE *fp, bstring const *dir, Filetype const *ft)
+{
+        b_list  *candidates = b_list_create();
+        bstring *tmp;
+
+        for (tmp = NULL; (tmp = B_GETS(fp, '\n', false)); talloc_free(tmp)) {
+                int64_t n = b_strchr(tmp, '\t');
+                if (n < 0)
+                        continue;
+                if (n > UINT_MAX)
+                        errx(1, "Index %"PRId64" is too large.", n);
+
+                tmp->data[n]      = '\0';
+                tmp->slen         = (unsigned)n;
+                char const *tmpft = (char *)(tmp->data + n + 1);
+
+                if (ft->is_c) {
+                        if (!STREQ(tmpft, "c") && !STREQ(tmpft, "cpp"))
+                                continue;
+                } else {
+                        if (!STREQ(tmpft, BTS(ft->vim_name)))
+                                continue;
+                }
+
+                if (strstr(BS(dir), BS(tmp))) {
+                        b_list_append(candidates, tmp);
+                        tmp = NULL;
+                }
+        }
+
+        return candidates;
+}
+
+/*
+ * Check the file `tag-highlight.txt' for any directories the user has specified
+ * to be `project' directories. Anything under them in the directory tree will
+ * use that directory as its base.
+ */
+static bstring *
+check_project_directories(bstring *dir, Filetype const *ft)
+{
+#ifdef DOSISH
+        FILE *fp = fopen(BS(settings.settings_file), "rb");
+#else
+        /* "reb" -> 'e' = O_CLOEXEC. Nobody ever told me about that. */
+        FILE *fp = fopen(BS(settings.settings_file), "reb");
+#endif
+        if (!fp)
+                return dir;
+        b_list *candidates = get_project_directory_candidates(fp, dir, ft);
+        fclose(fp);
+
+        if (candidates->qty == 0) {
+                b_list_destroy(candidates);
+                return dir;
+        }
+
+        /* Find the longest match */
+        bstring *longest = (candidates->lst[0]);
+        for (unsigned i = 0; i < candidates->qty; ++i)
+                if (candidates->lst[i]->slen > longest->slen)
+                        longest = candidates->lst[i];
+
+
+        talloc_steal(CTX, longest);
+        talloc_free(candidates);
+        talloc_free(dir);
+
+        return longest;
 }
 
 /*======================================================================================
@@ -619,7 +619,7 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 if (!b_starts_with(output, B("match /"))) {
                         bstring line = BSTR_WRITEABLE_STATIC_INIT;
 
-                        while (b_memsep(&line, output, '\n')) {
+                        while (b_memsep(&line, output, '\n') > 0) {
                                 while (isblank(*line.data)) {
                                         ++line.data;
                                         --line.slen;
@@ -638,7 +638,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                         }
                 }
 
-                talloc_free(bak);
+                TALLOC_FREE(bak);
+                output->data = NULL;
                 talloc_free(output);
         }
 }

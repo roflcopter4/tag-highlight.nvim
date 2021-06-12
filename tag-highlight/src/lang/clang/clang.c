@@ -14,11 +14,13 @@
 
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \
-         | CXTranslationUnit_KeepGoing                   \
+         /* | CXTranslationUnit_Incomplete */                  \
          | CXTranslationUnit_PrecompiledPreamble         \
-         | CXTranslationUnit_Incomplete                  \
-         | CXTranslationUnit_CreatePreambleOnFirstParse \
-         | CXTranslationUnit_IncludeAttributedTypes )
+         | CXTranslationUnit_CreatePreambleOnFirstParse  \
+         | CXTranslationUnit_KeepGoing                   \
+         | CXTranslationUnit_IncludeAttributedTypes      \
+         | CXTranslationUnit_VisitImplicitAttributes     \
+        )
 
 #define INIT_ARGV (32)
 #define CTX       clang_talloc_ctx_
@@ -102,6 +104,11 @@ void
         joined = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
         pthread_mutex_lock(&bdata->lock.lang_mtx);
+        
+#if 0
+        if (setjmp(bdata->jbuf))
+                goto error;
+#endif
 
         if (last == (-1)) {
                 startend[0] = 0;
@@ -124,6 +131,7 @@ void
 
         calls = create_nvim_calls(bdata, stu);
         nvim_call_atomic(calls);
+//error:
         talloc_free(calls);
         talloc_free(stu);
 
@@ -167,12 +175,14 @@ lines2bytes(Buffer *bdata, int64_t *startend, int const first, int const last)
 /*======================================================================================*/
 
 static noreturn void
-handle_libclang_error(unsigned const err)
+handle_libclang_error(Buffer *bdata, unsigned const err)
 {
         extern void exit_cleanup(void);
 
         shout("Libclang error (%u). Unfortunately this is fatal at the moment.", err);
-        quick_exit(1);
+        /* longjmp(bdata->jbuf, 1); */
+        /* quick_exit(1); */
+        exit(1);
 }
 
 static translationunit_t *
@@ -184,7 +194,7 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
 
         int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1, &unsaved, TUFLAGS);
         if (ret != 0)
-                handle_libclang_error(ret);
+                handle_libclang_error(bdata, ret);
 
         translationunit_t *stu = talloc(CTX, translationunit_t);
         stu->tu  = CLD(bdata)->tu;
@@ -203,6 +213,8 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
+        /* argv_dump(stderr, comp_cmds); */
+
         clangdata_t *cld = talloc_zero(bdata, clangdata_t);
         bdata->clangdata = cld;
         cld->bdata       = bdata;
@@ -217,7 +229,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         );
 
         if (!cld->tu || clerror != 0)
-                handle_libclang_error(clerror);
+                handle_libclang_error(bdata, clerror);
 
         translationunit_t *stu = talloc(CTX, translationunit_t);
         stu->buf  = talloc_move(stu, &buf);
@@ -408,7 +420,6 @@ get_compile_commands(Buffer *bdata)
                 return get_backup_commands(bdata);
         }
 
-        ECHO("Found compilation database for %s\n", bdata->topdir->pathname);
 
         CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
         if (!cmds) {
@@ -420,12 +431,7 @@ get_compile_commands(Buffer *bdata)
         unsigned const ncmds = clang_CompileCommands_getSize(cmds);
         str_vector    *ret   = argv_create(INIT_ARGV);
 
-        for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
-                argv_append(ret, gcc_sys_dirs[i], true);
-
-        /* If we don't remove clang's max error limit then it will crash if it
-         * reaches it. This happens fairly often when editing a file. */
-        argv_append(ret, "-ferror-limit=0", true);
+        ECHO("Found compilation database for %s -> %u commands\n", bdata->topdir->pathname, ncmds);
 
         for (unsigned i = 0; i < ncmds; ++i) {
                 CXCompileCommand command   = clang_CompileCommands_getCommand(cmds, i);
@@ -438,7 +444,10 @@ get_compile_commands(Buffer *bdata)
                         CXString    tmp  = clang_CompileCommand_getArg(command, x);
                         char const *cstr = CS(tmp);
 
-                        if (arg_allow != NE_NORMAL) {
+                        if (STREQ(cstr, "-Xclang")) {
+                                /* Really annoying. Just pretend this one never happened. */
+                                next_arg_allow = arg_allow;
+                        } else if (arg_allow != NE_NORMAL) {
                                 switch (arg_allow) {
                                 case NE_FILE_ALLOW:
                                         handle_include_compile_command(ret, cstr, directory, false);
@@ -456,20 +465,30 @@ get_compile_commands(Buffer *bdata)
                         } else if (cstr[0] == '-' && cstr[1]) {
                                 if (STREQ(cstr+1, "I")) {
                                         next_arg_allow = NE_FILE_ALLOW_I;
-                                } else if (P99_STREQ_ANY(cstr+1, "isystem", "include")) {
+                                } else if (P99_STREQ_ANY(cstr+1, "isystem", "include", "include-pch")) {
                                         argv_append(ret, cstr, true);
                                         next_arg_allow = NE_FILE_ALLOW;
                                 } else if (STREQ(cstr+1, "x")) {
                                         argv_append(ret, cstr, true);
                                         next_arg_allow = NE_LANG_ALLOW;
-                                } else if (STREQ(cstr+1, "o")) {
+                                } else if (P99_STREQ_ANY(cstr+1, "o", "c")) {
                                         next_arg_allow = NE_DISALLOW;
-                                } else if (P99_STREQ_ANY(cstr+1, "MMD", "MP", "MD", "MT", "MF")) {
+                                } else if (P99_STREQ_ANY(cstr+1, "MMD", "MP", "MD", "MT", "MF")
+#if 0
+                                           || P99_STRNEQL_ANY(cstr+1, "-driver-mode", "march")
+#endif
+                                           )
+                                {
                                         /* Nothing */
                                 } else {
                                         switch (cstr[1]) {
-                                        case 'f': case 'c': case 'W': case 'o':
+                                        case 'W':
                                                 break;
+#if 0
+                                        case 'f':
+                                        case 'c':
+                                        case 'o':
+#endif
                                         case 'I':
                                                 handle_include_compile_command(ret, cstr+2, directory, true);
                                                 break;
@@ -482,13 +501,20 @@ get_compile_commands(Buffer *bdata)
                                 handle_win32_command_script(bdata, CS(directory), cstr+1, ret);
 #endif
                         }
-                                
+
                         clang_disposeString(tmp);
                         arg_allow = next_arg_allow;
                 }
 
                 clang_disposeString(directory);
         }
+
+        for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
+                argv_append(ret, gcc_sys_dirs[i], true);
+
+        /* If we don't remove clang's max error limit then it will crash if it
+         * reaches it. This happens fairly often when editing a file. */
+        argv_append(ret, "-ferror-limit=0", true);
 
         argv_append(ret, "-I", true);
         argv_append(ret, BS(bdata->name.path), true);

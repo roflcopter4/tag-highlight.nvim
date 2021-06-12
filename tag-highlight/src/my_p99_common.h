@@ -95,6 +95,9 @@
 #define P01_STREQ(WHAT, X, I)   (strcmp((WHAT), (X)) == 0)
 #define P99_STREQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_STREQ, __VA_ARGS__)
 
+#define P01_STRNEQL(WHAT, X, I)   (strncmp((WHAT), SLS(X)) == 0)
+#define P99_STRNEQL_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_STRNEQL, __VA_ARGS__)
+
 #define P01_B_ISEQ(WHAT, X, I)   b_iseq((WHAT), (X))
 #define P99_B_ISEQ_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_B_ISEQ, __VA_ARGS__)
 
@@ -106,6 +109,8 @@
 #define P99_B_ISEQ_LIT_ANY(VAR, ...) P99_FOR(VAR, P99_NARG(__VA_ARGS__), P00_OR, P01_B_ISEQ_LIT, __VA_ARGS__)
 
 #define STREQ(S1, S2)  (strcmp((S1), (S2)) == 0)
+#define STR_STARTS_WITH(S1, S2, len) (strncmp((S1), (S2), (len)) == 0)
+#define STR_STARTS_WITH_LIT(S1, S2)  (strncmp((S1), SLS(S2)) == 0)
 #define b_iseq_any     P99_B_ISEQ_ANY
 #define b_iseq_lit_any P99_B_ISEQ_LIT_ANY
 

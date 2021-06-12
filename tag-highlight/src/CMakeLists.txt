@@ -12,7 +12,6 @@ set (tag-highlight_SOURCES
     data.c
     event_loop.c
     event_handlers.c
-    message_autocmd.c
     main.c
     update.c
 
@@ -30,12 +29,14 @@ set (tag-highlight_SOURCES
     contrib/bstring/bstrlib.c
 
     contrib/contrib.c
+
     util/archive_gzip.c
     util/archive_read.c
     util/archive_write.c
     util/find.c
     util/generic_list.c
     util/linked_list.c
+    util/nanosleep.c
     util/util.c
 )
 
@@ -65,11 +66,12 @@ set (tag-highlight_headers
     contrib/bstring/mingw_config.h
     contrib/bstring/private.h
 
+    contrib/contrib.h
+
     util/archive.h
     util/find.h
     util/list.h
     util/util.h
-    contrib/contrib.h
 )
 
 if (LZMA_SUPPORT)
@@ -104,12 +106,9 @@ if (LIBEV_FOUND)
     target_link_libraries(tag-highlight ${LIBEV_LIBRARIES})
 endif ()
 
-if (LIBBSD_FOUND)
-    target_link_libraries(tag-highlight ${LIBBSD_LIBRARIES})
-endif()
-
 if (LZMA_SUPPORT)
-    target_link_libraries(tag-highlight LibLZMA::LibLZMA)
+    # target_link_libraries(tag-highlight LibLZMA::LibLZMA)
+    target_link_libraries(tag-highlight -llzma)
 endif ()
 
 if (USE_JEMALLOC STREQUAL "YES")
@@ -117,6 +116,7 @@ if (USE_JEMALLOC STREQUAL "YES")
 endif()
 
 if (TALLOC_FOUND)
+# if (FALSE)
     target_link_libraries(tag-highlight ${TALLOC_LIBRARIES})
 
     install(TARGETS tag-highlight
@@ -134,7 +134,6 @@ else()
     )
                 
     set (mytalloc_compile_options_common
-        #-isystem /usr/local/include
         "-fno-lto"
         "-D_XOPEN_SOURCE_EXTENDED=1"
         "-D__STDC_WANT_LIB_EXT1__=1")
@@ -151,6 +150,7 @@ else()
             mytalloc
             PRIVATE
                 ${mytalloc_compile_options_common}
+                "-fPIC"
                 "-fstack-clash-protection"
                 "-fstack-protector-strong"
                 "-fvisibility=hidden"

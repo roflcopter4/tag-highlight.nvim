@@ -5,14 +5,25 @@
 #include "nvim_api/api.h"
 #include "nvim_api/wait_node.h"
 
+#if __WORDSIZE != 64 || __SIZEOF_INT__ != 4
+#  define ALIGNAT 16
+#  undef alignas
+#  define alignas(n)
+#else
+#  define ALIGNAT 32
+#endif
+
 P99_FIFO(nvim_wait_node_ptr) nvim_wait_queue;
 
 typedef volatile p99_futex vfutex_t;
+typedef unsigned char byte;
 
 struct gencall {
-        const bstring *fn;
+    _Alignas(ALIGNAT)
+        int count;
+    alignas(16)
         mpack_obj     *pack;
-        int            count;
+        bstring const *fn;
 };
 
 extern _Atomic(mpack_obj *) event_loop_mpack_obj;
@@ -21,8 +32,8 @@ static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
        vfutex_t             nvim_wait_futex    = P99_FUTEX_INITIALIZER(0);
 
 static noreturn void *make_async_call(void *arg);
-static mpack_obj *make_call(bool blocking, const bstring *fn, mpack_obj *pack,  int count);
-static mpack_obj *write_and_clean(mpack_obj *pack, int count, const bstring *func);
+static mpack_obj *make_call(bool blocking, bstring const *fn, mpack_obj *pack,  int count);
+static mpack_obj *write_and_clean(mpack_obj *pack, int count, bstring const *func);
 static mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
 
 void *nvim_common_talloc_ctx_ = NULL;
@@ -31,18 +42,18 @@ void *nvim_common_talloc_ctx_ = NULL;
 /*======================================================================================*/
 
 static mpack_obj *
-make_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
+make_call(bool const blocking, bstring const *fn, mpack_obj *pack, int const count)
 {
         mpack_obj *result;
 
         if (blocking) {
                 result = write_and_clean(pack, count, fn);
         } else {
-                struct gencall *gc = malloc(sizeof *gc);
-                /* *gc    = (struct gencall){fn, pack, count}; */
-                gc->fn = fn;
-                gc->pack = pack;
+                /* struct gencall *gc = aligned_alloc(alignof(struct gencall), sizeof(struct gencall)); */
+                struct gencall *gc = aligned_alloc_for(struct gencall);
                 gc->count = count;
+                gc->pack  = pack;
+                gc->fn    = fn;
                 result = NULL;
                 START_DETACHED_PTHREAD(make_async_call, gc);
         }
@@ -61,10 +72,10 @@ make_async_call(void *arg)
 }
 
 mpack_obj *
-_nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *const fmt, ...)
+nvim_api_intern_make_generic_call(bool const blocking, bstring const *fn, bstring const *const fmt, ...)
 {
         mpack_obj *pack;
-        const int  count = INC_COUNT();
+        int const  count = INC_COUNT();
 
         if (fmt) {
                 const unsigned size = fmt->slen + 16U;
@@ -83,7 +94,8 @@ _nvim_api_generic_call(const bool blocking, const bstring *fn, const bstring *co
 }
 
 mpack_obj *
-_nvim_api_special_call(const bool blocking, const bstring *fn, mpack_obj *pack, const int count)
+nvim_api_intern_make_special_call(bool const blocking, bstring const *fn,
+                       mpack_obj *pack, const int count)
 {
         return make_call(blocking, fn, pack, count);
 }
@@ -106,36 +118,22 @@ nvim_api_wrapper_init(void)
 static mpack_obj *
 await_package(nvim_wait_node *node)
 {
-        /* mpack_obj *obj; */
-        /* p99_futex_wait(&_nvim_wait_futex); */
-        /* obj = atomic_load(&event_loop_mpack_obj); */
-        p99_futex_wait(&node->fut);
-        /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_relaxed); */
-        /* mpack_obj *ret = atomic_load_explicit(&node->obj, memory_order_seq_cst); */
-        mpack_obj *obj = atomic_load(&node->obj);
-
 #if 0
-        pthread_mutex_lock(&node->mtx);
-        mpack_obj *obj = NULL;
-
-        while (!obj) {
-                if (pthread_cond_wait(&node->cond, &node->mtx))
-                        err(1, "pthread_cond_wait");
-
-                obj = atomic_load(&node->obj);
-        }
+        /* The reader thread waits for a wakeup call before looking at the queue. */
+        p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
 #endif
 
+        /* Now we wait for it to deposit the package, and load it. */
+        p99_futex_wait(&node->fut);
+        mpack_obj *obj = atomic_load_explicit(&node->obj, memory_order_seq_cst);
+
         if (!obj)
-                errx(1, "null object");
-
-        //p99_futex_wakeup(&event_loop_futex, 1u, 1u);
-
+                errx(1, "Received NULL package from Neovim");
         return obj;
 }
 
 static mpack_obj *
-write_and_clean(mpack_obj *pack, const int count, UNUSED const bstring *func)
+write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
 {
 #if 0 && defined DEBUG
 #  ifdef LOG_RAW_MPACK
@@ -170,14 +168,12 @@ write_and_clean(mpack_obj *pack, const int count, UNUSED const bstring *func)
         node->fd    = 1;
         node->count = count;
 
-        pthread_mutex_init(&node->mtx, NULL);
-        pthread_cond_init(&node->cond, NULL);
-
         p99_futex_init(&node->fut, 0);
         P99_FIFO_APPEND(&nvim_wait_queue, node);
-        talloc_free(pack);
 
         ret = await_package(node);
+
+        talloc_free(pack);
         free(node);
         return ret;
 }
@@ -185,7 +181,7 @@ write_and_clean(mpack_obj *pack, const int count, UNUSED const bstring *func)
 /*======================================================================================*/
 
 mpack_retval
-m_expect_intern(mpack_obj *root, mpack_expect_t type)
+nvim_api_intern_mpack_expect_wrapper(mpack_obj *root, mpack_expect_t type)
 {
         mpack_obj *errmsg = mpack_index(root, 2);
         mpack_obj *data   = mpack_index(root, 3);
@@ -201,9 +197,8 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
                 ret = mpack_expect(data, type, false);
                 switch (type) {
                 case E_STRING:
-                        talloc_set_name(ret.ptr, "nvim/common.c: m_expect_intern -> %s: (%s)",
-                                        mpack_expect_t_getname(type),
-                                        (char *)(((bstring *)ret.ptr)->data));
+                        talloc_set_name(ret.ptr, "nvim/common.c: %s -> %s: (%s)", __func__,
+                                        mpack_expect_t_getname(type), BS((bstring *)ret.ptr));
                 case E_DICT2ARR:
                 case E_MPACK_ARRAY:
                 case E_MPACK_DICT:
@@ -216,7 +211,6 @@ m_expect_intern(mpack_obj *root, mpack_expect_t type)
                 }
         }
 
-        //talloc_free(data);
         talloc_free(root);
         return ret;
 }

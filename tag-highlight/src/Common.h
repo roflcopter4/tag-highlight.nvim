@@ -284,6 +284,8 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
 #endif
 
+#define aligned_alloc_for(t) aligned_alloc(alignof(t), sizeof(t))
+
 /*===========================================================================*/
 /* Generic Macros */
 
@@ -310,6 +312,9 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #else
 #  define eprintf(...) ((void)0)
 #endif
+
+#define dump_alignof_help(t, ts, fn) __attribute__((__constructor__)) static void fn (void) { eprintf(ts " alignment is %zu\n", alignof(t)); }
+#define dump_alignof(t) dump_alignof_help(t, #t, P99_UNIQ())
 
 /*===========================================================================*/
 

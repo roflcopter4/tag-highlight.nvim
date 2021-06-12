@@ -82,8 +82,8 @@ struct timer {
 
 /*======================================================================================*/
 
-#define USEC2SECOND (1000000LLU)
-#define NSEC2SECOND (1000000000LLU)
+#define USEC2SECOND (1000000LLU) /* 1,000,000 - one million */
+#define NSEC2SECOND (1000000000LLU) /* 1,000,000,000 - one billion */
 
 #if 0
 #define MKTIMESPEC(FLT) ((struct timespec[]){{ \
@@ -158,24 +158,34 @@ struct timer {
                   : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
                          STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
 
-#define err(EVAL, ...)  err_((EVAL), true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define errx(EVAL, ...) err_((EVAL), false, __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warn(...)       warn_(true,  true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warnx(...)      warn_(false, true,  __FILE__, __LINE__, __func__, __VA_ARGS__)
-#define warnd(...)      warn_(false, false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define err(EVAL, ...)  err_ ((EVAL), true,   __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define errx(EVAL, ...) err_ ((EVAL), false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warn(...)       warn_(true,   true,   __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnx(...)      warn_(false,  true,   __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define warnd(...)      warn_(false,  false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
 
-extern          void warn_(bool print_err, bool force, const char *file, int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
-extern noreturn void err_ (int status, bool print_err, const char *file, int line, const char *func, const char *restrict fmt, ...) __aFMT(6, 7);
+extern void warn_(bool print_err, bool force, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
+extern noreturn void err_(int status, bool print_err, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
+
 
 extern void     free_all__    (void *ptr, ...);
 extern int64_t  xatoi__       (const char *str, bool strict);
 extern unsigned find_num_cpus (void);
 extern FILE *   safe_fopen    (const char *filename, const char *mode) __aWUR __aNNA;
-extern FILE *   safe_fopen_fmt(const char *fmt, const char *mode, ...) __aWUR __aFMT(1,3);
+extern FILE *   safe_fopen_fmt(const char *mode, const char *fmt, ...) __aWUR __aFMT(2,3);
 extern int      safe_open     (const char *filename, int flags, int mode) __aWUR;
-extern int      safe_open_fmt (const char *fmt, int flags, int mode, ...) __aWUR __aFMT(1, 4);
+extern int      safe_open_fmt (int flags, int mode, const char *fmt, ...) __aWUR __aFMT(3, 4);
 extern void     fd_set_open_flag(int fd, int flag);
 
+#if 0 && defined DEBUG
+extern int clock_nanosleep_for_(intmax_t seconds, intmax_t nanoseconds, char const *file, int line, char const *fn);
+#  define clock_nanosleep_for(s, n) clock_nanosleep_for_((s), (n), __FILE__, __LINE__, __func__)
+#else
+extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
+#endif
+
+#define NANOSLEEP_FOR_SECOND_FRACTION(i, d) \
+        clock_nanosleep_for((uintmax_t)(i), (uintmax_t)(NSEC2SECOND / ((uintmax_t)(d))))
 
 extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
 #ifdef DOSISH

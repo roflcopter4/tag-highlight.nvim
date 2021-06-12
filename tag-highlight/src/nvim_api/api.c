@@ -10,7 +10,7 @@
 void
 ($nvim_write)(enum nvim_write_type const type, bstring const *mes)
 {
-        static const bstring fn_names[] = {
+        static bstring const fn_names[] = {
                 bt_init("nvim_out_write"),
                 bt_init("nvim_err_write"),
                 bt_init("nvim_err_writeln"),
@@ -87,33 +87,33 @@ mpack_retval
 mpack_retval
 (nvim_list_bufs)(void)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, NULL);
-        return m_expect_intern(result, E_MPACK_ARRAY);
+        return intern_mpack_expect(result, E_MPACK_ARRAY);
 }
 
 int
 (nvim_get_current_buf)(void)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, NULL);
-        return (int)m_expect_intern(result, E_NUM).num;
+        return (int)intern_mpack_expect(result, E_NUM).num;
 }
 
 bstring *
 (nvim_get_current_line)(void)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, NULL);
-        return m_expect_intern(result, E_STRING).ptr;
+        return intern_mpack_expect(result, E_STRING).ptr;
 }
 
 unsigned
 (nvim_buf_line_count)(int const bufnum)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d"), bufnum);
-        return (unsigned)m_expect_intern(result, E_NUM).num;
+        return (unsigned)intern_mpack_expect(result, E_NUM).num;
 }
 
 b_list *
@@ -121,19 +121,19 @@ b_list *
                      int      const start,
                      int      const end)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,d,d,d"), bufnum, start, end, 0);
-        return m_expect_intern(result, E_STRLIST).ptr;
+        return intern_mpack_expect(result, E_STRLIST).ptr;
 }
 
 
 bstring *
 (nvim_buf_get_name)(int const bufnum)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         char       fullname[PATH_MAX + 1];
         mpack_obj *result = generic_call(true, &fn, B("d"), bufnum);
-        bstring   *ret    = m_expect_intern(result, E_STRING).ptr;
+        bstring   *ret    = intern_mpack_expect(result, E_STRING).ptr;
         b_assign_cstr(ret, realpath(BS(ret), fullname));
         return ret;
 }
@@ -143,9 +143,9 @@ mpack_retval
                    bstring        const *varname,
                    mpack_expect_t const  expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,s"), bufnum, varname);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 mpack_retval
@@ -153,17 +153,17 @@ mpack_retval
                       bstring        const *optname,
                       mpack_expect_t const  expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,s"), bufnum, optname);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 unsigned
 (nvim_buf_get_changedtick)(int const bufnum)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d"), bufnum);
-        return (unsigned)m_expect_intern(result, E_NUM).num;
+        return (unsigned)intern_mpack_expect(result, E_NUM).num;
 }
 
 /*--------------------------------------------------------------------------------------
@@ -178,7 +178,7 @@ unsigned
 bool
 (nvim_command)(bstring const *cmd)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), cmd);
         mpack_obj *error  = mpack_index(result, 2);
         ALWAYS_ASSERT(error != NULL);
@@ -197,17 +197,17 @@ bool
 mpack_retval
 (nvim_command_output)(bstring const *cmd, mpack_expect_t const expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), cmd);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 mpack_retval
 (nvim_call_function)(bstring const *function, mpack_expect_t const expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s,[]"), function);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 mpack_retval
@@ -216,7 +216,7 @@ mpack_retval
                           bstring        const *fmt,
                           ...)
 {
-        static const bstring fn  = bt_init("nvim_call_function");
+        static bstring const fn  = bt_init("nvim_call_function");
         bstring       *buf = b_sprintf("s,[!%s]", fmt);
         va_list        ap;
 
@@ -225,15 +225,15 @@ mpack_retval
         va_end(ap);
 
         b_destroy(buf);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 mpack_retval
 (nvim_eval)(bstring const *eval, mpack_expect_t const expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), eval);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -242,24 +242,24 @@ mpack_retval
 mpack_retval
 (nvim_get_var)(bstring const *varname, mpack_expect_t const expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), varname);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 mpack_retval
 (nvim_get_option)(bstring const *optname, mpack_expect_t const expect)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), optname);
-        return m_expect_intern(result, expect);
+        return intern_mpack_expect(result, expect);
 }
 
 bool
 nvim_set_var(bstring const *varname, bstring const *fmt, ...)
 {
         va_list  ap;
-        static const bstring fn  = BS_FROMARR(__func__);
+        static bstring const fn  = BS_FROMARR(__func__);
         bstring       *tmp = b_sprintf("[s,!%s]", fmt);
 
         va_start(ap, fmt);
@@ -273,9 +273,9 @@ nvim_set_var(bstring const *varname, bstring const *fmt, ...)
 }
 
 bool
-nvim_set_option(bstring const *optname, bstring const *value)
+(nvim_set_option)(bstring const *optname, bstring const *value)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s,s"), optname, value);
         bool ret = mpack_type(mpack_index(result, 2)) == MPACK_NIL;
         talloc_free(result);
@@ -293,10 +293,10 @@ int
                          unsigned const  start,
                          int      const  end)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("dd,s,ddd"), bufnum,
                                          hl_id, group, line, start, end);
-        return (int)m_expect_intern(result, E_NUM).num;
+        return (int)intern_mpack_expect(result, E_NUM).num;
 }
 
 void __attribute__((deprecated("Removed from neovim's documentation")))
@@ -306,7 +306,7 @@ void __attribute__((deprecated("Removed from neovim's documentation")))
                            int      const end,
                            bool     const blocking)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *obj = generic_call(blocking, &fn, B("dd,dd"), bufnum, hl_id, start, end);
         talloc_free(obj);
 }
@@ -318,7 +318,7 @@ void
                            int      const end,
                            bool     const blocking)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *obj = generic_call(blocking, &fn, B("dd,dd"), bufnum, ns_id, start, end);
         talloc_free(obj);
 }
@@ -326,17 +326,17 @@ void
 mpack_dict *
 (nvim_get_hl_by_name)(bstring const *name, bool const rgb)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("sB"), name, rgb);
-        return m_expect_intern(result, E_MPACK_DICT).ptr;
+        return intern_mpack_expect(result, E_MPACK_DICT).ptr;
 }
 
 mpack_dict *
 (nvim_get_hl_by_id)(int const hlid, bool const rgb)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("dB"), hlid, rgb);
-        return m_expect_intern(result, E_MPACK_DICT).ptr;
+        return intern_mpack_expect(result, E_MPACK_DICT).ptr;
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -345,7 +345,7 @@ mpack_dict *
 void
 (nvim_get_api_info)(void)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, NULL);
         talloc_free(result);
 }
@@ -353,7 +353,7 @@ void
 void
 (nvim_subscribe)(bstring const *event)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s"), event);
         talloc_free(result);
 }
@@ -361,7 +361,7 @@ void
 void
 (nvim_buf_attach)(int const bufnum)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("d,B,[]"), bufnum, false);
         talloc_free(result);
 }
@@ -375,7 +375,7 @@ void
                        UNUSED void const *methods,
                        UNUSED void const *attributes)
 {
-        static const bstring fn = BS_FROMARR(__func__);
+        static bstring const fn = BS_FROMARR(__func__);
         UNUSED
         mpack_obj *result = generic_call(false, &fn, B("s; {s:d, s:d, s:s}; s; {}; {}"),
                                          name,
@@ -392,18 +392,12 @@ void
 void
 (nvim_call_atomic)(mpack_arg_array const *calls)
 {
-#if 0 && defined DEBUG
-        static bool first = true;
-        if (first) {
-                char tmp[PATH_MAX];
-                snprintf(tmp, PATH_MAX, "%s/.tag-highlight_log/atomic.log", HOME);
-                unlink(tmp);
-                first = false;
-        }
-#endif
-        
-        static bstring  fn  = BS_FROMARR(__func__);
-        bstring        *fmt = b_fromcstr_alloc(4096, "[d,d,s:[:");
+        static bstring const fn     = BS_FROMARR(__func__);
+        static char const    base[] = "[d,d,s:[:";
+
+        bstring *fmt = b_create(4096);
+        memcpy(fmt->data, base, sizeof(base));
+        fmt->slen = sizeof(base) - 1;
 
         if (calls->qty) {
                 b_sprintfa(fmt, "[ @[%n],", calls->fmt[0]);
@@ -413,13 +407,10 @@ void
         }
         b_catlit(fmt, ":]]");
 
-        /* warnx("%u ->  << %s >>", calls->qty, BS(fmt)); */
-
         int const  count = INC_COUNT();
         mpack_obj *pack  = mpack_encode_fmt(calls->qty, BS(fmt), MES_REQUEST,
                                             count, &fn, calls->args);
         b_destroy(fmt);
-        UNUSED
-        mpack_obj *result = special_call(false, &fn, pack, count);
+        UNUSED mpack_obj *result = special_call(false, &fn, pack, count);
         assert(result == NULL);
 }
