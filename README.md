@@ -16,9 +16,15 @@ The little shell script should build the binary and set everything up.
 Disclaimer: 'should be'. Odds are it will fail and you'll have to run the script yourself. If that also fails, you'll have to build the cmake project yourself too. This isn't very likely to happen unless you're missing libraries. LLVM with libclang is required, and go must installed to build the go support. The C compiler must be either gcc or clang. Microsoft Visual C++, with it's non-compliant c-preprocessor, will have a stroke if it tries to build this. Therefore MinGW is required on Windows.
 
 ## Features
-Project root directories can and should be marked via the command `:THLAddProject <DIR>`. They can be deleted again with `:THLRemoveProject <DIR>`. Doing this makes it much easier to find the whole project, especially the 'compile_commands.json'. Go projects need to be installed for the highlighting to work. You'll also likely want to fiddle with the highlight linking to fit your favorite color scheme. Maybe someday I'll even document them.
+Project root directories can and should be marked via the command `:THLAddProject <DIR>`. They can be deleted again with `:THLRemoveProject <DIR>`. Doing this makes it much easier to find the whole project, especially the 'compile_commands.json'.
+
+Formerly, Go projects had to be installed for the highlighting to work. Since it's move to using modules for everything this is no longer true, but comes with the downside of now having to parse the source code of every imported package instead of reading a pre-compiled archive. Nothing I can do about this. Sorry.
 
 Different languages are tracked separately. Adding a directory a project for 'C' won't count for, say, Python. As a special case 'C' and 'C++' are considered equivalent for this purpose.
+
+### The colors
+
+You'll also want to fiddle with the highlight linking to fit your favorite color scheme. The default colors were chosen almost completely at random and I've never even looked at them. The assumption is that you'll fix it yourself. I should probably do better than this but I'm not entirely sure how. For this plugin to make any sense at all you'll need to specify many more colors than are provided in a normal vim color scheme. Perhaps I'll upload what I use as an example at some point.
 
 ## Questions I would probably ask
 
