@@ -1,7 +1,7 @@
 # tag-highlight.nvim
 This plugin provides IDE-like semantic highlighting for various languages in Neovim. 
 
-Currently, C, C++, and Go are supported, and ore languages will be added as time permits. Highlighting for other languages is approximated using ctags. This plugin doubles as an automatic tag manager.
+Currently, C, C++, and Go are supported, and more languages will be added as time permits. Highlighting for other languages is approximated using ctags. This plugin doubles as an automatic tag manager.
 
 Originally, I wrote this to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C, for no particular reason. Working with Neovim proved so simple and fast that it seemed natural to expand this project to implement true semantic highlighting.
 
@@ -20,7 +20,9 @@ Project root directories can and should be marked via the command `:THLAddProjec
 
 Different languages are tracked separately. Adding a directory a project for 'C' won't count for, say, Python. As a special case 'C' and 'C++' are considered equivalent for this purpose.
 
-## Questions
+## Questions I would probably ask
+
+in lieu of having actually received any questions I figured I might as well pre-emptively answer a few I would ask.
 
 ### Why on earth is it written in C?
 Because.
@@ -29,7 +31,7 @@ Because.
 Because reasons.
 
 ### Why not use a Language Server?
-When I started this, language servers didn't offer any semantic information that I'd need to make this. Meh.
+When I started this, language servers didn't offer any semantic information that I'd need to make this. Maybe they do now? Don't know, haven't checked; don't care.
 
 ### Stability
 No promises. It won't break anything though. If it crashes you can restart it with the command `:THLInit`. If it hangs, try killing it first with `:THLStop`.
