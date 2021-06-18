@@ -1,4 +1,5 @@
 #include "scan.h"
+#include <stdlib.h>
 
 #if defined(DOSISH) || defined(__MINGW32__) || defined(__MINGW64__)
 #  include <malloc.h>

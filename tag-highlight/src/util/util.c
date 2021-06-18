@@ -89,7 +89,22 @@ safe_fopen_fmt(const char *const restrict mode,
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
-        FILE *fp = fopen(buf, mode);
+#ifdef DOSISH
+        char newmode[8];
+        {
+              char const *ptr = mode;
+              int         i = 0;
+              char        ch;
+              while((ch = *ptr++))
+                    if (ch != 'e')
+                          newmode[i++] = ch;
+              newmode[i] = '\0';
+        }
+#else
+        char const *const newmode = mode;
+#endif
+
+        FILE *fp = fopen(buf, newmode);
         if (!fp)
                 err(1, "Failed to open file \"%s\"", buf);
         if (!file_is_reg(buf))

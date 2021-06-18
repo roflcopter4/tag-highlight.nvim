@@ -11,7 +11,9 @@
 /*--------------------------------------------------------------------------------------*/
 
 struct message_args {
+      alignas(16) 
         mpack_obj *obj;
+      alignas(8) 
         int fd;
 };
 
@@ -75,7 +77,7 @@ handle_nvim_message(struct event_data *data)
         }
         case MES_RESPONSE: {
                 talloc_steal(CTX, obj);
-                struct message_args *tmp = malloc(sizeof *tmp);
+                struct message_args *tmp = aligned_alloc_for(struct message_args);
                 tmp->obj = obj;
                 tmp->fd  = fd;
                 START_DETACHED_PTHREAD(wrap_handle_nvim_response, tmp);

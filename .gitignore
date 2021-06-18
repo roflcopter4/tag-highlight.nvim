@@ -63,6 +63,8 @@ build
 yacc
 config.h
 topconfig.h
+.cache
+*ucrt*/
 
 # Vim stuff
 autoload

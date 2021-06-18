@@ -111,8 +111,8 @@ if (LZMA_SUPPORT)
     target_link_libraries(tag-highlight -llzma)
 endif ()
 
-if (USE_JEMALLOC STREQUAL "YES")
-    target_link_libraries(tag-highlight ${JEMALLOC_LIBRARY})
+if (USE_JEMALLOC)
+    target_link_libraries(tag-highlight -ljemalloc)
 endif()
 
 if (TALLOC_FOUND)
@@ -163,6 +163,10 @@ else()
         target_link_options(mytalloc PRIVATE -fno-lto)
     else()
         target_link_options(mytalloc PRIVATE -fno-lto)
+    endif()
+    
+    if (USE_JEMALLOC)
+        target_link_libraries(mytalloc -ljemalloc)
     endif()
 
     target_link_libraries(tag-highlight mytalloc)

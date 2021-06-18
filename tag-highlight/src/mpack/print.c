@@ -64,7 +64,9 @@ mpack_print_object(FILE *fp, const mpack_obj *result)
         do_mpack_print_object(result, &data);
         b_fwrite(fp, data.out, B("\n"));
         fflush(fp);
+#ifndef DOSISH
         fsync(fileno(fp));
+#endif
         b_free(data.out);
 
         pthread_mutex_unlock(&mpack_print_mutex);

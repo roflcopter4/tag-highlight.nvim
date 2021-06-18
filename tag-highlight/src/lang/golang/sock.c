@@ -276,8 +276,8 @@ start_binary(Buffer *bdata)
                 errx(1, "_open_osfhandle failed");
         if ((fds[1] = _open_osfhandle((intptr_t)hand[1], 0)) == (-1))
                 errx(1, "_open_osfhandle failed");
-        gd->write_fd = fds[0][WRITE_FD];
-        gd->read_fd = fds[1][READ_FD];
+        gd->write_fd = fds[WRITE_FD];
+        gd->read_fd = fds[READ_FD];
         bdata->godata.pid   = 0;
 
         return 0;

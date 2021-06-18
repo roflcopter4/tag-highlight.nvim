@@ -26,6 +26,7 @@ extern "C" {
 #  define __USE_GNU
 #endif
 #ifdef USE_JEMALLOC
+#  define JEMALLOC_MANGLE
 #  include <jemalloc/jemalloc.h>
 #endif
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
@@ -33,24 +34,27 @@ extern "C" {
 #  define WIN32_LEAN_AND_MEAN
 #  ifdef __MINGW__
 #    include <dirent.h>
+#    include <sys/stat.h>
 #    include <unistd.h>
-/* #    pragma GCC diagnostic ignored "-Wattributes" */
 #  else
 typedef signed long long int ssize_t;
 #  endif
-#  include <winsock2.h>
 #  include <windows.h>
+#  include <winsock2.h>
 #  include <io.h>
 #  include <direct.h>
 #  include <pthread.h>
 #  define PATHSEP '\\'
-#  define __CLEANUP_C
-#  define at_quick_exit(a)
-#  define quick_exit(a) _Exit(a)
+#  define PATHSEP_STR "\\"
+#  ifndef _UCRT
+#    define at_quick_exit(a)
+#    define quick_exit(a) _Exit(a)
+#  endif
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
-#  ifndef O_CLOEXEC
-#    define O_CLOEXEC 0
+#  ifndef USE_JEMALLOC
+#    include <mm_malloc.h>
+#    define aligned_alloc(p, a) _mm_malloc((p), (a))
 #  endif
 extern char *basename(char *path);
 #else
@@ -64,6 +68,7 @@ extern char *basename(char *path);
 #  include <sys/wait.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
+#  define PATHSEP_STR "/"
 #endif
 #if (defined(__MINGW32__) || defined(__MINGW64__)) && (!defined(__MINGW__) || !defined(DOSISH))
 #  error "Something really messed up here."
