@@ -11,6 +11,7 @@ __BEGIN_DECLS
 
 P99_DECLARE_STRUCT(line_data);
 struct line_data {
+      alignas(16)
         unsigned line;
         unsigned start;
         unsigned end;

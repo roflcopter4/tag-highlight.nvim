@@ -63,7 +63,6 @@ static void clang_initializer(void)
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
 {
-        /* if (!bdata || !bdata->initialized) */
         if (!bdata || !atomic_load(&bdata->initialized))
                 return;
         if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
@@ -95,21 +94,11 @@ void
                 return;
         }
 
-#if 0
-        pthread_mutex_lock(&lc_mutex);
-        atomic_store(&ctick, new);
-#endif
-
         pthread_mutex_lock(&bdata->lock.total);
         joined = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
         pthread_mutex_lock(&bdata->lock.lang_mtx);
         
-#if 0
-        if (setjmp(bdata->jbuf))
-                goto error;
-#endif
-
         if (last == (-1)) {
                 startend[0] = 0;
                 startend[1] = joined->slen;
@@ -131,15 +120,11 @@ void
 
         calls = create_nvim_calls(bdata, stu);
         nvim_call_atomic(calls);
-//error:
         talloc_free(calls);
         talloc_free(stu);
 
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.lang_mtx);
-#if 0
-        pthread_mutex_unlock(&lc_mutex);
-#endif
 }
 
 void *
@@ -651,7 +636,7 @@ get_token_data(translationunit_t *stu, CXToken *tok, CXCursor *cursor)
                 return NULL;
         }
 
-        ret             = talloc_size(CTX, offsetof(token_t, raw) + res.len + 1);
+        ret             = talloc_size(CTX, offsetof(token_t, raw) + res.len + 1LLU);
         ret->token      = *tok;
         ret->cursor     = *cursor;
         ret->cursortype = clang_getCursorType(*cursor);

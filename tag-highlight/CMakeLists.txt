@@ -79,7 +79,6 @@ endif()
 
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
 GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)
-message("Have \"${COMPILER_INCLUDE_DIRECTORIES}\"")
 
 if (MSVC OR "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
     if (NOT MINGW_PREFIX)
@@ -256,7 +255,6 @@ endif()
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
     if ("${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
-        message(WARNING "YES")
         string (CONCAT BASE "/arch:AVX512 /clang:-march=native /std:gnu17 /W4 /Zc:preprocessor -fdiagnostics-color=always")
         
         set (CFLAGS_RELEASE_COMMON "/O2 /Ob2 /Oi /Ot /clang:-O3 /DNDEBUG /GL -flto")
@@ -269,7 +267,6 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         endif ()
         
         string (JOIN " " BASE ${BASE} ${WARNS})
-        message (WARNING "${BASE}")
         
         find_program(LLVM_CPP "clang-cpp" REQUIRED)
         set (CMAKE_CPP "${LLVM_CPP}")
@@ -327,9 +324,8 @@ endif()
 # Misc
 
 if (TRUE_MSVC)
-    message (FATAL_ERROR "FUCK")
+    message (FATAL_ERROR "Sorry, this won't work out.")
 else()
-    message(WARNING "YES")
     string(JOIN " " CMAKE_C_FLAGS_DEBUG
                     ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
     string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
@@ -340,11 +336,9 @@ else()
                     ${CMAKE_C_FLAGS_MINSIZEREL} ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s)
 endif()
 
-message(WARNING "${CMAKE_C_FLAGS}")
-message(WARNING "${CMAKE_C_FLAGS_DEBUG}")
-
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-allow-multiple-definition")
 endif()
 
 configure_file(cmake-config.h.in config.h)

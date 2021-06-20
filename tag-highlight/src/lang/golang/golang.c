@@ -12,11 +12,12 @@
 #else
 # define CMD_SUFFIX
 #endif
-#define ALIGN
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wformat"
+
+#define ALIGN(n) __attribute__((__aligned__(n)))
 
 extern void try_go_crap(Buffer *bdata);
 
@@ -25,17 +26,17 @@ extern void try_go_crap(Buffer *bdata);
  * the LLVM devs that alignas exists. */
 struct go_output {
         int ch;
-        alignas(8) struct {
+        struct {
                 unsigned line;
                 unsigned column;
-        } start, end;
-        alignas(128) struct {
-                unsigned len;
+        } ALIGN(8) start, end;
+        struct {
                 char     str[1024];
-        } ident;
-}
-__attribute__((aligned(128)));
+                unsigned len;
+        } ALIGN(128) ident;
+} ALIGN(128);
 
+#undef ALIGN
 
 static mpack_arg_array *parse_go_output(Buffer *bdata, b_list *output);
 static b_list          *separate_and_sort(bstring *output);

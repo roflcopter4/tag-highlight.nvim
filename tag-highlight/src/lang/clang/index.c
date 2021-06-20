@@ -169,7 +169,7 @@ get_line_data (const translationunit_t *stu,
                struct idx_data              *data,
                struct line_data             *line_data)
 {
-        struct { CXFile file; unsigned line, column, offset; } fileinfo;
+        struct { alignas(32) CXFile file; unsigned line, column, offset; } fileinfo;
         clang_indexLoc_getFileLocation(loc, NULL, &fileinfo.file, &fileinfo.line,
                                        &fileinfo.column, &fileinfo.offset);
 
@@ -194,7 +194,7 @@ get_line_data (const translationunit_t *stu,
          */
         CXString   dispname = clang_getCursorDisplayName(cursor);
         bstring    realtok  = bt_fromblk(&stu->buf->data[rng.offset1], rng.len);
-        const bool eq       = b_iseq_cstr(&realtok, CS(dispname));
+        bool const eq       = b_iseq_cstr(&realtok, CS(dispname));
         clang_disposeString(dispname);
         if (!eq)
              return LINE_DATA_FAIL;

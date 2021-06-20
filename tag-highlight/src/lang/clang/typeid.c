@@ -210,9 +210,11 @@ retry:
         /* Possibly the most generic kind, this could refer to many things. */
         case CXCursor_DeclRefExpr:
                 switch (tok->cursortype.kind) {
+#if 0
                 case CXType_Enum:
                         ADD_CALL(CTAGS_ENUMCONST);
                         break;
+#endif
                 case CXType_FunctionProto:
                         if (tok->tokenkind == CXToken_Punctuation)
                                 ADD_CALL(EXTENSION_OVERLOADEDOP);
