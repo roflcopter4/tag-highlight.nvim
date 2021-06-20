@@ -22,7 +22,7 @@ if (CMAKE_GOLANG_EXECUTABLE)
         COMMENT "Building Go module."
         VERBATIM
     )
-    add_custom_target(golang ALL DEPENDS "${golang_OUTPUT}")
+    add_custom_target(golang_exe ALL DEPENDS "${golang_OUTPUT}")
 
     install(PROGRAMS "${golang_OUTPUT}"
         DESTINATION "${CMAKE_INSTALL_BINDIR}"

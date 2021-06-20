@@ -189,9 +189,18 @@ extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
 
 extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
 #ifdef DOSISH
-extern int win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
+extern int win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
 extern noreturn void win32_error_exit(int status, const char *msg, DWORD dw);
+
+#define WIN32_ERROR_EXIT_HELPER(VAR, ...)     \
+      (__extension__({                        \
+            char VAR[2048];                   \
+            snprintf(VAR, 2048, __VA_ARGS__); \
+            VAR;                              \
+      }))
+#define WIN32_ERROR_EXIT(ST, ...) \
+      win32_error_exit((ST), WIN32_ERROR_EXIT_HELPER(P99_UNIQ(), __VA_ARGS__), GetLastError())
 #endif
 
 #ifdef __cplusplus

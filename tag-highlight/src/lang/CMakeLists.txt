@@ -11,7 +11,7 @@ set (tag-highlight-lang_SOURCES
     ctags_scan/strip.c
     ctags_scan/tok.c
     golang/golang.c
-    golang/sock.c
+    golang/pipe.c
     lang.c
 )
 

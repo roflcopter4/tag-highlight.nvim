@@ -117,7 +117,6 @@ struct bufdata {
                 /* golang */ 
                 struct {
                         atomic_flag flg;
-                        pid_t pid;
                         void *sock_info;
                 } godata;
                 /* generic */

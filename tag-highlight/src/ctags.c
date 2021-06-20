@@ -1,17 +1,16 @@
 #include "Common.h"
-#include <dirent.h>
 #include <sys/stat.h>
+
 #if defined(DOSISH) || defined(MINGW)
-//#  include <direct.h>
+#  include <direct.h>
 #else
+#  include <dirent.h>
 #  include <spawn.h>
 #  include <sys/wait.h>
 #endif
 
 #include "highlight.h"
 #include "util/archive.h"
-
-extern char **environ;
 
 static inline void write_gzfile(struct top_dir *topdir);
 static int         exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);

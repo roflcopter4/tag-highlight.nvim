@@ -58,13 +58,13 @@ typedef signed long long int ssize_t;
 #  endif
 extern char *basename(char *path);
 #else
+#  include <sys/socket.h>
+#  include <dirent.h>
 #  include <libgen.h>
 #  include <pthread.h>
-#  include <sys/socket.h>
 #  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <sys/types.h>
-#  include <sys/un.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
 #  define PATHSEP '/'
@@ -86,7 +86,6 @@ extern const char *program_invocation_name;
 #define SAFE_PATH_MAX (4096)
 
 #include <assert.h>
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>

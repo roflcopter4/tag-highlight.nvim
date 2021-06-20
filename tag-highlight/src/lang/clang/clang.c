@@ -14,7 +14,7 @@
 
 #define TUFLAGS                                          \
         (  CXTranslationUnit_DetailedPreprocessingRecord \
-         /* | CXTranslationUnit_Incomplete */                  \
+         | CXTranslationUnit_Incomplete                  \
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_CreatePreambleOnFirstParse  \
          | CXTranslationUnit_KeepGoing                   \

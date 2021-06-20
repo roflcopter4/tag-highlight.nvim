@@ -11,13 +11,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	// "golang.org/x/tools/gcexportdata"
-	// "github.com/golang/tools/tree/master/go/gcexportdata"
 )
 
 var (
 	fset *token.FileSet = token.NewFileSet()
 	lg   *mylog         = new(mylog)
+	errFile *os.File = os.Stderr
 )
 
 type mylog struct {
@@ -37,13 +36,13 @@ const (
 	TYPE_METHOD      = 'F'
 )
 
-const debug_override = 2
+const debug_override = 0
 
 //========================================================================================
 
 func main() {
-	if len(os.Args) != 8 {
-		os.Exit(1)
+	if len(os.Args) != 6 {
+		errx(1, "Too few arguments (%d)", len(os.Args))
 	}
 	var (
 		lfile        *os.File
@@ -53,13 +52,7 @@ func main() {
 		our_fname    string = os.Args[3]
 		our_fpath    string = os.Args[4]
 		our_projpath string = os.Args[5]
-
-		// sock = connect_socket_c([2]string{os.Args[6], os.Args[7]})
 	)
-
-	if err := os.Chdir(our_projpath); err != nil {
-		panic(err)
-	}
 
 	isdebug, _ = strconv.Atoi(isdebug_s)
 	open_log(&lfile, debug_override != 2 && (debug_override == 1 || isdebug == 1), prog_name)
@@ -69,16 +62,16 @@ func main() {
 		}
 	}()
 
+	if err := os.Chdir(our_projpath); err != nil {
+		panic(err)
+	}
+
 	data := InitialParse(our_fname, our_fpath)
 
 	for {
 		data.Update(Wait())
 		data.WriteOutput()
 	}
-
-	// for {
-	//       data.Update(sock, wait(sock))
-	// }
 
 	os.Exit(0)
 }
@@ -163,7 +156,6 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 
 /*--------------------------------------------------------------------------------------*/
 
-// func (this *Parsed_Data) Update(sock *sockets, buf string) {
 func (this *Parsed_Data) Update(buf string) {
 	var err error
 
@@ -189,11 +181,8 @@ func (this *Parsed_Data) Update(buf string) {
 
 	if err = this.Populate(); err != nil {
 		/* Ugh. Just ignore the errors. */
-		// eprintf("Error: %v", err)
-		// return
 	}
 	this.Highlight()
-	// this.WriteOutput(sock)
 }
 
 func (this *Parsed_Data) Populate() error {
@@ -263,14 +252,17 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
 	switch x := typeinfo.(type) {
 	case *types.Const:
 		ret = TYPE_CONSTANT
+
 	case *types.Func:
 		if x.Parent() == nil {
 			ret = TYPE_METHOD
 		} else {
 			ret = TYPE_FUNCTION
 		}
+
 	case *types.PkgName:
 		ret = TYPE_PACKAGENAME
+
 	case *types.TypeName:
 		if x.Type() != nil || x.Type().Underlying() != nil {
 			switch x.Type().Underlying().(type) {
@@ -282,6 +274,7 @@ func identify_kind(ident *ast.Ident, typeinfo types.Object) int {
 				ret = TYPE_TYPENAME
 			}
 		}
+
 	case *types.Var:
 		if x.Type() != nil && x.Type().Underlying() != nil {
 			switch x.Type().Underlying().(type) {

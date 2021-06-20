@@ -99,9 +99,9 @@ highlight_go(Buffer *bdata)
         if (!tmp || tmp->slen == 0)
                 goto error;
 
-        golang_send_msg(gd->write_fd, tmp);
+        golang_send_msg(gd, tmp);
         talloc_free(tmp);
-        tmp = golang_recv_msg(gd->read_fd);
+        tmp = golang_recv_msg(gd);
 
         if (!tmp || !tmp->data || tmp->slen == 0)
                 goto error;
@@ -178,6 +178,8 @@ separate_and_sort(bstring *output)
         b_list  *ret = b_list_create();
         bstring  tok = BSTR_STATIC_INIT;
         while (b_memsep(&tok, output, '\n')) {
+                if (tok.data[tok.slen-1] == '\r')
+                        tok.data[--tok.slen] = '\0';
                 bstring *tmp = b_refblk(tok.data, tok.slen + 1U, true);
 
                 if (b_list_append(ret, tmp) != BSTR_OK)

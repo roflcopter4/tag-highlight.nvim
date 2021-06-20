@@ -12,6 +12,7 @@
 #ifdef DOSISH
 #  define restrict __restrict
    extern const char *program_invocation_short_name;
+static void win32_print_stack(void);
 #endif
 
 #define SAFE_STAT(PATH, ST)                                     \
@@ -46,6 +47,15 @@
                 fsync(2);                                              \
                 abort();                                               \
         })
+#elif defined DOSISH
+#  define FATAL_ERROR(...)                                             \
+        do {                                                           \
+                fflush(stderr);                                        \
+                SHUTUPGCC write(2, SLS("Fatal error\nSTACKTRACE:\n")); \
+                win32_print_stack();                                   \
+                abort();                                               \
+        } while (0)
+#  define SHOW_STACKTRACE(...) (win32_print_stack())
 #else
 #  define FATAL_ERROR(...)                                             \
         do {                                                           \
@@ -487,32 +497,36 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
 }
 
 int
-win32_start_process_with_pipe(char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi)
+win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi)
 {
         HANDLE              handles[2][2];
         STARTUPINFOA        info;
-        SECURITY_ATTRIBUTES attr = {sizeof(attr), NULL, true};
+        SECURITY_ATTRIBUTES attr = {.nLength = sizeof(SECURITY_ATTRIBUTES),
+                                    .bInheritHandle = TRUE,
+                                    .lpSecurityDescriptor = NULL};
 
-        if (!CreatePipe(&handles[0][0], &handles[0][1], &attr, 0)) 
+        if (!CreatePipe(&handles[0][READ_FD], &handles[0][WRITE_FD], &attr, 0)) 
                 win32_error_exit(1, "CreatePipe()", GetLastError());
-        if (!CreatePipe(&handles[1][0], &handles[1][1], &attr, 0)) 
+        if (!CreatePipe(&handles[1][READ_FD], &handles[1][WRITE_FD], &attr, 0)) 
                 win32_error_exit(1, "CreatePipe()", GetLastError());
         if (!SetHandleInformation(handles[0][WRITE_FD], HANDLE_FLAG_INHERIT, 0))
                 win32_error_exit(1, "Stdin SetHandleInformation", GetLastError());
         if (!SetHandleInformation(handles[1][READ_FD], HANDLE_FLAG_INHERIT, 0))
                 win32_error_exit(1, "Stdout SetHandleInformation", GetLastError());
 
-        memset(&info, 0, sizeof(info));
-        memset(pi, 0, sizeof(*pi));
-        info = (STARTUPINFOA){
-            .cb         = sizeof(info),
-            .dwFlags    = STARTF_USESTDHANDLES,
-            .hStdInput  = handles[0][READ_FD],
-            .hStdOutput = handles[1][WRITE_FD],
-            .hStdError  = GetStdHandle(STD_ERROR_HANDLE),
-        };
+        memset(&info, 0, sizeof(STARTUPINFOA));
+        memset(pi, 0, sizeof(PROCESS_INFORMATION));
 
-        if (!CreateProcessA(NULL, argv, NULL, NULL, true, 0, NULL, NULL, &info, pi))
+        info.cb         = sizeof(STARTUPINFOA);
+        info.dwFlags    = STARTF_USESTDHANDLES;
+        info.hStdInput  = handles[0][READ_FD];
+        info.hStdOutput = handles[1][WRITE_FD];
+        info.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+
+        if (!SetHandleInformation(info.hStdError, HANDLE_FLAG_INHERIT, 1))
+                win32_error_exit(1, "Stdout SetHandleInformation", GetLastError());
+
+        if (!CreateProcessA(exe, argv, NULL, NULL, TRUE, 0, NULL, NULL, &info, pi))
                 win32_error_exit(1, "CreateProcess() failed", GetLastError());
         CloseHandle(handles[0][READ_FD]);
         CloseHandle(handles[1][WRITE_FD]);
@@ -528,7 +542,7 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
         PROCESS_INFORMATION pi;
         HANDLE handles[2];
         DWORD  written, st;
-        win32_start_process_with_pipe(argv, handles, &pi);
+        win32_start_process_with_pipe(NULL, argv, handles, &pi);
 
         if (!WriteFile(handles[WRITE_FD], input->data,
                        input->slen, &written, NULL) || written != input->slen)
@@ -575,10 +589,11 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
         char *lpMsgBuf;
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                       NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
-        SHOUT("%s: Error: %s: %s\n", program_invocation_short_name, msg, lpMsgBuf);
+        eprintf("%s: Error: %s: %s\n", program_invocation_short_name, msg, lpMsgBuf);
         fflush(stderr);
         LocalFree(lpMsgBuf);
-        exit(status);
+        SHOW_STACKTRACE();
+        ExitProcess(status);
 }
 #else
 #  error "Impossible operating system detected. VMS? OS/2? DOS? Maybe System/360? Yeesh."
@@ -586,3 +601,36 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
 
 #undef READ_FD
 #undef WRITE_FD
+
+
+#ifdef DOSISH
+
+#include <dbghelp.h>
+
+static void
+win32_print_stack(void)
+{
+      unsigned int   i;
+      void          *stack[100];
+      unsigned short frames;
+      SYMBOL_INFO   *symbol;
+      HANDLE         process;
+
+      process = GetCurrentProcess();
+
+      SymInitialize(process, NULL, TRUE);
+
+      frames = CaptureStackBackTrace(0, 100, stack, NULL);
+      symbol = calloc(sizeof(SYMBOL_INFO) + (SIZE_C(256) * sizeof(char)), 1LLU);
+      symbol->MaxNameLen   = 255;
+      symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+
+      for (i = 0; i < frames; i++) {
+            SymFromAddr(process, (DWORD64)(stack[i]), 0, symbol);
+            eprintf("%i: %s - 0x%0X\n", frames - i - 1, symbol->Name, symbol->Address);
+      }
+
+      free(symbol);
+}
+
+#endif

@@ -95,11 +95,8 @@ target_link_libraries(tag-highlight
 
 if (IS_BSD)
     target_link_libraries(tag-highlight -lstdthreads -lexecinfo)
-endif()
-
-if (MINGW)
-    # For some reason clang wants libstdc++ linked in on Windows.
-    target_link_libraries(tag-highlight -lstdc++)
+elseif (MINGW OR MSVC)
+    target_link_libraries(tag-highlight -lDbghelp)
 endif ()
 
 if (LIBEV_FOUND)
@@ -116,7 +113,6 @@ if (USE_JEMALLOC)
 endif()
 
 if (TALLOC_FOUND)
-# if (FALSE)
     target_link_libraries(tag-highlight ${TALLOC_LIBRARIES})
 
     install(TARGETS tag-highlight
@@ -125,27 +121,23 @@ if (TALLOC_FOUND)
 else()
     include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
 
-    # Unfortunately, apparently talloc *must* be a shared library to work
-    # properly. What a pain.
-    add_library(mytalloc SHARED
-                "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c"
-                # "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc.h"
-                # "${PROJECT_SOURCE_DIR}/contrib/talloc/talloc_config.h"
-    )
+    # Unfortunately, apparently talloc *must* be a shared library
+    # to work properly. What a pain.
+    add_library(mytalloc SHARED "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
                 
     set (mytalloc_compile_options_common
         "-fno-lto"
         "-D_XOPEN_SOURCE_EXTENDED=1"
         "-D__STDC_WANT_LIB_EXT1__=1")
 
-    if (MINGW)
+    if (MINGW OR MSVC_LIKE)
         target_compile_options(
             mytalloc
             PRIVATE
                 ${mytalloc_compile_options_common}
                 "-DBUILDING_DLL_=1"
         )
-    else()
+    elseif (NOT MSVC_LIKE)
         target_compile_options(
             mytalloc
             PRIVATE

@@ -6,6 +6,7 @@ include (CheckSymbolExists)
 include (CheckIncludeFile)
 include (GNUInstallDirs)
 
+
 ###############################################################################
 # Options
 
@@ -15,7 +16,7 @@ get_filename_component(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
 set (REQUIRED_LZMA_VERSION 5.3.1)
 option(SANITIZE "Enable sanitizers" OFF)
 option(USE_JEMALLOC "Use jemalloc" OFF)
-option(USE_LIBEV "Use libev for the event loop (if available)" "TRY")
+option(MINGW_PREFIX "Absolute path (windows style) to your Mingw prefix (eg. C:\\msys64\\mingw64)")
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
@@ -33,56 +34,85 @@ if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDe
     set (DEBUG 1)
 endif()
 
-# if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|OpenBSD|DragonFly|NetBSD")
 # Only FreeBSD and friends work right now.
 if (CMAKE_SYSTEM_NAME MATCHES "FreeBSD|DragonFly")
     set (IS_BSD 1)
+elseif (CMAKE_SYSTEM_NAME MATCHES "OpenBSD|NetBSD")
+    message(FATAL_ERROR "Sorry friend, your BSD isn't supported. No hard feelings, I'm just lazy.")
+endif()
+
+if (MSVC OR "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+    set (MSVC_LIKE YES)
+endif()
+if (MSVC AND NOT "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+    set (TRUE_MSVC YES)
 endif()
 
 ###############################################################################
 # Includes and defines
 
-if (MINGW)
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include _mingw.h")
-
-    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS}
-           "-Wl,--allow-multiple-definition")
-
-    add_definitions(-D__MINGW__)
-    add_definitions(-D__USE_MINGW_ANSI_STDIO=1)
-    # Need jemalloc for `aligned_alloc'
-    set(USE_JEMALLOC "YES")
+if (MSVC)
+    set (CMAKE_REQUIRED_DEFINITIONS -DHAVE_CONFIG_H)
+    add_definitions(-DHAVE_CONFIG_H)
 else()
-    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS}
-           -L/usr/local/lib -rdynamic)
+    if (MINGW)
+        add_definitions(-D__MINGW__=1 -D__USE_MINGW_ANSI_STDIO=1)
+    else()
+        string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+                "-L/usr/local/lib" "-L/usr/local/lib64" "-rdynamic")
+    endif()
+    set (CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -D__USE_ISOC99
+         -D__USE_ISOC11 -D__USE_ISOCXX11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
+    add_definitions(${CMAKE_REQUIRED_DEFINITIONS})
 endif()
 
-add_definitions(-D_GNU_SOURCE -DHAVE_CONFIG_H -DBSTR_USE_P99 -DBSTR_USE_TALLOC)
+add_definitions(-DBSTR_USE_P99 -DBSTR_USE_TALLOC)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib")
 include_directories("${PROJECT_SOURCE_DIR}/src/contrib/bstring")
 
 if (UNIX)
-    # Why some compilers don't include this by default is something I think
-    # I'll never understand.
+    # Why some compilers don't include this by default is something I think I'll never understand.
     include_directories("/usr/local/include")
 endif()
 
-set (CMAKE_REQUIRED_DEFINITIONS -D__USE_ISOC11 -D_GNU_SOURCE -DHAVE_CONFIG_H)
-
 include("${PROJECT_SOURCE_DIR}/cmake/get_compiler_include_paths.cmake")
 GET_COMPILER_PATHS(COMPILER_INCLUDE_DIRECTORIES)
+message("Have \"${COMPILER_INCLUDE_DIRECTORIES}\"")
+
+if (MSVC OR "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+    if (NOT MINGW_PREFIX)
+        if (DEFINED ENV{MINGW_PREFIX})
+            set (${MINGW_PREFIX} $ENV{MINGW_PREFIX})
+        else()
+            message(FATAL_ERROR "You must specify your MinGW prefix")
+        endif ()
+    endif()
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    include_directories("balls/include")
+    #include_directories("${MINGW_PREFIX}/include"
+    #                    "${MINGW_PREFIX}/x86_64-w64-mingw32/include")
+endif()
+
 
 ###############################################################################
 # Libraries
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package (ZLIB REQUIRED)
+find_package (ZLIB)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
 find_package (LibLZMA)
+
+if (NOT ZLIB_FOUND)
+    pkg_check_modules(ZLIB zlib REQUIRED)
+    set (ZLIB_LIBRARIES ${ZLIB_LINK_LIBRARIES})
+endif()
+
+string(JOIN " " CMAKE_C_FLAGS ${LIBCLANG_CFLAGS} ${ZLIB_CFLAGS} ${CMAKE_C_FLAGS})
+string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${LIBCLANG_LDFLAGS} ${ZLIB_LDFLAGS} ${CMAKE_EXE_LINKER_FLAGS})
 
 if (LIBLZMA_FOUND)
     if (${LIBLZMA_VERSION_STRING} STRLESS ${REQUIRED_LZMA_VERSION})
@@ -91,10 +121,10 @@ liblzma version ${REQUIRED_LZMA_VERSION} or greater is required for XZ support. 
 XZ support will be disabled for this build.")
     else()
         include_directories(${LIBLZMA_INCLUDE_DIRS})
+        string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${LIBLZMA_INCLUDE_DIRS} ${CMAKE_EXE_LINKER_FLAGS})
         set (LZMA_SUPPORT 1)
     endif()
 endif()
-
 
 find_package (Talloc)
 if (NOT TALLOC_FOUND)
@@ -111,9 +141,10 @@ if (USE_LIBEV)
     endif()
 endif()
 
-
 if (USE_JEMALLOC)
     find_package (Jemalloc REQUIRED)
+    include_directories (${JEMALLOC_INCLUDE_DIRS})
+    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${JEMALLOC_LDFLAGS} ${CMAKE_EXE_LINKER_FLAGS})
 endif()
 
 
@@ -170,10 +201,9 @@ if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
      find_package(LibBSD)
 endif()
 
+
 ###############################################################################
 # General flags
-
-string(JOIN " " CMAKE_C_FLAGS ${LIBCLANG_CFLAGS} ${CMAKE_C_FLAGS})
 
 string (JOIN " " WARNS
         -Wall -Wextra
@@ -190,9 +220,8 @@ if (NOT BUILD_DIST)
     set (MARCH_SETTING "-mtune=native -march=native")
 endif()
 
-if (SANITIZE)
+if (SANITIZE AND NOT MSVC)
     set (SANIT "-fsanitize=undefined")
-    string(CONCAT SANITIZER_LOG_PLACE $ENV{HOME} "/sanit/asan.log")
     if ("${SANITIZE}" STREQUAL "thread")
         string (CONCAT SANIT "${SANIT} -fsanitize=thread")
     elseif ("${SANITIZE}" STREQUAL "memory")
@@ -202,49 +231,66 @@ if (SANITIZE)
     endif()
 endif()
 
-message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
+message("Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
-string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
-                    " -pipe -std=gnu11 -fdiagnostics-color=always")
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
 
-string(FIND ${CMAKE_C_COMPILER} "clang" CLANG_STR_SEARCH)
-if (NOT CLANG_STR_SEARCH EQUAL -1)
-    set (CC_IS_CLANG 1)
-endif()
-
-set (CFLAGS_DEBUG_COMMON          "-O0 -g3 -Wextra -Wpedantic -Wformat")
-set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
-set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE")
-
-if (SANITIZE)
-    string (JOIN " " CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
+if (MSVC)
+    if (SANITIZE)
+        message(WARNING "Can't possibly sanitize MSVC. Try nuking from orbit")
+    endif()
+else()
+    if (SANITIZE)
+        set (CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
             -fno-omit-frame-pointer -fno-optimize-sibling-calls)
+    endif()
+    string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
+                        " -pipe -std=gnu11 -fdiagnostics-color=always")
+
+    set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
+    set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
+    set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE")
 endif()
 
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-endif()
-
-if (CC_IS_CLANG)
-    string (JOIN " " WARNS ${WARNS}
-         -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
-         -Wno-gnu-statement-expression -Werror=return-type
-         -Wno-sign-compare -Wno-dollar-in-identifier-extension
-    )
-    string (CONCAT BASE "${BASE} ${WARNS}")
-    set (LTO_STR "-flto=full")
-
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-        #" -mprefer-vector-width=512"
-        " -fuse-ld=lld"
-        " ${LTO_STR}"
-        #" -Wl,--lto-O3"
-        #" -Wl,--lto-whole-program-visibility"
-        # " -masm=intel -fverbose-asm -Wl,--lto-emit-asm"
-    )
+if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+    if ("${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+        message(WARNING "YES")
+        string (CONCAT BASE "/arch:AVX512 /clang:-march=native /std:gnu17 /W4 /Zc:preprocessor -fdiagnostics-color=always")
+        
+        set (CFLAGS_RELEASE_COMMON "/O2 /Ob2 /Oi /Ot /clang:-O3 /DNDEBUG /GL -flto")
+        set (CFLAGS_RELWITHDEBINFO_COMMON "${CFLAGS_RELEASE_COMMON} -g")
+        set (CFLAGS_DEBUG_COMMON   "/clang:-Og -g3 /ZI /RTC1 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
+        if (${CMAKE_BUILD_TYPE} STREQUAL "Release" OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+            string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LTCG")
+        else()
+            string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG:FULL")
+        endif ()
+        
+        string (JOIN " " BASE ${BASE} ${WARNS})
+        message (WARNING "${BASE}")
+        
+        find_program(LLVM_CPP "clang-cpp" REQUIRED)
+        set (CMAKE_CPP "${LLVM_CPP}")
+    else()
+        string (JOIN " " WARNS ${WARNS}
+            -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
+            -Wno-gnu-statement-expression -Werror=return-type
+            -Wno-sign-compare -Wno-dollar-in-identifier-extension
+        )
+        string (CONCAT BASE "${BASE} ${WARNS}")
+        
+        if (CMAKE_BUILD_TYPE STREQUAL "Release")
+            set (LTO_STR "-flto=full")
+            string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+                " -mprefer-vector-width=512"
+                " -fuse-ld=lld"
+                " ${LTO_STR}"
+                #" -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
+            )
+        endif ()
+    endif()
     
     find_program(LLVM_AR "llvm-ar" REQUIRED)
     find_program(LLVM_NM "llvm-nm" REQUIRED)
@@ -253,10 +299,7 @@ if (CC_IS_CLANG)
     set (CMAKE_NM "${LLVM_NM}")
     set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
-    string(CONCAT CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
-
-elseif (NOT MSVC) # GCC
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 
     string (JOIN " " WARNS ${WARNS}
          -Wsuggest-attribute=pure
@@ -279,17 +322,26 @@ elseif (NOT MSVC) # GCC
     string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}")
 endif()
 
+
 #####################################################################################################
 # Misc
 
-string(JOIN " " CMAKE_C_FLAGS_DEBUG
-                ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
-string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
-                ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE})
-string(JOIN " " CMAKE_C_FLAGS_RELEASE
-                ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON} ${BASE} ${LTO_STR})
-string(JOIN " " CMAKE_C_FLAGS_MINSIZEREL
-                ${CMAKE_C_FLAGS_MINSIZEREL} ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s)
+if (TRUE_MSVC)
+    message (FATAL_ERROR "FUCK")
+else()
+    message(WARNING "YES")
+    string(JOIN " " CMAKE_C_FLAGS_DEBUG
+                    ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
+    string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
+                    ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE})
+    string(JOIN " " CMAKE_C_FLAGS_RELEASE
+                    ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON} ${BASE} ${LTO_STR})
+    string(JOIN " " CMAKE_C_FLAGS_MINSIZEREL
+                    ${CMAKE_C_FLAGS_MINSIZEREL} ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s)
+endif()
+
+message(WARNING "${CMAKE_C_FLAGS}")
+message(WARNING "${CMAKE_C_FLAGS_DEBUG}")
 
 if (MINGW)
     FIX_WINDOWS_PATHS(CMAKE_C_FLAGS)

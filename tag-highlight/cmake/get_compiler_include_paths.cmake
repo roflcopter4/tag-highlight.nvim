@@ -2,14 +2,24 @@
 macro(DETERMINE_GCC_SYSTEM_INCLUDE_DIRS _lang _compiler _flags _result)
     file(WRITE "${CMAKE_BINARY_DIR}/CMakeFiles/dummy" "\n")
     separate_arguments(_buildFlags UNIX_COMMAND "${_flags}")
-    execute_process(COMMAND ${_compiler} ${_buildFlags} -v -E -x ${_lang} -dD dummy
-                    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/CMakeFiles OUTPUT_QUIET
-                    ERROR_VARIABLE _gccOutput)
+    if ("${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
+        execute_process(COMMAND ${_compiler} ${_buildFlags} -m64 -v -E -Xclang -x -Xclang ${_lang} -Xclang -dD dummy
+                        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/CMakeFiles OUTPUT_QUIET
+                        ERROR_VARIABLE _gccOutput)
+    else()
+        execute_process(COMMAND ${_compiler} ${_buildFlags} -v -E -x ${_lang} -dD dummy
+                        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/CMakeFiles OUTPUT_QUIET
+                        ERROR_VARIABLE _gccOutput)
+    endif()
     file(REMOVE "${CMAKE_BINARY_DIR}/CMakeFiles/dummy")
     if ("${_gccOutput}" MATCHES "> search starts here[^\n]+\n *(.+) *\n *End of (search) list")
         set(${_result} ${CMAKE_MATCH_1})
-        string(REPLACE "\n" "" ${_result} "${${_result}}")
-        separate_arguments(${_result})
+        #string(REPLACE "\n" "" ${_result} "${${_result}}")
+        #separate_arguments(${_result})
+        string(REGEX MATCHALL " *[^\r\n]+ ?(\r?\n|$)" _tmp_var "${${_result}}")
+        #set (${_result} ${_tmp_var})
+        list(TRANSFORM _tmp_var STRIP)
+        set (${_result} ${_tmp_var})
     endif ()
 endmacro()
 
@@ -26,8 +36,6 @@ macro(GET_COMPILER_INCLUDE_LIST_RAW _compiler _out_var)
 endmacro()
 
 macro(GET_COMPILER_PATHS _out_var)
-    # GET_COMPILER_INCLUDE_LIST_RAW("clang" MY_COMPILER_INCLUDE_LIST)
-    # GET_COMPILER_INCLUDE_LIST_RAW("gcc" MY_COMPILER_INCLUDE_LIST)
     GET_COMPILER_INCLUDE_LIST_RAW("${CMAKE_C_COMPILER}" MY_COMPILER_INCLUDE_LIST)
     list(REMOVE_DUPLICATES MY_COMPILER_INCLUDE_LIST)
     foreach (MY_INCLUDE ${MY_COMPILER_INCLUDE_LIST})
