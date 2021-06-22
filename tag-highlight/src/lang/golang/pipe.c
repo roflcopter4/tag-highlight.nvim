@@ -253,7 +253,7 @@ start_binary(Buffer *bdata)
 
         gd->write_fd = fds[0][WRITE_FD];
         gd->read_fd = fds[1][READ_FD];
-        gd->.pid   = pid;
+        gd->pid   = pid;
 
         return pid;
 }

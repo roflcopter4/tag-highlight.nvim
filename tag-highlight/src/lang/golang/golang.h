@@ -20,11 +20,6 @@ struct golang_data {
         pid_t    pid;
 #endif
 
-        int read_sock;
-        int write_sock;
-        int read_fd;
-        int write_fd;
-
         pthread_mutex_t mut;
 };
 
