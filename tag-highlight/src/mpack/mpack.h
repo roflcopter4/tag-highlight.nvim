@@ -184,6 +184,7 @@ mpack_index(mpack_obj *obj, const unsigned index)
 #define DDE data.dict->entries
 
 extern FILE *mpack_log;
+extern FILE *mpack_raw;
 #ifdef DEBUG
 #  define PRINT_AND_DESTROY(RESULT_)                      \
         do {                                              \

@@ -118,11 +118,6 @@ nvim_api_wrapper_init(void)
 static mpack_obj *
 await_package(nvim_wait_node *node)
 {
-#if 0
-        /* The reader thread waits for a wakeup call before looking at the queue. */
-        p99_futex_wakeup(&node->fut, 1U, P99_FUTEX_MAX_WAITERS);
-#endif
-
         /* Now we wait for it to deposit the package, and load it. */
         p99_futex_wait(&node->fut);
         mpack_obj *obj = atomic_load_explicit(&node->obj, memory_order_seq_cst);
@@ -135,27 +130,11 @@ await_package(nvim_wait_node *node)
 static mpack_obj *
 write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
 {
-#if 0 && defined DEBUG
-#  ifdef LOG_RAW_MPACK
-        {
-        extern char LOGDIR[];
-        eprintf("Writing to log... %zu\n", (size_t)(*pack->packed)->slen);
-        char tmp[512]; snprintf(tmp, 512, "%s/rawmpack.log", LOGDIR);
-        FILE *fp = fopen(tmp, "wb");
-        if (!fp)
-                THROW("Well, we lose");
-        size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, fp);
-        if (n <= 0 || ferror(fp))
-                errx(1, "All is lost");
-        fflush(fp); fclose(fp);
-        fprintf(stderr, "Wrote %zu chars\n", n); fflush(stderr);
-        assert((unsigned)n == (*pack->packed)->slen);
+#if defined DEBUG
+        if (mpack_raw) {
+                size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, mpack_raw);
+                assert(!ferror(mpack_raw) && (unsigned)n == (*pack->packed)->slen);
         }
-#  endif
-        if (func && logfp)
-                fprintf(logfp, "=================================\n"
-                        "Writing request no %d: \"%s\"\n", 0, BS(func));
-
 #endif
         mpack_print_object(mpack_log, pack);
 

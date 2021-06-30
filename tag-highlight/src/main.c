@@ -26,7 +26,7 @@ const char *program_invocation_name;
 const char *program_invocation_short_name;
 #endif
 
-extern FILE *cmd_log, *echo_log, *main_log, *mpack_raw;
+extern FILE *main_log, *mpack_raw;
 FILE        *talloc_log_file;
 pthread_t    top_thread;
 char         LOGDIR[SAFE_PATH_MAX];
@@ -150,10 +150,8 @@ static void
 clean_talloc_contexts(void)
 {
 #if 0
-#ifdef DEBUG
         talloc_report_full(main_top_talloc_ctx, talloc_log_file);
         fclose(talloc_log_file);
-#endif
         talloc_free(main_top_talloc_ctx);
 #endif
 }
@@ -167,24 +165,16 @@ clean_talloc_contexts(void)
 static void
 open_logs(void)
 {
-#if defined DEBUG && defined DEBUG_LOGS
-        extern char LOGDIR[];
-        snprintf(LOGDIR, SAFE_PATH_MAX, "%s/.tag-highlight_log", HOME);
-        mkdir(LOGDIR, 0777);
-        mpack_raw = safe_fopen_fmt("wb", "%s/mpack_raw", LOGDIR);
-        setvbuf(mpack_raw, NULL, 0, _IONBF);
-        cmd_log   = safe_fopen_fmt("wb", "%s/commandlog.log", LOGDIR);
-        echo_log  = safe_fopen_fmt("wb", "%s/echo.log", LOGDIR);
-        main_log  = safe_fopen_fmt("wb+", "%s/buf.log", LOGDIR);
-
-        /* clang_log_file = safe_fopen_fmt("%s/clang.log", "wb", BS(settings.cache_dir)); */
-#endif
-        /* char *tmp = strdup(program_invocation_name); */
+#ifdef DEBUG
         bstring *tmp = b_fromcstr(program_invocation_name);
-        bstring *dname = b_dirname(tmp);
-        mpack_log = safe_fopen_fmt("web", "%s" PATHSEP_STR "mpack.log", BS(dname));
+        bstring *dir = b_dirname(tmp);
+        
+        mpack_log = safe_fopen_fmt("web", "%s" PATHSEP_STR "mpack.log", BS(dir));
+        mpack_raw = safe_fopen_fmt("web", "%s" PATHSEP_STR "mpack_raw", BS(dir));
+        
         talloc_free(tmp);
-        talloc_free(dname);
+        talloc_free(dir);
+#endif
 }
 
 static noreturn void *
@@ -316,10 +306,6 @@ quick_cleanup(void)
 {
         if (mpack_log)
                 fclose(mpack_log);
-        if (cmd_log)
-                fclose(cmd_log);
-        if (main_log)
-                fclose(main_log);
-        if (echo_log)
-                fclose(echo_log);
+        if (mpack_raw)
+                fclose(mpack_raw);
 }
