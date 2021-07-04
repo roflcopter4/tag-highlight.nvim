@@ -27,7 +27,10 @@ struct timer {
 #elif defined HAVE_CLOCK_GETTIME
 
 struct timer {
-        struct timespec tv1, tv2;
+      alignas(32)
+        struct timespec tv1;
+      alignas(16)
+        struct timespec tv2;
 };
 
 #  define TIMER_START(T_) \

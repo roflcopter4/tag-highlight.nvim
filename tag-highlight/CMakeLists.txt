@@ -269,21 +269,22 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         
         find_program(LLVM_CPP "clang-cpp" REQUIRED)
         set (CMAKE_CPP "${LLVM_CPP}")
+
     else()
-        string (JOIN " " WARNS ${WARNS}
-            -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
-            -Wno-gnu-statement-expression -Werror=return-type
-            -Wno-sign-compare -Wno-dollar-in-identifier-extension
-        )
+
+        # string (JOIN " " WARNS ${WARNS}
+        #     -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
+        #     -Wno-gnu-statement-expression -Werror=return-type
+        #     -Wno-sign-compare -Wno-dollar-in-identifier-extension
+        # )
         string (CONCAT BASE "${BASE} ${WARNS}")
         
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
             set (LTO_STR "-flto=full")
             string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-                " -mprefer-vector-width=512"
+                " -mprefer-vector-width=512 -rtlib=compiler-rt"
                 " -fuse-ld=lld"
-                " ${LTO_STR}"
-                #" -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
+                " -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
             )
         endif ()
     endif()

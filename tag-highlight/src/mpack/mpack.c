@@ -19,17 +19,6 @@ FILE  *mpack_log;
 #  define PRAGMA_NO_NONHEAP_POP()
 #endif
 
-#if 0
-__attribute__((__constructor__))
-static void mpack_mutex_constructor(void)
-{
-        pthread_mutexattr_t attr;
-        memset(&attr, 0, sizeof(attr));
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&mpack_rw_lock, &attr);
-}
-#endif
-
 /*======================================================================================*/
 
 mpack_retval
@@ -206,6 +195,27 @@ mpack_destroy_arg_array(mpack_arg_array *calls)
 
 enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 
+#define NEW_STACK(TYPE, NAME)             \
+      struct {                            \
+            unsigned ctr;                 \
+            TYPE     arr[128];            \
+      } NAME = {.ctr = 0}
+
+#define POP(STACK) \
+        ((((STACK).ctr == 0) ? abort() : (void)0), ((STACK).arr[--(STACK).ctr]))
+
+#define PUSH(STACK, VAL) \
+        ((STACK).arr[(STACK).ctr++] = (VAL))
+
+#define PEEK(STACK) \
+        ((((STACK).ctr == 0) ? abort() : (void)0), ((STACK).arr[(STACK).ctr - 1U]))
+
+#define RESET(STACK) \
+        ((STACK).ctr = 0, (STACK).arr[0] = 0)
+
+#define STACK_CTR(STACK) ((STACK).ctr)
+
+#if 0
 /*
  * I'm using two variables, stack and counter, rather than some struct simply to
  * get around any type checking problems. This way allows the stack to be
@@ -229,6 +239,7 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
         ((STACK##_ctr) = 0, (STACK)[0] = 0)
 
 #define STACK_CTR(STACK) (STACK##_ctr)
+#endif
 
 #ifdef DEBUG
 #  define POP_DEBUG  POP
@@ -324,20 +335,18 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
                                     ? ENCODE_FMT_ARRSIZE + (size_hint * 6U)
                                     : ENCODE_FMT_ARRSIZE;
 
-        unsigned         sub_lengths[arr_size];
-        int              ch;
-        va_list          args;
-        va_list *        ref       = NULL;
-        mpack_argument **a_args    = NULL;
-        char const *     ptr       = fmt;
-        unsigned *       cur_len   = &sub_lengths[0];
-        unsigned         len_ctr   = 1;
-        int              next_type = OWN_VALIST;
-        *cur_len                   = 0;
+        mpack_argument **a_args;
+        unsigned    sub_lengths[arr_size];
+        int         ch;
+        va_list     args;
+        va_list    *ref       = NULL;
+        char const *ptr       = fmt;
+        unsigned   *cur_len   = &sub_lengths[0];
+        unsigned    len_ctr   = 1;
+        int         next_type = OWN_VALIST;
+        *cur_len = 0;
+        a_args   = NULL;
 
-#ifdef DEBUG
-        memset(sub_lengths, 0, (size_t)arr_size * sizeof(*sub_lengths));
-#endif
         NEW_STACK(unsigned *, len_stack);
         va_start(args, fmt);
 
@@ -349,7 +358,7 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
                 case 'b': case 'B': case 'l': case 'L':
                 case 'd': case 'D': case 's': case 'S':
                 case 'n': case 'N': case 'c': case 'C':
-                case 'u':
+                case 'u': case 'U':
                         ++*cur_len;
                         break;
 
@@ -436,7 +445,7 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
                         mpack_encode_integer(pack, cur_obj, arg);
                 }       break;
 
-                case 'u': {
+                case 'u': case 'U': {
                         uint64_t arg = 0;
                         NEXT(arg, uint64_t, uint);
                         mpack_encode_unsigned(pack, cur_obj, arg);

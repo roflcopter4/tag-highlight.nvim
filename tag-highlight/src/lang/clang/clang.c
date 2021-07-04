@@ -18,13 +18,16 @@
          | CXTranslationUnit_PrecompiledPreamble         \
          | CXTranslationUnit_CreatePreambleOnFirstParse  \
          | CXTranslationUnit_KeepGoing                   \
-         | CXTranslationUnit_IncludeAttributedTypes      \
-         | CXTranslationUnit_VisitImplicitAttributes     \
+      /* | CXTranslationUnit_IncludeAttributedTypes */   \
+      /* | CXTranslationUnit_VisitImplicitAttributes */  \
+         | CXTranslationUnit_SkipFunctionBodies          \
+         | CXTranslationUnit_LimitSkipFunctionBodiesToPreamble \
         )
 
 #define INIT_ARGV (32)
 #define CTX       clang_talloc_ctx_
 
+#if 0
 #ifndef TIME_CLANG
 #  undef TIMER_START
 #  undef TIMER_REPORT_RESTART
@@ -33,11 +36,12 @@
 #  define TIMER_REPORT_RESTART(...)
 #  define TIMER_REPORT(...)
 #endif
+#endif
 
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
 static pthread_mutex_t   lc_mutex       = PTHREAD_MUTEX_INITIALIZER;
 
-char  libclang_tmp_path[SAFE_PATH_MAX];
+char  libclang_tmp_path[PATH_MAX + 1];
 void *clang_talloc_ctx_ = NULL;
 
 static translationunit_t *init_compilation_unit(Buffer *bdata, bstring *buf);
@@ -65,23 +69,7 @@ void
 {
         if (!bdata || !atomic_load(&bdata->initialized))
                 return;
-        if (!P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX))
-                return;
-
-#if 0
-        static atomic_uint ctick = ATOMIC_VAR_INIT(0);
-
-        pthread_mutex_lock(&bdata->lock.ctick);
-        unsigned const new = nvim_buf_get_changedtick(bdata->num);
-        atomic_store_explicit(&bdata->last_ctick,
-                              atomic_exchange_explicit(&bdata->ctick, new,
-                                                       memory_order_acq_rel),
-                              memory_order_seq_cst);
-        pthread_mutex_unlock(&bdata->lock.ctick);
-
-        if (type == HIGHLIGHT_NORMAL && new > 0 && new <= ctick)
-                return;
-#endif
+        assert(P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX));
 
         mpack_arg_array   *calls;
         translationunit_t *stu;
@@ -89,15 +77,21 @@ void
         bstring  *joined  = NULL;
 
         uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
-        if (cnt_val >= 3) {
+        if (cnt_val > 3) {
                 p99_count_dec(&bdata->lock.num_workers);
                 return;
         }
 
+        pthread_mutex_lock(&bdata->lock.lang_mtx);
+
+#if 0
+        struct timer tm;
+        TIMER_START(&tm);
+#endif
+
         pthread_mutex_lock(&bdata->lock.total);
         joined = ll_join_bstrings(bdata->lines, '\n');
         pthread_mutex_unlock(&bdata->lock.total);
-        pthread_mutex_lock(&bdata->lock.lang_mtx);
         
         if (last == (-1)) {
                 startend[0] = 0;
@@ -122,6 +116,10 @@ void
         nvim_call_atomic(calls);
         talloc_free(calls);
         talloc_free(stu);
+
+#if 0
+        TIMER_REPORT(&tm, "clang parse");
+#endif
 
         p99_count_dec(&bdata->lock.num_workers);
         pthread_mutex_unlock(&bdata->lock.lang_mtx);
@@ -177,7 +175,8 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
-        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1, &unsaved, TUFLAGS);
+        int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1U, &unsaved,
+                                               clang_defaultReparseOptions(CLD(bdata)->tu));
         if (ret != 0)
                 handle_libclang_error(bdata, ret);
 

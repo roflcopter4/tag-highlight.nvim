@@ -22,7 +22,6 @@ enum mpack_types {
         MPACK_DICT          = 8,
 };
 
-/* enum mpack_expect_types { */
 P99_DECLARE_ENUM(mpack_expect_t,
         E_MPACK_EXT,
         E_MPACK_ARRAY,
@@ -43,9 +42,7 @@ enum mpack_flag_values {
         MPACKFLG_HAS_PACKED = 0x80U,
 };
 
-#define mpack_type(MPACK_)         ((MPACK_)->flags & 0x0FU)
-/* #define mpack_spare_data(MPACK_)   ((MPACK_)->flags |=  (MPACKFLG_SPARE_DATA)) */
-/* #define mpack_unspare_data(MPACK_) ((MPACK_)->flags &= ~(MPACKFLG_SPARE_DATA)) */
+#define mpack_type(MPACK_) ((MPACK_)->flags & 0x0FU)
 
 #ifndef __cplusplus
 typedef struct mpack_object       mpack_obj;
@@ -59,8 +56,6 @@ typedef enum   mpack_types        mpack_type_t;
 typedef union  mpack_argument     mpack_argument;
 typedef union  mpack_retval       mpack_retval;
 #endif
-
-// #pragma pack(push, 1)
 
 struct mpack_object {
         uint8_t  flags;
@@ -95,8 +90,6 @@ struct mpack_ext {
         int8_t   type;
         uint32_t num;
 };
-
-// #pragma pack(pop)
 
 struct mpack_arg_array {
         char **fmt;
@@ -148,34 +141,12 @@ extern mpack_retval mpack_expect        (mpack_obj *obj, mpack_expect_t type, bo
 
 extern pthread_mutex_t mpack_rw_lock;
 
-#if 0
-ALWAYS_INLINE void
-mpack_dict_destroy(mpack_dict *dict)
-{
-        mpack_obj tmp;
-        tmp.flags     = MPACK_DICT | MPACKFLG_ENCODE | MPACKFLG_PHONY;
-        tmp.dict = dict;
-        mpack_destroy_object(&tmp);
-}
-
-ALWAYS_INLINE void
-mpack_array_destroy(mpack_array *array)
-{
-        mpack_obj tmp;
-        tmp.flags    = MPACK_ARRAY | MPACKFLG_ENCODE | MPACKFLG_PHONY;
-        tmp.arr = array;
-        mpack_destroy_object(&tmp);
-}
-#endif
-
 ALWAYS_INLINE mpack_obj *
 mpack_index(mpack_obj *obj, const unsigned index)
 {
         mpack_obj *ret = NULL;
-        //pthread_mutex_lock(&mpack_rw_lock);
         if (mpack_type(obj) == MPACK_ARRAY && obj->arr->qty >= index)
                 ret = obj->arr->lst[index];
-        //pthread_mutex_unlock(&mpack_rw_lock);
         return ret;
 }
 
