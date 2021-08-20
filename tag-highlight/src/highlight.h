@@ -23,7 +23,7 @@ typedef struct bufdata Buffer;
 typedef struct filetype Filetype;
 
 struct settings_s {
-    alignas(__WORDSIZE * 2)
+    //alignas(__WORDSIZE * 2)
         uint16_t    job_id;
         uint8_t     comp_level;
         bool        enabled;
@@ -83,18 +83,13 @@ struct bufdata {
         uint16_t    num;
         uint8_t     hl_id;
         atomic_bool initialized;
-        jmp_buf jbuf;
 
         struct {
                 pthread_mutex_t total;
                 pthread_mutex_t ctick;
                 pthread_mutex_t lang_mtx;
                 p99_count       num_workers;
-
-                p99_count          hl_waiters;
-                pthread_spinlock_t spinlock;
-                pthread_cond_t     cond;
-                pthread_mutex_t    cond_mtx;
+                p99_count       hl_waiters;
         } lock;
 
         struct {
@@ -109,18 +104,15 @@ struct bufdata {
         struct top_dir  *topdir;
 
         union {
-                /* c_family */ 
-                struct {
+                struct /*c_family*/ {
                         void   *clangdata;
                         b_list *headers;
                 };
-                /* golang */ 
-                struct {
+                struct /*golang*/ {
                         atomic_flag flg;
                         void *sock_info;
                 } godata;
-                /* generic */
-                struct {
+                struct /*generic*/ {
                         mpack_arg_array *calls;
                         b_list          *cmd_cache;
                 };

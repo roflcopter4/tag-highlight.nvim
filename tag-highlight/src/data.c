@@ -37,6 +37,12 @@ __attribute__((constructor)) void init_ftdata(void)
         }
 }
 
+#ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
+const char *program_invocation_short_name;
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_NAME
+const char *program_invocation_name;
+#endif
 
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;

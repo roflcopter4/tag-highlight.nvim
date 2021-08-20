@@ -27,6 +27,11 @@
 #define INIT_ARGV (32)
 #define CTX       clang_talloc_ctx_
 
+static const char *default_includes[] = {
+    "-I/usr/include/gblkid",        "-I/usr/include/gio-unix-2.0",     "-I/usr/include/glib-2.0",
+    "-I/usr/include/json-glib-1.0", "-I/usr/include/jsonrpc-glib-1.0", "-I/usr/include/libmount",
+};
+
 #if 0
 #ifndef TIME_CLANG
 #  undef TIMER_START
@@ -197,7 +202,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
-        /* argv_dump(stderr, comp_cmds); */
+        argv_dump(stderr, comp_cmds);
 
         clangdata_t *cld = talloc_zero(bdata, clangdata_t);
         bdata->clangdata = cld;
@@ -515,12 +520,13 @@ get_backup_commands(Buffer *bdata)
         str_vector *ret = argv_create(INIT_ARGV);
         for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
                 argv_append(ret, gcc_sys_dirs[i], true);
-        argv_append(ret, "-I.", true);
-        argv_append(ret, "-I", true);
-        argv_append(ret, BS(bdata->name.path), true);
-        argv_append(ret, "-I", true);
-        argv_append(ret, BS(bdata->topdir->pathname), true);
+        for (size_t i = 0; i < ARRSIZ(default_includes); ++i)
+                argv_append(ret, default_includes[i], true);
+
         argv_append(ret, "-stdlib=libstdc++", true);
+        argv_append(ret, "-I.", true);
+        argv_append_fmt(ret, "-I%s", BS(bdata->name.path));
+        argv_append_fmt(ret, "-I%s", BS(bdata->topdir->pathname));
 
         return ret;
 }
@@ -534,7 +540,7 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
         b_destroy(newnam);
 
         if (num == 0) {
-                ECHO("Looking for backup files...");
+                echo("Looking for backup files...");
                 clang_CompileCommands_dispose(comp);
 
                 bstring *file = find_file(BS(bdata->name.path),
@@ -547,7 +553,7 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
                         comp = clang_CompilationDatabase_getCompileCommands(*db, BS(file));
                         b_destroy(file);
                 } else {
-                        ECHO("Found nothing.\n");
+                        echo("Found nothing.\n");
                         comp = NULL;
                 }
         }

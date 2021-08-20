@@ -37,7 +37,8 @@ static mpack_obj *write_and_clean(mpack_obj *pack, int count, bstring const *fun
 static mpack_obj *await_package  (nvim_wait_node *node) __aWUR;
 
 void *nvim_common_talloc_ctx_ = NULL;
-#define CTX nvim_common_talloc_ctx_
+/* #define CTX nvim_common_talloc_ctx_ */
+#define CTX NULL
 
 /*======================================================================================*/
 
@@ -170,21 +171,28 @@ nvim_api_intern_mpack_expect_wrapper(mpack_obj *root, mpack_expect_t type)
                 bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
                 if (err_str) {
                         echo("Neovim returned with an err_str: '%s'", BS(err_str));
-                        b_destroy(err_str);
+                        talloc_free(err_str);
                 }
         } else {
                 ret = mpack_expect(data, type, false);
                 switch (type) {
-                case E_STRING:
+                case E_STRING: {
                         talloc_set_name(ret.ptr, "nvim/common.c: %s -> %s: (%s)", __func__,
-                                        mpack_expect_t_getname(type), BS((bstring *)ret.ptr));
+                                       mpack_expect_t_getname(type), BS((bstring *)ret.ptr));
+#if 0
+                        bstring *killme = b_fromblk(((bstring *)(ret.ptr))->data, ((bstring *)(ret.ptr))->slen);
+                        talloc_steal(killme, NULL);
+                        ret.ptr = killme;
+                        break;
+#endif
+                }
                 case E_DICT2ARR:
                 case E_MPACK_ARRAY:
                 case E_MPACK_DICT:
                 case E_MPACK_EXT:
                 case E_STRLIST:
                 case E_WSTRING:
-                        talloc_steal(CTX, ret.ptr);
+                        talloc_steal(NULL, ret.ptr);
                         break;
                 default:;
                 }

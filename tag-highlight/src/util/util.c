@@ -11,7 +11,6 @@
 
 #ifdef DOSISH
 #  define restrict __restrict
-   extern const char *program_invocation_short_name;
 static void win32_print_stack(void);
 #endif
 
@@ -183,7 +182,7 @@ xatoi__(const char *const str, const bool strict)
         return val;
 }
 
-#ifdef DOSISH
+#ifndef HAVE_BASENAME
 char *
 basename(char *path)
 {

@@ -215,32 +215,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 
 #define STACK_CTR(STACK) ((STACK).ctr)
 
-#if 0
-/*
- * I'm using two variables, stack and counter, rather than some struct simply to
- * get around any type checking problems. This way allows the stack to be
- * composed of the actual type it holds (rather than a void pointer) and also
- * allows the elements to be integers without requiring some hack.
- */
-#define NEW_STACK(TYPE, NAME) \
-        TYPE     NAME[128];    \
-        unsigned NAME##_ctr = 0
-
-#define POP(STACK) \
-        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[--STACK##_ctr]))
-
-#define PUSH(STACK, VAL) \
-        ((STACK)[STACK##_ctr++] = (VAL))
-
-#define PEEK(STACK) \
-        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[STACK##_ctr - 1]))
-
-#define RESET(STACK) \
-        ((STACK##_ctr) = 0, (STACK)[0] = 0)
-
-#define STACK_CTR(STACK) (STACK##_ctr)
-#endif
-
 #ifdef DEBUG
 #  define POP_DEBUG  POP
 #  define PUSH_DEBUG PUSH
@@ -248,7 +222,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 #  define POP_DEBUG(STACK)       ((void)0)
 #  define PUSH_DEBUG(STACK, VAL) ((void)0)
 #endif
-
 
 /*
  * Ugly macros to simplify the code below.

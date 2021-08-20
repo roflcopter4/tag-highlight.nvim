@@ -306,10 +306,10 @@ genlist_dequeue(genlist *list)
 /*======================================================================================*/
 
 
-struct argument_vector *
+str_vector *
 argv_create(const unsigned len)
 {
-        struct argument_vector *argv = talloc(NULL, struct argument_vector);
+        str_vector *argv = talloc(NULL, str_vector);
         argv->mlen                   = (len) ? len : 1;
         argv->qty                    = 0;
         argv->lst                    = talloc_array(argv, char *, argv->mlen);
@@ -318,7 +318,7 @@ argv_create(const unsigned len)
 
 
 void
-argv_append(struct argument_vector *argv, const char *str, const bool cpy)
+argv_append(str_vector *argv, const char *str, const bool cpy)
 {
         if (argv->qty == (argv->mlen - 1)) {
                 auto_type tmp = talloc_realloc(argv, argv->lst, char *, (argv->mlen *= 2));
@@ -334,7 +334,7 @@ argv_append(struct argument_vector *argv, const char *str, const bool cpy)
 
 
 void
-argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
+argv_append_fmt(str_vector *argv, const char *const __restrict fmt, ...)
 {
         char *_buf = NULL;
         va_list _ap;
@@ -357,7 +357,7 @@ argv_fmt(struct argument_vector *argv, const char *const __restrict fmt, ...)
 
 
 void
-argv_destroy(struct argument_vector *argv)
+argv_destroy(str_vector *argv)
 {
         talloc_free(argv);
 #if 0
@@ -372,7 +372,7 @@ argv_destroy(struct argument_vector *argv)
 
 void
 argv_dump__(FILE *                              fp,
-            const struct argument_vector *const restrict argv,
+            const str_vector *const restrict argv,
             const char *const restrict listname,
             const char *const restrict file,
             const int line)
@@ -387,7 +387,7 @@ argv_dump__(FILE *                              fp,
 
 void
 argv_dump_fd__(const int    fd,
-               const struct argument_vector *const restrict argv,
+               const str_vector *const restrict argv,
                const char *const restrict listname,
                const char *const restrict file,
                const int line)

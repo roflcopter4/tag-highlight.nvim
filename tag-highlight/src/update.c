@@ -165,7 +165,7 @@ update_commands(Buffer *bdata, struct taglist *tags)
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 int const   ch   = bdata->ft->order->data[i];
-                mpack_dict *dict = nvim_get_var_fmt(
+                mpack_dict *dict = nvimext_get_var_fmt(
                         E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
 
                 info[i].kind   = ch;
@@ -217,7 +217,7 @@ handle_kind(bstring *cmd, unsigned i,
         b_sprintfa(cmd, "silent! syntax clear %s | ", group_id);
 
         bstring *global_allbut = nvim_get_var(B("tag_highlight#allbut"), E_STRING).ptr;
-        bstring *ft_allbut = nvim_get_var_fmt(E_STRING, "tag_highlight#%s#allbut",
+        bstring *ft_allbut = nvimext_get_var_fmt(E_STRING, "tag_highlight#%s#allbut",
                                               BTS(ft->vim_name)).ptr;
 
 #ifdef DEBUG
@@ -283,7 +283,7 @@ void
 
                 for (unsigned i = 0; i < bdata->ft->order->slen; ++i) {
                         int const   ch   = bdata->ft->order->data[i];
-                        mpack_dict *dict = nvim_get_var_fmt(E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
+                        mpack_dict *dict = nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#%c", BTS(bdata->ft->vim_name), ch).ptr;
                         bstring *group   = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;
 
                         b_sprintfa(cmd, "silent! syntax clear _tag_highlight_%s_%c_%s",

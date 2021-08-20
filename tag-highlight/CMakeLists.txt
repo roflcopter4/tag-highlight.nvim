@@ -103,6 +103,7 @@ find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
 find_package (LibLZMA)
+# find_package (sodium)
 
 if (NOT ZLIB_FOUND)
     pkg_check_modules(ZLIB zlib REQUIRED)
@@ -145,6 +146,11 @@ if (USE_JEMALLOC)
     string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${JEMALLOC_LDFLAGS} ${CMAKE_EXE_LINKER_FLAGS})
 endif()
 
+if (sodium_FOUND)
+    set (USE_LIBSODIUM 1)
+    add_definitions(-DUSE_LIBSODIUM)
+endif()
+
 
 ###############################################################################
 # Symbol and header checks
@@ -152,8 +158,9 @@ endif()
 CHECK_INCLUDE_FILE ("time.h"     HAVE_TIME_H)
 CHECK_INCLUDE_FILE ("sys/time.h" HAVE_SYS_TIME_H)
 
-check_symbol_exists (err            "err.h"      HAVE_ERR)
+CHECK_SYMBOL_EXISTS (err            "err.h"      HAVE_ERR)
 CHECK_SYMBOL_EXISTS (posix_spawnp   "spawn.h"    HAVE_POSIX_SPAWNP)
+CHECK_SYMBOL_EXISTS (aligned_alloc  "stdlib.h"   HAVE_ALIGNED_ALLOC)
 CHECK_SYMBOL_EXISTS (arc4random     "stdlib.h"   HAVE_ARC4RANDOM)
 CHECK_SYMBOL_EXISTS (mkostemps      "stdlib.h"   HAVE_MKOSTEMPS)
 CHECK_SYMBOL_EXISTS (reallocarray   "stdlib.h"   HAVE_REALLOCARRAY)
@@ -162,6 +169,7 @@ CHECK_SYMBOL_EXISTS (asprintf       "stdio.h"    HAVE_ASPRINTF)
 CHECK_SYMBOL_EXISTS (dprintf        "stdio.h"    HAVE_DPRINTF)
 CHECK_SYMBOL_EXISTS (open_memstream "stdio.h"    HAVE_OPEN_MEMSTREAM)
 CHECK_SYMBOL_EXISTS (vasprintf      "stdio.h"    HAVE_VASPRINTF)
+CHECK_SYMBOL_EXISTS (basename       "string.h"   HAVE_BASENAME)
 CHECK_SYMBOL_EXISTS (memrchr        "string.h"   HAVE_MEMRCHR)
 CHECK_SYMBOL_EXISTS (strchrnul      "string.h"   HAVE_STRCHRNUL)
 CHECK_SYMBOL_EXISTS (strdupa        "string.h"   HAVE_STRDUPA)
@@ -173,6 +181,10 @@ CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
 CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
+
+CHECK_SYMBOL_EXISTS (getauxval "sys/getauxv.h" HAVE_GETAUXVAL)
+CHECK_SYMBOL_EXISTS (program_invocation_name "errno.h" HAVE_PROGRAM_INVOCATION_NAME)
+CHECK_SYMBOL_EXISTS (program_invocation_short_name "errno.h" HAVE_PROGRAM_INVOCATION_SHORT_NAME)
 
 if (HAVE_TIME_H)
     CHECK_SYMBOL_EXISTS (clock_gettime  "time.h"     HAVE_CLOCK_GETTIME)
@@ -199,6 +211,12 @@ if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
      find_package(LibBSD)
 endif()
 
+if (NOT USE_JEMALLOC AND NOT HAVE_ALIGNED_ALLOC)
+    find_package (Jemalloc REQUIRED)
+    include_directories (${JEMALLOC_INCLUDE_DIRS})
+    string(JOIN " " CMAKE_EXE_LINKER_FLAGS ${JEMALLOC_LDFLAGS} ${CMAKE_EXE_LINKER_FLAGS})
+endif()
+
 
 ###############################################################################
 # General flags
@@ -212,6 +230,7 @@ string (JOIN " " WARNS
         -Werror=incompatible-pointer-types
         -Werror=int-conversion
         -Werror=pointer-to-int-cast
+        -fpie
 )
 
 if (NOT BUILD_DIST) 
@@ -249,7 +268,7 @@ else()
 
     set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
     set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
-    set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE")
+    set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE -fno-strict-aliasing")
 endif()
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -325,7 +344,7 @@ endif()
 
 if (TRUE_MSVC)
     message (FATAL_ERROR "Sorry, this won't work out.")
-else()
+elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
     string(JOIN " " CMAKE_C_FLAGS_DEBUG
                     ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
     string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 

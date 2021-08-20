@@ -44,6 +44,7 @@ event_handlers_initializer(void)
       p99_futex_init((p99_futex *)&event_loop_futex, 0);
 }
 
+extern void exit_cleanup(void);
 extern noreturn void *highlight_go_pthread_wrapper(void *vdata);
 static noreturn void *wrap_update_highlight(void *vdata);
 static noreturn void *wrap_handle_nvim_response(void *wrapper);
@@ -559,23 +560,17 @@ event_force_update(atomic_int *prev_num)
 static noreturn void
 event_halt(bool const nvim_exiting)
 {
-      if (!nvim_exiting) {
-            clear_highlight(, true);
-      }
+      /* If neovim is shutting down, then we should also shut down ASAP. Taking too
+       * long will hang the editor for a few seconds, which is intolerable. */
+      if (nvim_exiting)
+            quick_exit(0);
+
+      clear_highlight(, true);
+      exit_cleanup();
+
 #ifdef DOSISH
       exit(0);
 #else
-      extern void exit_cleanup(void);
-
-      /* If the user explicitly gives the Vim command to stop the plugin, the loop
-       * returns and we clean everything up. We don't do this when Neovim exits
-       * because it freezes until all child processes have stopped. */
-      if (!nvim_exiting) {
-            eprintf("Right, cleaning up!");
-            exit_cleanup();
-            eprintf("All clean!");
-      }
-
       pthread_kill(event_loop_thread, KILL_SIG);
       pthread_exit();
 #endif

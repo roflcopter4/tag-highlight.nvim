@@ -232,14 +232,14 @@ get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts const op
                bdata->topdir->tmpfname->data != NULL &&
                bdata->topdir->tmpfname->data[0] != '\0');
 
-        argv_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
+        argv_append_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 
         if (opts != UPDATE_TAGLIST_FORCE_LANGUAGE && bdata->topdir->recurse)
         {
                 if (bdata->ft->is_c)
                         argv_append(argv, "--languages=c,c++", true);
                 else
-                        argv_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
+                        argv_append_fmt(argv, "--languages=%s", BS(&bdata->ft->ctags_name));
 
                 argv_append(argv, "-R", true);
                 argv_append(argv, b_bstr2cstr(bdata->topdir->pathname, 0), false);
@@ -247,7 +247,7 @@ get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts const op
                 if (bdata->ft->is_c)
                         argv_append(argv, "--languages=c,c++", true);
                 else
-                        argv_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
+                        argv_append_fmt(argv, "--language-force=%s", BS(&bdata->ft->ctags_name));
 
                 argv_append(argv, b_bstr2cstr(bdata->name.full, 0), false);
                 if (headers)

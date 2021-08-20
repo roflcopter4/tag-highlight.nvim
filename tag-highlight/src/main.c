@@ -15,15 +15,14 @@ const char *__asan_default_options(void)
 #ifdef DOSISH
 #  define WIN_BIN_FAIL(STREAM) \
         err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
+#  define CMD_SUFFIX ".exe"
+#else
+#  define CMD_SUFFIX
 #endif
 #ifndef STDIN_FILENO
 #  define STDIN_FILENO  (0)
 #  define STDOUT_FILENO (1)
 #  define STDERR_FILENO (2)
-#endif
-#if !(defined __GLIBC__ || defined __GNU_LIBRARY__)
-const char *program_invocation_name;
-const char *program_invocation_short_name;
 #endif
 
 extern FILE *main_log, *mpack_raw;
@@ -42,7 +41,8 @@ static void open_logs(void);
 static void quick_cleanup(void);
 static void initialize_talloc_contexts(void);
 static void clean_talloc_contexts(void);
-static comp_type_t get_compression_type(void);
+static comp_type_t    get_compression_type(void);
+static bstring       *get_go_binary(void);
 static noreturn void *neovim_init(void *arg);
 
 extern void *mpack_decode_talloc_ctx_;
@@ -124,7 +124,6 @@ general_init(void)
         open_logs();
         top_thread = pthread_self();
         p99_futex_init(&first_buffer_initialized, 0);
-        at_quick_exit(quick_cleanup);
         START_DETACHED_PTHREAD(neovim_init);
 }
 
@@ -132,17 +131,19 @@ static void
 initialize_talloc_contexts(void)
 {
 #if 0
-        main_top_talloc_ctx_        = talloc_named_const(ctx_, 0, "Main Top");
-        _mpack_encode_talloc_ctx_   = talloc_named_const(ctx_, 0, "Mpack Encode Top");
-        _mpack_decode_talloc_ctx_   = talloc_named_const(ctx_, 0, "Mpack Decode Top");
-        _nvim_common_talloc_ctx_    = talloc_named_const(ctx_, 0, "Nvim Common Top");
-        _clang_talloc_ctx_          = talloc_named_const(ctx_, 0, "Clang Top");
-        _event_loop_talloc_ctx_     = talloc_named_const(ctx_, 0, "Event Loop Top");
-        _event_handlers_talloc_ctx_ = talloc_named_const(ctx_, 0, "Event Handlers Top");
-        _buffer_talloc_ctx_         = talloc_named_const(ctx_, 0, "Buffer Top Context");
-        _tok_scan_talloc_ctx_       = talloc_named_const(ctx_, 0, "Token Scanner Top Context");
-        _update_top_talloc_ctx      = talloc_named_const(ctx_, 0, "Update Top Context");
-        __bstring_talloc_top_ctx    = talloc_named_const(ctx_, 0, "Bstring Top Context");
+#define _CTX main_top_talloc_ctx_
+        main_top_talloc_ctx_       = talloc_named_const(NULL, 0, "Main Top");
+        mpack_encode_talloc_ctx_   = talloc_named_const(_CTX, 0, "Mpack Encode Top");
+        mpack_decode_talloc_ctx_   = talloc_named_const(_CTX, 0, "Mpack Decode Top");
+        nvim_common_talloc_ctx_    = talloc_named_const(_CTX, 0, "Nvim Common Top");
+        clang_talloc_ctx_          = talloc_named_const(_CTX, 0, "Clang Top");
+        event_loop_talloc_ctx_     = talloc_named_const(_CTX, 0, "Event Loop Top");
+        event_handlers_talloc_ctx_ = talloc_named_const(_CTX, 0, "Event Handlers Top");
+        buffer_talloc_ctx_         = talloc_named_const(_CTX, 0, "Buffer Top Context");
+        tok_scan_talloc_ctx_       = talloc_named_const(_CTX, 0, "Token Scanner Top Context");
+        update_top_talloc_ctx_     = talloc_named_const(_CTX, 0, "Update Top Context");
+        BSTR_talloc_top_ctx        = talloc_named_const(_CTX, 0, "Bstring Top Context");
+#undef _CTX
 #endif
 }
 
@@ -150,9 +151,9 @@ static void
 clean_talloc_contexts(void)
 {
 #if 0
-        talloc_report_full(main_top_talloc_ctx, talloc_log_file);
+        talloc_report_full(main_top_talloc_ctx_, talloc_log_file);
         fclose(talloc_log_file);
-        talloc_free(main_top_talloc_ctx);
+        talloc_free(main_top_talloc_ctx_);
 #endif
 }
 
@@ -174,6 +175,8 @@ open_logs(void)
         
         talloc_free(tmp);
         talloc_free(dir);
+
+        at_quick_exit(quick_cleanup);
 #endif
 }
 
@@ -206,8 +209,6 @@ neovim_init(UNUSED void *arg)
 static void
 get_settings(void)
 {
-        extern bstring *get_go_binary(void);
-
         settings.go_binary      = get_go_binary();
         settings.comp_type      = get_compression_type();
         settings.cache_dir      = nvim_call_function(B(PKG "install_info#GetCachePath"), E_STRING).ptr;
@@ -228,6 +229,8 @@ get_settings(void)
         if (!settings.enabled || !settings.ctags_bin)
                 exit(EXIT_SUCCESS);
 
+        /* If I were smart, I might find a way to avoid needing all these calls.
+         * Unfortunately, I am not smart. */
         settings.talloc_ctx = talloc_named_const(NULL, 0, "Settings talloc context.");
         talloc_steal(settings.talloc_ctx, settings.go_binary);
         talloc_steal(settings.talloc_ctx, settings.cache_dir);
@@ -239,6 +242,8 @@ get_settings(void)
         talloc_steal(settings.talloc_ctx, settings.ignored_tags);
         talloc_steal(settings.talloc_ctx, settings.order);
 }
+
+/*--------------------------------------------------------------------------------------*/
 
 static comp_type_t
 get_compression_type(void)
@@ -268,6 +273,22 @@ get_compression_type(void)
         return ret;
 }
 
+static bstring *
+get_go_binary(void)
+{
+        struct stat st;
+
+        bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
+        b_catlit(go_binary, "/golang" CMD_SUFFIX);
+
+        if (stat(BS(go_binary), &st) != 0) {
+                b_free(go_binary);
+                go_binary = NULL;
+        }
+        
+        return go_binary;
+}
+
 /*======================================================================================*/
 
 extern void clear_bnode(void *vdata, bool blocking);
@@ -278,7 +299,6 @@ extern void clear_bnode(void *vdata, bool blocking);
 void
 exit_cleanup(void)
 {
-
         extern bool         process_exiting;
         extern linked_list *buffer_list;
         static atomic_flag  flg = ATOMIC_FLAG_INIT;
@@ -291,8 +311,16 @@ exit_cleanup(void)
                         clear_bnode(node->data, true);
 
         talloc_free(buffer_list);
-        talloc_free(top_dirs);
+
+        for (unsigned i = 0; i < ftdata_len; ++i) {
+                talloc_free(ftdata[i]->ignored_tags);
+                talloc_free(ftdata[i]->restore_cmds);
+                talloc_free(ftdata[i]);
+                ftdata[i] = NULL;
+        }
+
         talloc_free(ftdata);
+        talloc_free(top_dirs);
         talloc_free(settings.talloc_ctx);
 
         quick_cleanup();

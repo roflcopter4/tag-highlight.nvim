@@ -134,17 +134,17 @@ LLDECL genlist *genlist_copy         (genlist *list, genlist_copy_func cpy) __aW
 /*======================================================================================================*/
 /* Simple char * list. */
 
-typedef struct argument_vector str_vector;
-struct argument_vector {
+typedef struct argument_vector_st str_vector;
+struct argument_vector_st {
         char   **lst;
         unsigned qty;
         unsigned mlen;
 };
 
-LLDECL str_vector *argv_create (unsigned len) __aWUR;
-LLDECL void        argv_append (str_vector *argv, const char *str, bool cpy);
-LLDECL void        argv_destroy(str_vector *argv);
-LLDECL void        argv_fmt    (str_vector *argv, const char *__restrict fmt, ...) __aFMT(2, 3);
+LLDECL str_vector *argv_create    (unsigned len) __aWUR;
+LLDECL void        argv_append    (str_vector *argv, const char *str, bool cpy);
+LLDECL void        argv_destroy   (str_vector *argv);
+LLDECL void        argv_append_fmt(str_vector *argv, const char *__restrict fmt, ...) __aFMT(2, 3);
 
 INTERN void argv_dump__   (FILE *fp, const str_vector *argv, const char *listname, const char *, int);
 INTERN void argv_dump_fd__(int fd, const str_vector *argv, const char *listname, const char *, int);

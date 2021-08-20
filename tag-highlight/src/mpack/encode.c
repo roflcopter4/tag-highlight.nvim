@@ -2,6 +2,28 @@
 
 #include "intern.h"
 
+#define encode_uint64(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint64_t tmp = __builtin_bswap64(VAL);        \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint64_t)); \
+                (IT) += sizeof(uint64_t);                     \
+        } while (0)
+
+#define encode_uint32(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint32_t tmp = __builtin_bswap32(VAL);        \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint32_t)); \
+                (IT) += sizeof(uint32_t);                     \
+        } while (0)
+
+#define encode_uint16(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint16_t tmp = __builtin_bswap16(VAL);        \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint16_t)); \
+                (IT) += sizeof(uint16_t);                     \
+        } while (0)
+
+#if 0
 #define encode_uint64(ARR, IT, VAL)                                     \
         do {                                                            \
                 ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 070U); \
@@ -27,7 +49,13 @@
                 ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) >> 010U); \
                 ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) & 0xFFU); \
         } while (0)
+#endif
 
+#define encode_int16 encode_uint16
+#define encode_int32 encode_uint32
+#define encode_int64 encode_uint64
+
+#if 0
 #define encode_int64(ARR, IT, VAL)                                    \
         do {                                                          \
                 ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 070); \
@@ -53,6 +81,8 @@
                 ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) >> 010); \
                 ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) & 0xFF); \
         } while (0)
+
+#endif
 
 static void sanity_check(mpack_obj *root, mpack_obj **itemp, unsigned check, bool force);
 

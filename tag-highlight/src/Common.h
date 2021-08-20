@@ -52,16 +52,11 @@ typedef signed long long int ssize_t;
 #  endif
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
-#  ifndef USE_JEMALLOC
-#    include <mm_malloc.h>
-#    define aligned_alloc(p, a) _mm_malloc((p), (a))
-#  endif
-extern char *basename(char *path);
 #else
-#  include <sys/socket.h>
 #  include <dirent.h>
 #  include <libgen.h>
 #  include <pthread.h>
+#  include <sys/socket.h>
 #  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <sys/types.h>
@@ -78,8 +73,14 @@ extern char *basename(char *path);
 #elif defined(HAVE_SYS_TIME_H)
 #  include <sys/time.h>
 #endif
-#ifndef __GNU_LIBRARY__
+
+#ifndef HAVE_BASENAME
+extern char *basename(const char *);
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
 extern const char *program_invocation_short_name;
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_NAME
 extern const char *program_invocation_name;
 #endif
 
@@ -99,6 +100,11 @@ extern const char *program_invocation_name;
 
 #ifdef HAVE_STDNORETURN_H
 #  include <stdnoreturn.h>
+#endif
+
+#ifdef basename
+#  undef basename
+extern char *basename(const char *) __THROW __nonnull((1));
 #endif
 
 #include <talloc.h>
@@ -128,6 +134,10 @@ typedef int error_t;
 #include "contrib/contrib.h"
 
 extern char *HOME;
+
+#ifdef basename
+#  undef basename
+#endif
 
 /*===========================================================================*/
 /* Some system/compiler specific config/setup */

@@ -7,6 +7,8 @@
 
 #cmakedefine HAVE_ARC4RANDOM
 #cmakedefine HAVE_ASPRINTF
+#cmakedefine HAVE_BASENAME
+#cmakedefine HAVE_GETAUXVAL
 #cmakedefine HAVE_CLOCK_GETTIME
 #cmakedefine HAVE_DPRINTF
 #cmakedefine HAVE_ERR
@@ -29,6 +31,9 @@
 #cmakedefine HAVE_STRSEP
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
+
+#cmakedefine HAVE_PROGRAM_INVOCATION_NAME
+#cmakedefine HAVE_PROGRAM_INVOCATION_SHORT_NAME
 
 #cmakedefine HAVE_BSD_STDLIB_H
 #cmakedefine HAVE_EXECINFO_H

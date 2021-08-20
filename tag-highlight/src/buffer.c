@@ -210,12 +210,6 @@ init_buffer_mutexes(Buffer *bdata)
 #ifndef DOSISH
                 pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
 #endif
-                pthread_mutex_init(&bdata->lock.cond_mtx, &attr);
-        }
-        {
-                pthread_condattr_t attr;
-                pthread_condattr_init(&attr);
-                pthread_cond_init(&bdata->lock.cond, NULL);
         }
 
         p99_count_init((p99_count *)&bdata->lock.hl_waiters, 0);
@@ -362,6 +356,9 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
  * undesirable (eg. $HOME, /, /usr/include, or something like C:\, etc) because
  * it will take a long time. Check the user provided list of such directories
  * and do not recurse ctags if we find a match.
+ *
+ * This only has to be done once when opening a project, so it won't hurt much to just
+ * use a simple linear search.
  */
 static bool
 check_norecurse_directories(bstring const *const dir)
@@ -388,14 +385,20 @@ get_tag_filename(bstring *gzfile, bstring const *base, Buffer *const bdata)
                         b_catchar(gzfile, base->data[i]);
         }
 
-        if (settings.comp_type == COMP_GZIP)
-                b_sprintfa(gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
+        switch (settings.comp_type) {
+        case COMP_LZMA:
 #ifdef LZMA_SUPPORT
-        else if (settings.comp_type == COMP_LZMA)
-                b_sprintfa(gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
+              b_sprintfa(gzfile, ".%s.tags.xz", &bdata->ft->vim_name);
+              break;
 #endif
-        else
-                b_sprintfa(gzfile, ".%s.tags", &bdata->ft->vim_name);
+        case COMP_GZIP:
+              b_sprintfa(gzfile, ".%s.tags.gz", &bdata->ft->vim_name);
+              break;
+        case COMP_NONE:
+        default:
+              b_sprintfa(gzfile, ".%s.tags", &bdata->ft->vim_name);
+              break;
+        }
 }
 
 static inline void
@@ -519,7 +522,7 @@ init_filetype(Filetype *ft)
         pthread_mutex_lock(&ftdata_mutex);
 
         ft->initialized  = true;
-        ft->order        = nvim_get_var_fmt(E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
+        ft->order        = nvimext_get_var_fmt(E_STRING, PKG "%s#order", BTS(ft->vim_name)).ptr;
         mpack_array *tmp = mpack_dict_get_key(settings.ignored_tags, E_MPACK_ARRAY,
                                               &ft->vim_name).ptr;
 
@@ -539,8 +542,8 @@ init_filetype(Filetype *ft)
         ft->restore_cmds = NULL;
         get_ignored_tags(ft);
 
-        mpack_dict *equiv = nvim_get_var_fmt(E_MPACK_DICT, PKG "%s#equivalent",
-                                             BTS(ft->vim_name)).ptr;
+        mpack_dict *equiv = nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#equivalent",
+                                                BTS(ft->vim_name)).ptr;
         if (equiv) {
                 ft->equiv = b_list_create_alloc(equiv->qty);
 
@@ -579,11 +582,13 @@ get_ignored_tags(Filetype *ft)
                 if (ft->has_parser) {
                         get_tags_from_restored_groups(ft, restored_groups);
                         B_LIST_SORT_FAST(ft->ignored_tags);
+                        talloc_steal(ft, ft->ignored_tags);
                 } else {
                         ft->restore_cmds = get_restore_cmds(restored_groups);
+                        talloc_steal(ft, ft->restore_cmds);
                 }
 
-                b_list_destroy(restored_groups);
+                talloc_free(restored_groups);
         }
 
         talloc_free(tmp);
@@ -599,7 +604,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
         }
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
-                char         cmd[8192], *ptr;
+                char cmd[8192];
+                char *ptr;
                 size_t const len = snprintf(cmd, 8192, "syntax list %s",
                                             BS(restored_groups->lst[i]));
                 bstring *output = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
@@ -614,7 +620,7 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
                 uchar *bak    = output->data;
                 output->data  = (uchar *)(ptr += 4); /* Add 4 to skip the "xxx " */
                 output->slen -= (unsigned)PSUB(ptr, bak);
-                talloc_steal(CTX, bak);
+                talloc_steal(NULL, bak);
 
                 if (!b_starts_with(output, B("match /"))) {
                         bstring line = BSTR_WRITEABLE_STATIC_INIT;
@@ -631,23 +637,24 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
 
                                 while (b_memsep(&tok, &line, ' ')) {
                                         bstring *toadd = b_fromblk(tok.data, tok.slen);
-                                        toadd->flags  |= BSTR_MASK_USR1;
+                                        toadd->flags  |= BSTR_MASK_USR1 | BSTR_DATA_FREEABLE | BSTR_FREEABLE;
                                         b_list_append(ft->ignored_tags, toadd);
-                                        toadd = NULL;
                                 }
                         }
                 }
 
                 TALLOC_FREE(bak);
+                TALLOC_FREE(output);
+#if 0
                 output->data = NULL;
-                talloc_free(output);
+#endif
         }
 }
 
 static bstring *
 get_restore_cmds(b_list *restored_groups)
 {
-        assert(restored_groups);
+        assert(restored_groups != NULL);
         b_list *allcmds = b_list_create_alloc(restored_groups->qty);
 
         for (unsigned i = 0; i < restored_groups->qty; ++i) {
@@ -716,7 +723,7 @@ get_cmd_info(Filetype *ft)
 
         for (unsigned i = 0; i < ngroups; ++i) {
                 int const   ch   = ft->order->data[i];
-                mpack_dict *dict = nvim_get_var_fmt(
+                mpack_dict *dict = nvimext_get_var_fmt(
                         E_MPACK_DICT, PKG "%s#%c", BTS(ft->vim_name), ch).ptr;
 
                 info[i].kind  = ch;

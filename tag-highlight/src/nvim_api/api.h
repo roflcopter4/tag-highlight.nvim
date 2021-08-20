@@ -8,6 +8,9 @@
 #include "mpack/mpack.h"
 #include "util/list.h"
 
+#define __aDEPMSG(msg) __attribute__((__deprecated__(msg)))
+#define __aDEP __attribute__((__deprecated__))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,7 +42,6 @@ extern void           $nvim_write              (enum nvim_write_type type, bstri
 extern void           nvim_printf              (char const *restrict fmt, ...) __aFMT(1, 2);
 extern void           nvim_vprintf             (char const *restrict fmt, va_list args) __aFMT(1, 0);
 extern void           nvim_b_printf            (bstring const *fmt, ...);
-extern mpack_retval   nvim_get_var_fmt         (mpack_expect_t expect, char const *fmt, ...) __aFMT(2, 3) __aWUR;
 extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, bstring const *group, unsigned line, unsigned start, int end);
 extern mpack_dict   * nvim_get_hl_by_name      (bstring const *name, bool rgb) __aWUR;
 extern mpack_dict   * nvim_get_hl_by_id        (int hlid, bool rgb) __aWUR;
@@ -52,8 +54,7 @@ extern mpack_retval   nvim_buf_get_option      (int bufnum, bstring const *optna
 extern mpack_retval   nvim_buf_get_var         (int bufnum, bstring const *varname, mpack_expect_t expect) __aWUR;
 extern unsigned       nvim_buf_line_count      (int bufnum);
 extern void           nvim_call_atomic         (struct mpack_arg_array const *calls);
-extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_call_function_args  (bstring const *function, mpack_expect_t expect, bstring const *fmt, ...) __aWUR;
+extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR; // FIXME: Needs to be able to take arguments properly
 extern bool           nvim_command             (bstring const *cmd);
 extern mpack_retval   nvim_command_output      (bstring const *cmd, mpack_expect_t expect) __aWUR;
 extern mpack_retval   nvim_eval                (bstring const *eval, mpack_expect_t expect) __aWUR;
@@ -67,13 +68,15 @@ extern void           nvim_subscribe           (bstring const *event);
 extern bool           nvim_set_var             (bstring const *varname, bstring const *fmt, ...);
 extern bool           nvim_set_option          (bstring const *optname, bstring const *value);
 
+extern void nvim_buf_clear_highlight(unsigned bufnum, int hl_id, unsigned start, int end, bool blocking)
+        __aDEPMSG("Removed from neovim's documentation: Use nvim_buf_clear_namespace.");
+
 extern void nvim_set_client_info(bstring const *name, unsigned major, unsigned minor, bstring const *dev,
                                  bstring const *type, void const *methods, void const *attributes);
 
-extern bstring * _nvim_get_notification();
 
-__attribute__((__deprecated__("Removed from neovim's documentation")))
-extern void nvim_buf_clear_highlight (unsigned bufnum, int hl_id, unsigned start, int end, bool blocking);
+extern mpack_retval nvimext_get_var_fmt (mpack_expect_t expect, char const *fmt, ...) __aFMT(2, 3) __aWUR;
+extern mpack_retval nvimext_call_function_fmt (bstring const *function, mpack_expect_t expect, char const *fmt, ...) __aWUR __aDEP;
 
 /*----------------------------------------------------------------------------*/
 
@@ -90,9 +93,7 @@ extern void nvim_buf_clear_highlight (unsigned bufnum, int hl_id, unsigned start
  * to it. Multiple connections can make multithreaded applications easier to
  * write safely.
  */
-extern int  _nvim_create_socket(void);
-extern void _nvim_init(void) __attribute__((__constructor__));
-extern int  _nvim_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
+extern int nvimext_get_tmpfile(bstring *restrict*restrict name, const bstring *restrict suffix);
 
 
 /*============================================================================*/
@@ -118,9 +119,9 @@ extern int _nvim_api_read_fd;
 #define nvim_set_client_info_defarg_5()     NULL
 #define nvim_set_client_info_defarg_6()     NULL
 
-#define _nvim_get_tmpfile(...)              P99_CALL_DEFARG(_nvim_get_tmpfile, 2, __VA_ARGS__)
-#define _nvim_get_tmpfile_defarg_0()        NULL
-#define _nvim_get_tmpfile_defarg_1()        NULL
+#define nvimext_get_tmpfile(...)            P99_CALL_DEFARG(nvimext_get_tmpfile, 2, __VA_ARGS__)
+#define nvimext_get_tmpfile_defarg_0()      NULL
+#define nvimext_get_tmpfile_defarg_1()      NULL
 
 #define nvim_buf_clear_highlight(...)       P99_CALL_DEFARG(nvim_buf_clear_highlight, 5, __VA_ARGS__)
 #define nvim_buf_clear_highlight_defarg_4() false
