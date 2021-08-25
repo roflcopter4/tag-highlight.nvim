@@ -299,29 +299,16 @@ extern void clear_bnode(void *vdata, bool blocking);
 void
 exit_cleanup(void)
 {
-        extern bool         process_exiting;
         extern linked_list *buffer_list;
         static atomic_flag  flg = ATOMIC_FLAG_INIT;
 
         if (atomic_flag_test_and_set(&flg))
                 return;
 
-        if (!process_exiting)
-                LL_FOREACH_F (buffer_list, node)
-                        clear_bnode(node->data, true);
-
-        talloc_free(buffer_list);
-
-        for (unsigned i = 0; i < ftdata_len; ++i) {
-                talloc_free(ftdata[i]->ignored_tags);
-                talloc_free(ftdata[i]->restore_cmds);
-                talloc_free(ftdata[i]);
-                ftdata[i] = NULL;
-        }
-
-        talloc_free(ftdata);
-        talloc_free(top_dirs);
-        talloc_free(settings.talloc_ctx);
+        TALLOC_FREE(buffer_list);
+        TALLOC_FREE(top_dirs);
+        TALLOC_FREE(ftdata);
+        TALLOC_FREE(settings.talloc_ctx);
 
         quick_cleanup();
 }

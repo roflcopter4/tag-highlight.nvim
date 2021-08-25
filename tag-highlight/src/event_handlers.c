@@ -118,8 +118,7 @@ handle_nvim_notification(mpack_obj *event)
                   handle_buffer_update(bdata, arr, type);
                   break;
             case EVENT_BUF_DETACH:
-                  clear_highlight(bdata);
-                  destroy_buffer(bdata);
+                  destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_DESTROY_NODE | DES_BUF_TALLOC_FREE);
                   echo("Detaching from buffer %d", bufnum);
                   break;
             default:
@@ -509,8 +508,8 @@ event_syntax_changed(atomic_int *prev_num)
 
       if (!b_iseq(ft, &bdata->ft->vim_name)) {
             echo("Filetype changed. Updating.");
-            clear_highlight(bdata, true);
-            destroy_buffer(bdata);
+            /* clear_highlight(bdata, true); */
+            destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_TALLOC_FREE | DES_BUF_DESTROY_NODE);
             attach_new_buffer(num);
       }
 

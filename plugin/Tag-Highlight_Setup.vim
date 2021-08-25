@@ -291,11 +291,11 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
-            "if g:tag_highlight#verbose
-            "    try
-            "        call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
-            "    endtry
-            "endif
+            if g:tag_highlight#verbose || 1
+               try
+                   call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
+               endtry
+            endif
         endif
     endfor
 endfunction

@@ -33,6 +33,8 @@ STATIC_INLINE void resolve_negative_index(int *index, int base);
 #  define assert ALWAYS_ASSERT
 #endif
 
+/*============================================================================*/
+
 linked_list *
 (ll_make_new)(void *talloc_ctx)
 {
@@ -70,6 +72,17 @@ linked_list *
         return list;
 }
 
+#if 0
+static ll_node *
+ll_make_new_node(linked_list *list, void *data)
+{
+      ll_node *node = talloc(list, ll_node);
+      node->data    = talloc_steal(node, data);
+      talloc_set_destructor(node, )
+}
+#endif
+
+/*============================================================================*/
 
 void
 ll_prepend(linked_list *list, void *data)

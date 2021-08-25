@@ -238,14 +238,15 @@ if (NOT BUILD_DIST)
 endif()
 
 if (SANITIZE AND NOT MSVC)
-    set (SANIT "-fsanitize=undefined")
-    if ("${SANITIZE}" STREQUAL "thread")
-        string (CONCAT SANIT "${SANIT} -fsanitize=thread")
-    elseif ("${SANITIZE}" STREQUAL "memory")
-        string (CONCAT SANIT "${SANIT} -fsanitize=memory")
-    else ()
-        string (CONCAT SANIT "${SANIT} -fsanitize=address -fsanitize-address-use-after-scope")
-    endif()
+    # set (SANIT "-fsanitize=undefined")
+    # if ("${SANITIZE}" STREQUAL "thread")
+    #     string (CONCAT SANIT "${SANIT} -fsanitize=thread")
+    # elseif ("${SANITIZE}" STREQUAL "memory")
+    #     string (CONCAT SANIT "${SANIT} -fsanitize=memory")
+    # else ()
+    #     string (CONCAT SANIT "${SANIT} -fsanitize=address -fsanitize-address-use-after-scope")
+    # endif()
+    set (SANIT "${SANITIZE}")
 endif()
 
 message("Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
@@ -296,14 +297,22 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         #     -Wno-gnu-statement-expression -Werror=return-type
         #     -Wno-sign-compare -Wno-dollar-in-identifier-extension
         # )
-        string (CONCAT BASE "${BASE} ${WARNS}")
+        string (CONCAT BASE "${BASE} ${WARNS}"
+        )
         
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
+
+            string(JOIN " " BASE ${BASE} ${WARNS}
+                -mprefer-vector-width=512
+                -g3 -gdwarf-5
+            )
+
             set (LTO_STR "-flto=full")
             string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 " -mprefer-vector-width=512 -rtlib=compiler-rt"
                 " -fuse-ld=lld"
                 " -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
+                " -rdynamic"
             )
         endif ()
     endif()
@@ -325,6 +334,8 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
     string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
         -mprefer-vector-width=512
         -masm=intel -fverbose-asm
+
+        -g3 -gdwarf-5
     )
     set (LTO_STR "-flto -fuse-linker-plugin")
 
@@ -335,7 +346,9 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
     set (CMAKE_NM "${GCC_NM}")
     set (CMAKE_RANLIB "${GCC_RANLIB}")
     
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}")
+    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}"
+           " -rdynamic"
+    )
 endif()
 
 

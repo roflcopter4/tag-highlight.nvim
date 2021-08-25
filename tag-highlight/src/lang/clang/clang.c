@@ -202,7 +202,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
         struct CXUnsavedFile unsaved = {.Filename = BS(bdata->name.full),
                                         .Contents = BS(buf), .Length = buf->slen};
 
-        argv_dump(stderr, comp_cmds);
+        //argv_dump(stderr, comp_cmds);
 
         clangdata_t *cld = talloc_zero(bdata, clangdata_t);
         bdata->clangdata = cld;

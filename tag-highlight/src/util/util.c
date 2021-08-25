@@ -93,8 +93,8 @@ safe_fopen_fmt(const char *const restrict mode,
                ...)
 {
         va_list va;
-        va_start(va, fmt);
         char buf[SAFE_PATH_MAX + 1];
+        va_start(va, fmt);
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
@@ -143,8 +143,8 @@ int
 safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, ...)
 {
         va_list va;
-        va_start(va, fmt);
         char buf[SAFE_PATH_MAX + 1];
+        va_start(va, fmt);
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
