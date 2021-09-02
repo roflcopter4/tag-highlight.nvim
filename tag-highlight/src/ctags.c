@@ -107,7 +107,8 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
         bool ret = true;
         pthread_mutex_lock(&bdata->lock.total);
 
-        bdata->last_ctick = ctick;
+        atomic_store_explicit(&bdata->last_ctick, ctick, memory_order_relaxed);
+
         if (!run_ctags(bdata, opts))
                 warnx("Ctags exited with errors; trying to continue anyway.");
 

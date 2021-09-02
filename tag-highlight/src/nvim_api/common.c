@@ -11,7 +11,9 @@ typedef volatile p99_futex vfutex_t;
 typedef unsigned char      byte;
 
 struct gencall {
-      int            count;
+    alignas(32)
+      int count;
+    alignas(16)
       mpack_obj     *pack;
       bstring const *fn;
 };
@@ -39,7 +41,7 @@ make_call(bool const blocking, bstring const *fn, mpack_obj *pack, int const cou
       if (blocking) {
             result = write_and_clean(pack, count, fn);
       } else {
-            struct gencall *gc = malloc(sizeof(struct gencall));
+            struct gencall *gc = aligned_alloc_for(struct gencall);
             gc->count          = count;
             gc->pack           = pack;
             gc->fn             = fn;
@@ -162,24 +164,12 @@ nvim_api_intern_mpack_expect_wrapper(mpack_obj *root, mpack_expect_t type)
 
       if (mpack_type(errmsg) != MPACK_NIL) {
             bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
-            if (err_str) {
+            if (err_str)
                   echo("Neovim returned with an err_str: '%s'", BS(err_str));
-                  // talloc_free(err_str);
-            }
       } else {
             ret = mpack_expect(data, type, false);
             switch (type) {
             case E_STRING:
-#if 0
-            {
-                  talloc_set_name(ret.ptr, "nvim/common.c: %s -> %s: (%s) --- %u", __func__,
-                              mpack_expect_t_getname(type), BS((bstring *)ret.ptr), root->flags);
-                  bstring *killme = b_fromblk(((bstring *)(ret.ptr))->data, ((bstring *)(ret.ptr))->slen);
-                  talloc_steal(killme, NULL);
-                  ret.ptr = killme;
-                  break;
-            }
-#endif
             case E_DICT2ARR:
             case E_MPACK_ARRAY:
             case E_MPACK_DICT:

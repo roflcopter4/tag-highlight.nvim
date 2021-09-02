@@ -230,7 +230,7 @@ string (JOIN " " WARNS
         -Werror=incompatible-pointer-types
         -Werror=int-conversion
         -Werror=pointer-to-int-cast
-        -fpie
+        -fpie -fPIC
 )
 
 if (NOT BUILD_DIST) 
@@ -312,7 +312,7 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
                 " -mprefer-vector-width=512 -rtlib=compiler-rt"
                 " -fuse-ld=lld"
                 " -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
-                " -rdynamic"
+                " -rdynamic -fpie -fPIC"
             )
         endif ()
     endif()

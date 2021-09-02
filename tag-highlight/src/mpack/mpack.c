@@ -131,7 +131,7 @@ error:
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
         talloc_free(obj);
         ret.ptr = NULL;
-        abort();
+        errx(1, "Exiting");
 }
 
 /*======================================================================================*/

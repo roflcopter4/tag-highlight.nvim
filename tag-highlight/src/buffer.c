@@ -201,9 +201,8 @@ get_bufdata(int const bufnum, Filetype *ft)
             for (unsigned i = loc, b = 0; i < bdata->name.base->slen && b < 8; ++i, ++b)
                   bdata->name.suffix[b] = (char)bdata->name.base->data[i];
 
-      /* atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed); */
+      atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed);
       atomic_store_explicit(&bdata->last_ctick, 0, memory_order_relaxed);
-      atomic_store_explicit(&bdata->is_normal_mode, 0, memory_order_relaxed);
       init_buffer_mutexes(bdata);
 
       if (bdata->ft->id != FT_NONE && !bdata->ft->initialized)
@@ -223,7 +222,6 @@ init_buffer_mutexes(Buffer *bdata)
             pthread_mutexattr_init(&attr);
             pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
             pthread_mutex_init(&bdata->lock.total, &attr);
-            pthread_mutex_init(&bdata->lock.ctick, &attr);
             pthread_mutex_init(&bdata->lock.lang_mtx, &attr);
             pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
 #ifndef DOSISH
@@ -574,7 +572,7 @@ init_filetype(Filetype *ft)
       if (equiv) {
             ft->equiv = b_list_create_alloc(equiv->qty);
 
-            for (unsigned i = 0; i < equiv->qty; ++i) {
+            for (unsigned i = 0, j = equiv->qty; i < j; ++i) {
                   mpack_dict_ent *ent   = equiv->lst[i];
                   bstring *       toadd = ent->key->str;
                   b_concat(toadd, ent->value->str);
@@ -781,7 +779,6 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
       }
 
       pthread_mutex_lock(&bdata->lock.total);
-      pthread_mutex_lock(&bdata->lock.ctick);
       pthread_mutex_lock(&bdata->lock.lang_mtx);
 
       if (--bdata->topdir->refs == 0) {
@@ -799,8 +796,6 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
                   mpack_destroy_arg_array(bdata->calls);
       }
 
-      pthread_mutex_unlock(&bdata->lock.ctick);
-      pthread_mutex_destroy(&bdata->lock.ctick);
       pthread_mutex_unlock(&bdata->lock.total);
       pthread_mutex_destroy(&bdata->lock.total);
       pthread_mutex_unlock(&bdata->lock.lang_mtx);

@@ -19,7 +19,7 @@ static pthread_mutex_t event_loop_cb_mutex;
 static noreturn void * handle_nvim_message_wrapper(void *data);
 
 /*
- * Explicitly initializing every mutex seems strictly necessary under MinGW's
+ * @Explicitly initializing every mutex seems strictly necessary under MinGW's
  * implementation of pthreads on Windows. Things break otherwise.
  */
 __attribute__((__constructor__))

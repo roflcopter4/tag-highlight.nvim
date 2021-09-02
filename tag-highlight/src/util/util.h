@@ -38,13 +38,13 @@ struct timer {
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
                 TIMER_START(T_);                 \
-                SHOUT("----------------------"); \
+                shout("----------------------"); \
         } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                                     \
-        do {                                                                         \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                           \
-                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                            \
-                      (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
+#  define TIMER_REPORT(T_, MSG_)                                                      \
+        do {                                                                          \
+                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                            \
+                echo("Time for \"%s\": % *.9fs", (MSG_),                              \
+                     (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
         } while (0)
 
 #else
@@ -57,12 +57,12 @@ struct timer {
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
                 gettimeofday(&(T_)->tv1, NULL);  \
-                SHOUT("----------------------"); \
+                echo("----------------------");  \
         } while (0)
 #  define TIMER_REPORT(T_, MSG_)                                              \
         do {                                                                  \
                 gettimeofday(&(T_)->tv2, NULL);                               \
-                SHOUT("Time for \"%s\": % *fs", (MSG_),                       \
+                echo("Time for \"%s\": % *fs", (MSG_),                        \
                       (int)(30 - sizeof(MSG_)), TDIFF((T_)->tv1, (T_)->tv2)); \
         } while (0)
 #endif

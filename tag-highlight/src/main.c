@@ -279,7 +279,7 @@ get_go_binary(void)
         struct stat st;
 
         bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
-        b_catlit(go_binary, "/golang" CMD_SUFFIX);
+        b_catlit(go_binary, PATHSEP_STR "golang" CMD_SUFFIX);
 
         if (stat(BS(go_binary), &st) != 0) {
                 b_free(go_binary);
@@ -290,8 +290,6 @@ get_go_binary(void)
 }
 
 /*======================================================================================*/
-
-extern void clear_bnode(void *vdata, bool blocking);
 
 /*
  * Free everything at exit for debugging purposes.

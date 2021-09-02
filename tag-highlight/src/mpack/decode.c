@@ -4,27 +4,32 @@
 #include "intern.h"
 #include "mpack.h"
 
-#include <x86intrin.h>
-//#include <bitset.h>
+#include <byteswap.h>
 
 typedef void (*read_fn)(void *restrict src, void *restrict dest, size_t nbytes);
 
-static mpack_obj * do_decode        (read_fn READ, void *src);
-static mpack_obj * decode_array     (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
-static mpack_obj * decode_string    (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
-static mpack_obj * decode_dictionary(read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
-static mpack_obj * decode_integer   (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
-static mpack_obj * decode_unsigned  (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
-static mpack_obj * decode_ext       (read_fn READ, void *src, mpack_mask const *mask);
-static mpack_obj * decode_nil       (void);
-static mpack_obj * decode_bool      (mpack_mask const *mask);
-static void        stream_read      (void *restrict src, void *restrict dest, size_t nbytes);
-static void        obj_read         (void *restrict src, void *restrict dest, size_t nbytes);
+static mpack_obj *do_decode         (read_fn READ, void *src);
+static mpack_obj *decode_array      (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
+static mpack_obj *decode_string     (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
+static mpack_obj *decode_dictionary (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
+static mpack_obj *decode_integer    (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
+static mpack_obj *decode_unsigned   (read_fn READ, void *src, uint8_t ch, mpack_mask const *mask);
+static mpack_obj *decode_ext        (read_fn READ, void *src, mpack_mask const *mask);
+static mpack_obj *decode_nil        (void);
+static mpack_obj *decode_bool       (mpack_mask const *mask);
+
+static void stream_read (void *restrict src, void *restrict dest, size_t nbytes);
+static void obj_read    (void *restrict src, void *restrict dest, size_t nbytes);
 
 static mpack_mask const *id_pack_type(uint8_t ch) __attribute__((pure));
 
-#define likely(x)      __builtin_expect(!!(x), 1)
-#define unlikely(x)    __builtin_expect(!!(x), 0)
+#if __has_builtin(__builtin_expect)
+# define likely(x)   __builtin_expect(!!(x), 1)
+# define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+# define likely(x)   (x)
+# define unlikely(x) (x)
+#endif
 
 #if 0
 #define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
@@ -40,9 +45,9 @@ static mpack_mask const *id_pack_type(uint8_t ch) __attribute__((pure));
          (IAT(NUM, 6) << 010U) | (IAT(NUM, 7)))
 #endif
 
-#define decode_int16(NUM) __builtin_bswap16(NUM)
-#define decode_int32(NUM) __builtin_bswap32(NUM)
-#define decode_int64(NUM) __builtin_bswap64(NUM)
+#define decode_int16(NUM) bswap_16(NUM)
+#define decode_int32(NUM) bswap_32(NUM)
+#define decode_int64(NUM) bswap_64(NUM)
 
 #define ERRMSG()                                                                         \
         errx(1, "Default (%d -> \"%s\") reached on line %d of file %s, in function %s.", \
@@ -450,7 +455,7 @@ decode_ext(read_fn const READ, void *src, mpack_mask const *mask)
 
         item->flags     = MPACK_EXT | MPACKFLG_ENCODE;
         item->ext       = talloc(item, mpack_ext);
-        item->ext->type = type;
+        item->ext->type = (int8_t)type;
         item->ext->num  = value;
 
         return item;
@@ -512,41 +517,51 @@ id_pack_type(uint8_t const ch)
         return mask;
 }
 
+#ifdef DOSISH
+
+static void
+stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
+{
+        int const fd = *((int *)src);
+        size_t nread = 0;
+
+        while (nread < nbytes) {
+                int n = (int)read(fd, dest + nread, nbytes - nread);
+                if (unlikely(n < 0))
+                        err(1, "read() error");
+                nread += (size_t)n;
+        }
+
+# if defined DEBUG && defined DEBUG_LOGS
+        fwrite(dest, 1, nbytes, mpack_raw);
+# endif
+}
+
+#else /* !defined DOSISH */
 
 static void
 stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
         int const fd = *((int *)src);
 
-#if defined DOSISH
-        size_t nread = 0;
-
-        while (nread < nbytes) {
-                int n = (int)read(fd, dest + nread, nbytes - nread);
-                if (n < 0)
-                        err(1, "read() error");
-                nread += (size_t)n;
-        }
-#else
-        ssize_t const n = recv(fd, dest, nbytes, MSG_WAITALL);
-        if (unlikely(n < 0))
+        ssize_t const nread = recv(fd, dest, nbytes, MSG_WAITALL);
+        if (unlikely(nread < 0))
                 err(1, "recv() error");
-        if (unlikely((size_t)n != nbytes))
-                err(1, "recv() returned too few bytes (%zd != %zu)!", n, nbytes);
-#endif
+        if (unlikely((size_t)nread != nbytes))
+                err(1, "recv() returned too few bytes (%zd != %zu)!", nread, nbytes);
 
-#if defined DEBUG && defined DEBUG_LOGS
+# if defined DEBUG && defined DEBUG_LOGS
         fwrite(dest, 1, nbytes, mpack_raw);
-#endif
+# endif
 }
+
+#endif /* defined DOSISH */
 
 
 static void
 obj_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
         bstring *buf = src;
-        //for (unsigned i = 0; i < nbytes; ++i)
-        //        dest[i] = *buf->data++;
         memcpy(dest, buf->data, nbytes);
         buf->data += nbytes;
         buf->slen -= nbytes;

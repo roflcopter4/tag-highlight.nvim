@@ -91,6 +91,7 @@ set (thl-util_SOURCES
     util/linked_list.c
     util/nanosleep.c
     util/util.c
+    util/err.c
 )
 
 if (LZMA_SUPPORT)

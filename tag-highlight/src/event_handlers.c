@@ -33,8 +33,8 @@ P99_FIFO(event_node_ptr) nvim_event_queue;
 #define CTX event_handlers_talloc_ctx_
 void *event_handlers_talloc_ctx_ = NULL;
 
-__attribute__((__constructor__)) static void
-event_handlers_initializer(void)
+__attribute__((__constructor__))
+static void event_handlers_initializer(void)
 {
       pthread_mutexattr_t attr;
       pthread_mutexattr_init(&attr);
@@ -66,17 +66,16 @@ handle_nvim_message(struct event_data *data)
 {
       mpack_obj *obj = data->obj;
       int const  fd  = data->fd;
+      talloc_steal(CTX, obj);
 
       nvim_message_type const mtype = mpack_expect(mpack_index(obj, 0), E_NUM).num;
 
       switch (mtype) {
       case MES_NOTIFICATION: {
-            talloc_steal(CTX, obj);
             handle_nvim_notification(obj);
             break;
       }
       case MES_RESPONSE: {
-            talloc_steal(CTX, obj);
             struct message_args *tmp = aligned_alloc_for(struct message_args);
             tmp->obj = obj;
             tmp->fd  = fd;
@@ -602,6 +601,7 @@ attach_new_buffer(int num)
             get_initial_lines(bdata);
             get_initial_taglist(bdata);
             update_highlight(bdata, HIGHLIGHT_UPDATE);
+            settings.buffer_initialized = true;
 
             TIMER_REPORT(&t, "initialization");
       } else {

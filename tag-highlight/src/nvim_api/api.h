@@ -17,8 +17,8 @@ extern "C" {
 
 enum nvim_filetype_id {
         FT_NONE, FT_C, FT_CXX, FT_CSHARP, FT_GO, FT_JAVA,
-        FT_JAVASCRIPT, FT_LISP, FT_PERL, FT_PHP, FT_PYTHON,
-        FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
+        FT_JAVASCRIPT, FT_LISP, FT_LUA, FT_PERL, FT_PHP,
+        FT_PYTHON, FT_RUBY, FT_RUST, FT_SHELL, FT_VIM, FT_ZSH,
 };
 enum nvim_message_type    { MES_REQUEST, MES_RESPONSE, MES_NOTIFICATION, MES_ANY };
 enum nvim_write_type      { NW_STANDARD, NW_ERROR, NW_ERROR_LN };
@@ -53,7 +53,7 @@ extern bstring      * nvim_buf_get_name        (int bufnum) __aWUR;
 extern mpack_retval   nvim_buf_get_option      (int bufnum, bstring const *optname, mpack_expect_t expect) __aWUR;
 extern mpack_retval   nvim_buf_get_var         (int bufnum, bstring const *varname, mpack_expect_t expect) __aWUR;
 extern unsigned       nvim_buf_line_count      (int bufnum);
-extern void           nvim_call_atomic         (struct mpack_arg_array const *calls);
+extern void           nvim_call_atomic         (mpack_arg_array const *calls);
 extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR; // FIXME: Needs to be able to take arguments properly
 extern bool           nvim_command             (bstring const *cmd);
 extern mpack_retval   nvim_command_output      (bstring const *cmd, mpack_expect_t expect) __aWUR;
