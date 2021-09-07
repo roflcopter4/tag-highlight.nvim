@@ -717,7 +717,7 @@ get_restore_cmds(b_list *restored_groups)
 
                   b_list_destroy(toks);
 
-                  size_t const n = my_strlcpy(link_name, (ptr + 9), sizeof(link_name));
+                  size_t const n = strlcpy(link_name, (ptr + 9), sizeof(link_name));
                   ALWAYS_ASSERT(n > 0);
                   b_sprintfa(cmd, " | hi! link %s %n", restored_groups->lst[i], link_name);
 

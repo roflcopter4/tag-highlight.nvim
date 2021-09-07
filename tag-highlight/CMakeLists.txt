@@ -309,7 +309,7 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 
             set (LTO_STR "-flto=full")
             string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-                " -mprefer-vector-width=512 -rtlib=compiler-rt"
+                " -mprefer-vector-width=512 -rtlib=compiler-rt --unwindlib=libgcc"
                 " -fuse-ld=lld"
                 " -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
                 " -rdynamic -fpie -fPIC"

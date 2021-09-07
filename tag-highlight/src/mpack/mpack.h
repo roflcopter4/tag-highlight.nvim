@@ -22,7 +22,7 @@ enum mpack_types {
         MPACK_DICT          = 8,
 };
 
-P99_DECLARE_ENUM(mpack_expect_t,
+P99_DECLARE_ENUM(mpack_expect_t, uint32_t,
         E_MPACK_EXT,
         E_MPACK_ARRAY,
         E_MPACK_DICT,

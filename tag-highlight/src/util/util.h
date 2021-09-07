@@ -151,10 +151,10 @@ struct timer {
 #define STRINGIFY_HLP(...) #__VA_ARGS__
 #define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
 
-#define ASSERT(COND, ...)   ((!!(COND)) ? NOP : err(50,  __VA_ARGS__))
-#define ASSERTX(COND, ...)  ((!!(COND)) ? NOP : errx(50, __VA_ARGS__))
-#define DIE_UNLESS(COND)    ((!!(COND)) ? NOP : err(55, "%s", (#COND)))
-#define DIE_UNLESSX(COND)   ((!!(COND)) ? NOP : errx(55, "%s", (#COND)))
+#define ASSERT(COND, ...)   (P99_UNLIKELY(COND) ? NOP : err(50,  __VA_ARGS__))
+#define ASSERTX(COND, ...)  (P99_UNLIKELY(COND) ? NOP : errx(50, __VA_ARGS__))
+#define DIE_UNLESS(COND)    (P99_UNLIKELY(COND) ? NOP : err(55, "%s", (#COND)))
+#define DIE_UNLESSX(COND)   (P99_UNLIKELY(COND) ? NOP : errx(55, "%s", (#COND)))
 
 #define ALWAYS_ASSERT(COND)                                                                           \
         (!!(COND) ? NOP                                                                               \
@@ -187,8 +187,11 @@ extern int clock_nanosleep_for_(intmax_t seconds, intmax_t nanoseconds, char con
 extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
 #endif
 
-#define NANOSLEEP_FOR_SECOND_FRACTION(i, d) \
-        clock_nanosleep_for((uintmax_t)(i), (uintmax_t)(NSEC2SECOND / ((uintmax_t)(d))))
+/*
+ * Sleep for (s + (i/d)) seconds.
+ */
+#define NANOSLEEP_FOR_SECOND_FRACTION(s, i, d) \
+        clock_nanosleep_for((uintmax_t)(s), (uintmax_t)((NSEC2SECOND * (uintmax_t)(i)) / ((uintmax_t)(d))))
 
 extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
 #ifdef DOSISH

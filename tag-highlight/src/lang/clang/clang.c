@@ -521,6 +521,7 @@ get_compile_commands(Buffer *bdata)
 
       argv_append(ret, "-I", true);
       argv_append(ret, BS(bdata->name.path), true);
+      argv_append(ret, "-D__TAG_HIGHLIGHT__=1", true);
 
       clang_CompileCommands_dispose(cmds);
       clang_CompilationDatabase_dispose(db);

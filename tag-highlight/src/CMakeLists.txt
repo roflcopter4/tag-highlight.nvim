@@ -113,7 +113,6 @@ target_link_libraries(tag-highlight
     ${LIBCLANG_LIBRARY}
     thl-util
     tag_highlight_lang
-    -lsodium
 )
 
 if (IS_BSD)

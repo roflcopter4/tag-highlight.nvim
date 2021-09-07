@@ -1,9 +1,6 @@
 #include "Common.h"
 #include "util.h"
-#include "mpack/mpack.h"
 #include <sys/stat.h>
-
-#include "highlight.h"
 
 #define STARTSIZE 1024
 #define GUESS 100
@@ -84,8 +81,6 @@ safe_open(const char *const filename, const int flags, const int mode)
 #else
         const int fd = open(filename, flags, mode);
 #endif
-        //if (fd == (-1))
-        //        err(1, "Failed to open file '%s'", filename);
         if (fd == (-1)) {
                 fprintf(stderr, "Failed to open file \"%s\": %s\n", filename, strerror(errno));
                 abort();
@@ -286,7 +281,7 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
         if (waitpid(pid, &st, 0) != pid && errno != ECHILD)
                 err(1, "waitpid()");
         if ((st >>= 8) != 0)
-                echo("WARNING: Command failed with status %d", st);
+                warnx("WARNING: Command failed with status %d", st);
         if (status)
                 *status = st;
 

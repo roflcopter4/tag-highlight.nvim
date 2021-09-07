@@ -287,7 +287,6 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
         (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
 #  endif
 #  define auto_type      __extension__ __auto_type
-#  define Auto           __extension__ __auto_type
 #  define MAX(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
 #  define MIN(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
 #  define MODULO(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia % ib + ib) % ib;})

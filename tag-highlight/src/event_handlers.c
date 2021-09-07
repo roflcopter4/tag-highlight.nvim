@@ -11,17 +11,17 @@
 /*--------------------------------------------------------------------------------------*/
 
 struct message_args {
-      alignas(16)
+    alignas(16)
       mpack_obj *obj;
-      alignas(8)
+    alignas(8)
       int fd;
 };
 
 const event_id event_list[] = {
-      { BT("nvim_buf_lines_event"), EVENT_BUF_LINES },
+      { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES },
       { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
-      { BT("nvim_buf_detach_event"), EVENT_BUF_DETACH },
-      { BT("vim_event_update"), EVENT_VIM_UPDATE },
+      { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH },
+      { BT("vim_event_update"),           EVENT_VIM_UPDATE },
 };
 
 FILE *api_buffer_log = NULL;
@@ -323,14 +323,15 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
       /* This loop is only meaningful when replacing lines.
        * All other paths break after the first iteration. */
       for (int i = 0; i < num_lines; ++i) {
+            int const index = first + i;
             if (num_to_modify-- > 0 && i < olen) {
                   /* There are still strings to be modified. If we still have a
                    * replacement available then we use it. Otherwise we are instead
                    * deleting a range of lines. */
                   if (i < num_new) {
-                        replace_line(bdata, new_strings, first + i, i);
+                        replace_line(bdata, new_strings, index, i);
                   } else {
-                        ll_delete_range_at(bdata->lines, first + i, num_to_modify + 1);
+                        ll_delete_range_at(bdata->lines, index, num_to_modify + 1);
                         break;
                   }
             } else {
@@ -340,10 +341,10 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                    * If the first line to insert (first + i) is at the end of the
                    * file then we append it, otherwise we prepend. */
                   if ((first + i) >= bdata->lines->qty)
-                        ll_insert_blist_after_at(bdata->lines, first + i,
+                        ll_insert_blist_after_at(bdata->lines, index,
                                                  new_strings, i, (-1));
                   else
-                        ll_insert_blist_before_at(bdata->lines, first + i,
+                        ll_insert_blist_before_at(bdata->lines, index,
                                                   new_strings, i, (-1));
                   break;
             }
@@ -361,7 +362,7 @@ static noreturn void *
 delayed_update_highlight(void *vdata)
 {
       /* Sleep for 1 & 1/2 seconds. */
-      NANOSLEEP_FOR_SECOND_FRACTION(1, 2);
+      NANOSLEEP_FOR_SECOND_FRACTION(1, 1, 2);
       update_highlight(vdata);
       pthread_exit();
 }
@@ -384,7 +385,7 @@ wrap_update_highlight(void *vdata)
  * response to the user calling the provided 'clear', 'stop', or 'update' commands.
  */
 
-P99_DECLARE_ENUM(vimscript_message_type,
+P99_DECLARE_ENUM(vimscript_message_type, int,
                  VIML_BUF_NEW,
                  VIML_BUF_CHANGED,
                  VIML_BUF_SYNTAX_CHANGED,
