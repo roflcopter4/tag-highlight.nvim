@@ -28,7 +28,7 @@ You'll also want to fiddle with the highlight linking to fit your favorite color
 
 ## Questions I would probably ask
 
-in lieu of having actually received any questions I figured I might as well pre-emptively answer a few I would ask.
+In lieu of having actually received any questions to form an FAQ, I figured I might as well pre-emptively answer a few I would ask.
 
 ### Why on earth is it written in C?
 Because.
