@@ -20,7 +20,7 @@ static void win32_print_stack(void);
 static bool file_is_reg(const char *filename);
 static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
-__attribute__((__constructor__))
+__attribute__((__constructor__(10)))
 static void mutex_init(void)
 {
         pthread_mutex_init(&mut);
@@ -45,6 +45,7 @@ safe_fopen_fmt(const char *const restrict mode,
 {
         va_list va;
         char buf[SAFE_PATH_MAX + 1];
+        buf[0] = 0;
         va_start(va, fmt);
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
@@ -114,7 +115,7 @@ safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, .
 bool
 file_is_reg(const char *filename)
 {
-        struct stat st;
+        struct stat st={0};
         SAFE_STAT(filename, &st);
         return S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode);
 }
@@ -389,7 +390,7 @@ win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2]
         info.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
 
         if (!SetHandleInformation(info.hStdError, HANDLE_FLAG_INHERIT, 1))
-                win32_error_exit(1, "Stdout SetHandleInformation", GetLastError());
+                win32_error_exit(1, "Stderr SetHandleInformation", GetLastError());
 
         if (!CreateProcessA(exe, argv, NULL, NULL, TRUE, 0, NULL, NULL, &info, pi))
                 win32_error_exit(1, "CreateProcess() failed", GetLastError());

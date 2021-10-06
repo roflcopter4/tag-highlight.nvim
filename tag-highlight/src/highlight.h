@@ -22,16 +22,7 @@ struct cmd_info;
 typedef struct bufdata Buffer;
 typedef struct filetype Filetype;
 
-struct settings_s {
-    //alignas(__WORDSIZE * 2)
-        comp_type_t comp_type;
-        uint16_t    job_id;
-        uint8_t     comp_level;
-        bool        enabled;
-        bool        use_compression;
-        bool        verbose;
-        bool        buffer_initialized;
-
+struct settings_s { alignas(128)
         bstring    *cache_dir;
         bstring    *ctags_bin;
         bstring    *settings_file;
@@ -43,6 +34,15 @@ struct settings_s {
         mpack_dict *order;
 
         void       *talloc_ctx;
+
+        comp_type_t comp_type;
+        uint16_t    job_id;
+        uint8_t     comp_level;
+        bool        enabled;
+        bool        use_compression;
+        bool        verbose;
+        bool        buffer_initialized;
+        bool        run_ctags;
 };
 
 struct filetype {
@@ -79,8 +79,11 @@ struct bufdata {
         p99_futex   ctick;
         atomic_uint last_ctick;
         uint16_t    num;
+        uint16_t    num_failures;
         uint8_t     hl_id;
         atomic_bool initialized;
+
+        bool total_failure : 1;
 
         struct {
                 pthread_mutex_t total;
@@ -162,7 +165,6 @@ enum update_highlight_type {
         HIGHLIGHT_REDO,
 };
 
-extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);
 extern void update_highlight   (Buffer *bdata, enum update_highlight_type type);
 extern int  get_initial_taglist(Buffer *bdata);
@@ -176,3 +178,4 @@ extern void b_list_dump_nvim   (b_list const *list, char const *listname);
 /*===========================================================================*/
 __END_DECLS
 #endif /* highlight.h */
+// vim: ft=c

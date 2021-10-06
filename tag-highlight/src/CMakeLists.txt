@@ -107,6 +107,7 @@ add_library(thl-util STATIC ${thl-util_SOURCES})
 # Libraries
 
 target_link_libraries(tag-highlight
+    -Wl,--as-needed
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
     ${LLVM_SYSTEM_LIBRARIES}
@@ -178,15 +179,15 @@ elseif (FALSE)
     if (USE_JEMALLOC)
         target_link_libraries(mytalloc -ljemalloc)
     endif()
-    if (USE_LIBSODIUM)
-        target_link_libraries(mytalloc sodium)
-    endif()
+    # if (USE_LIBSODIUM)
+    #     target_link_libraries(mytalloc sodium)
+    # endif()
 
     target_link_libraries(tag-highlight mytalloc)
 
-    # if (LibBSD_FOUND)
-    #     target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
-    # endif()
+    if (LibBSD_FOUND)
+        target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
+    endif()
     
     set_property(TARGET tag-highlight PROPERTY INSTALL_RPATH "\$ORIGIN")
 
@@ -195,46 +196,49 @@ elseif (FALSE)
             LIBRARY DESTINATION "bin"
     )
 else ()
-    message("wtf...")
-    # include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
-    # add_library(mytalloc OBJECT "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
-    # 
-    # set (mytalloc_compile_options_common
-    #     "-fno-lto"
-    #     "-D_XOPEN_SOURCE_EXTENDED=1"
-    #     "-D__STDC_WANT_LIB_EXT1__=1")
-    # 
-    # if (MINGW OR MSVC_LIKE)
-    #     target_compile_options(
-    #         mytalloc
-    #         PRIVATE
-    #             ${mytalloc_compile_options_common}
-    #             "-DBUILDING_DLL_=1"
-    #     )
-    # elseif (NOT MSVC_LIKE)
-    #     target_compile_options(
-    #         mytalloc
-    #         PRIVATE
-    #             ${mytalloc_compile_options_common}
-    #             "-fPIC"
-    #             "-fstack-clash-protection"
-    #             "-fstack-protector-strong"
-    #             "-fvisibility=hidden"
-    #             "-DSTATIC_talloc_MODULES=NULL"
-    #             "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
-    #     )
-    # endif()
-    # 
-    # target_link_options(mytalloc PRIVATE -fno-lto)
-    # 
+    include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
+    add_library(mytalloc OBJECT "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
+    
+    set (mytalloc_compile_options_common
+            "-flto"
+            # "-fno-lto"
+            "-D_XOPEN_SOURCE_EXTENDED=1"
+            "-D__STDC_WANT_LIB_EXT1__=1"
+        )
+    
+    if (MINGW OR MSVC_LIKE)
+        target_compile_options(
+            mytalloc
+            PRIVATE
+                ${mytalloc_compile_options_common}
+                "-DBUILDING_DLL_=1"
+        )
+    elseif (NOT MSVC_LIKE)
+        target_compile_options(
+            mytalloc
+            PRIVATE
+                ${mytalloc_compile_options_common}
+                # "-fstack-clash-protection"
+                # "-fstack-protector-strong"
+                "-fvisibility=hidden"
+                "-DSTATIC_talloc_MODULES=NULL"
+                "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
+        )
+    endif()
+    
+    target_link_options(mytalloc PRIVATE -fno-lto)
+    
     # if (USE_JEMALLOC)
     #     target_link_libraries(mytalloc -ljemalloc)
     # endif()
     # if (USE_LIBSODIUM)
     #     target_link_libraries(mytalloc sodium)
     # endif()
-    # 
-    # target_link_libraries(tag-highlight mytalloc)
+    # if (LibBSD_FOUND)
+    #     target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
+    # endif()
+    
+    target_link_libraries(tag-highlight mytalloc)
 endif()
 
 ################################################################################

@@ -45,6 +45,7 @@ call s:InitVar('enabled',     1)
 call s:InitVar('no_autoconf', 1)
 call s:InitVar('recursive',   1)
 call s:InitVar('verbose',     1)
+call s:InitVar('run_ctags',   1)
 
 " People often make annoying #defines for C and C++ keywords, types, etc. Avoid
 " highlighting these by default, leaving the built in vim highlighting intact.
@@ -271,7 +272,9 @@ highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
 highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
 highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
 
+highlight default link tag_highlight_OverloadedDeclTag		Function
 highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+highlight default link tag_highlight_NonTypeTemplateParam	Normal
 highlight default link tag_highlight_GlobalVarTag		PreCondit
 highlight default link tag_highlight_ConstantTag		Constant
 highlight default link tag_highlight_EnumTag			Constant

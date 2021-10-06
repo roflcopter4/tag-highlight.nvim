@@ -29,13 +29,14 @@
 #cmakedefine HAVE_STRLCAT
 #cmakedefine HAVE_STRLCPY
 #cmakedefine HAVE_STRSEP
+#cmakedefine HAVE_LRAND48
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
 
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 #cmakedefine HAVE_PROGRAM_INVOCATION_SHORT_NAME
 
-#cmakedefine HAVE_BSD_STDLIB_H
+#cmakedefine HAVE_BSD_BSD_H
 #cmakedefine HAVE_EXECINFO_H
 #cmakedefine HAVE_STDATOMIC_H
 #cmakedefine HAVE_STDNORETURN_H
@@ -43,6 +44,9 @@
 #cmakedefine HAVE_SYS_TIME_H
 #cmakedefine HAVE_THREADS_H
 #cmakedefine HAVE_TIME_H
+#cmakedefine HAVE_UNISTD_H
+
+#cmakedefine HAVE_LIBBSD
 
 #define SANITIZER_LOG_PLACE "@SANITIZER_LOG_PLACE@"
 

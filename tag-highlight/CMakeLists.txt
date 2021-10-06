@@ -125,7 +125,7 @@ XZ support will be disabled for this build.")
     endif()
 endif()
 
-find_package (Talloc)
+# find_package (Talloc)
 if (NOT TALLOC_FOUND)
     include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
 endif()
@@ -181,6 +181,7 @@ CHECK_SYMBOL_EXISTS (strcasecmp     "strings.h"  HAVE_STRCASECMP)
 CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
+CHECK_SYMBOL_EXISTS (lrand48        "stdlib.h"   HAVE_LRAND48)
 
 CHECK_SYMBOL_EXISTS (getauxval "sys/getauxv.h" HAVE_GETAUXVAL)
 CHECK_SYMBOL_EXISTS (program_invocation_name "errno.h" HAVE_PROGRAM_INVOCATION_NAME)
@@ -206,10 +207,17 @@ CHECK_INCLUDE_FILE ("stdatomic.h"   HAVE_STDATOMIC_H)
 CHECK_INCLUDE_FILE ("stdnoreturn.h" HAVE_STDNORETURN_H)
 CHECK_INCLUDE_FILE ("sys/auxv.h"    HAVE_SYS_AUXV_H)
 CHECK_INCLUDE_FILE ("threads.h"     HAVE_THREADS_H)
+CHECK_INCLUDE_FILE ("unistd.h"      HAVE_UNISTD_H)
 
-if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
-     find_package(LibBSD)
-endif()
+# if (NOT TALLOC_FOUND AND NOT HAVE_ARC4RANDOM)
+#      find_package(LibBSD)
+# 
+#      if (LibBSD_FOUND)
+#          set (HAVE_ARC4RANDOM 1)
+#          set (HAVE_BSD_BSD_H 1)
+#          set (HAVE_LIBBSD 1)
+#      endif()
+# endif()
 
 if (NOT USE_JEMALLOC AND NOT HAVE_ALIGNED_ALLOC)
     find_package (Jemalloc REQUIRED)
@@ -230,7 +238,7 @@ string (JOIN " " WARNS
         -Werror=incompatible-pointer-types
         -Werror=int-conversion
         -Werror=pointer-to-int-cast
-        -fpie -fPIC
+        # -fpie -fPIC
 )
 
 if (NOT BUILD_DIST) 
@@ -264,12 +272,12 @@ else()
         set (CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
             -fno-omit-frame-pointer -fno-optimize-sibling-calls)
     endif()
-    string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}"
+    string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}" " -mprefer-vector-width=512"
                         " -pipe -std=gnu11 -fdiagnostics-color=always")
 
-    set (CFLAGS_DEBUG_COMMON          "-Og -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
-    set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g  -Wextra -ftree-vectorize -Wextra")
-    set (CFLAGS_RELEASE_COMMON        "-O3 -g0 -DNDEBUG -U_FORTIFY_SOURCE -fno-strict-aliasing")
+    set (CFLAGS_DEBUG_COMMON          "-O0 -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
+    set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g3 -D_FORTIFY_SOURCE=2 -Wextra -ftree-vectorize -Wextra")
+    set (CFLAGS_RELEASE_COMMON        "-Ofast -ftree-vectorize -g0 -DNDEBUG -U_FORTIFY_SOURCE -fno-strict-aliasing")
 endif()
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -297,24 +305,26 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         #     -Wno-gnu-statement-expression -Werror=return-type
         #     -Wno-sign-compare -Wno-dollar-in-identifier-extension
         # )
-        string (CONCAT BASE "${BASE} ${WARNS}"
+        string (CONCAT BASE "${BASE} ${WARNS} ${SANIT}"
         )
         
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
 
             string(JOIN " " BASE ${BASE} ${WARNS}
-                -mprefer-vector-width=512
-                -g3 -gdwarf-5
+                -g3 -fvectorize -fslp-vectorize -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
+                # -fprofile-use=/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/tag-highlight
+                # -fprofile-instr-generate -fdebug-info-for-profiling
             )
 
-            set (LTO_STR "-flto=full")
-            string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-                " -mprefer-vector-width=512 -rtlib=compiler-rt --unwindlib=libgcc"
-                " -fuse-ld=lld"
-                " -Wl,--lto-O3 -Wl,--lto-whole-program-visibility"
-                " -rdynamic -fpie -fPIC"
-            )
         endif ()
+        set (LTO_STR "-flto=full -fwhole-program-vtables")
+
+        string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+            " -mprefer-vector-width=512 -rtlib=compiler-rt --unwindlib=libgcc"
+            " -fuse-ld=lld"
+            " -rdynamic"
+            " ${LTO_STR} -Wl,--lto-O3 -Wl,--lto-whole-program-visibility -Wl,-O3"
+        )
     endif()
     
     find_program(LLVM_AR "llvm-ar" REQUIRED)
@@ -332,12 +342,11 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )
     string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
-        -mprefer-vector-width=512
+        -mvect-cost-model=unlimited
         -masm=intel -fverbose-asm
-
         -g3 -gdwarf-5
     )
-    set (LTO_STR "-flto -fuse-linker-plugin")
+    set (LTO_STR "-flto -fuse-linker-plugin -fno-fat-lto-objects")
 
     find_program(GCC_AR "gcc-ar" REQUIRED)
     find_program(GCC_NM "gcc-nm" REQUIRED)
@@ -361,7 +370,7 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STRE
     string(JOIN " " CMAKE_C_FLAGS_DEBUG
                     ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
     string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
-                    ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE})
+                    ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE} ${LTO_STR})
     string(JOIN " " CMAKE_C_FLAGS_RELEASE
                     ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON} ${BASE} ${LTO_STR})
     string(JOIN " " CMAKE_C_FLAGS_MINSIZEREL

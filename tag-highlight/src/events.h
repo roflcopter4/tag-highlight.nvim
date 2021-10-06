@@ -60,3 +60,4 @@ extern void handle_nvim_message(struct event_data *data);
 
 /*======================================================================================*/
 #endif /* events.h */
+// vim: ft=c

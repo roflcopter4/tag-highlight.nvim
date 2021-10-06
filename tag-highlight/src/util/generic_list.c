@@ -310,9 +310,15 @@ str_vector *
 argv_create(const unsigned len)
 {
         str_vector *argv = talloc(NULL, str_vector);
-        argv->mlen                   = (len) ? len : 1;
-        argv->qty                    = 0;
-        argv->lst                    = talloc_array(argv, char *, argv->mlen);
+        argv->mlen       = (len) ? len : 1;
+        argv->qty        = 0;
+        argv->lst        = talloc_array(argv, char *, argv->mlen);
+
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&argv->lock, &attr);
+
         return argv;
 }
 
@@ -320,6 +326,8 @@ argv_create(const unsigned len)
 void
 argv_append(str_vector *argv, const char *str, const bool cpy)
 {
+        pthread_mutex_lock(&argv->lock);
+
         if (argv->qty == (argv->mlen - 1)) {
                 auto_type tmp = talloc_realloc(argv, argv->lst, char *, (argv->mlen *= 2));
                 argv->lst     = tmp;
@@ -330,6 +338,8 @@ argv_append(str_vector *argv, const char *str, const bool cpy)
         } else {
                 argv->lst[argv->qty++] = (char *)talloc_move(argv->lst, &str);
         }
+
+        pthread_mutex_unlock(&argv->lock);
 }
 
 
@@ -371,30 +381,34 @@ argv_destroy(str_vector *argv)
 
 
 void
-argv_dump__(FILE *                              fp,
-            const str_vector *const restrict argv,
+argv_dump__(FILE *                     fp,
+            str_vector *const restrict argv,
             const char *const restrict listname,
             const char *const restrict file,
             const int line)
 {
+        pthread_mutex_lock(&argv->lock);
         fprintf(fp, "Dumping list \"%s\" (%s at %d)\n", listname, file, line);
         for (unsigned i = 0; i < argv->qty; ++i)
                 fprintf(fp, "%s\n", argv->lst[i]);
         fputc('\n', fp);
         fflush(fp);
+        pthread_mutex_unlock(&argv->lock);
 }
 
 
 void
 argv_dump_fd__(const int    fd,
-               const str_vector *const restrict argv,
+               str_vector *const restrict argv,
                const char *const restrict listname,
                const char *const restrict file,
                const int line)
 {
+        pthread_mutex_lock(&argv->lock);
         dprintf(fd, "Dumping list \"%s\" (%s at %d)\n", listname, file, line);
         for (unsigned i = 0; i < argv->qty; ++i)
                 dprintf(fd, "%s\n", argv->lst[i]);
         if (write(fd, "\n", 1) != 1)
                 err(1, "write");
+        pthread_mutex_unlock(&argv->lock);
 }

@@ -98,7 +98,7 @@ nvim_api_intern_make_special_call(bool const     blocking,
 
 /*======================================================================================*/
 
-__attribute__((__constructor__)) static void
+__attribute__((__constructor__(200))) static void
 nvim_api_wrapper_init(void)
 {
       pthread_mutex_init(&await_package_mutex);
@@ -131,8 +131,8 @@ write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
             size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, mpack_raw);
             assert(!ferror(mpack_raw) && (unsigned)n == (*pack->packed)->slen);
       }
-#endif
       mpack_print_object(mpack_log, pack);
+#endif
 
       mpack_obj      *ret;
       nvim_wait_node *node;

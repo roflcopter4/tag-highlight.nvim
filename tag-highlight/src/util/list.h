@@ -139,6 +139,7 @@ struct argument_vector_st {
         char   **lst;
         unsigned qty;
         unsigned mlen;
+        pthread_mutex_t lock;
 };
 
 LLDECL str_vector *argv_create    (unsigned len) __aWUR;
@@ -146,8 +147,8 @@ LLDECL void        argv_append    (str_vector *argv, const char *str, bool cpy);
 LLDECL void        argv_destroy   (str_vector *argv);
 LLDECL void        argv_append_fmt(str_vector *argv, const char *__restrict fmt, ...) __aFMT(2, 3);
 
-INTERN void argv_dump__   (FILE *fp, const str_vector *argv, const char *listname, const char *, int);
-INTERN void argv_dump_fd__(int fd, const str_vector *argv, const char *listname, const char *, int);
+INTERN void argv_dump__   (FILE *fp, str_vector *argv, const char *listname, const char *, int);
+INTERN void argv_dump_fd__(int fd, str_vector *argv, const char *listname, const char *, int);
 
 #define argv_dump(FP, ARGV)    (argv_dump__((FP), (ARGV), #ARGV, __FILE__, __LINE__))
 #define argv_dump_fd(FD, ARGV) (argv_dump_fd__((FD), (ARGV), #ARGV, __FILE__, __LINE__))

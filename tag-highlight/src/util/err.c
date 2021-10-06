@@ -56,6 +56,8 @@
 static inline bstring * get_project_base(const char *fullpath);
 extern FILE *echo_log;
 
+#include "nvim_api/api.h"
+
 void
 err_(int  const UNUSED    status,
      bool const           print_err,
@@ -71,19 +73,26 @@ err_(int  const UNUSED    status,
         va_start(ap, fmt);
         bstring *base = get_project_base(file);
 
-        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
-        vfprintf(stderr, fmt, ap);
+        char *tmp_buf;
+        size_t tmp_size;
+        FILE *tmp = open_memstream(&tmp_buf, &tmp_size);
+
+        fprintf(tmp, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
+        vfprintf(tmp, fmt, ap);
         if (print_err)
-                fprintf(stderr, ": %s\n", strerror(e));
+                fprintf(tmp, ": %s\n", strerror(e));
         else
-                fputc('\n', stderr);
+                fputc('\n', tmp);
 
         va_end(ap);
         talloc_free(base);
 
         SHOW_STACKTRACE();
-        fputc('\n', stderr);
-        fflush(stderr);
+        fputc('\n', tmp);
+        fflush(tmp);
+
+        nvim_err_write(btp_fromblk(tmp_buf, tmp_size));
+        fclose(tmp);
 
         /* if (settings.buffer_initialized) */
 

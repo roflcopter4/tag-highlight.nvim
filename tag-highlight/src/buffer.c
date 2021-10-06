@@ -48,7 +48,7 @@ static int      destroy_buffer_wrapper(Buffer *bdata);
 
 
 /* Actually initializing these things seems to be mandatory on Windows. */
-__attribute__((__constructor__)) static void
+__attribute__((__constructor__(50))) static void
 buffer_c_constructor(void)
 {
       pthread_mutexattr_t attr;
@@ -60,6 +60,8 @@ buffer_c_constructor(void)
       for (int i = 0; i < DATA_ARRSIZE; ++i)
             p99_futex_init((p99_futex *)&destruction_futex[i], 0);
 
+      extern void talloc_emergency_library_init(void);
+      talloc_emergency_library_init();
       buffer_list = ll_make_new();
       top_dirs    = ll_make_new();
 }
@@ -154,6 +156,7 @@ find_buffer_node(int const bufnum)
 static inline buffer_node *
 new_buffer_node(int const bufnum)
 {
+      extern FILE *talloc_log_file;
       buffer_node *bnode = talloc(CTX, buffer_node);
       bnode->lock        = talloc(bnode, pthread_rwlock_t);
       bnode->bdata       = NULL;
@@ -740,8 +743,8 @@ get_cmd_info(Filetype *ft)
 
       for (unsigned i = 0; i < ngroups; ++i) {
             int const   ch = ft->order->data[i];
-            mpack_dict *dict =
-                nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#%c", BTS(ft->vim_name), ch).ptr;
+            mpack_dict *dict = nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#%c",
+                                                   BTS(ft->vim_name), ch).ptr;
 
             info[i].kind  = ch;
             info[i].group = mpack_dict_get_key(dict, E_STRING, B("group")).ptr;

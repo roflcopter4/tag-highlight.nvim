@@ -1,4 +1,5 @@
 #include "Common.h"
+#include <stddef.h>
 #include <sys/stat.h>
 
 #if defined(DOSISH) || defined(MINGW)
@@ -12,15 +13,20 @@
 #include "highlight.h"
 #include "util/archive.h"
 
-static inline void write_gzfile(struct top_dir *topdir);
+static int  run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 static int exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
+static inline void write_gzfile(struct top_dir *topdir);
 
 /*======================================================================================*/
 
 
-bool
+static int
 run_ctags(Buffer *bdata, enum update_taglist_opts const opts)
 {
+      if (!nvim_get_var(B("tag_highlight#run_ctags"), E_BOOL).num)
+      /* if (!settings.run_ctags) */
+            return (-1);
+
       assert(bdata != NULL && bdata->topdir != NULL);
       if (!bdata->lines || !bdata->initialized) {
             ECHO("File is empty, cannot run ctags");
@@ -78,7 +84,10 @@ get_initial_taglist(Buffer *bdata)
             else
                   warn("Unexpected io error");
       force_ctags:
-            run_ctags(bdata, UPDATE_TAGLIST_FORCE);
+            if (run_ctags(bdata, UPDATE_TAGLIST_FORCE) < 0) {
+                  warnd("No ctags.");
+                  return 1;
+            }
             write_gzfile(top);
 
             if (stat(BS(top->gzfile), &st) != 0)
@@ -105,8 +114,13 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
 
       atomic_store_explicit(&bdata->last_ctick, ctick, memory_order_relaxed);
 
-      if (!run_ctags(bdata, opts))
+      int val = run_ctags(bdata, opts);
+      if (val > 0)
             warnx("Ctags exited with errors; trying to continue anyway.");
+      else if (val == (-1)) {
+            ret = false;
+            goto skip;
+      }
 
       talloc_free(bdata->topdir->tags);
       bdata->topdir->tags = b_list_create();
@@ -119,6 +133,7 @@ update_taglist(Buffer *bdata, enum update_taglist_opts const opts)
             write_gzfile(bdata->topdir);
       }
 
+skip:
       pthread_mutex_unlock(&bdata->lock.total);
       return ret;
 }

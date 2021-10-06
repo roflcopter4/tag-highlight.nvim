@@ -36,7 +36,6 @@ void
 (update_highlight)(Buffer *bdata, enum update_highlight_type const type)
 {
       // struct timer t[1] = {STRUCT_TIMER_INITIALIZER};
-
       if (!bdata || !bdata->topdir || !bdata->lines)
             return;
 
@@ -72,6 +71,8 @@ void
             }
       } else {
       parser_failed:
+            if (!settings.run_ctags)
+                  return;
 #if 0
                 if (bdata->calls)
                         update_from_cache(bdata);

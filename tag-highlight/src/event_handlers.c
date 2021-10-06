@@ -33,7 +33,7 @@ P99_FIFO(event_node_ptr) nvim_event_queue;
 #define CTX event_handlers_talloc_ctx_
 void *event_handlers_talloc_ctx_ = NULL;
 
-__attribute__((__constructor__))
+__attribute__((__constructor__(100)))
 static void event_handlers_initializer(void)
 {
       pthread_mutexattr_t attr;
@@ -317,7 +317,7 @@ static inline void
 line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num_to_modify)
 {
       int const num_new   = (int)new_strings->qty;
-      int const num_lines = MAX(num_to_modify, num_new);
+      int const num_lines = MAXOF(num_to_modify, num_new);
       int const olen      = bdata->lines->qty;
 
       /* This loop is only meaningful when replacing lines.
@@ -408,7 +408,7 @@ static noreturn void event_stop(void);
 static noreturn void event_exit(void);
 static void attach_new_buffer(int num);
 
-__attribute__((__constructor__)) void
+__attribute__((__constructor__(400))) void
 autocmd_constructor(void)
 {
       pthread_mutex_init(&autocmd_mutex);
@@ -481,15 +481,23 @@ static void
 event_buffer_changed(atomic_int *prev_num)
 {
       int const num   = nvim_get_current_buf();
-      int const prev  = atomic_exchange(prev_num, num);
+      int const prev  = atomic_exchange_explicit(prev_num, num, memory_order_acq_rel);
       Buffer   *bdata = find_buffer(num);
 
       if (prev == num && bdata)
             return;
 
-      if (bdata) {
+      if (1) {
+            Buffer *prev_bdata = find_buffer(prev);
+            if (prev_bdata && prev_bdata->initialized && prev_bdata->ft->is_c)
+                  libclang_suspend_translationunit(prev_bdata);
+      }
+
+      if (bdata && bdata->initialized) {
+#if 0
             if (!bdata->calls)
                   get_initial_taglist(bdata);
+#endif
             update_highlight(bdata, HIGHLIGHT_NORMAL);
       } else {
             attach_new_buffer(num);
@@ -541,14 +549,13 @@ static void
 event_force_update(atomic_int *prev_num)
 {
       UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
-      TIMER_START_BAR(&t);
+      TIMER_START(&t);
 
       int const num = nvim_get_current_buf();
       atomic_store_explicit(prev_num, num, memory_order_release);
       Buffer *bdata = find_buffer(num);
 
       if (bdata) {
-            update_taglist(bdata, UPDATE_TAGLIST_FORCE);
             update_highlight(bdata, HIGHLIGHT_UPDATE_FORCE);
       } else {
             attach_new_buffer(num);

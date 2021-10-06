@@ -11,7 +11,7 @@ import (
 /*--------------------------------------------------------------------------------------*/
 
 func open_log(lfile **os.File, isdebug bool, our_fname string) {
-	if true || isdebug {
+	if isdebug {
 		open_log_dbg(lfile, our_fname)
 	} else {
 		open_log_rel(lfile, our_fname)
