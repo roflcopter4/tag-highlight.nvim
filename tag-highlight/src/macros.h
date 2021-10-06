@@ -11,13 +11,13 @@
 
 __BEGIN_DECLS
 
-ALWAYS_INLINE Buffer *
+ALWAYS_INLINE __aWUR Buffer *
 find_current_buffer(void)
 {
         return find_buffer(nvim_get_current_buf());
 }
 
-ALWAYS_INLINE void __attribute__((__nonnull__))
+ALWAYS_INLINE __attribute__((__nonnull__)) void
 nvim_buf_attach_bdata_wrap(const Buffer *const bdata)
 {
         nvim_buf_attach(bdata->num);

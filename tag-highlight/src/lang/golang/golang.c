@@ -44,22 +44,6 @@ static inline bool ident_is_ignored(Buffer *bdata, bstring const *tok) __attribu
 
 /*======================================================================================*/
 
-bstring *
-get_go_binary(void)
-{
-        struct stat st;
-
-        bstring *go_binary = nvim_call_function(B(PKG "install_info#GetBinaryPath"), E_STRING).ptr;
-        b_catlit(go_binary, "/golang" CMD_SUFFIX);
-
-        if (stat(BS(go_binary), &st) != 0) {
-                b_free(go_binary);
-                go_binary = NULL;
-        }
-        
-        return go_binary;
-}
-
 int
 highlight_go(Buffer *bdata)
 {

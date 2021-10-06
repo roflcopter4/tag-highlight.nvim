@@ -18,20 +18,21 @@
                      V(list->head), V(list->tail), list->qty);             \
         } while (0)
 
-#define ASSERTIONS()                                                          \
+#ifdef NDEBUG
+#  define ASSERTIONS()
+#else
+#  define ASSERTIONS()                                                        \
         ASSERTX((start >= 0 && (end > 0 || start == end)),                    \
                 "Start (%d), end (%d)", start, end);                          \
         ASSERTX(start <= end, "Start (%d) is not < end (%d)!", start, end);   \
         ASSERTX((blist->qty > 0), "blist->qty (%u) is not > 0!", blist->qty); \
         ASSERTX((unsigned)end <= blist->qty,                                  \
                 "End (%d) is not <= blist->qty (%u)!", end, blist->qty)
+#endif
 
 STATIC_INLINE void resolve_negative_index(int *index, int base);
 
-#ifdef NDEBUG
-#  undef assert
-#  define assert ALWAYS_ASSERT
-#endif
+/*============================================================================*/
 
 linked_list *
 (ll_make_new)(void *talloc_ctx)
@@ -70,6 +71,17 @@ linked_list *
         return list;
 }
 
+#if 0
+static ll_node *
+ll_make_new_node(linked_list *list, void *data)
+{
+      ll_node *node = talloc(list, ll_node);
+      node->data    = talloc_steal(node, data);
+      talloc_set_destructor(node, )
+}
+#endif
+
+/*============================================================================*/
 
 void
 ll_prepend(linked_list *list, void *data)
@@ -99,7 +111,8 @@ ll_append(linked_list *list, void *data)
         pthread_mutex_lock(&list->lock);
         assert(list);
         assert(data);
-        ll_node *node = talloc(list, ll_node);
+        /* ll_node *node = talloc(list, ll_node); */
+        ll_node *node = talloc_named_const(list, sizeof(ll_node), "Bugger me stupid");
 
         if (list->tail)
                 list->tail->next = node;

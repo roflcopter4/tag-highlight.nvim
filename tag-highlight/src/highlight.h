@@ -22,15 +22,7 @@ struct cmd_info;
 typedef struct bufdata Buffer;
 typedef struct filetype Filetype;
 
-struct settings_s {
-    alignas(__WORDSIZE * 2)
-        uint16_t    job_id;
-        uint8_t     comp_level;
-        bool        enabled;
-        bool        use_compression;
-        bool        verbose;
-        comp_type_t comp_type;
-
+struct settings_s { alignas(128)
         bstring    *cache_dir;
         bstring    *ctags_bin;
         bstring    *settings_file;
@@ -42,6 +34,15 @@ struct settings_s {
         mpack_dict *order;
 
         void       *talloc_ctx;
+
+        comp_type_t comp_type;
+        uint16_t    job_id;
+        uint8_t     comp_level;
+        bool        enabled;
+        bool        use_compression;
+        bool        verbose;
+        bool        buffer_initialized;
+        bool        run_ctags;
 };
 
 struct filetype {
@@ -76,25 +77,19 @@ struct top_dir {
 struct bufdata {
         /* atomic_uint ctick; */
         p99_futex   ctick;
-        p99_futex   highest_ctick;
-
         atomic_uint last_ctick;
-        atomic_bool is_normal_mode;
         uint16_t    num;
+        uint16_t    num_failures;
         uint8_t     hl_id;
         atomic_bool initialized;
-        jmp_buf jbuf;
+
+        bool total_failure : 1;
 
         struct {
                 pthread_mutex_t total;
-                pthread_mutex_t ctick;
                 pthread_mutex_t lang_mtx;
                 p99_count       num_workers;
-
-                p99_count          hl_waiters;
-                pthread_spinlock_t spinlock;
-                pthread_cond_t     cond;
-                pthread_mutex_t    cond_mtx;
+                p99_count       hl_waiters;
         } lock;
 
         struct {
@@ -109,18 +104,15 @@ struct bufdata {
         struct top_dir  *topdir;
 
         union {
-                /* c_family */ 
-                struct {
+                struct /*c_family*/ {
                         void   *clangdata;
                         b_list *headers;
                 };
-                /* golang */ 
-                struct {
+                struct /*golang*/ {
                         atomic_flag flg;
                         void *sock_info;
                 } godata;
-                /* generic */
-                struct {
+                struct /*generic*/ {
                         mpack_arg_array *calls;
                         b_list          *cmd_cache;
                 };
@@ -173,17 +165,17 @@ enum update_highlight_type {
         HIGHLIGHT_REDO,
 };
 
-extern bool run_ctags          (Buffer *bdata, enum update_taglist_opts opts);
 extern int  update_taglist     (Buffer *bdata, enum update_taglist_opts opts);
 extern void update_highlight   (Buffer *bdata, enum update_highlight_type type);
 extern int  get_initial_taglist(Buffer *bdata);
 extern void clear_highlight    (Buffer *bdata, bool blocking);
 extern void get_initial_lines  (Buffer *bdata);
 extern void launch_event_loop  (void);
-extern void b_list_dump_nvim  (const b_list *list, const char *listname);
+extern void b_list_dump_nvim   (b_list const *list, char const *listname);
 
 #include "macros.h"
 
 /*===========================================================================*/
 __END_DECLS
 #endif /* highlight.h */
+// vim: ft=c

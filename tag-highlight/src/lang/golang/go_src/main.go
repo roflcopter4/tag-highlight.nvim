@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	fset *token.FileSet = token.NewFileSet()
-	lg   *mylog         = new(mylog)
-	errFile *os.File = os.Stderr
+	fset    *token.FileSet = token.NewFileSet()
+	lg      *mylog         = new(mylog)
+	errFile *os.File       = os.Stderr
 )
 
 type mylog struct {
@@ -36,7 +36,7 @@ const (
 	TYPE_METHOD      = 'F'
 )
 
-const debug_override = 0
+const debug_override = 2
 
 //========================================================================================
 

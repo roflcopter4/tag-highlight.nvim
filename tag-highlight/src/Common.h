@@ -5,9 +5,9 @@ extern "C" {
 #endif
 /*===========================================================================*/
 #if defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
-#    ifndef __MINGW__
-#      define __MINGW__
-#    endif
+#  ifndef __MINGW__
+#    define __MINGW__
+#  endif
 #  include "mingw_config.h"
 #endif
 #ifdef _MSC_VER
@@ -39,12 +39,12 @@ extern "C" {
 #  else
 typedef signed long long int ssize_t;
 #  endif
+#  include <direct.h>
+#  include <io.h>
+#  include <pthread.h>
 #  include <windows.h>
 #  include <winsock2.h>
-#  include <io.h>
-#  include <direct.h>
-#  include <pthread.h>
-#  define PATHSEP '\\'
+#  define PATHSEP     '\\'
 #  define PATHSEP_STR "\\"
 #  ifndef _UCRT
 #    define at_quick_exit(a)
@@ -52,25 +52,21 @@ typedef signed long long int ssize_t;
 #  endif
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
-#  ifndef USE_JEMALLOC
-#    include <mm_malloc.h>
-#    define aligned_alloc(p, a) _mm_malloc((p), (a))
-#  endif
-extern char *basename(char *path);
 #else
-#  include <sys/socket.h>
 #  include <dirent.h>
 #  include <libgen.h>
 #  include <pthread.h>
+#  include <sys/socket.h>
 #  include <sys/stat.h>
 #  include <sys/time.h>
 #  include <sys/types.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
-#  define PATHSEP '/'
+#  define PATHSEP     '/'
 #  define PATHSEP_STR "/"
 #endif
-#if (defined(__MINGW32__) || defined(__MINGW64__)) && (!defined(__MINGW__) || !defined(DOSISH))
+#if (defined(__MINGW32__) || defined(__MINGW64__)) && \
+    (!defined(__MINGW__) || !defined(DOSISH))
 #  error "Something really messed up here."
 #endif
 #if defined(HAVE_TIME_H)
@@ -78,8 +74,14 @@ extern char *basename(char *path);
 #elif defined(HAVE_SYS_TIME_H)
 #  include <sys/time.h>
 #endif
-#ifndef __GNU_LIBRARY__
+
+#ifndef HAVE_BASENAME
+extern char *basename(const char *);
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
 extern const char *program_invocation_short_name;
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_NAME
 extern const char *program_invocation_name;
 #endif
 
@@ -101,6 +103,11 @@ extern const char *program_invocation_name;
 #  include <stdnoreturn.h>
 #endif
 
+#ifdef basename
+#  undef basename
+extern char *basename(const char *) __THROW __nonnull((1));
+#endif
+
 #include <talloc.h>
 
 /* Guarentee that this typedef exists. */
@@ -117,10 +124,6 @@ typedef int error_t;
 #include "contrib/p99/p99.h"
 #include "contrib/p99/p99_compiler.h"
 
-/* #define ALWAYS_INLINE __attribute__((__gnu_inline__, __always_inline__)) extern inline  */
-/* #define STATIC_INLINE __attribute__((__gnu_inline__, __always_inline__)) static inline  */
-/* #define INLINE        __attribute__((__gnu_inline__)) extern inline */
-
 #define ALWAYS_INLINE p99_inline
 #define INLINE        p99_inline
 #define STATIC_INLINE static inline
@@ -128,6 +131,10 @@ typedef int error_t;
 #include "contrib/contrib.h"
 
 extern char *HOME;
+
+#ifdef basename
+#  undef basename
+#endif
 
 /*===========================================================================*/
 /* Some system/compiler specific config/setup */
@@ -158,24 +165,25 @@ extern char *HOME;
 
 #if !defined(__cplusplus) && !defined(static_assert)
 #  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#    define static_assert _Static_assert
+#    define static_assert(...) _Static_assert(__VA_ARGS__)
 #  else
-#    define static_assert(...)
+#    define 
+#    define static_assert(COND ((char [(COND) ? 1 : -1]){})
 #  endif
 #endif
 
 #if defined(_MSC_VER)
-#  define UNUSED    __pragma(warning(suppress: 4100 4101))
+#  define UNUSED    __pragma(warning(suppress : 4100 4101))
 #  define WEAK_SYMB __declspec(selectany)
 #  define __aWUR    _Check_return_
 #elif defined(__GNUC__)
-#  define UNUSED    __attribute__((__unused__))
+#  define UNUSED __attribute__((__unused__))
 #  if defined(__MINGW__)
 #    define WEAK_SYMB __declspec(selectany)
 #  else
 #    define WEAK_SYMB __attribute__((__weak__))
 #  endif
-#  define __aWUR      __attribute__((__warn_unused_result__))
+#  define __aWUR __attribute__((__warn_unused_result__))
 #else
 #  define WEAK_SYMB static
 #endif
@@ -203,16 +211,16 @@ extern char *HOME;
 #    ifndef WINPTHREAD_API
 #      define WINPTHREAD_API __declspec(dllimport)
 #    endif
-extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__));
+extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__));
 #  endif
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
-#  define strcasecmp   _stricmp
-#  define strncasecmp  _strnicmp
+#  define strcasecmp          _stricmp
+#  define strncasecmp         _strnicmp
 #endif
-#ifdef HAVE_NANOSLEEP //defined(__MINGW__) || !defined(DOSISH)
-#  define fsleep(VAL)  nanosleep(MKTIMESPEC((double)(VAL)), NULL)
+#ifdef HAVE_NANOSLEEP
+#  define fsleep(VAL) nanosleep(MKTIMESPEC((double)(VAL)), NULL)
 #else
-#  define fsleep(VAL)  Sleep((long long)((double)(VAL) * (1000.0L)))
+#  define fsleep(VAL) Sleep((long long)((double)(VAL) * (1000.0L)))
 #endif
 
 #ifndef O_BINARY
@@ -242,83 +250,38 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 #endif
 
 #ifndef SIZE_C
-  #if __WORDSIZE == 64
-  #  define SIZE_C  UINT64_C
-  #  define SSIZE_C INT64_C
-  #elif __WORDSIZE == 32
-  #  define SIZE_C  UINT32_C
-  #  define SSIZE_C INT32_C
-  #else
-  #  error "Unable to determine word size."
-  #endif
+#  define SIZE_C(x)  P99_PASTE3(UINT, __WORDSIZE, _C)(x)
+#  define SSIZE_C(x) P99_PASTE3(INT,  __WORDSIZE, _C)(x)
 #endif
-
-/*===========================================================================*/
-/* Attribute aliases and junk like MIN, MAX, NOP, etc */
-
-#define __aMAL       __attribute__((__malloc__))
-#define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
-#define __aNNA       __attribute__((__nonnull__))
-#define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
-#define __aNT        __attribute__((__nothrow__))
-
-#ifdef __clang__
-#  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
-#else
-#  define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
-#endif
-
-#if defined(__GNUC__)
-#  if defined(__clang__) || defined(__cplusplus)
-#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
-#  else
-     extern const char *ret_func_name__(const char *function, size_t size);
-#    define FUNC_NAME \
-        (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
-#  endif
-#  define auto_type      __extension__ __auto_type
-#  define Auto           __extension__ __auto_type
-#  define MAX(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
-#  define MIN(IA, IB)    __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
-#  define MODULO(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia % ib + ib) % ib;})
-#else
-#  define FUNC_NAME      (__func__)
-#  define MAX(iA, iB)    (((iA) > (iB)) ? (iA) : (iB))
-#  define MIN(iA, iB)    (((iA) < (iB)) ? (iA) : (iB))
-#  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
-#endif
-
-#define aligned_alloc_for(t) aligned_alloc(alignof(t), sizeof(t))
 
 /*===========================================================================*/
 /* Generic Macros */
 
-#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                     \
-        do {                                                                   \
-                pthread_attr_init((ATTR_));                                    \
-                pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
-        } while (0)
+#define MAKE_PTHREAD_ATTR_DETATCHED(ATTR_)                                 \
+      do {                                                                 \
+            pthread_attr_init((ATTR_));                                    \
+            pthread_attr_setdetachstate((ATTR_), PTHREAD_CREATE_DETACHED); \
+      } while (0)
 
-#define START_DETACHED_PTHREAD(...)                                             \
-        do {                                                                    \
-                pthread_t       m_pid_;                                         \
-                pthread_attr_t m_attr_;                                         \
-                pthread_attr_init(&m_attr_);                                    \
-                pthread_attr_setdetachstate(&m_attr_, PTHREAD_CREATE_DETACHED); \
-                pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
-        } while (0)
+#define START_DETACHED_PTHREAD(...)                                         \
+      do {                                                                  \
+            pthread_t      m_pid_;                                          \
+            pthread_attr_t m_attr_;                                         \
+            pthread_attr_init(&m_attr_);                                    \
+            pthread_attr_setdetachstate(&m_attr_, PTHREAD_CREATE_DETACHED); \
+            pthread_create(&m_pid_, &m_attr_, __VA_ARGS__);                 \
+      } while (0)
 
 /* #define SHOUT(...)      warn_(false, true,  __VA_ARGS__) */
 
-#define shout(...) (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fputc('\n', stderr), fflush(stderr))
+#define shout(...)                                                          \
+      (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fputc('\n', stderr), \
+       fflush(stderr))
 #ifdef DEBUG
 #  define eprintf(...) shout(__VA_ARGS__)
 #else
 #  define eprintf(...) ((void)0)
 #endif
-
-#define dump_alignof_help(t, ts, fn) __attribute__((__constructor__)) static void fn (void) { eprintf(ts " alignment is %zu\n", alignof(t)); }
-#define dump_alignof(t) dump_alignof_help(t, #t, P99_UNIQ())
 
 /*===========================================================================*/
 
@@ -330,3 +293,4 @@ extern void WINPTHREAD_API (pthread_exit)(void *res) __attribute__((__noreturn__
 }
 #endif
 #endif /* Common.h */
+// vim: ft=c

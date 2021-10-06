@@ -9,8 +9,45 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*======================================================================================*/
+/*===========================================================================*/
+/* Attribute aliases and junk like MIN, MAX, NOP, etc */
 
+#define __aMAL       __attribute__((__malloc__))
+#define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
+#define __aNNA       __attribute__((__nonnull__))
+#define __aNN(...)   __attribute__((__nonnull__(__VA_ARGS__)))
+#define __aNT        __attribute__((__nothrow__))
+
+#ifdef __clang__
+#  define __aFMT(A1, A2) __attribute__((__format__(__printf__, A1, A2)))
+#else
+#  define __aFMT(A1, A2) __attribute__((__format__(__gnu_printf__, A1, A2)))
+#endif
+
+#if defined(__GNUC__)
+#  if defined(__clang__) || defined(__cplusplus)
+#    define FUNC_NAME (__extension__ __PRETTY_FUNCTION__)
+#  else
+     extern const char *ret_func_name__(const char *function, size_t size);
+#    define FUNC_NAME \
+        (__extension__(ret_func_name__(__PRETTY_FUNCTION__, sizeof(__PRETTY_FUNCTION__))))
+#  endif
+#  define auto_type      __extension__ __auto_type
+#  define MAXOF(IA, IB)  __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia>ib)?ia:ib;})
+#  define MINOF(IA, IB)  __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
+#  define MODULO(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia % ib + ib) % ib;})
+#else
+#  define FUNC_NAME      (__func__)
+#  define MAXOF(iA, iB)    (((iA) > (iB)) ? (iA) : (iB))
+#  define MINOF(iA, iB)    (((iA) < (iB)) ? (iA) : (iB))
+#  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
+#endif
+
+#define dump_alignof_help(t, ts, fn) __attribute__((__constructor__)) static void fn (void) { eprintf(ts " alignment is %zu\n", alignof(t)); }
+#define dump_alignof(t) dump_alignof_help(t, #t, P99_UNIQ())
+#define aligned_alloc_for(t) aligned_alloc(alignof(t), sizeof(t))
+
+/*===========================================================================*/
 /* 
  * Timer structure
  */
@@ -38,13 +75,13 @@ struct timer {
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
                 TIMER_START(T_);                 \
-                SHOUT("----------------------"); \
+                shout("----------------------"); \
         } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                                     \
-        do {                                                                         \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                           \
-                SHOUT("Time for \"%s\": % *.9fs", (MSG_),                            \
-                      (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
+#  define TIMER_REPORT(T_, MSG_)                                                      \
+        do {                                                                          \
+                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                            \
+                echo("Time for \"%s\": % *.9fs", (MSG_),                              \
+                     (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
         } while (0)
 
 #else
@@ -57,12 +94,12 @@ struct timer {
 #  define TIMER_START_BAR(T_)                    \
         do {                                     \
                 gettimeofday(&(T_)->tv1, NULL);  \
-                SHOUT("----------------------"); \
+                echo("----------------------");  \
         } while (0)
 #  define TIMER_REPORT(T_, MSG_)                                              \
         do {                                                                  \
                 gettimeofday(&(T_)->tv2, NULL);                               \
-                SHOUT("Time for \"%s\": % *fs", (MSG_),                       \
+                echo("Time for \"%s\": % *fs", (MSG_),                        \
                       (int)(30 - sizeof(MSG_)), TDIFF((T_)->tv1, (T_)->tv2)); \
         } while (0)
 #endif
@@ -88,13 +125,7 @@ struct timer {
 #define USEC2SECOND (1000000LLU) /* 1,000,000 - one million */
 #define NSEC2SECOND (1000000000LLU) /* 1,000,000,000 - one billion */
 
-#if 0
-#define MKTIMESPEC(FLT) ((struct timespec[]){{ \
-          (int64_t)(FLT),                    \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
-#endif
-
-#define TDIFF(STV1, STV2)                                            \
+#define TDIFF(STV1, STV2)                                                    \
         (((double)((STV2).tv_usec - (STV1).tv_usec) / (double)USEC2SECOND) + \
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
@@ -109,7 +140,7 @@ struct timer {
                 }                                                \
         } while (0)
 
-#define TIMESPECDIFF(STV1, STV2)                                         \
+#define TIMESPECDIFF(STV1, STV2)                                               \
         (((double)((STV2)->tv_nsec - (STV1)->tv_nsec) / (double)NSEC2SECOND) + \
          ((double)((STV2)->tv_sec - (STV1)->tv_sec)))
 
@@ -119,11 +150,6 @@ struct timer {
 #define DOUBLE2TIMESPEC(FLT) ((struct timespec[]){{ \
           (int64_t)(FLT),                           \
           (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
-#if 0
-#define DOUBLE2TIMESPEC(STV, FLT)            \
-        ((STV)->tv_sec  = (int64_t)(FLT), \
-         (STV)->tv_nsec = (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND))
-#endif
 
 #define MKTIMESPEC(s, n) ((struct timespec[]){{s, n}})
 #define NANOSLEEP(s, n) nanosleep(MKTIMESPEC((s), (n)), NULL)
@@ -151,15 +177,18 @@ struct timer {
 #define STRINGIFY_HLP(...) #__VA_ARGS__
 #define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
 
-#define ASSERT(COND, ...)   ((!!(COND)) ? NOP : err(50,  __VA_ARGS__))
-#define ASSERTX(COND, ...)  ((!!(COND)) ? NOP : errx(50, __VA_ARGS__))
-#define DIE_UNLESS(COND)    ((!!(COND)) ? NOP : err(55, "%s", (#COND)))
-#define DIE_UNLESSX(COND)   ((!!(COND)) ? NOP : errx(55, "%s", (#COND)))
-
+/*
+ * Silly convenience macro for assertions that should _always_ be checked regardless of
+ * release type. Saves an if statement.
+ */
 #define ALWAYS_ASSERT(COND)                                                                           \
-        (!!(COND) ? NOP                                                                               \
+        (P99_UNLIKELY(COND)                                                                           \
+                  ? NOP                                                                               \
                   : errx(1, "ERROR: Condition \"%s\" failed at (FILE: `%s', LINE: `%d', FUNC: `%s')", \
                          STRINGIFY(COND), __FILE__, __LINE__, FUNC_NAME))
+
+#define ASSERT(COND, ...)   (P99_UNLIKELY(COND) ? NOP : err(50,  __VA_ARGS__))
+#define ASSERTX(COND, ...)  (P99_UNLIKELY(COND) ? NOP : errx(50, __VA_ARGS__))
 
 #define err(EVAL, ...)  err_ ((EVAL), true,   __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define errx(EVAL, ...) err_ ((EVAL), false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
@@ -187,8 +216,11 @@ extern int clock_nanosleep_for_(intmax_t seconds, intmax_t nanoseconds, char con
 extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
 #endif
 
-#define NANOSLEEP_FOR_SECOND_FRACTION(i, d) \
-        clock_nanosleep_for((uintmax_t)(i), (uintmax_t)(NSEC2SECOND / ((uintmax_t)(d))))
+/*
+ * Sleep for (s + (i/d)) seconds.
+ */
+#define NANOSLEEP_FOR_SECOND_FRACTION(s, i, d) \
+        clock_nanosleep_for((uintmax_t)(s), (uintmax_t)((NSEC2SECOND * (uintmax_t)(i)) / ((uintmax_t)(d))))
 
 extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
 #ifdef DOSISH

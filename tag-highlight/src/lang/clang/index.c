@@ -8,7 +8,8 @@
 /* static CXIdxClientFile my_ppIncludedFile(CXClientData data, const CXIdxIncludedFileInfo *info); */
 /* static CXIdxClientASTFile my_importedASTFile(CXClientData data, const CXIdxImportedASTFileInfo *info); */
 /* static CXIdxClientContainer my_startedTranslationUnit(CXClientData data, void *reserved); */
-/* static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info); */
+UNUSED
+static void my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info);
 static void my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info);
 
 __attribute__((used))
@@ -74,11 +75,15 @@ lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls)
         IndexerCallbacks cb;
 
         memset(&cb, 0, sizeof(cb));
+        //cb.indexDeclaration     = &my_indexDeclaration;
         cb.indexEntityReference = &my_indexEntityReference;
 
-        const int r = clang_indexTranslationUnit(iact, &data, &cb, sizeof(cb),
-                                                 CXIndexOpt_IndexFunctionLocalSymbols,
-                                                 data.cdata->tu);
+        const int r = clang_indexTranslationUnit(
+            iact, &data, &cb, sizeof(cb),
+            CXIndexOpt_IndexFunctionLocalSymbols | CXIndexOpt_IndexImplicitTemplateInstantiations,
+            data.cdata->tu
+        );
+
         if (r != 0)
                 errx(1, "Clang failed with error %d", r);
 
@@ -264,11 +269,10 @@ my_startedTranslationUnit(CXClientData data, UNUSED void *reserved)
 }
 #endif
 
-#if 0
 static void
-my_indexDeclaration(CXClientData rawdata, const CXIdxDeclInfo *info)
+my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info)
 {
-        struct idx_data *data = rawdata;
+        struct idx_data *data = raw_data;
         struct line_data  line_data;
 
         if (!get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
@@ -299,7 +303,6 @@ my_indexDeclaration(CXClientData rawdata, const CXIdxDeclInfo *info)
         log_idx_location(info->cursor, info->entityInfo, info->loc, data);
 #endif
 }
-#endif
 
 static void
 my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
@@ -310,6 +313,7 @@ my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
 
         switch (info->referencedEntity->kind) {
         case CXIdxEntity_EnumConstant:
+        //case CXIdxEntity_Enum:
                 calltype = CTAGS_ENUMCONST;
                 break;
         case CXIdxEntity_CXXTypeAlias:

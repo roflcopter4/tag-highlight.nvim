@@ -44,7 +44,7 @@ write_plain(struct top_dir *topdir)
 #endif
 
         FILE *wfp = safe_fopen(BS(topdir->gzfile), "wb");
-        DIE_UNLESS((fwrite(buf, 1, (size_t)st.st_size, wfp) == (size_t)st.st_size));
+        ALWAYS_ASSERT(fwrite(buf, 1, (size_t)st.st_size, wfp) == (size_t)st.st_size);
         fclose(wfp);
         talloc_free(buf);
 }

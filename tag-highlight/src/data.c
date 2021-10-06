@@ -1,7 +1,6 @@
 #include "Common.h"
 #include "highlight.h"
 #include "mpack/mpack.h"
-#include <setjmp.h>
 
 #define BI bt_init
 
@@ -14,6 +13,7 @@ static const struct filetype ftdata_static[] = {
     { 0, 0, 0, 0, 0, BI("java"),       BI("java"),       FT_JAVA,       0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("javascript"), BI("javascript"), FT_JAVASCRIPT, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("lisp"),       BI("lisp"),       FT_LISP,       0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, BI("lua"),        BI("lua"),        FT_LUA,        0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("perl"),       BI("perl"),       FT_PERL,       0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("php"),        BI("php"),        FT_PHP,        0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("python"),     BI("python"),     FT_PYTHON,     0, 0, 0, 0 },
@@ -24,11 +24,15 @@ static const struct filetype ftdata_static[] = {
     { 0, 0, 0, 0, 0, BI("zsh"),        BI("sh"),         FT_ZSH,        0, 0, 0, 0 },
 };
 
+extern void talloc_emergency_library_init(void);
+
 size_t const ftdata_len = ARRSIZ(ftdata_static);
 struct filetype **ftdata;
 
-__attribute__((constructor)) void init_ftdata(void)
+__attribute__((__constructor__(25)))
+static void init_ftdata(void)
 {
+      talloc_emergency_library_init();
         ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
 
         for (unsigned i = 0; i < ftdata_len; ++i) {
@@ -37,6 +41,12 @@ __attribute__((constructor)) void init_ftdata(void)
         }
 }
 
+#ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
+const char *program_invocation_short_name;
+#endif
+#ifndef HAVE_PROGRAM_INVOCATION_NAME
+const char *program_invocation_name;
+#endif
 
 extern bool             process_exiting;
 extern jmp_buf          exit_buf;
@@ -54,5 +64,5 @@ FILE           *echo_log;
 FILE           *main_log;
 jmp_buf         exit_buf;
 
-struct settings_s settings = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+struct settings_s settings = {0};
 

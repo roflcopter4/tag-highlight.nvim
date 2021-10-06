@@ -19,10 +19,10 @@ static pthread_mutex_t event_loop_cb_mutex;
 static noreturn void * handle_nvim_message_wrapper(void *data);
 
 /*
- * Explicitly initializing every mutex seems strictly necessary under MinGW's
+ * @Explicitly initializing every mutex seems strictly necessary under MinGW's
  * implementation of pthreads on Windows. Things break otherwise.
  */
-__attribute__((__constructor__))
+__attribute__((__constructor__(400)))
 static void event_loop_initializer(void)
 {
         pthread_mutex_init(&event_loop_cb_mutex);
@@ -152,6 +152,9 @@ event_loop_sighandler(int signum)
         case SIGUSR1:
                 longjmp(event_loop_jmp_buf, 1);
         case SIGTERM:
+        case SIGHUP:
+        case SIGPIPE:
+        case SIGINT:
                 quick_exit(0);
         default:
                 exit(0);

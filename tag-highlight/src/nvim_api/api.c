@@ -25,8 +25,7 @@ void
         default:          errx(1, "Should be unreachable!");
         }
 
-        UNUSED
-        mpack_obj *result = generic_call(false, func, B("s"), mes);
+        UNUSED mpack_obj *result = generic_call(false, func, B("s"), mes);
         assert(result == NULL);
 }
 
@@ -66,7 +65,7 @@ nvim_b_printf(bstring const *fmt, ...)
 /* Other wrappers */
 
 mpack_retval
-(nvim_get_var_fmt)(mpack_expect_t const expect, char const *fmt, ...)
+(nvimext_get_var_fmt)(mpack_expect_t const expect, char const *fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
@@ -77,6 +76,26 @@ mpack_retval
         b_destroy(varname);
         return ret;
 }
+
+mpack_retval
+(nvimext_call_function_fmt)(bstring        const *function,
+                            mpack_expect_t const  expect,
+                            char           const *fmt,
+                            ...)
+{
+        static bstring const fn  = bt_init("nvim_call_function");
+        bstring       *buf = b_format("s,[!%s]", fmt);
+        va_list        ap;
+
+        va_start(ap, fmt);
+        mpack_obj *result = generic_call(true, &fn, buf, function, &ap);
+        va_end(ap);
+
+        b_destroy(buf);
+        return intern_mpack_expect(result, expect);
+}
+
+
 
 /*--------------------------------------------------------------------------------------
  * /================\
@@ -207,24 +226,6 @@ mpack_retval
 {
         static bstring const fn = BS_FROMARR(__func__);
         mpack_obj *result = generic_call(true, &fn, B("s,[]"), function);
-        return intern_mpack_expect(result, expect);
-}
-
-mpack_retval
-(nvim_call_function_args)(bstring        const *function,
-                          mpack_expect_t const  expect,
-                          bstring        const *fmt,
-                          ...)
-{
-        static bstring const fn  = bt_init("nvim_call_function");
-        bstring       *buf = b_sprintf("s,[!%s]", fmt);
-        va_list        ap;
-
-        va_start(ap, fmt);
-        mpack_obj *result = generic_call(true, &fn, buf, function, &ap);
-        va_end(ap);
-
-        b_destroy(buf);
         return intern_mpack_expect(result, expect);
 }
 

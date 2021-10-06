@@ -7,6 +7,9 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 add_definitions(-D_BUILD_)
 
 set (tag-highlight_SOURCES
+
+    # ${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c
+
     buffer.c
     ctags.c
     data.c
@@ -74,6 +77,23 @@ set (tag-highlight_headers
     util/util.h
 )
 
+set (thl-util_SOURCES
+    contrib/bstring/additions.c
+    contrib/bstring/bstrlib.c
+
+    contrib/contrib.c
+
+    util/archive_gzip.c
+    util/archive_read.c
+    util/archive_write.c
+    util/find.c
+    util/generic_list.c
+    util/linked_list.c
+    util/nanosleep.c
+    util/util.c
+    util/err.c
+)
+
 if (LZMA_SUPPORT)
    set (tag-highlight_SOURCES ${tag-highlight_SOURCES} util/archive_lzma.c)
 endif()
@@ -81,15 +101,18 @@ endif()
 add_subdirectory(lang)
 
 add_executable(tag-highlight ${tag-highlight_SOURCES})
+add_library(thl-util STATIC ${thl-util_SOURCES})
 
 ################################################################################
 # Libraries
 
 target_link_libraries(tag-highlight
+    -Wl,--as-needed
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
     ${LLVM_SYSTEM_LIBRARIES}
     ${LIBCLANG_LIBRARY}
+    thl-util
     tag_highlight_lang
 )
 
@@ -118,7 +141,7 @@ if (TALLOC_FOUND)
     install(TARGETS tag-highlight
             RUNTIME DESTINATION "bin"
     )
-else()
+elseif (FALSE)
     include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
 
     # Unfortunately, apparently talloc *must* be a shared library
@@ -151,15 +174,14 @@ else()
         )
     endif()
     
-    if (CC_IS_CLANG)
-        target_link_options(mytalloc PRIVATE -fno-lto)
-    else()
-        target_link_options(mytalloc PRIVATE -fno-lto)
-    endif()
+    target_link_options(mytalloc PRIVATE -fno-lto)
     
     if (USE_JEMALLOC)
         target_link_libraries(mytalloc -ljemalloc)
     endif()
+    # if (USE_LIBSODIUM)
+    #     target_link_libraries(mytalloc sodium)
+    # endif()
 
     target_link_libraries(tag-highlight mytalloc)
 
@@ -173,5 +195,64 @@ else()
             RUNTIME DESTINATION "bin"
             LIBRARY DESTINATION "bin"
     )
+else ()
+    include_directories("${PROJECT_SOURCE_DIR}/src/contrib/talloc")
+    add_library(mytalloc OBJECT "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
+    
+    set (mytalloc_compile_options_common
+            "-flto"
+            # "-fno-lto"
+            "-D_XOPEN_SOURCE_EXTENDED=1"
+            "-D__STDC_WANT_LIB_EXT1__=1"
+        )
+    
+    if (MINGW OR MSVC_LIKE)
+        target_compile_options(
+            mytalloc
+            PRIVATE
+                ${mytalloc_compile_options_common}
+                "-DBUILDING_DLL_=1"
+        )
+    elseif (NOT MSVC_LIKE)
+        target_compile_options(
+            mytalloc
+            PRIVATE
+                ${mytalloc_compile_options_common}
+                # "-fstack-clash-protection"
+                # "-fstack-protector-strong"
+                "-fvisibility=hidden"
+                "-DSTATIC_talloc_MODULES=NULL"
+                "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
+        )
+    endif()
+    
+    target_link_options(mytalloc PRIVATE -fno-lto)
+    
+    # if (USE_JEMALLOC)
+    #     target_link_libraries(mytalloc -ljemalloc)
+    # endif()
+    # if (USE_LIBSODIUM)
+    #     target_link_libraries(mytalloc sodium)
+    # endif()
+    # if (LibBSD_FOUND)
+    #     target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
+    # endif()
+    
+    target_link_libraries(tag-highlight mytalloc)
 endif()
 
+################################################################################
+
+# add_subdirectory(json)
+
+# get_target_property(_THE_FLAGS tag-highlight INCLUDE_DIRECTORIES)
+# list(REMOVE_ITEM _THE_FLAGS /usr/include)
+# set_target_properties(tag-highlight PROPERTIES INCLUDE_DIRECTORIES "${_THE_FLAGS}")
+# 
+# get_target_property(_THE_FLAGS thl-util INCLUDE_DIRECTORIES)
+# list(REMOVE_ITEM _THE_FLAGS /usr/include)
+# set_target_properties(thl-util PROPERTIES INCLUDE_DIRECTORIES "${_THE_FLAGS}")
+# 
+# get_target_property(_THE_FLAGS tag_highlight_lang INCLUDE_DIRECTORIES)
+# list(REMOVE_ITEM _THE_FLAGS /usr/include)
+# set_target_properties(tag_highlight_lang PROPERTIES INCLUDE_DIRECTORIES "${_THE_FLAGS}")

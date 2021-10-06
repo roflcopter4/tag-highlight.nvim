@@ -19,6 +19,20 @@ FILE  *mpack_log;
 #  define PRAGMA_NO_NONHEAP_POP()
 #endif
 
+
+#define SHUTUPGCC __attribute__((__unused__)) ssize_t n =
+#include <execinfo.h>
+#define SHOW_STACKTRACE()                                    \
+      __extension__({                                        \
+            void  *arr[128];                                 \
+            size_t num = backtrace(arr, 128);                \
+            fflush(stderr);                                  \
+            fsync(2);                                        \
+            SHUTUPGCC write(2, SLS("<<< STACKTRACE >>>\n")); \
+            backtrace_symbols_fd(arr, num, 2);               \
+            fsync(2);                                        \
+      })
+
 /*======================================================================================*/
 
 mpack_retval
@@ -116,7 +130,7 @@ mpack_retval
 
         case E_DICT2ARR:
                 abort();
-                        
+
         default:
                 errx(1, "Invalid type given to %s()\n", FUNC_NAME);
         }
@@ -129,9 +143,11 @@ mpack_retval
 error:
         warnx("WARNING: Got mpack of type %s, expected type %s, possible error.",
               m_type_names[mpack_type(obj)], m_type_names[err_expect]);
+        SHOW_STACKTRACE();
         talloc_free(obj);
         ret.ptr = NULL;
-        abort();
+        return ret;
+        //errx(1, "Exiting");
 }
 
 /*======================================================================================*/
@@ -215,32 +231,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 
 #define STACK_CTR(STACK) ((STACK).ctr)
 
-#if 0
-/*
- * I'm using two variables, stack and counter, rather than some struct simply to
- * get around any type checking problems. This way allows the stack to be
- * composed of the actual type it holds (rather than a void pointer) and also
- * allows the elements to be integers without requiring some hack.
- */
-#define NEW_STACK(TYPE, NAME) \
-        TYPE     NAME[128];    \
-        unsigned NAME##_ctr = 0
-
-#define POP(STACK) \
-        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[--STACK##_ctr]))
-
-#define PUSH(STACK, VAL) \
-        ((STACK)[STACK##_ctr++] = (VAL))
-
-#define PEEK(STACK) \
-        (((STACK##_ctr == 0) ? abort() : (void)0), ((STACK)[STACK##_ctr - 1]))
-
-#define RESET(STACK) \
-        ((STACK##_ctr) = 0, (STACK)[0] = 0)
-
-#define STACK_CTR(STACK) (STACK##_ctr)
-#endif
-
 #ifdef DEBUG
 #  define POP_DEBUG  POP
 #  define PUSH_DEBUG PUSH
@@ -248,7 +238,6 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
 #  define POP_DEBUG(STACK)       ((void)0)
 #  define PUSH_DEBUG(STACK, VAL) ((void)0)
 #endif
-
 
 /*
  * Ugly macros to simplify the code below.
@@ -312,18 +301,18 @@ enum encode_fmt_next_type { OWN_VALIST, OTHER_VALIST, ARG_ARRAY };
  * have an even number of elements.
  *
  * Three additional special values are recognized:
- *     !: Denotes a pointer to an initialized va_list, from which all arguments
- *        thereafter will be taken, until either another '!' or '@' is encountered.
- *     @: Denotes an argument of type "mpack_argument **", that is to
- *        say an array of arrays of mpack_argument objects. When '@'
- *        is encountered, this double pointer is taken from the current argument
- *        source and used thereafter as such. The first sub array is used until
- *        a '*' is encountered in the format string, at which point the next
- *        array is used, and so on.
+ *     !: Denotes that the next argument is a pointer to an initialized va_list,
+ *        from which all arguments thereafter will be taken, until either another
+ *        '!' or '@' is encountered.
+ *     @: Denotes an argument of type "mpack_argument **", that is to say an
+ *        array of arrays of mpack_argument objects. When '@' is encountered, this
+ *        double pointer is taken from the current argument source and used
+ *        thereafter as such. The first sub array is used until a '*' is encountered
+ *        in the format string, at which point the next array is used, and so on.
  *     *: Increments the current sub array of the mpack_argument ** object.
  *
  * All of the following characters are ignored in the format string, and may be
- * used to make it clearer or more visually pleasing: ':'  ';'  ','  ' '
+ * used to make it clearer or more visually pleasing: ':'  ';'  ','  '.', ' '
  *
  * All errors are fatal.
  */
@@ -520,7 +509,7 @@ mpack_encode_fmt(unsigned const size_hint, char const *const restrict fmt, ...)
                         continue;
 
                 default:
-                        abort();
+                        errx(1, "Somehow (?!) found an invalid character in an mpack format string.");
                 }
 
 #ifdef DEBUG

@@ -2,7 +2,6 @@ if !exists('g:tag_highlight#c#order')
         let g:tag_highlight#c#order = 'guesmfvdt'
 endif
 
-" let g:tag_highlight#c#g = { 'group': 'cEnumTypeTag' }
 let g:tag_highlight#c#t = { 'group': 'cTypeTag' }
 
 let g:tag_highlight#c#g = {
@@ -26,21 +25,7 @@ let g:tag_highlight#c#m = {
             \   'prefix': '\%(\%(\>\|\]\|)\)\%(\.\|->\)\)\@5<=',
             \ }
 
-" let g:tag_highlight#c#f = {
-            " \   'group': 'cFunctionTag',
-            " \   'suffix': '\>\%(\s*(\)\@='
-            " \ }
 let g:tag_highlight#c#f = { 'group': 'cFunctionTag' }
-
-" let g:tag_highlight#c#f = {
-"             \   'group': 'cFunctionTag',
-"             \   'suffix': '\>\%(\.\|->\)\@!'
-"             \ }
-
-" let g:tag_highlight#c#t = {
-"             \ 'group': 'cTypeTag',
-"             \ 'suffix': '\>\%(\.\|->\)\@!'
-"             \ }
 
 let g:tag_highlight#c#R = {
             \    'group': 'cFuncRef',

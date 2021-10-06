@@ -11,17 +11,17 @@
 /*--------------------------------------------------------------------------------------*/
 
 struct message_args {
-      alignas(16)
+    alignas(16)
       mpack_obj *obj;
-      alignas(8)
+    alignas(8)
       int fd;
 };
 
 const event_id event_list[] = {
-      { BT("nvim_buf_lines_event"), EVENT_BUF_LINES },
+      { BT("nvim_buf_lines_event"),       EVENT_BUF_LINES },
       { BT("nvim_buf_changedtick_event"), EVENT_BUF_CHANGED_TICK },
-      { BT("nvim_buf_detach_event"), EVENT_BUF_DETACH },
-      { BT("vim_event_update"), EVENT_VIM_UPDATE },
+      { BT("nvim_buf_detach_event"),      EVENT_BUF_DETACH },
+      { BT("vim_event_update"),           EVENT_VIM_UPDATE },
 };
 
 FILE *api_buffer_log = NULL;
@@ -33,8 +33,8 @@ P99_FIFO(event_node_ptr) nvim_event_queue;
 #define CTX event_handlers_talloc_ctx_
 void *event_handlers_talloc_ctx_ = NULL;
 
-__attribute__((__constructor__)) static void
-event_handlers_initializer(void)
+__attribute__((__constructor__(100)))
+static void event_handlers_initializer(void)
 {
       pthread_mutexattr_t attr;
       pthread_mutexattr_init(&attr);
@@ -44,6 +44,7 @@ event_handlers_initializer(void)
       p99_futex_init((p99_futex *)&event_loop_futex, 0);
 }
 
+extern void exit_cleanup(void);
 extern noreturn void *highlight_go_pthread_wrapper(void *vdata);
 static noreturn void *wrap_update_highlight(void *vdata);
 static noreturn void *wrap_handle_nvim_response(void *wrapper);
@@ -65,17 +66,16 @@ handle_nvim_message(struct event_data *data)
 {
       mpack_obj *obj = data->obj;
       int const  fd  = data->fd;
+      talloc_steal(CTX, obj);
 
       nvim_message_type const mtype = mpack_expect(mpack_index(obj, 0), E_NUM).num;
 
       switch (mtype) {
       case MES_NOTIFICATION: {
-            talloc_steal(CTX, obj);
             handle_nvim_notification(obj);
             break;
       }
       case MES_RESPONSE: {
-            talloc_steal(CTX, obj);
             struct message_args *tmp = aligned_alloc_for(struct message_args);
             tmp->obj = obj;
             tmp->fd  = fd;
@@ -117,8 +117,7 @@ handle_nvim_notification(mpack_obj *event)
                   handle_buffer_update(bdata, arr, type);
                   break;
             case EVENT_BUF_DETACH:
-                  clear_highlight(bdata);
-                  destroy_buffer(bdata);
+                  destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_DESTROY_NODE | DES_BUF_TALLOC_FREE);
                   echo("Detaching from buffer %d", bufnum);
                   break;
             default:
@@ -318,20 +317,21 @@ static inline void
 line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num_to_modify)
 {
       int const num_new   = (int)new_strings->qty;
-      int const num_lines = MAX(num_to_modify, num_new);
+      int const num_lines = MAXOF(num_to_modify, num_new);
       int const olen      = bdata->lines->qty;
 
       /* This loop is only meaningful when replacing lines.
        * All other paths break after the first iteration. */
       for (int i = 0; i < num_lines; ++i) {
+            int const index = first + i;
             if (num_to_modify-- > 0 && i < olen) {
                   /* There are still strings to be modified. If we still have a
                    * replacement available then we use it. Otherwise we are instead
                    * deleting a range of lines. */
                   if (i < num_new) {
-                        replace_line(bdata, new_strings, first + i, i);
+                        replace_line(bdata, new_strings, index, i);
                   } else {
-                        ll_delete_range_at(bdata->lines, first + i, num_to_modify + 1);
+                        ll_delete_range_at(bdata->lines, index, num_to_modify + 1);
                         break;
                   }
             } else {
@@ -341,10 +341,10 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
                    * If the first line to insert (first + i) is at the end of the
                    * file then we append it, otherwise we prepend. */
                   if ((first + i) >= bdata->lines->qty)
-                        ll_insert_blist_after_at(bdata->lines, first + i,
+                        ll_insert_blist_after_at(bdata->lines, index,
                                                  new_strings, i, (-1));
                   else
-                        ll_insert_blist_before_at(bdata->lines, first + i,
+                        ll_insert_blist_before_at(bdata->lines, index,
                                                   new_strings, i, (-1));
                   break;
             }
@@ -362,7 +362,7 @@ static noreturn void *
 delayed_update_highlight(void *vdata)
 {
       /* Sleep for 1 & 1/2 seconds. */
-      NANOSLEEP_FOR_SECOND_FRACTION(1, 2);
+      NANOSLEEP_FOR_SECOND_FRACTION(1, 1, 2);
       update_highlight(vdata);
       pthread_exit();
 }
@@ -385,7 +385,7 @@ wrap_update_highlight(void *vdata)
  * response to the user calling the provided 'clear', 'stop', or 'update' commands.
  */
 
-P99_DECLARE_ENUM(vimscript_message_type,
+P99_DECLARE_ENUM(vimscript_message_type, int,
                  VIML_BUF_NEW,
                  VIML_BUF_CHANGED,
                  VIML_BUF_SYNTAX_CHANGED,
@@ -408,7 +408,7 @@ static noreturn void event_stop(void);
 static noreturn void event_exit(void);
 static void attach_new_buffer(int num);
 
-__attribute__((__constructor__)) void
+__attribute__((__constructor__(400))) void
 autocmd_constructor(void)
 {
       pthread_mutex_init(&autocmd_mutex);
@@ -481,15 +481,23 @@ static void
 event_buffer_changed(atomic_int *prev_num)
 {
       int const num   = nvim_get_current_buf();
-      int const prev  = atomic_exchange(prev_num, num);
+      int const prev  = atomic_exchange_explicit(prev_num, num, memory_order_acq_rel);
       Buffer   *bdata = find_buffer(num);
 
       if (prev == num && bdata)
             return;
 
-      if (bdata) {
+      if (1) {
+            Buffer *prev_bdata = find_buffer(prev);
+            if (prev_bdata && prev_bdata->initialized && prev_bdata->ft->is_c)
+                  libclang_suspend_translationunit(prev_bdata);
+      }
+
+      if (bdata && bdata->initialized) {
+#if 0
             if (!bdata->calls)
                   get_initial_taglist(bdata);
+#endif
             update_highlight(bdata, HIGHLIGHT_NORMAL);
       } else {
             attach_new_buffer(num);
@@ -508,8 +516,8 @@ event_syntax_changed(atomic_int *prev_num)
 
       if (!b_iseq(ft, &bdata->ft->vim_name)) {
             echo("Filetype changed. Updating.");
-            clear_highlight(bdata, true);
-            destroy_buffer(bdata);
+            /* clear_highlight(bdata, true); */
+            destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_TALLOC_FREE | DES_BUF_DESTROY_NODE);
             attach_new_buffer(num);
       }
 
@@ -541,14 +549,13 @@ static void
 event_force_update(atomic_int *prev_num)
 {
       UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
-      TIMER_START_BAR(&t);
+      TIMER_START(&t);
 
       int const num = nvim_get_current_buf();
       atomic_store_explicit(prev_num, num, memory_order_release);
       Buffer *bdata = find_buffer(num);
 
       if (bdata) {
-            update_taglist(bdata, UPDATE_TAGLIST_FORCE);
             update_highlight(bdata, HIGHLIGHT_UPDATE_FORCE);
       } else {
             attach_new_buffer(num);
@@ -559,23 +566,17 @@ event_force_update(atomic_int *prev_num)
 static noreturn void
 event_halt(bool const nvim_exiting)
 {
-      if (!nvim_exiting) {
-            clear_highlight(, true);
-      }
+      /* If neovim is shutting down, then we should also shut down ASAP. Taking too
+       * long will hang the editor for a few seconds, which is intolerable. */
+      if (nvim_exiting)
+            quick_exit(0);
+
+      clear_highlight(, true);
+      exit_cleanup();
+
 #ifdef DOSISH
       exit(0);
 #else
-      extern void exit_cleanup(void);
-
-      /* If the user explicitly gives the Vim command to stop the plugin, the loop
-       * returns and we clean everything up. We don't do this when Neovim exits
-       * because it freezes until all child processes have stopped. */
-      if (!nvim_exiting) {
-            eprintf("Right, cleaning up!");
-            exit_cleanup();
-            eprintf("All clean!");
-      }
-
       pthread_kill(event_loop_thread, KILL_SIG);
       pthread_exit();
 #endif
@@ -608,6 +609,7 @@ attach_new_buffer(int num)
             get_initial_lines(bdata);
             get_initial_taglist(bdata);
             update_highlight(bdata, HIGHLIGHT_UPDATE);
+            settings.buffer_initialized = true;
 
             TIMER_REPORT(&t, "initialization");
       } else {

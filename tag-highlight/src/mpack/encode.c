@@ -2,6 +2,30 @@
 
 #include "intern.h"
 
+#include <byteswap.h>
+
+#define encode_uint64(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint64_t tmp = bswap_64(VAL);                 \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint64_t)); \
+                (IT) += sizeof(uint64_t);                     \
+        } while (0)
+
+#define encode_uint32(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint32_t tmp = bswap_32(VAL);                 \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint32_t)); \
+                (IT) += sizeof(uint32_t);                     \
+        } while (0)
+
+#define encode_uint16(ARR, IT, VAL)                           \
+        do {                                                  \
+                uint16_t tmp = bswap_16(VAL);                 \
+                memcpy(&((ARR)[IT]), &tmp, sizeof(uint16_t)); \
+                (IT) += sizeof(uint16_t);                     \
+        } while (0)
+
+#if 0
 #define encode_uint64(ARR, IT, VAL)                                     \
         do {                                                            \
                 ((ARR)[(IT)++]) = (uint8_t)(((uint64_t)(VAL)) >> 070U); \
@@ -27,7 +51,13 @@
                 ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) >> 010U); \
                 ((ARR)[(IT)++]) = (uint8_t)(((uint16_t)(VAL)) & 0xFFU); \
         } while (0)
+#endif
 
+#define encode_int16 encode_uint16
+#define encode_int32 encode_uint32
+#define encode_int64 encode_uint64
+
+#if 0
 #define encode_int64(ARR, IT, VAL)                                    \
         do {                                                          \
                 ((ARR)[(IT)++]) = (int8_t)(((uint64_t)(VAL)) >> 070); \
@@ -53,6 +83,8 @@
                 ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) >> 010); \
                 ((ARR)[(IT)++]) = (int8_t)(((uint16_t)(VAL)) & 0xFF); \
         } while (0)
+
+#endif
 
 static void sanity_check(mpack_obj *root, mpack_obj **itemp, unsigned check, bool force);
 
@@ -80,8 +112,8 @@ mpack_make_new(UNUSED unsigned const len, bool const encode)
 }
 
 void
-mpack_encode_array(mpack_obj *    root,
-                   mpack_obj **   itemp,
+mpack_encode_array(mpack_obj     *root,
+                   mpack_obj    **itemp,
                    unsigned const len)
 {
         sanity_check(root, itemp, 64, false);
@@ -111,8 +143,8 @@ mpack_encode_array(mpack_obj *    root,
 }
 
 void
-mpack_encode_dictionary(mpack_obj *    root, 
-                        mpack_obj **   itemp, 
+mpack_encode_dictionary(mpack_obj     *root, 
+                        mpack_obj    **itemp, 
                         unsigned const len)
 {
         sanity_check(root, itemp, 64, false);
@@ -145,8 +177,8 @@ mpack_encode_dictionary(mpack_obj *    root,
 }
 
 void
-mpack_encode_integer(mpack_obj *   root,
-                     mpack_obj **  itemp,
+mpack_encode_integer(mpack_obj    *root,
+                     mpack_obj   **itemp,
                      int64_t const value)
 {
         sanity_check(root, itemp, 15, false);
@@ -196,8 +228,8 @@ mpack_encode_integer(mpack_obj *   root,
 }
 
 void
-mpack_encode_unsigned(mpack_obj *    root,
-                      mpack_obj **   itemp,
+mpack_encode_unsigned(mpack_obj     *root,
+                      mpack_obj    **itemp,
                       uint64_t const value)
 {
         sanity_check(root, itemp, 15, false);
@@ -225,8 +257,8 @@ mpack_encode_unsigned(mpack_obj *    root,
 }
 
 void
-mpack_encode_string(mpack_obj *    root,
-                    mpack_obj **   itemp,
+mpack_encode_string(mpack_obj     *root,
+                    mpack_obj    **itemp,
                     bstring const *string)
 {
         static const bstring nil_string = bt_init("");
@@ -287,8 +319,8 @@ mpack_encode_nil(mpack_obj *root, mpack_obj **itemp)
 /*============================================================================*/
 
 static void
-sanity_check(mpack_obj *    root,
-             mpack_obj **   itemp,
+sanity_check(mpack_obj     *root,
+             mpack_obj    **itemp,
              unsigned const check,
              bool const     force)
 {
