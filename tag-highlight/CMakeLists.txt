@@ -342,7 +342,7 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
          -Wattributes -Wold-style-definition -Wold-style-declaration 
     )
     string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
-        -mvect-cost-model=unlimited
+        -fvect-cost-model=unlimited
         -masm=intel -fverbose-asm
         -g3 -gdwarf-5
     )
