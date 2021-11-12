@@ -69,6 +69,13 @@ main(UNUSED int argc, char *argv[])
 {
       talloc_emergency_library_init();
       talloc_disable_null_tracking();
+
+#if 0
+      extern void thl_clang_call_foo(char const *fname);
+      thl_clang_call_foo(argv[1]);
+      exit(0);
+#endif
+
       TIMER_START(&main_timer);
 
       /* Accomodate for Win32 */
@@ -192,6 +199,8 @@ open_logs(void)
 static noreturn void *
 neovim_init(UNUSED void *arg)
 {
+      extern void global_previous_buffer_set(int num);
+
       get_settings();
       nvim_set_client_info(B(PKG), 0, 5, B("alpha"));
 
@@ -199,6 +208,7 @@ neovim_init(UNUSED void *arg)
       Buffer *bdata       = new_buffer(initial_buf);
 
       if (bdata) {
+            global_previous_buffer_set(bdata->num);
             nvim_buf_attach(bdata->num);
             get_initial_lines(bdata);
             get_initial_taglist(bdata);

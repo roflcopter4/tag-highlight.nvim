@@ -31,20 +31,6 @@ static mpack_mask const *id_pack_type(uint8_t ch) __attribute__((pure));
 # define unlikely(x) (x)
 #endif
 
-#if 0
-#define IAT(NUM, AT) ((uint64_t)((NUM)[AT]))
-#define decode_int16(NUM)                                  \
-        ((((NUM)[0]) << 010U) | ((NUM)[1]))
-#define decode_int32(NUM)                                  \
-        ((((NUM)[0]) << 030U) | (((NUM)[1]) << 020U) |     \
-         (((NUM)[2]) << 010U) | (((NUM)[3])))
-#define decode_int64(NUM)                                  \
-        ((IAT(NUM, 0) << 070U) | (IAT(NUM, 1) << 060U) |   \
-         (IAT(NUM, 2) << 050U) | (IAT(NUM, 3) << 040U) |   \
-         (IAT(NUM, 4) << 030U) | (IAT(NUM, 5) << 020U) |   \
-         (IAT(NUM, 6) << 010U) | (IAT(NUM, 7)))
-#endif
-
 #define decode_int16(NUM) bswap_16(NUM)
 #define decode_int32(NUM) bswap_32(NUM)
 #define decode_int64(NUM) bswap_64(NUM)
@@ -180,22 +166,14 @@ decode_array(read_fn const READ, void *src, uint8_t const ch, mpack_mask const *
         if (mask->fixed) {
                 size = (uint32_t)(ch ^ mask->val);
         } else {
-                //uint8_t word32[4] = {0, 0, 0, 0};
-                //union { uint8_t w[4]; int32_t i; } evil;
-                //memset(&evil.w, 0, sizeof(evil));
-
                 switch (mask->type) {
                 case M_ARRAY_16: {
-                        /* uint8_t word16[2]; */
                         uint16_t tmp;
                         READ(src, &tmp, 2);
                         size = decode_int16(tmp);
                         break;
                 }
                 case M_ARRAY_32: {
-                        /* union { uint8_t w[4]; int32_t i; } evil; */
-                        /* READ(src, evil.w, 4);                    */
-                        /* size = decode_int32(word32); */
                         uint32_t tmp;
                         READ(src, &tmp, 4);                   
                         size = decode_int32(tmp);
@@ -231,8 +209,6 @@ decode_dictionary(read_fn const READ, void *src, uint8_t const ch, mpack_mask co
         if (mask->fixed) {
                 size = (uint32_t)(ch ^ mask->val);
         } else {
-                //uint8_t word32[4] = {0, 0, 0, 0};
-
                 switch (mask->type) {
                 case M_MAP_16: {
                       uint16_t tmp;
@@ -258,7 +234,6 @@ decode_dictionary(read_fn const READ, void *src, uint8_t const ch, mpack_mask co
 
 #define ENTRY (item->dict->lst[i])
         for (uint32_t i = 0; i < item->arr->max; ++i) {
-                /* mpack_dict_ent *entry = &item->dict->lst[i]; */
                 ENTRY        = talloc(item->dict->lst, mpack_dict_ent);
                 ENTRY->key   = do_decode(READ, src);
                 ENTRY->value = do_decode(READ, src);
@@ -280,8 +255,6 @@ decode_string(read_fn const READ, void *src, uint8_t const ch, mpack_mask const 
         if (mask->fixed) {
                 size = (uint32_t)(ch ^ mask->val);
         } else {
-                /* uint8_t word32[4] = {0, 0, 0, 0}; */
-                
                 switch (mask->type) {
                 case M_STR_8: {
                         uint8_t tmp;
@@ -330,8 +303,6 @@ decode_integer(read_fn const READ, void *src, uint8_t const ch, mpack_mask const
                 value = (int64_t)(ch ^ mask->val);
                 value = (int64_t)((uint64_t)value | 0xFFFFFFFFFFFFFFE0LLU);
         } else {
-                //uint8_t word64[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
                 switch (mask->type) {
                 case M_INT_8: {
                       uint8_t tmp;
@@ -380,8 +351,6 @@ decode_unsigned(read_fn const READ, void *src, uint8_t const ch, mpack_mask cons
         if (mask->fixed) {
                 value = (uint64_t)(ch ^ mask->val);
         } else {
-                //uint8_t word64[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
                 switch (mask->type) {
                 case M_UINT_8: {
                       uint8_t tmp;
@@ -424,7 +393,6 @@ decode_ext(read_fn const READ, void *src, mpack_mask const *mask)
 {
         mpack_obj *item      = talloc(CTX, mpack_obj);
         uint32_t   value     = 0;
-        //uint8_t    word32[4] = {0, 0, 0, 0};
         uint8_t    type;
 
         switch (mask->type) {
@@ -562,6 +530,11 @@ static void
 obj_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
         bstring *buf = src;
+        if (buf->slen < nbytes)
+              errx(1,
+                   "Buffer does not contain a complete msgpack object. Since this code "
+                   "is written terribly, this is fatal. (available: %u, need %zu)",
+                   buf->slen, nbytes);
         memcpy(dest, buf->data, nbytes);
         buf->data += nbytes;
         buf->slen -= nbytes;

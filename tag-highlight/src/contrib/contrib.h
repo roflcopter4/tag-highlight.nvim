@@ -4,6 +4,7 @@
 #include "Common.h"
 
 #ifdef __cplusplus
+#  define restrict __restrict
    extern "C" {
 #endif
 

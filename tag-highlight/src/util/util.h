@@ -222,7 +222,7 @@ extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
 #define NANOSLEEP_FOR_SECOND_FRACTION(s, i, d) \
         clock_nanosleep_for((uintmax_t)(s), (uintmax_t)((NSEC2SECOND * (uintmax_t)(i)) / ((uintmax_t)(d))))
 
-extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status);
+extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status) __aWUR __aNN(1, 2);
 #ifdef DOSISH
 extern int win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);

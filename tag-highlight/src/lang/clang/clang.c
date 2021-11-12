@@ -16,7 +16,7 @@
         (  CXTranslationUnit_KeepGoing                             \
          /* | CXTranslationUnit_Incomplete */                      \
          | CXTranslationUnit_PrecompiledPreamble                   \
-         /* | CXTranslationUnit_CreatePreambleOnFirstParse */      \
+         | CXTranslationUnit_CreatePreambleOnFirstParse      \
          | CXTranslationUnit_IgnoreNonErrorsFromIncludedFiles      \
          /* | CXTranslationUnit_RetainExcludedConditionalBlocks */ \
          | CXTranslationUnit_DetailedPreprocessingRecord           \
@@ -24,8 +24,8 @@
          /* | CXTranslationUnit_VisitImplicitAttributes */         \
          /* | CXTranslationUnit_ForSerialization */                \
          /* | CXTranslationUnit_CacheCompletionResults */          \
-         | CXTranslationUnit_SkipFunctionBodies                    \
-         | CXTranslationUnit_LimitSkipFunctionBodiesToPreamble     \
+         /* | CXTranslationUnit_SkipFunctionBodies */                    \
+         /* | CXTranslationUnit_LimitSkipFunctionBodiesToPreamble */     \
          /* | CXTranslationUnit_CXXChainedPCH */                   \
          /* | CXTranslationUnit_SingleFileParse */                 \
         )
@@ -39,23 +39,14 @@ static const char *default_includes[] = {
     "-I/usr/include/jsonrpc-glib-1.0", "-I/usr/include/libmount",
 };
 
-#if 0
-#ifndef TIME_CLANG
-#undef TIMER_START
-#undef TIMER_REPORT_RESTART
-#undef TIMER_REPORT
-#define TIMER_START(...)
-#define TIMER_REPORT_RESTART(...)
-#define TIMER_REPORT(...)
-#endif
-#endif
-
 static const char *const gcc_sys_dirs[] = {GCC_ALL_INCLUDE_DIRECTORIES};
 static pthread_mutex_t   lc_mutex       = PTHREAD_MUTEX_INITIALIZER;
 
 char  libclang_tmp_path[PATH_MAX + 1];
 void *clang_talloc_ctx_ = NULL;
 
+static CXCompilationDatabase find_compilation_database(Buffer *bdata);
+static CXCompilationDatabase get_clang_compile_commands_up_search(Buffer *bdata);
 static translationunit_t *init_compilation_unit(Buffer *bdata, bstring *buf);
 static translationunit_t *recover_compilation_unit(Buffer *bdata, bstring *buf);
 static CXCompileCommands  get_clang_compile_commands_for_file(CXCompilationDatabase *db,
@@ -79,10 +70,13 @@ clang_initializer(void)
 
 static jmp_buf jbuf;
 
+extern void thl_cxx_call_foo(CXTranslationUnit tu, char const *fname, char const *buffer);
+extern void thl_cxx_try_harder(struct CXUnsavedFile *filecontents, char const **commands, size_t ncommands);
+
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
 {
-      if (!bdata || !atomic_load_explicit(&bdata->initialized, memory_order_acquire))
+      if (!bdata || !atomic_load(&bdata->initialized))
             return;
       if (bdata->total_failure)
             return;
@@ -111,10 +105,9 @@ void
             }
             goto done;
       }
-#if 0
-        struct timer tm;
-        TIMER_START(&tm);
-#endif
+
+      //struct timer tm;
+      //TIMER_START(&tm);
 
       pthread_mutex_lock(&bdata->lock.total);
       joined = ll_join_bstrings(bdata->lines, '\n');
@@ -136,17 +129,19 @@ void
                                      : init_compilation_unit(bdata, joined);
       }
 
+      //thl_cxx_call_foo(stu->tu, NULL, NULL);
+
       CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, BS(bdata->name.full));
       tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
 
       calls = create_nvim_calls(bdata, stu);
       nvim_call_atomic(calls);
+
+
       talloc_free(calls);
       talloc_free(stu);
 
-#if 0
-        TIMER_REPORT(&tm, "clang parse");
-#endif
+      //TIMER_REPORT(&tm, "clang parse");
 
 done:
       p99_count_dec(&bdata->lock.num_workers);
@@ -157,17 +152,15 @@ void *
 highlight_c_pthread_wrapper(void *vdata)
 {
       Buffer *bdata = vdata;
-      libclang_highlight(bdata, 0, -1, HIGHLIGHT_NORMAL);
+      libclang_highlight(bdata);
       pthread_exit();
 }
-
-#define BSC(BSTR) ((int)(BSTR)->slen), ((char *)(BSTR)->data)
 
 void
 libclang_suspend_translationunit(Buffer *bdata)
 {
       pthread_mutex_lock(&bdata->lock.lang_mtx);
-      fprintf(stderr, "Suspending translation unit \"%*s\"\n", BSC(bdata->name.base));
+      fprintf(stderr, "Suspending translation unit \"%.*s\"\n", BSC(bdata->name.base));
       fflush(stderr);
       if (bdata->clangdata && CLD(bdata)->tu)
             clang_suspendTranslationUnit(CLD(bdata)->tu);
@@ -205,9 +198,6 @@ handle_libclang_error(Buffer *bdata, unsigned const err)
 
       shout("Libclang error (%u). Unfortunately this is fatal at the moment.", err);
       ++bdata->num_failures;
-      /* longjmp(bdata->jbuf, 1); */
-      /* quick_exit(1); */
-      //exit(1);
       longjmp(jbuf, 1);
 }
 
@@ -220,13 +210,11 @@ recover_compilation_unit(Buffer *bdata, bstring *buf)
                                       .Length   = buf->slen};
 
       enum CXReparse_Flags const flags = clang_defaultReparseOptions(CLD(bdata)->tu);
-      // flags = TUFLAGS | CXTranslationUnit_DetailedPreprocessingRecord;
-      // SHOUT("Flags is 0x%X\n", flags);
 
       int ret = clang_reparseTranslationUnit(CLD(bdata)->tu, 1U, &unsaved, flags);
       if (ret != 0) {
             TALLOC_FREE(bdata->clangdata);
-            /* clang_disposeTranslationUnit(CLD(bdata)->tu); */
+            //clang_disposeTranslationUnit(CLD(bdata)->tu);
             handle_libclang_error(bdata, ret);
       }
 
@@ -248,12 +236,13 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
                                       .Contents = BS(buf),
                                       .Length   = buf->slen};
 
-      /* argv_dump(stderr, comp_cmds); */
+      //argv_dump(stderr, comp_cmds);
+      //thl_cxx_try_harder(&unsaved, (char const **)comp_cmds->lst, comp_cmds->qty);
 
       clangdata_t *cld = talloc_zero(bdata, clangdata_t);
       bdata->clangdata = cld;
       cld->bdata       = bdata;
-      cld->idx         = clang_createIndex(0, 0);
+      cld->idx         = clang_createIndex(1, 0);
       cld->argv        = comp_cmds;
 
       talloc_set_destructor(cld, do_destroy_clangdata);
@@ -265,7 +254,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
 
       if (!cld->tu || clerror != 0) {
             TALLOC_FREE(bdata->clangdata);
-            /* clang_disposeTranslationUnit(cld->tu); */
+            //clang_disposeTranslationUnit(cld->tu);
             handle_libclang_error(bdata, clerror);
       }
 
@@ -428,6 +417,13 @@ handle_include_compile_command(str_vector *lst, char const *s, CXString director
 static inline void
 handle_include_compile_command(str_vector *lst, char const *cstr, CXString directory, bool is_i)
 {
+      /* Sort of hate to do it like this, but we can't allow a precompiled header to be
+       * included. The library immediately crashes if one ever is (as of LLVM 13). */
+#if 0
+      if (strstr(cstr, ".pch") || strstr(cstr, ".gch"))
+            return;
+#endif
+
       if (cstr[0] == '/') {
             if (is_i)
                   argv_append(lst, talloc_asprintf(NULL, "-I%s", cstr), false);
@@ -452,7 +448,7 @@ enum allow_next_arg {
       NE_FILE_ALLOW,
       NE_FILE_ALLOW_I,
 
-      NE_MASK_XCLANG = 0x10,
+      NE_MASK_XCLANG = 0x00010000,
 };
 
 static inline void
@@ -466,16 +462,9 @@ clang_arg_append(str_vector *vec, char const *str, bool const cpy, int const fla
 static str_vector *
 get_compile_commands(Buffer *bdata)
 {
-      CXCompilationDatabase_Error cberr;
-      CXCompilationDatabase       db =
-          clang_CompilationDatabase_fromDirectory(BS(bdata->topdir->pathname), &cberr);
-      if (cberr != 0) {
-            clang_CompilationDatabase_dispose(db);
-            warn("Couldn't locate compilation database in \"%s\".",
-                 BS(bdata->topdir->pathname));
+      CXCompilationDatabase db = find_compilation_database(bdata);
+      if (!db)
             return get_backup_commands(bdata);
-      }
-
 
       CXCompileCommands cmds = get_clang_compile_commands_for_file(&db, bdata);
       if (!cmds) {
@@ -506,24 +495,10 @@ get_compile_commands(Buffer *bdata)
                   CXString    tmp            = clang_CompileCommand_getArg(command, x);
                   char const *cstr           = CS(tmp);
 
-#if 0
-                  if (0) {
-#ifdef DOSISH
-                  } else if (cstr[0] == '@') {
-                        handle_win32_command_script(bdata, CS(directory), cstr + 1, ret);
-#endif
-                  } else {
-                        argv_append(ret, cstr, true);
-                  }
-#endif
-
                   if (0) {
                         /* Just make it easy to comment out sections. I'm lazy. */
                   } else if(STREQ(cstr, "-Xclang")) {
-                        /* Really annoying. Just pretend this one never happened. */
-                        /* clang_arg_append(ret, cstr, true, arg_allow); */
                         next_arg_allow = arg_allow | NE_MASK_XCLANG;
-                        /* next_arg_allow = NE_DISALLOW; */
                   } else if (base_arg_allow != NE_NORMAL) {
                         switch (base_arg_allow) {
                         case NE_FILE_ALLOW:
@@ -546,30 +521,28 @@ get_compile_commands(Buffer *bdata)
                               clang_arg_append(ret, cstr, true, arg_allow);
                               next_arg_allow = NE_FILE_ALLOW;
                         } else if (STREQ(cstr + 1, "include-pch")) {
+                              /* Precompiled headers absolutely do not work at all. Block
+                               * any attempt to add one. */
                               next_arg_allow = NE_DISALLOW;
-                              // clang_arg_append(ret, cstr, true, arg_allow);
-                              // next_arg_allow = NE_FILE_ALLOW;
                         } else if (STREQ(cstr + 1, "x")) {
                               clang_arg_append(ret, cstr, true, arg_allow);
                               next_arg_allow = NE_LANG_ALLOW;
-                        } else if (P99_STREQ_ANY(cstr + 1, "o", "c", "mvect-cost-model")) {
+                        } else if (P99_STREQ_ANY(cstr + 1, "o", "c", "fvect-cost-model")) {
                               next_arg_allow = NE_DISALLOW;
                         } else if (P99_STREQ_ANY(cstr + 1, "MMD", "MP", "MD", "MT", "MF") ||
-                                   strncmp(cstr + 1, SLS("mvect-cost-model=")) == 0)
+                                   strncmp(cstr + 1, SLS("fvect-cost-model=")) == 0)
                         {
                               /* Nothing */
                         } else {
                               switch (cstr[1]) {
                               case 'W':
                                     break;
-#if 0
-                                        case 'f':
-                                        case 'c':
-                                        case 'o':
-#endif
+
                               case 'I':
                                     handle_include_compile_command(ret, cstr + 2, directory, true);
                                     break;
+
+    //                          case 'f': case 'c': case 'o':
                               default:
                                     clang_arg_append(ret, cstr, true, arg_allow);
                               }
@@ -593,6 +566,7 @@ get_compile_commands(Buffer *bdata)
       /* If we don't remove clang's max error limit then it will crash if it
        * reaches it. This happens fairly often when editing a file. */
       argv_append(ret, "-ferror-limit=0", true);
+      //argv_append(ret, "-fdelayed-template-parsing", true);
 
       argv_append(ret, "-I", true);
       argv_append(ret, BS(bdata->name.path), true);
@@ -615,8 +589,8 @@ get_backup_commands(Buffer *bdata)
 
       argv_append(ret, "-stdlib=libstdc++", true);
       argv_append(ret, "-I.", true);
-      argv_append_fmt(ret, "-I%s", BS(bdata->name.path));
-      argv_append_fmt(ret, "-I%s", BS(bdata->topdir->pathname));
+      argv_append_fmt(ret, "-I%.*s", BSC(bdata->name.path));
+      argv_append_fmt(ret, "-I%.*s", BSC(bdata->topdir->pathname));
 
       return ret;
 }
@@ -625,7 +599,7 @@ static CXCompileCommands
 get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 {
       /* OOOOH, A variable length array, how scandelous! */
-      char newnam[bdata->name.full->slen + 1LLU];
+      char newnam[bdata->name.full->slen + SIZE_C(1)];
       B_COPY_TO_BUFFER(newnam, bdata->name.full);
 
       CXCompileCommands comp = clang_CompilationDatabase_getCompileCommands(*db, newnam);
@@ -637,11 +611,11 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
 
             bstring *file =
                 find_file(BS(bdata->name.path),
-                          (bdata->ft->id == FT_C) ? ".*\\.c$" : ".*\\.(cpp|cc|cxx|c++)$",
+                          (bdata->ft->id == FT_C) ? ".*\\.c$" : ".*\\.c(pp|c|xx)$",
                           FIND_FIRST);
 
             if (file) {
-                  warnd("Found %*s!\n", BSC(file));
+                  warnd("Found %.*s!\n", BSC(file));
                   comp = clang_CompilationDatabase_getCompileCommands(*db, BS(file));
                   b_free(file);
             } else {
@@ -652,7 +626,31 @@ get_clang_compile_commands_for_file(CXCompilationDatabase *db, Buffer *bdata)
       return comp;
 }
 
-CXCompilationDatabase
+static CXCompilationDatabase
+get_clang_compile_commands_up_search(Buffer *bdata)
+{
+      CXCompilationDatabase_Error cerr;
+      CXCompilationDatabase db = NULL;
+      bstring *buf = b_strcpy(bdata->topdir->pathname);
+
+      for (int i = 0; db == NULL && i < 4; ++i) {
+            if (!b_dirname_explicit(buf, false))
+                  break;
+
+            warnd("Looking at %.*s", BSC(buf));
+            db = clang_CompilationDatabase_fromDirectory(BS(buf), &cerr);
+            if (cerr != 0) {
+                  clang_CompileCommands_dispose(db);
+                  db = NULL;
+            }
+      }
+
+      warnd("Going with \"%.*s\"", BSC(buf));
+      b_free(buf);
+      return db;
+}
+
+static CXCompilationDatabase
 find_compilation_database(Buffer *bdata)
 {
       CXCompilationDatabase_Error cberr;
@@ -661,12 +659,15 @@ find_compilation_database(Buffer *bdata)
 
       if (cberr != 0) {
             clang_CompilationDatabase_dispose(db);
-            warn("Couldn't locate compilation database in \"%*s\".",
-                 BSC(bdata->topdir->pathname));
-            return NULL;
+            db = get_clang_compile_commands_up_search(bdata);
+            if (!db) {
+                  warnx("Couldn't locate compilation database in or above \"%.*s\".",
+                        BSC(bdata->topdir->pathname));
+                  return NULL;
+            }
       }
 
-      warnd("Found db at '%*s'\n", BSC(bdata->topdir->pathname));
+      warnd("Found db at '%.*s'\n", BSC(bdata->topdir->pathname));
       return db;
 }
 
@@ -713,7 +714,7 @@ static bool
 punctuation_sanity_check(CXCursor *cursor)
 {
       CXString spell = clang_getCursorSpelling(*cursor);
-      bool     ret   = (strncmp(CS(spell), "operator", 8) == 0);
+      bool     ret   = (strncmp(CS(spell), SLS("operator")) == 0);
       clang_disposeString(spell);
       return ret;
 }
@@ -732,7 +733,8 @@ get_token_data(translationunit_t *stu, CXToken *tok, CXCursor *cursor)
             return NULL;
       }
 
-      ret             = talloc_size(CTX, offsetof(token_t, raw) + (size_t)res.len + 1LLU);
+      ret = talloc_size(CTX, (size_t)offsetof(token_t, raw) + (size_t)res.len + SIZE_C(1));
+
       ret->token      = *tok;
       ret->cursor     = *cursor;
       ret->cursortype = clang_getCursorType(*cursor);
@@ -771,7 +773,7 @@ tokenize_range(translationunit_t *stu, CXFile *file, int64_t const first, int64_
       stu->cxtokens  = toks;
       stu->cxcursors = cursors;
       stu->num       = num;
-      stu->tokens    = genlist_create_alloc(stu, num / 2);
+      stu->tokens    = genlist_create_alloc(stu, ((num * 2U) / 3U));
 
       for (unsigned i = 0; i < num; ++i)
             if ((t = get_token_data(stu, &toks[i], &cursors[i])))

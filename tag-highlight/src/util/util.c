@@ -20,12 +20,13 @@ static void win32_print_stack(void);
 static bool file_is_reg(const char *filename);
 static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
-__attribute__((__constructor__(10)))
+__attribute__((__constructor__(400)))
 static void mutex_init(void)
 {
         pthread_mutex_init(&mut);
 }
 
+/*======================================================================================*/
 
 FILE *
 safe_fopen(const char *filename, const char *mode)
@@ -120,6 +121,8 @@ file_is_reg(const char *filename)
         return S_ISREG(st.st_mode) || S_ISFIFO(st.st_mode);
 }
 
+/*======================================================================================*/
+
 int64_t
 xatoi__(const char *const str, const bool strict)
 {
@@ -167,7 +170,8 @@ find_num_cpus(void)
                 if (count < 1) { count = 1; }
         }
         return count;
-#elif defined(__unix__) || defined(__linux__) || defined(BSD)
+#elif defined(__unix__) || defined(__linux__) || defined(BSD) || defined(unix) || \
+    defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)
         return sysconf(_SC_NPROCESSORS_ONLN);
 #else
 #  error "Cannot determine operating system."
@@ -212,6 +216,8 @@ free_all__(void *ptr, ...)
 #  include <sys/wait.h>
 #  define CLOSE(fd) (((close)(fd) == (-1)) ? err(1, "close()") : ((void)0))
 
+/*======================================================================================*/
+
 void
 fd_set_open_flag(int const fd, int const flag)
 {
@@ -221,6 +227,8 @@ fd_set_open_flag(int const fd, int const flag)
         if (fcntl(fd, F_SETFL, cur | flag) == (-1))
                 err(1, "fcntl()");
 }
+
+/*======================================================================================*/
 
 static void
 open_pipe(int fds[2])
@@ -233,6 +241,7 @@ open_pipe(int fds[2])
         if (pipe(fds) == (-1))
                 err(1, "pipe()");
         /* Surely the compiler will unroll this... */
+#  pragma unroll
         for (int i = 0; i < 2; ++i) {
                 if ((flg = fcntl(fds[i], F_GETFL)) == (-1))
                         err(3+i, "fcntl(F_GETFL)");
@@ -288,56 +297,6 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
 
         return rd;
 }
-
-#if 0
-bstring *
-get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
-{
-        bstring *tmpfname, *rd;
-        int stdin_fds[2],  pid, st, tmpfd;
-
-        if (pipe(stdin_fds) == (-1))
-                err(1, "pipe()");
-
-        tmpfname = nvim_call_function(B("tempname"), E_STRING).ptr;
-        tmpfd    = safe_open(BS(tmpfname), O_CREAT|O_RDWR|O_TRUNC|O_BINARY, 0600);
-
-        if ((pid = fork()) == 0) {
-                if (dup2(stdin_fds[READ_FD], STDIN_FILENO) == (-1))
-                        err(1, "dup2() failed\n");
-                if (dup2(tmpfd, STDOUT_FILENO) == (-1))
-                        err(1, "dup2() failed\n");
-
-                close(stdin_fds[WRITE_FD]);
-                close(stdin_fds[READ_FD]);
-                close(tmpfd);
-
-                if (execvp(command, argv) == (-1))
-                        err(1, "exec() failed\n");
-        }
-
-        close(stdin_fds[READ_FD]);
-        if (input)                                  
-                b_write(stdin_fds[WRITE_FD], input);
-        close(stdin_fds[WRITE_FD]);
-
-        if (waitpid(pid, &st, 0) != pid && errno != ECHILD)
-                err(1, "waitpid()");
-
-        lseek(tmpfd, 0, SEEK_SET);
-        rd = b_read_fd(tmpfd);
-        close(tmpfd);
-        remove(BS(tmpfname));
-        b_free(tmpfname);
-
-        if (WEXITSTATUS(st) != 0)
-                warnx("Command failed with status %d (raw: 0x%X)", WEXITSTATUS(st), st);
-        if (status)
-                *status = st;
-
-        return rd;
-}
-#endif
 
 #  undef CLOSE
 
@@ -462,7 +421,7 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
         ExitProcess(status);
 }
 #else
-#  error "Impossible operating system detected. VMS? OS/2? DOS? Maybe System/360? Yeesh."
+#  error "Impossible operating system detected. VMS? OS/2? DOS? Maybe System/360?"
 #endif
 
 #undef READ_FD
@@ -471,7 +430,7 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
 
 #ifdef DOSISH
 
-#include <dbghelp.h>
+#  include <dbghelp.h>
 
 static void
 win32_print_stack(void)

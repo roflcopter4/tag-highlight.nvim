@@ -35,8 +35,8 @@ struct settings_s { alignas(128)
 
         void       *talloc_ctx;
 
-        comp_type_t comp_type;
         uint16_t    job_id;
+        uint8_t     comp_type;
         uint8_t     comp_level;
         bool        enabled;
         bool        use_compression;

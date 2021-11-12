@@ -91,7 +91,9 @@ err_(int  const UNUSED    status,
         fputc('\n', tmp);
         fflush(tmp);
 
-        nvim_err_write(btp_fromblk(tmp_buf, tmp_size));
+        /* nvim_err_write(btp_fromblk(tmp_buf, tmp_size)); */
+        fwrite(tmp_buf, 1, tmp_size, stderr);
+        fflush(stderr);
         fclose(tmp);
 
         /* if (settings.buffer_initialized) */

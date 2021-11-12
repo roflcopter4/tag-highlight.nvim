@@ -35,13 +35,8 @@ void *update_top_talloc_ctx_ = NULL;
 void
 (update_highlight)(Buffer *bdata, enum update_highlight_type const type)
 {
-      // struct timer t[1] = {STRUCT_TIMER_INITIALIZER};
       if (!bdata || !bdata->topdir || !bdata->lines)
             return;
-
-      // pthread_mutex_lock(&bdata->lock.total);
-      // echo("Updating commands for bufnum %d", bdata->num);
-      // TIMER_START(t);
 
       if (bdata->ft->has_parser) {
             int ret = 0;
@@ -71,26 +66,17 @@ void
             }
       } else {
       parser_failed:
-            if (!settings.run_ctags)
-                  return;
-#if 0
-                if (bdata->calls)
-                        update_from_cache(bdata);
-                else
-#endif
-            update_other(bdata);
+            if (bdata->calls && type == HIGHLIGHT_NORMAL)
+                  update_from_cache(bdata);
+            else
+                  update_other(bdata);
       }
-
-      // TIMER_REPORT(t, "update highlight");
-      // pthread_mutex_unlock(&bdata->lock.total);
 }
 
 static void
 update_c_like(Buffer *bdata, int const type)
 {
       libclang_highlight(bdata, , , type);
-      if (bdata->initialized && type != HIGHLIGHT_NORMAL)
-            update_taglist(bdata, UPDATE_TAGLIST_FORCE);
 }
 
 static void
@@ -123,7 +109,7 @@ retry:
             retry = false;
             echo("Got %u total tags\n", tags->qty);
             if (bdata->calls)
-                  talloc_free(bdata->calls);
+                  TALLOC_FREE(bdata->calls);
             bdata->calls = update_commands(bdata, tags);
             talloc_steal(bdata, bdata->calls);
             nvim_call_atomic(bdata->calls);
@@ -175,8 +161,10 @@ update_commands(Buffer *bdata, struct taglist *tags)
             info[i].suffix = mpack_dict_get_key(dict, E_STRING, B("suffix")).ptr;
 
             talloc_steal(info, info[i].group);
-            talloc_steal(info, info[i].prefix);
-            talloc_steal(info, info[i].suffix);
+            if (info[i].prefix)
+                  talloc_steal(info, info[i].prefix);
+            if (info[i].suffix)
+                  talloc_steal(info, info[i].suffix);
             talloc_free(dict);
       }
 
@@ -324,11 +312,10 @@ add_cmd_call(mpack_arg_array **calls, bstring *cmd)
             CL->args = talloc_realloc(CL, CL->args, mpack_argument *, CL->mlen);
       }
 
-      bstring *tmp             = b_fromlit("nvim_command");
       CL->fmt[CL->qty]         = talloc_strdup(CL->fmt, "s[s]");
       CL->args[CL->qty]        = talloc_array(CL->args, mpack_argument, 2);
-      CL->args[CL->qty][0].str = talloc_move(CL->args[CL->qty], &tmp);
-      CL->args[CL->qty][1].str = talloc_move(CL->args[CL->qty], &cmd);
+      CL->args[CL->qty][0].str = talloc_steal(CL->args[CL->qty], b_fromlit("nvim_command"));
+      CL->args[CL->qty][1].str = talloc_steal(CL->args[CL->qty], cmd);
 
       ++CL->qty;
 #undef CL

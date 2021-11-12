@@ -29,7 +29,7 @@ extern void talloc_emergency_library_init(void);
 size_t const ftdata_len = ARRSIZ(ftdata_static);
 struct filetype **ftdata;
 
-__attribute__((__constructor__(25)))
+__attribute__((__constructor__(105)))
 static void init_ftdata(void)
 {
       talloc_emergency_library_init();

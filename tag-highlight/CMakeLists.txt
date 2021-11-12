@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.14.0)
-project (Tag-Highlight_Nvim C)
+project (Tag-Highlight_Nvim C CXX)
 include (FindPkgConfig)
 include (CheckFunctionExists)
 include (CheckSymbolExists)
@@ -102,7 +102,9 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
+find_package (LibUV REQUIRED)
 find_package (LibLZMA)
+
 # find_package (sodium)
 
 if (NOT ZLIB_FOUND)
@@ -229,7 +231,7 @@ endif()
 ###############################################################################
 # General flags
 
-string (JOIN " " WARNS
+set (WARNS
         -Wall -Wextra
         -Werror=format-extra-args
         -Werror=implicit
@@ -238,46 +240,44 @@ string (JOIN " " WARNS
         -Werror=incompatible-pointer-types
         -Werror=int-conversion
         -Werror=pointer-to-int-cast
-        # -fpie -fPIC
+        -Werror=invalid-pch
 )
 
 if (NOT BUILD_DIST) 
     set (MARCH_SETTING "-mtune=native -march=native")
 endif()
 
-if (SANITIZE AND NOT MSVC)
-    # set (SANIT "-fsanitize=undefined")
-    # if ("${SANITIZE}" STREQUAL "thread")
-    #     string (CONCAT SANIT "${SANIT} -fsanitize=thread")
-    # elseif ("${SANITIZE}" STREQUAL "memory")
-    #     string (CONCAT SANIT "${SANIT} -fsanitize=memory")
-    # else ()
-    #     string (CONCAT SANIT "${SANIT} -fsanitize=address -fsanitize-address-use-after-scope")
-    # endif()
-    set (SANIT "${SANITIZE}")
+if (SANITIZE)
+    set (SANIT -fsanitize-address-use-after-scope -fsanitize=undefined
+               -fsanitize=bounds -fsanitize=bool)
+    if ("${SANITIZE}" STREQUAL "thread")
+        set (SANIT ${SANIT} -fsanitize=thread)
+    elseif ("${SANITIZE}" STREQUAL "memory")
+        set (SANIT -fsanitize=undefined -fsanitize=memory)
+    else ()
+        set (SANIT ${SANIT} -fsanitize=address)
+    endif()
 endif()
 
-message("Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
+message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
+set (BASE ${WARNS} ${MARCH_SETTING} ${SANIT}
+          -pipe -fdiagnostics-color=always -m64 -mprefer-vector-width=512)
+
+set (CFLAGS_DEBUG_COMMON          -Og -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector)
+set (CFLAGS_RELWITHDEBINFO_COMMON -Og -g3 -D_FORTIFY_SOURCE=2 -Wextra -ftree-vectorize -Wextra)
+set (CFLAGS_RELEASE_COMMON        -Ofast -ftree-vectorize -g -DNDEBUG -U_FORTIFY_SOURCE)
 
 ################################################################################
 # Compiler specific flags. Currently these override $CFLAGS.
 
-if (MSVC)
-    if (SANITIZE)
-        message(WARNING "Can't possibly sanitize MSVC. Try nuking from orbit")
-    endif()
-else()
+if (NOT MSVC)
     if (SANITIZE)
         set (CFLAGS_DEBUG_COMMON ${CFLAGS_DEBUG_COMMON}
             -fno-omit-frame-pointer -fno-optimize-sibling-calls)
     endif()
-    string (CONCAT BASE "${WARNS} ${MARCH_SETTING} ${SANIT}" " -mprefer-vector-width=512"
-                        " -pipe -std=gnu11 -fdiagnostics-color=always")
-
-    set (CFLAGS_DEBUG_COMMON          "-O0 -g3 -Wextra -Wpedantic -Wformat -D_FORTIFY_SOURCE=2 -fstack-protector")
-    set (CFLAGS_RELWITHDEBINFO_COMMON "-O2 -g3 -D_FORTIFY_SOURCE=2 -Wextra -ftree-vectorize -Wextra")
-    set (CFLAGS_RELEASE_COMMON        "-Ofast -ftree-vectorize -g0 -DNDEBUG -U_FORTIFY_SOURCE -fno-strict-aliasing")
+else()
+    message(WARNING "Can't possibly sanitize MSVC. Try nuking from orbit")
 endif()
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
@@ -299,54 +299,50 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set (CMAKE_CPP "${LLVM_CPP}")
 
     else()
-
-        # string (JOIN " " WARNS ${WARNS}
-        #     -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments 
-        #     -Wno-gnu-statement-expression -Werror=return-type
-        #     -Wno-sign-compare -Wno-dollar-in-identifier-extension
-        # )
-        string (CONCAT BASE "${BASE} ${WARNS} ${SANIT}"
+        message(WARNING "Clang")
+        set (WARNS
+             -Werror=return-type 
+             -Wno-gnu-zero-variadic-macro-arguments
+             -Wno-gnu-statement-expression -Wno-fixed-enum-extension
+             -Wno-sign-compare -Wno-dollar-in-identifier-extension -Wno-unused-parameter
         )
-        
-        if (CMAKE_BUILD_TYPE STREQUAL "Release")
-
-            string(JOIN " " BASE ${BASE} ${WARNS}
-                -g3 -fvectorize -fslp-vectorize -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
-                # -fprofile-use=/home/bml/.vim/dein/repos/github.com/roflcopter4/tag-highlight.nvim/tag-highlight
-                # -fprofile-instr-generate -fdebug-info-for-profiling
-            )
-
-        endif ()
-        set (LTO_STR "-flto=full -fwhole-program-vtables")
-
-        string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-            " -mprefer-vector-width=512 -rtlib=compiler-rt --unwindlib=libgcc"
-            " -fuse-ld=lld"
-            " -rdynamic"
-            " ${LTO_STR} -Wl,--lto-O3 -Wl,--lto-whole-program-visibility -Wl,-O3"
+        set (BASE ${BASE} ${WARNS}
+            -g3 -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
         )
+        # set (LTO_STR -flto=full -fwhole-program-vtables)
+
+        string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+                # -fuse-ld=gold -stdlib=libstdc++ -rtlib=compiler-rt --unwindlib=libgcc
+                -fuse-ld=lld -rtlib=compiler-rt --unwindlib=libunwind
+                # -Wl,--lto-O3 -Wl,--lto-whole-program-visibility ${LTO_STR}
+        )
+
+        set (__EXTRA_C_CXX_RELEASE_FLAGS -fvectorize -fslp-vectorize -mprefer-vector-width=512)
+
+        find_program(LLVM_AR "llvm-ar" REQUIRED)
+        find_program(LLVM_NM "llvm-nm" REQUIRED)
+        find_program(LLVM_RANLIB "llvm-ranlib" REQUIRED)
+        set (CMAKE_AR "${LLVM_AR}")
+        set (CMAKE_NM "${LLVM_NM}")
+        set (CMAKE_RANLIB "${LLVM_RANLIB}")
+
     endif()
-    
-    find_program(LLVM_AR "llvm-ar" REQUIRED)
-    find_program(LLVM_NM "llvm-nm" REQUIRED)
-    find_program(LLVM_RANLIB "llvm-ranlib" REQUIRED)
-    set (CMAKE_AR "${LLVM_AR}")
-    set (CMAKE_NM "${LLVM_NM}")
-    set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
 elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
 
-    string (JOIN " " WARNS ${WARNS}
-         -Wsuggest-attribute=pure
-         -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
-         -Wattributes -Wold-style-definition -Wold-style-declaration 
+    set (WARNS
+        -Wsuggest-attribute=pure -Wsuggest-attribute=cold
+        -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
+        -Wattributes
     )
-    string(JOIN " " BASE ${BASE} ${WARNS} -Werror=designated-init 
+    set (BASE ${BASE} ${WARNS} -Werror=designated-init 
         -fvect-cost-model=unlimited
         -masm=intel -fverbose-asm
         -g3 -gdwarf-5
     )
-    set (LTO_STR "-flto -fuse-linker-plugin -fno-fat-lto-objects")
+    set (LTO_STR -flto -fuse-linker-plugin -fno-fat-lto-objects)
+
+    string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}" -fuse-ld=bfd ${LTO_STR})
 
     find_program(GCC_AR "gcc-ar" REQUIRED)
     find_program(GCC_NM "gcc-nm" REQUIRED)
@@ -354,27 +350,48 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
     set (CMAKE_AR "${GCC_AR}")
     set (CMAKE_NM "${GCC_NM}")
     set (CMAKE_RANLIB "${GCC_RANLIB}")
-    
-    string(CONCAT CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LTO_STR}"
-           " -rdynamic"
-    )
-endif()
 
+elseif (MSVC)
+
+   # Allow use of deprecated function names in MSVC (read/write)
+   add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
+
+endif()
 
 #####################################################################################################
 # Misc
 
-if (TRUE_MSVC)
-    message (FATAL_ERROR "Sorry, this won't work out.")
-elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-    string(JOIN " " CMAKE_C_FLAGS_DEBUG
-                    ${CMAKE_C_FLAGS_DEBUG} ${CFLAGS_DEBUG_COMMON} ${BASE})
-    string(JOIN " " CMAKE_C_FLAGS_RELWITHDEBINFO 
-                    ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON} ${BASE} ${LTO_STR})
-    string(JOIN " " CMAKE_C_FLAGS_RELEASE
-                    ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON} ${BASE} ${LTO_STR})
-    string(JOIN " " CMAKE_C_FLAGS_MINSIZEREL
-                    ${CMAKE_C_FLAGS_MINSIZEREL} ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s)
+if (MSVC)
+
+else()
+    list(APPEND CMAKE_C_FLAGS_DEBUG ${CFLAGS_DEBUG_COMMON} ${BASE} ${LTO_STR} ${CMAKE_C_FLAGS})
+    list(APPEND CMAKE_C_FLAGS_MINSIZEREL ${CFLAGS_RELEASE_COMMON} ${BASE} -Os -s ${LTO_STR} ${CMAKE_C_FLAGS})
+    list(APPEND CMAKE_C_FLAGS_RELEASE
+        ${CMAKE_C_FLAGS_RELEASE} ${CFLAGS_RELEASE_COMMON}
+        ${BASE} ${LTO_STR} ${CMAKE_C_FLAGS} ${__EXTRA_C_CXX_RELEASE_FLAGS})
+    list(APPEND CMAKE_C_FLAGS_RELWITHDEBINFO
+        ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON}
+        ${BASE} ${LTO_STR} ${CMAKE_C_FLAGS} ${__EXTRA_C_CXX_RELEASE_FLAGS})
+
+    string(JOIN " " CMAKE_CXX_FLAGS "-std=gnu++${CMAKE_CXX_STANDARD}" "${CMAKE_CXX_FLAGS}")
+
+    set(CMAKE_CXX_FLAGS_DEBUG          ${CMAKE_C_FLAGS_DEBUG}          ${CMAKE_CXX_FLAGS})
+    set(CMAKE_CXX_FLAGS_RELEASE        ${CMAKE_C_FLAGS_RELEASE}        ${CMAKE_CXX_FLAGS})
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CMAKE_CXX_FLAGS})
+    set(CMAKE_CXX_FLAGS_MINSIZEREL     ${CMAKE_C_FLAGS_MINSIZEREL}     ${CMAKE_CXX_FLAGS})
+
+    string(TOUPPER ${CMAKE_BUILD_TYPE} _upper_CMAKE_BUILD_TYPE)
+    set (ALL_THE_C_FLAGS   ${CMAKE_C_FLAGS_${_upper_CMAKE_BUILD_TYPE}})
+    set (ALL_THE_CXX_FLAGS ${CMAKE_CXX_FLAGS_${_upper_CMAKE_BUILD_TYPE}})
+
+    list(JOIN CMAKE_C_FLAGS_DEBUG            " " CMAKE_C_FLAGS_DEBUG            )
+    list(JOIN CMAKE_C_FLAGS_RELEASE          " " CMAKE_C_FLAGS_RELEASE          )
+    list(JOIN CMAKE_C_FLAGS_RELWITHDEBINFO   " " CMAKE_C_FLAGS_RELWITHDEBINFO   )
+    list(JOIN CMAKE_C_FLAGS_MINSIZEREL       " " CMAKE_C_FLAGS_MINSIZEREL       )
+    list(JOIN CMAKE_CXX_FLAGS_DEBUG          " " CMAKE_CXX_FLAGS_DEBUG          )
+    list(JOIN CMAKE_CXX_FLAGS_RELEASE        " " CMAKE_CXX_FLAGS_RELEASE        )
+    list(JOIN CMAKE_CXX_FLAGS_RELWITHDEBINFO " " CMAKE_CXX_FLAGS_RELWITHDEBINFO )
+    list(JOIN CMAKE_CXX_FLAGS_MINSIZEREL     " " CMAKE_CXX_FLAGS_MINSIZEREL     )
 endif()
 
 if (MINGW)

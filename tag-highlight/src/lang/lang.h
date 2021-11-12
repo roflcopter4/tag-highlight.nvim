@@ -44,9 +44,13 @@ extern FILE *cmd_log;
 #define EXTENSION_CONSTANT          'C'
 #define EXTENSION_OVERLOADED_DECL   'D'
 #define EXTENSION_METHOD            'M'
-#define EXTENSION_NT_TEMPLATE_PARAM 'N'
 #define EXTENSION_OVERLOADEDOP      'O'
 #define EXTENSION_TEMPLATE          'T'
+#define EXTENSION_TYPE_KEYWORD      'K'
+#define EXTENSION_I_DONT_KNOW       '_'
+#define EXTENSION_TEMPLATE_NONTYPE_PARAM 'N'
+
+#define EXTENSION_TEMPLATE_TYPE_PARAM EXTENSION_OVERLOADEDOP
 
 
 /*======================================================================================*/

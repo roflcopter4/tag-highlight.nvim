@@ -191,7 +191,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
 
         /* Because we may have examined multiple tags files, it's very possible
          * for there to be duplicate tags. Sort the list and remove any. */
-        qsort(vimbuf->lst, vimbuf->qty, sizeof(*vimbuf->lst), &b_strcmp_fast_wrap);
+        qsort(vimbuf->lst, vimbuf->qty, sizeof(bstring *), &b_strcmp_fast_wrap);
 
         b_list *uniq = b_list_create_alloc(vimbuf->qty);
         uniq->qty = 0;
@@ -218,7 +218,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
                                       .lang     = &bdata->ft->ctags_name,
                                       .order    =  bdata->ft->order,
                                       .filename =  bdata->name.full,
-                                      .lst      = &tags->lst[i * quot],
+                                      .lst      = &tags->lst[(int)(i * quot)],
                                       .num      =  num};
 
                 if (pthread_create(tid + i, NULL, &do_tok_search, tmp) != 0)
@@ -259,7 +259,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
                 }
         }
 
-        qsort(alldata, total, sizeof(*alldata), &tag_cmp);
+        qsort(alldata, total, sizeof(struct tag *), &tag_cmp);
         remove_duplicate_tags(&ret);
 
         talloc_free(out);
@@ -333,7 +333,8 @@ do_tok_search(void *vdata)
                      ( b_iseq(data->filename, match_file) ||
                        bsearch(&namep, data->vim_buf->lst, data->vim_buf->qty,
                                sizeof(bstring *), &b_strcmp_fast_wrap) )
-                   ) {
+                   )
+                {
                         bstring    *tmp = b_fromblk(name->data, name->slen);
                         struct tag *tag = talloc(CTX, struct tag);
                         *tag            = (struct tag){.b = talloc_move(tag, &tmp), .kind = kind};

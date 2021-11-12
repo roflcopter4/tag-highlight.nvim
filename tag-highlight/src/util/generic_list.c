@@ -346,6 +346,7 @@ argv_append(str_vector *argv, const char *str, const bool cpy)
 void
 argv_append_fmt(str_vector *argv, const char *const __restrict fmt, ...)
 {
+        pthread_mutex_lock(&argv->lock);
         char *_buf = NULL;
         va_list _ap;
         va_start(_ap, fmt);
@@ -363,6 +364,23 @@ argv_append_fmt(str_vector *argv, const char *const __restrict fmt, ...)
         va_end(_ap);
 
         argv_append(argv, _buf, false);
+        pthread_mutex_unlock(&argv->lock);
+}
+
+
+void
+argv_append_null(str_vector *argv)
+{
+        pthread_mutex_lock(&argv->lock);
+
+        if (argv->qty == (argv->mlen - 1)) {
+                auto_type tmp = talloc_realloc(argv, argv->lst, char *, (argv->mlen *= 2));
+                argv->lst     = tmp;
+        }
+
+        argv->lst[argv->qty++] = NULL;
+
+        pthread_mutex_unlock(&argv->lock);
 }
 
 

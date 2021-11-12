@@ -256,35 +256,44 @@ command! -nargs=? -complete=file THLAddProject call s:Add_Remove_Project(0, <q-a
 command! -nargs=? -complete=file THLRemoveProject call s:Add_Remove_Project(1, <q-args>)
 
 nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
-" nmap <silent> <leader>tag <Plug>tag_highlightToggle
-
-" runtime! fnamemodify('./Tag_Highlight', ':p')
 
 "============================================================================= 
 
-highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
-highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
-highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
-highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
-highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
-highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
-highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
-highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
-highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
+function s:WhyWontYouJustWork()
 
-highlight default link tag_highlight_OverloadedDeclTag		Function
-highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
-highlight default link tag_highlight_NonTypeTemplateParam	Normal
-highlight default link tag_highlight_GlobalVarTag		PreCondit
-highlight default link tag_highlight_ConstantTag		Constant
-highlight default link tag_highlight_EnumTag			Constant
-highlight default link tag_highlight_FunctionTag		Function
-highlight default link tag_highlight_InterfaceTag		Identifier
-highlight default link tag_highlight_MemberTag			Operator
-highlight default link tag_highlight_ObjectTag			Identifier
-highlight default link tag_highlight_ModuleTag			PreProc
-highlight default link tag_highlight_PreProcTag			PreProc
-highlight default link tag_highlight_TypeTag			Type
+    highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
+    highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
+    highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
+    highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
+    highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
+    highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
+    highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
+    highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
+    highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
+
+    highlight default link tag_highlight_UnknownTag		Error
+    highlight default link tag_highlight_TypeKeywordTag	Structure
+
+    highlight default link tag_highlight_OverloadedDeclTag		Function
+    highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+    highlight default link tag_highlight_NonTypeTemplateParam	Normal
+    highlight default link tag_highlight_GlobalVarTag		PreCondit
+    highlight default link tag_highlight_ConstantTag		Constant
+    highlight default link tag_highlight_EnumTag			Constant
+    highlight default link tag_highlight_FunctionTag		Function
+    highlight default link tag_highlight_InterfaceTag		Identifier
+    highlight default link tag_highlight_MemberTag			Operator
+    highlight default link tag_highlight_ObjectTag			Identifier
+    highlight default link tag_highlight_ModuleTag			PreProc
+    highlight default link tag_highlight_PreProcTag			PreProc
+    highlight default link tag_highlight_TypeTag			Type
+
+endfunction
+
+augroup TagHighlightLinks
+    autocmd VimEnter * call s:WhyWontYouJustWork()
+augroup END
+
 
 "============================================================================= 
 " Shim for C code.
@@ -373,12 +382,6 @@ function! s:StopTagHighlight()
     endif
 endfunction
 
-"function! s:ExitKill()
-"    if exists('g:tag_highlight#binpid') 
-"        echom system('kill -INT ' . g:tag_highlight#binpid) 
-"    endif
-"endfunction
-
 "===============================================================================
 
 function! s:getchan(job_id, data, event) dict
@@ -430,8 +433,6 @@ command! THLStop call s:StopTagHighlight()
 command! THLClear call s:SendMessage('ClearBuffer')
 command! THLUpdate call s:SendMessage('UpdateTagsForce')
 
-" command! TestExitKill call s:ExitKill()
-
 if exists('g:tag_highlight#enabled') && g:tag_highlight#enabled
     augroup Tag_Highlight_Init
         autocmd VimEnter * call s:InitTagHighlight()
@@ -445,7 +446,6 @@ augroup TagHighlightAu
     autocmd BufDelete * call s:DeleteBuf()
     autocmd VimLeavePre * call s:SendMessage('Exit')
     autocmd Syntax * call s:SendMessage('SyntaxChanged')
-    " autocmd BufReadPost * call s:SendMessage('UpdateTagsForce')
 augroup END
 
 "===============================================================================

@@ -28,19 +28,19 @@ set (tag-highlight_SOURCES
     nvim_api/common.c
     nvim_api/misc.c
 
-    contrib/bstring/additions.c
-    contrib/bstring/bstrlib.c
-
-    contrib/contrib.c
-
-    util/archive_gzip.c
-    util/archive_read.c
-    util/archive_write.c
-    util/find.c
-    util/generic_list.c
-    util/linked_list.c
-    util/nanosleep.c
-    util/util.c
+    # contrib/bstring/additions.c
+    # contrib/bstring/bstrlib.c
+    # 
+    # contrib/contrib.c
+    # 
+    # util/archive_gzip.c
+    # util/archive_read.c
+    # util/archive_write.c
+    # util/find.c
+    # util/generic_list.c
+    # util/linked_list.c
+    # util/nanosleep.c
+    # util/util.c
 )
 
 set (tag-highlight_headers
@@ -101,7 +101,12 @@ endif()
 add_subdirectory(lang)
 
 add_executable(tag-highlight ${tag-highlight_SOURCES})
-add_library(thl-util STATIC ${thl-util_SOURCES})
+add_library(thl-util OBJECT ${thl-util_SOURCES})
+
+
+set_property(TARGET tag-highlight APPEND PROPERTY INCLUDE_DIRECTORIES
+             ${LIBUV_INCLUDE_DIRS}
+)
 
 ################################################################################
 # Libraries
@@ -111,7 +116,10 @@ target_link_libraries(tag-highlight
     ${CMAKE_THREAD_LIBS_INIT}
     ${ZLIB_LIBRARIES}
     ${LLVM_SYSTEM_LIBRARIES}
+    ${LLVM_LIBRARIES}
     ${LIBCLANG_LIBRARY}
+    ${LIBUV_LIBRARIES}
+    #-L/usr/lib/llvm/13/lib64 -lclang-cpp
     thl-util
     tag_highlight_lang
 )
@@ -179,9 +187,6 @@ elseif (FALSE)
     if (USE_JEMALLOC)
         target_link_libraries(mytalloc -ljemalloc)
     endif()
-    # if (USE_LIBSODIUM)
-    #     target_link_libraries(mytalloc sodium)
-    # endif()
 
     target_link_libraries(tag-highlight mytalloc)
 
@@ -200,8 +205,7 @@ else ()
     add_library(mytalloc OBJECT "${PROJECT_SOURCE_DIR}/src/contrib/talloc/talloc.c")
     
     set (mytalloc_compile_options_common
-            "-flto"
-            # "-fno-lto"
+            # "-flto"
             "-D_XOPEN_SOURCE_EXTENDED=1"
             "-D__STDC_WANT_LIB_EXT1__=1"
         )
@@ -218,25 +222,11 @@ else ()
             mytalloc
             PRIVATE
                 ${mytalloc_compile_options_common}
-                # "-fstack-clash-protection"
-                # "-fstack-protector-strong"
                 "-fvisibility=hidden"
                 "-DSTATIC_talloc_MODULES=NULL"
                 "-DSTATIC_talloc_MODULES_PROTO=extern void __talloc_dummy_module_proto(void)"
         )
     endif()
-    
-    target_link_options(mytalloc PRIVATE -fno-lto)
-    
-    # if (USE_JEMALLOC)
-    #     target_link_libraries(mytalloc -ljemalloc)
-    # endif()
-    # if (USE_LIBSODIUM)
-    #     target_link_libraries(mytalloc sodium)
-    # endif()
-    # if (LibBSD_FOUND)
-    #     target_link_libraries(tag-highlight ${LibBSD_LIBRARIES})
-    # endif()
     
     target_link_libraries(tag-highlight mytalloc)
 endif()

@@ -83,7 +83,7 @@ handle_cstyle(bstring **vim_bufp)
         unsigned short  want    = 0;
 
         while (data && *data->data && b_memsep(tok, data, '\n')) {
-                char     *repl  = malloc(tok->slen + 2LL);
+                char     *repl  = talloc_size(NULL, tok->slen + 2LL);
                 char     *line  = (char *)tok->data;
                 unsigned  len   = tok->slen;
                 unsigned  i     = 0;
@@ -189,7 +189,7 @@ handle_cstyle(bstring **vim_bufp)
                         repl[x]   = '\0';
                         b_list_append(list, b_steal(repl, x + 1, true));
                 } else {
-                        free(repl);
+                        talloc_free(repl);
                 }
         }
 

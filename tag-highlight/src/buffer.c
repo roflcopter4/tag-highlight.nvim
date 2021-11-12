@@ -48,7 +48,7 @@ static int      destroy_buffer_wrapper(Buffer *bdata);
 
 
 /* Actually initializing these things seems to be mandatory on Windows. */
-__attribute__((__constructor__(50))) static void
+__attribute__((__constructor__(500))) static void
 buffer_c_constructor(void)
 {
       pthread_mutexattr_t attr;
@@ -781,8 +781,8 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
             pthread_rwlock_unlock(bnode->lock);
       }
 
-      pthread_mutex_lock(&bdata->lock.total);
-      pthread_mutex_lock(&bdata->lock.lang_mtx);
+      //pthread_mutex_lock(&bdata->lock.lang_mtx);
+      //pthread_mutex_lock(&bdata->lock.total);
 
       if (--bdata->topdir->refs == 0) {
             echo("Destroying topdir (%s)", BS(bdata->topdir->pathname));
@@ -799,15 +799,15 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
                   mpack_destroy_arg_array(bdata->calls);
       }
 
-      pthread_mutex_unlock(&bdata->lock.total);
+      //pthread_mutex_unlock(&bdata->lock.total);
       pthread_mutex_destroy(&bdata->lock.total);
-      pthread_mutex_unlock(&bdata->lock.lang_mtx);
+      //pthread_mutex_unlock(&bdata->lock.lang_mtx);
       pthread_mutex_destroy(&bdata->lock.lang_mtx);
 
       p99_futex_wakeup(&destruction_futex[bdata->num]);
       if (flags & DES_BUF_TALLOC_FREE) {
             talloc_set_destructor(bdata, NULL);
-            TALLOC_FREE(bdata);
+            talloc_free(bdata);
       }
 }
 

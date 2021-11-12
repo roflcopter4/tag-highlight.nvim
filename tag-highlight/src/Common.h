@@ -105,7 +105,9 @@ extern const char *program_invocation_name;
 
 #ifdef basename
 #  undef basename
+#  ifndef __cplusplus
 extern char *basename(const char *) __THROW __nonnull((1));
+#  endif
 #endif
 
 #include <talloc.h>
@@ -118,11 +120,15 @@ typedef int error_t;
 #define MPACK_USE_P99   1
 #define BSTR_USE_TALLOC 1
 
-#include "bstring.h"
-#include "my_p99_common.h"
+#ifdef __cplusplus
+#  include "contrib/bstring/defines.h"
+#else
+#  include "bstring.h"
+#  include "my_p99_common.h"
 
-#include "contrib/p99/p99.h"
-#include "contrib/p99/p99_compiler.h"
+#  include "contrib/p99/p99.h"
+#  include "contrib/p99/p99_compiler.h"
+#endif
 
 #define ALWAYS_INLINE p99_inline
 #define INLINE        p99_inline
@@ -151,7 +157,7 @@ extern char *HOME;
 #  endif
 #endif
 
-#ifndef thread_local
+#if !defined(thread_local) && !defined(__cplusplus)
 #  if defined(_MSC_VER)
 #    define thread_local __declspec(thread)
 #  elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
@@ -163,7 +169,7 @@ extern char *HOME;
 #  endif
 #endif
 
-#if !defined(__cplusplus) && !defined(static_assert)
+#if !defined(static_assert) && !defined(__cplusplus)
 #  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #    define static_assert(...) _Static_assert(__VA_ARGS__)
 #  else

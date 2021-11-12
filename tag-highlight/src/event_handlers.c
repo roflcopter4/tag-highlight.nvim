@@ -33,7 +33,7 @@ P99_FIFO(event_node_ptr) nvim_event_queue;
 #define CTX event_handlers_talloc_ctx_
 void *event_handlers_talloc_ctx_ = NULL;
 
-__attribute__((__constructor__(100)))
+__attribute__((__constructor__(200)))
 static void event_handlers_initializer(void)
 {
       pthread_mutexattr_t attr;
@@ -385,6 +385,11 @@ wrap_update_highlight(void *vdata)
  * response to the user calling the provided 'clear', 'stop', or 'update' commands.
  */
 
+extern atomic_int global_previous_buffer;
+atomic_int global_previous_buffer = ATOMIC_VAR_INIT(-1);
+
+static pthread_mutex_t autocmd_mutex;
+
 P99_DECLARE_ENUM(vimscript_message_type, int,
                  VIML_BUF_NEW,
                  VIML_BUF_CHANGED,
@@ -397,19 +402,21 @@ P99_DECLARE_ENUM(vimscript_message_type, int,
                  );
 P99_DEFINE_ENUM(vimscript_message_type);
 
-static pthread_mutex_t autocmd_mutex;
-
-
-static void event_buffer_changed(atomic_int *prev_num);
-static void event_syntax_changed(atomic_int *prev_num);
-static void event_want_update(atomic_int *prev_num, vimscript_message_type val);
-static void event_force_update(atomic_int *prev_num);
+static void event_buffer_changed(void);
+static void event_syntax_changed(void);
+static void event_want_update(vimscript_message_type val);
+static void event_force_update(void);
 static noreturn void event_stop(void);
 static noreturn void event_exit(void);
 static void attach_new_buffer(int num);
 
-__attribute__((__constructor__(400))) void
-autocmd_constructor(void)
+extern __always_inline void global_previous_buffer_set(int num);
+extern __always_inline int  global_previous_buffer_get(void);
+extern __always_inline int  global_previous_buffer_exchange(int num);
+
+
+__attribute__((__constructor__(400)))
+void autocmd_constructor(void)
 {
       pthread_mutex_init(&autocmd_mutex);
 }
@@ -419,7 +426,6 @@ autocmd_constructor(void)
 noreturn void *
 event_autocmd(void *vdata)
 {
-      static atomic_int bufnum = ATOMIC_VAR_INIT(-1);
       pthread_mutex_lock(&autocmd_mutex);
 
       vimscript_message_type val;
@@ -433,23 +439,23 @@ event_autocmd(void *vdata)
       switch (val) {
       case VIML_BUF_NEW:
       case VIML_BUF_CHANGED:
-            event_buffer_changed(&bufnum);
+            event_buffer_changed();
             break;
 
       case VIML_BUF_SYNTAX_CHANGED:
             /* Have to completely reconsider a buffer if the active syntax
              * (ie language) is changed. */
-            event_syntax_changed(&bufnum);
+            event_syntax_changed();
             break;
 
       case VIML_UPDATE_TAGS:
             /* Usually indicates that the buffer was written. */
-            event_want_update(&bufnum, val);
+            event_want_update(val);
             break;
 
       case VIML_UPDATE_TAGS_FORCE:
             /* User forced an update. */
-            event_force_update(&bufnum);
+            event_force_update();
             break;
 
       case VIML_STOP:
@@ -475,13 +481,31 @@ event_autocmd(void *vdata)
       pthread_exit();
 }
 
+inline void
+global_previous_buffer_set(int const num)
+{
+      atomic_store_explicit(&global_previous_buffer, num, memory_order_release);
+}
+
+inline int
+global_previous_buffer_get(void)
+{
+      return atomic_load_explicit(&global_previous_buffer, memory_order_acquire);
+}
+
+inline int
+global_previous_buffer_exchange(int const num)
+{
+      return atomic_exchange_explicit(&global_previous_buffer, num, memory_order_acq_rel);
+}
+
 /*--------------------------------------------------------------------------------------*/
 
 static void
-event_buffer_changed(atomic_int *prev_num)
+event_buffer_changed(void)
 {
       int const num   = nvim_get_current_buf();
-      int const prev  = atomic_exchange_explicit(prev_num, num, memory_order_acq_rel);
+      int const prev  = global_previous_buffer_exchange(num);
       Buffer   *bdata = find_buffer(num);
 
       if (prev == num && bdata)
@@ -493,30 +517,25 @@ event_buffer_changed(atomic_int *prev_num)
                   libclang_suspend_translationunit(prev_bdata);
       }
 
-      if (bdata && bdata->initialized) {
-#if 0
-            if (!bdata->calls)
-                  get_initial_taglist(bdata);
-#endif
+      if (bdata && bdata->initialized)
             update_highlight(bdata, HIGHLIGHT_NORMAL);
-      } else {
+      else
             attach_new_buffer(num);
-      }
 }
 
 static void
-event_syntax_changed(atomic_int *prev_num)
+event_syntax_changed(void)
 {
       int const num   = nvim_get_current_buf();
       Buffer   *bdata = find_buffer(num);
-      atomic_store_explicit(prev_num, num, memory_order_release);
+      global_previous_buffer_set(num);
+
       if (!bdata)
             return;
       bstring *ft = nvim_buf_get_option(num, B("ft"), E_STRING).ptr;
 
       if (!b_iseq(ft, &bdata->ft->vim_name)) {
             echo("Filetype changed. Updating.");
-            /* clear_highlight(bdata, true); */
             destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_TALLOC_FREE | DES_BUF_DESTROY_NODE);
             attach_new_buffer(num);
       }
@@ -525,10 +544,10 @@ event_syntax_changed(atomic_int *prev_num)
 }
 
 static void
-event_want_update(atomic_int *prev_num, UNUSED vimscript_message_type val)
+event_want_update(UNUSED vimscript_message_type val)
 {
       int const num = nvim_get_current_buf();
-      atomic_store(prev_num, num);
+      global_previous_buffer_set(num);
       Buffer *bdata = find_buffer(num);
 
       if (bdata) {
@@ -546,20 +565,20 @@ event_want_update(atomic_int *prev_num, UNUSED vimscript_message_type val)
 }
 
 static void
-event_force_update(atomic_int *prev_num)
+event_force_update(void)
 {
       UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
       TIMER_START(&t);
 
       int const num = nvim_get_current_buf();
-      atomic_store_explicit(prev_num, num, memory_order_release);
+      global_previous_buffer_set(num);
       Buffer *bdata = find_buffer(num);
 
-      if (bdata) {
+      if (bdata)
             update_highlight(bdata, HIGHLIGHT_UPDATE_FORCE);
-      } else {
+      else
             attach_new_buffer(num);
-      }
+
       TIMER_REPORT(&t, "Forced update");
 }
 
@@ -597,7 +616,7 @@ event_exit(void)
 }
 
 static void
-attach_new_buffer(int num)
+attach_new_buffer(int const num)
 {
       UNUSED struct timer t = STRUCT_TIMER_INITIALIZER;
       Buffer *bdata = new_buffer(num);
