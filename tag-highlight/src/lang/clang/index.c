@@ -51,7 +51,7 @@ __attribute__((used)) static const char *const idx_entity_kind_repr[] = {
       do {                                                                               \
             const bstring *group;                                                        \
             if ((group = find_group(data->ft, (CH)))) {                                  \
-                  if (1)                                                                 \
+                  if (0)                                                                 \
                         SHOUT("Adding call %d (aka \"%s\") in index on line %u\n", (CH), \
                               idx_entity_kind_repr[KIND], line_data.line);               \
                   add_hl_call(data->calls, data->bdata->num, data->bdata->hl_id, group,  \
