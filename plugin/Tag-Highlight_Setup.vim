@@ -24,14 +24,19 @@ try
 endtry
 
 let s:ignored_tags = {
-            \  'c':   ['bool', 'static_assert', '__attribute__', 'true', 'false'],
-            \  'cpp': ['bool', 'static_assert', '__attribute__', 'true', 'false'],
-            \}
+            \   'c': ['static_assert', '__attribute__', 'auto_type', '__auto_type', '__extension__',
+            \         'alignof', 'alignas', 'main', 'true', 'false', 'bool'],
+            \   'cpp': ['bool', 'static_assert', '__attribute__', 'true', 'false',
+            \           'maybe_unused', 'nodiscard', 'concept', 'requires'],
+            \ }
 
 if !exists('g:tag_highlight#ignored_tags')
     let g:tag_highlight#ignored_tags = copy(s:ignored_tags)
 endif
 " call extend(g:tag_highlight#ignored_tags['cpp'], ['noreturn', 'nodiscard'])
+
+call s:InitVar('use_bundled_colors', 1)
+call s:InitVar('link_bundled_colors', 1)
 
 call s:InitVar('file', '')
 call s:InitVar('ctags_bin', 'ctags')
@@ -44,15 +49,15 @@ call s:InitVar('compression_type', 'gzip')
 call s:InitVar('enabled',     1)
 call s:InitVar('no_autoconf', 1)
 call s:InitVar('recursive',   1)
-call s:InitVar('verbose',     1)
-call s:InitVar('run_ctags',   1)
+call s:InitVar('verbose',     0)
+call s:InitVar('run_ctags',   0)
 
 " People often make annoying #defines for C and C++ keywords, types, etc. Avoid
 " highlighting these by default, leaving the built in vim highlighting intact.
 call s:InitVar('restored_groups', {
-                \     'c':   ['cConstant', 'cStorageClass', 'cType', 'cStatement'],
-                \     'cpp': ['cConstant', 'cStorageClass', 'cType', 'cStatement',
-                \             'cppStorageClass', 'cppType',],
+                \     'c':   ['cConstant', 'cStorageClass', 'cType', 'cStatement', 'cConditional', 'cRepeat'],
+                \     'cpp': ['cConstant', 'cStorageClass', 'cType', 'cStatement', 'cConditional', 'cRepeat',
+                \             'cppStorageClass', 'cppType'],
                 \ })
  
 call s:InitVar('norecurse_dirs', [
@@ -259,36 +264,77 @@ nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
 
 "============================================================================= 
 
-function s:WhyWontYouJustWork()
+if g:tag_highlight#use_bundled_colors
+    color THLMolokai
+endif
 
-    highlight default link tag_highlight_TemplateTag	tag_highlight_ClassTag
-    highlight default link tag_highlight_ClassTag		tag_highlight_TypeTag
-    highlight default link tag_highlight_EnumTypeTag	tag_highlight_TypeTag
-    highlight default link tag_highlight_StructTag		tag_highlight_TypeTag
-    highlight default link tag_highlight_UnionTag		tag_highlight_TypeTag
-    highlight default link tag_highlight_MethodTag		tag_highlight_FunctionTag
-    highlight default link tag_highlight_VariableTag	tag_highlight_ObjectTag
-    highlight default link tag_highlight_FieldTag		tag_highlight_MemberTag
-    highlight default link tag_highlight_NamespaceTag	tag_highlight_ModuleTag
+if g:tag_highlight#link_bundled_colors
+    function s:WhyWontYouJustWork()
 
-    highlight default link tag_highlight_UnknownTag		Error
-    highlight default link tag_highlight_TypeKeywordTag	Structure
+        highlight default link tag_highlight_ClassTag			MagentaIGuess
+        highlight default link tag_highlight_ConstantTag		Constant
+        highlight default link tag_highlight_EnumTag			Enum
+        highlight default link tag_highlight_FunctionTag		CFuncTag
+        highlight default link tag_highlight_GlobalVarTag		GlobalVarTag
+        highlight default link tag_highlight_InterfaceTag		Identifier
+        highlight default link tag_highlight_MemberTag			CMember
+        highlight default link tag_highlight_MethodTag			Method
+        highlight default link tag_highlight_ModuleTag			Namespace
+        highlight default link tag_highlight_NonTypeTemplateParam	NonTypeTemplParam
+        highlight default link tag_highlight_ObjectTag			Identifier
+        highlight default link tag_highlight_OverloadedDeclTag		OverloadedDecl
+        highlight default link tag_highlight_OverloadedOperatorTag	OverloadedOperator
+        highlight default link tag_highlight_PreProcTag			PreProc
+        highlight default link tag_highlight_TemplateTag		NewClassColor
+        highlight default link tag_highlight_TypeKeywordTag		Structure
+        highlight default link tag_highlight_TypeTag			Type
+        highlight default link tag_highlight_UnknownTag			orangered
 
-    highlight default link tag_highlight_OverloadedDeclTag		Function
-    highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
-    highlight default link tag_highlight_NonTypeTemplateParam	Normal
-    highlight default link tag_highlight_GlobalVarTag		PreCondit
-    highlight default link tag_highlight_ConstantTag		Constant
-    highlight default link tag_highlight_EnumTag			Constant
-    highlight default link tag_highlight_FunctionTag		Function
-    highlight default link tag_highlight_InterfaceTag		Identifier
-    highlight default link tag_highlight_MemberTag			Operator
-    highlight default link tag_highlight_ObjectTag			Identifier
-    highlight default link tag_highlight_ModuleTag			PreProc
-    highlight default link tag_highlight_PreProcTag			PreProc
-    highlight default link tag_highlight_TypeTag			Type
+        highlight default link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
+        highlight default link tag_highlight_FieldTag			tag_highlight_MemberTag
+        highlight default link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
+        highlight default link tag_highlight_StructTag			tag_highlight_TypeTag
+        highlight default link tag_highlight_UnionTag			tag_highlight_TypeTag
+        highlight default link tag_highlight_VariableTag		tag_highlight_ObjectTag
 
-endfunction
+        highlight! link goConstantTag					Enum
+        highlight! link goGlobalVarTag					GlobalVarTag
+        highlight! link pythonGlobalVarTag				Enum
+        highlight! link goInterfaceTag					NewClassColor
+        highlight! link rustMacroTag					NewClassColor
+
+    endfunction
+else
+    function s:WhyWontYouJustWork()
+
+        highlight default link tag_highlight_ClassTag			tag_highlight_TypeTag
+        highlight default link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
+        highlight default link tag_highlight_FieldTag			tag_highlight_MemberTag
+        highlight default link tag_highlight_MethodTag			tag_highlight_FunctionTag
+        highlight default link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
+        highlight default link tag_highlight_StructTag			tag_highlight_TypeTag
+        highlight default link tag_highlight_TemplateTag		tag_highlight_ClassTag
+        highlight default link tag_highlight_UnionTag			tag_highlight_TypeTag
+        highlight default link tag_highlight_VariableTag		tag_highlight_ObjectTag
+
+        highlight default link tag_highlight_ConstantTag		Constant
+        highlight default link tag_highlight_EnumTag			Constant
+        highlight default link tag_highlight_FunctionTag		Function
+        highlight default link tag_highlight_GlobalVarTag		PreCondit
+        highlight default link tag_highlight_InterfaceTag		Identifier
+        highlight default link tag_highlight_MemberTag			Operator
+        highlight default link tag_highlight_ModuleTag			PreProc
+        highlight default link tag_highlight_NonTypeTemplateParam	Normal
+        highlight default link tag_highlight_ObjectTag			Identifier
+        highlight default link tag_highlight_OverloadedDeclTag		Function
+        highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+        highlight default link tag_highlight_PreProcTag			PreProc
+        highlight default link tag_highlight_TypeKeywordTag		Structure
+        highlight default link tag_highlight_TypeTag			Type
+        highlight default link tag_highlight_UnknownTag			Error
+
+    endfunction
+endif
 
 augroup TagHighlightLinks
     autocmd VimEnter * call s:WhyWontYouJustWork()
