@@ -5,6 +5,11 @@ Currently, C, C++, and Go are supported, and more languages will be added as tim
 
 Originally, I wrote this to be a simple tag highlighting plugin for Neovim, much like Neotags (https://github.com/c0r73x/neotags.nvim) implemented entirely in C, for no particular reason. Working with Neovim proved so simple and fast that it seemed natural to expand this project to implement true semantic highlighting.
 
+# IMPORTANT NOTE
+I have (finally) cleaned up my color scheme file enough to include it with plugin. Because the plugin is useless without a custom color scheme, and I haven't bothered to document anything, I've made the foolish decision to enable my color scheme by default with the plugin. This is mainly just to demonstrate it working. This can be disabled by placing this in your init.vim file before the plugin is loaded:
+
+```let g:tag_highlight#use_bundled_colors = 0```
+
 ## DISCLAIMER/PLEA
 I have no idea if anyone is actually using this thing. If you are, or you've tried to and something has gone horribly wrong I'd be grateful for any feedback. Heck, it'd make my day even if all you were to say is that you hate my software and/or me. And I'm not even kidding. Please do complain if it doesn't work.
 
@@ -24,7 +29,7 @@ Different languages are tracked separately. Adding a directory a project for 'C'
 
 ### The colors
 
-You'll also want to fiddle with the highlight linking to fit your favorite color scheme. The default colors were chosen almost completely at random and I've never even looked at them. The assumption is that you'll fix it yourself. I should probably do better than this but I'm not entirely sure how. For this plugin to make any sense at all you'll need to specify many more colors than are provided in a normal vim color scheme. Perhaps I'll upload what I use as an example at some point.
+You'll also want to fiddle with the highlight linking to fit your favorite color scheme. The default colors were chosen almost completely at random and I've never even looked at them. For this plugin to make any sense you're going to need more colors than most schemes offer by default. Check my included scheme as an example if you wish.
 
 ## Questions I would probably ask
 
