@@ -23,7 +23,7 @@ int
         bstring *tmp = nvim_call_function(B("tempname"), E_STRING).ptr;
         if (suffix)
                 b_concat(tmp, suffix);
-        int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY, 0600);
+        int ret = safe_open(BS(tmp), O_BINARY|O_CREAT|O_WRONLY|O_EXCL, 0600);
         if (name)
                 *name = tmp;
         else

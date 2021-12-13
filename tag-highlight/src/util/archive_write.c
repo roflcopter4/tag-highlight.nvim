@@ -135,24 +135,6 @@ write_gzip(struct top_dir *topdir)
 void
 write_lzma(struct top_dir *topdir)
 {
-#if 0
-        FILE *fp1 = fopen(BS(topdir->tmpfname), "rb");
-        /* assert(fread(in_buf, 1, st.st_size, fp1) == (size_t)st.st_size); */
-        /* assert(feof(fp1)); */
-        fclose(fp1);
-        lzma_mt mt_opts = { 
-                .flags      = 0,
-                .threads    = find_num_cpus(),
-                .block_size = 0,
-                .timeout    = 200/*ms*/,
-                .preset     = 6,
-                /* .preset     = LZMA_PRESET_EXTREME, */
-                .filters    = NULL,
-                .check      = LZMA_CHECK_CRC64,
-                /* 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL, NULL, NULL, NULL */
-        };
-#endif
-
         struct stat st = { .st_size = 0LL };
         fsync(topdir->tmpfd);
         if (fstat(topdir->tmpfd, &st) != 0)

@@ -12,7 +12,7 @@ struct archive_size {
 };
 
 extern int   gzip_size(struct archive_size *size, char const *filename);
-extern int   xz_size(struct archive_size *size, char const *filename);
+extern int   xz_get_uncompressed_size(struct archive_size *size, char const *filename);
 extern char *lzma_message_strm(unsigned code);
 
 extern int getlines(b_list *tags, comp_type_t comptype, bstring const *filename);

@@ -56,7 +56,7 @@ extern unsigned       nvim_buf_line_count      (int bufnum);
 extern void           nvim_call_atomic         (mpack_arg_array const *calls);
 extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR; // FIXME: Needs to be able to take arguments properly
 extern bool           nvim_command             (bstring const *cmd);
-extern mpack_retval   nvim_command_output      (bstring const *cmd, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_exec                (bstring const *src, bool output, mpack_expect_t expect);
 extern mpack_retval   nvim_eval                (bstring const *eval, mpack_expect_t expect) __aWUR;
 extern void           nvim_get_api_info        (void);
 extern int            nvim_get_current_buf     (void);
@@ -68,8 +68,10 @@ extern void           nvim_subscribe           (bstring const *event);
 extern bool           nvim_set_var             (bstring const *varname, bstring const *fmt, ...);
 extern bool           nvim_set_option          (bstring const *optname, bstring const *value);
 
+extern mpack_retval nvim_command_output(bstring const *cmd, mpack_expect_t expect) __aWUR
+        __aDEPMSG("Deprecated in v7: see nvim_exec");
 extern void nvim_buf_clear_highlight(unsigned bufnum, int hl_id, unsigned start, int end, bool blocking)
-        __aDEPMSG("Removed from neovim's documentation: Use nvim_buf_clear_namespace.");
+        __aDEPMSG("Deprecated in v7: use nvim_buf_clear_namespace.");
 
 extern void nvim_set_client_info(bstring const *name, unsigned major, unsigned minor, bstring const *dev,
                                  bstring const *type, void const *methods, void const *attributes);

@@ -78,18 +78,18 @@ struct bufdata {
         /* atomic_uint ctick; */
         p99_futex   ctick;
         atomic_uint last_ctick;
-        uint16_t    num;
+        uint32_t    num;
         uint16_t    num_failures;
-        uint8_t     hl_id;
+        uint16_t    hl_id;
         atomic_bool initialized;
-
-        bool total_failure : 1;
+        bool        total_failure;
 
         struct {
                 pthread_mutex_t total;
                 pthread_mutex_t lang_mtx;
                 p99_count       num_workers;
                 p99_count       hl_waiters;
+                pthread_t       pids[4];
         } lock;
 
         struct {

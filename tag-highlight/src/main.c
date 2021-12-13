@@ -3,6 +3,13 @@
 
 #include "contrib/p99/p99_futex.h"
 
+#include <event2/event.h>
+
+#if 0
+#  define JEMALLOC_MANGLE
+#  include <jemalloc/jemalloc.h>
+#endif
+
 #if defined SANITIZE && defined DEBUG
 #  include "sanitizer/common_interface_defs.h"
 __attribute__((__const__)) const char *
@@ -24,17 +31,37 @@ __asan_default_options(void)
 #  define STDOUT_FILENO (1)
 #  define STDERR_FILENO (2)
 #endif
+#ifdef __clang__
+#  define CLANG_ENUM_SIZE(size) : size
+#else
+#  define CLANG_ENUM_SIZE(size)
+#endif
 
-extern void talloc_emergency_library_init(void);
+/*--------------------------------------------------------------------------------------*/
+
+enum log_filename_id CLANG_ENUM_SIZE(uint32_t){
+    LOG_ID_MPACK_MSG = 0,
+    LOG_ID_MPACK_RAW_READ,
+    LOG_ID_MPACK_RAW_WRITE,
+
+    LOG_ID_LAST_ELEMENT = LOG_ID_MPACK_RAW_WRITE
+};
+
+alignas(512)
+char log_filenames[LOG_ID_LAST_ELEMENT + 1][4096];
 
 extern FILE *main_log;
-extern FILE *mpack_raw;
+extern FILE *mpack_raw_read;
 FILE        *talloc_log_file;
 pthread_t    top_thread;
 char         LOGDIR[SAFE_PATH_MAX];
 p99_futex    first_buffer_initialized = P99_FUTEX_INITIALIZER(0);
 
 static struct timer main_timer = STRUCT_TIMER_INITIALIZER;
+
+/*--------------------------------------------------------------------------------------*/
+
+extern void talloc_emergency_library_init(void);
 
 extern void           run_event_loop(int fd);
 extern void           exit_cleanup(void);
@@ -70,6 +97,8 @@ main(UNUSED int argc, char *argv[])
       talloc_emergency_library_init();
       talloc_disable_null_tracking();
 
+      event_enable_debug_logging(EVENT_DBG_NONE);
+
 #if 0
       extern void thl_clang_call_foo(char const *fname);
       thl_clang_call_foo(argv[1]);
@@ -92,6 +121,9 @@ main(UNUSED int argc, char *argv[])
        * program, we clean up. */
       clean_talloc_contexts();
 
+      exit_cleanup();
+      //malloc_stats_print(NULL, NULL, "");
+      eprintf("All done!\n");
       return EXIT_SUCCESS;
 }
 
@@ -130,7 +162,7 @@ general_init(void)
       }
 #endif
       initialize_talloc_contexts();
-      open_logs();
+      //open_logs();
       top_thread = pthread_self();
       p99_futex_init(&first_buffer_initialized, 0);
       START_DETACHED_PTHREAD(neovim_init);
@@ -183,14 +215,28 @@ static void
 open_logs(void)
 {
 #ifdef DEBUG
-      bstring *tmp = b_fromcstr(program_invocation_name);
-      bstring *dir = b_dirname(tmp);
+      //bstring *tmp = b_fromcstr(program_invocation_name);
+      //bstring *dir = b_dirname(tmp);
+      char tmp[PATH_MAX + 1];
+#if 0
+      size_t len = settings.cache_dir->slen;
+      memcpy(tmp, settings.cache_dir->data, len);
+      tmp[len++] = '/';
+      memcpy(tmp + len, ("mpack_log_XXXXXX"), 17);
+      (void)tmpnam(tmp);
+#endif
+      braindead_tempname(tmp, BS(settings.cache_dir), "mpack_", NULL);
+      warnd("Opening log at base \"%s\"", tmp);
 
-      mpack_log = safe_fopen_fmt("web", "%s" PATHSEP_STR "mpack.log", BS(dir));
-      mpack_raw = safe_fopen_fmt("web", "%s" PATHSEP_STR "mpack_raw", BS(dir));
+      sprintf(log_filenames[LOG_ID_MPACK_MSG],       "%s_msg.log", tmp);
+      sprintf(log_filenames[LOG_ID_MPACK_RAW_READ],  "%s_raw_read.log", tmp);
+      sprintf(log_filenames[LOG_ID_MPACK_RAW_WRITE], "%s_raw_write.log", tmp);
+      mpack_log       = safe_fopen(log_filenames[LOG_ID_MPACK_MSG], "wbex");
+      mpack_raw_read  = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_READ], "wbex");
+      mpack_raw_write = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_WRITE], "wbex");
 
-      talloc_free(tmp);
-      talloc_free(dir);
+      //talloc_free(tmp);
+      //talloc_free(dir);
 
       at_quick_exit(quick_cleanup);
 #endif
@@ -202,13 +248,14 @@ neovim_init(UNUSED void *arg)
       extern void global_previous_buffer_set(int num);
 
       get_settings();
+      open_logs();
       nvim_set_client_info(B(PKG), 0, 5, B("alpha"));
 
       int     initial_buf = nvim_get_current_buf();
       Buffer *bdata       = new_buffer(initial_buf);
 
       if (bdata) {
-            global_previous_buffer_set(bdata->num);
+            global_previous_buffer_set((int)bdata->num);
             nvim_buf_attach(bdata->num);
             get_initial_lines(bdata);
             get_initial_taglist(bdata);
@@ -331,14 +378,57 @@ exit_cleanup(void)
       quick_cleanup();
 }
 
+
+static noreturn void *dumb_thread_wrapper(void *vdata)
+{
+      static const char xz_string[] = "xz -7 -- ";
+
+      char const *filename = vdata;
+      struct stat st;
+
+      if (stat(filename, &st) == (-1) || st.st_size < 1024)
+            pthread_exit();
+
+      char buf[PATH_MAX + SIZE_C(512)];
+
+      memcpy(buf, xz_string, sizeof(xz_string) - SIZE_C(1));
+      strcpy(buf + sizeof(xz_string) - SIZE_C(1), filename);
+
+      (void)system(buf);
+      pthread_exit();
+}
+
 /*
  * Basically just close any logs.
  */
 static void
 quick_cleanup(void)
 {
-      if (mpack_log)
+      pthread_t pids[3];
+      memset(&pids, 0, sizeof(pids));
+
+      if (mpack_log) {
             fclose(mpack_log);
-      if (mpack_raw)
-            fclose(mpack_raw);
+            mpack_log = NULL;
+            (pthread_create)(&pids[0], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_MSG]);
+      }
+      if (mpack_raw_write) {
+            fclose(mpack_raw_write);
+            mpack_raw_write = NULL;
+            (pthread_create)(&pids[1], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_READ]);
+      }
+      if (mpack_raw_read) {
+            fclose(mpack_raw_read);
+            mpack_raw_read = NULL;
+            (pthread_create)(&pids[2], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_WRITE]);
+      }
+
+#if 0
+      if (pids[0])
+            pthread_join(pids[0], NULL);
+      if (pids[1])
+            pthread_join(pids[1], NULL);
+      if (pids[2])
+            pthread_join(pids[2], NULL);
+#endif
 }

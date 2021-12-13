@@ -8,11 +8,12 @@ resolve_range(CXSourceRange r, resolved_range_t *res)
 {
         CXSourceLocation start = clang_getRangeStart(r);
         CXSourceLocation end   = clang_getRangeEnd(r);
-        CXFile           file;
         unsigned         line2;
 
-        clang_getFileLocation(start, &file, &res->line, &res->start, &res->offset1);
-        clang_getFileLocation(end,   NULL,  &line2,     &res->end,   &res->offset2);
+        /* clang_getFileLocation(start, &file, &res->line, &res->start, &res->offset1); */
+        /* clang_getFileLocation(end,   NULL,  &line2,     &res->end,   &res->offset2); */
+        clang_getExpansionLocation(start, &res->file, &res->line, &res->start, &res->offset1);
+        clang_getExpansionLocation(end,   NULL,  &line2,     &res->end,   &res->offset2);
 
         res->len = res->offset2 - res->offset1;
 

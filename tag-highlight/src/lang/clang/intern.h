@@ -59,6 +59,7 @@ struct token {
 struct resolved_range {
         unsigned line, start, end, offset1, offset2, len;
         CXFile   file;
+        //CXString file;
 };
 
 /*--------------------------------------------------------------------------------------*/

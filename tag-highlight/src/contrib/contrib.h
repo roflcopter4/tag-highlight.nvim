@@ -1,5 +1,6 @@
 #ifndef SRC_CONTRIB_CONTRIB_H
 #define SRC_CONTRIB_CONTRIB_H
+#pragma once
 
 #include "Common.h"
 

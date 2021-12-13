@@ -36,7 +36,7 @@ struct buffer_node {
 
 typedef struct top_dir Top_Dir;
 
-static p99_futex volatile destruction_futex[DATA_ARRSIZE];
+//static p99_futex volatile destruction_futex[DATA_ARRSIZE];
 static pthread_mutex_t ftdata_mutex;
 static pthread_mutex_t wtf_mutex;
 
@@ -57,8 +57,8 @@ buffer_c_constructor(void)
       pthread_mutex_init(&ftdata_mutex, &attr);
       pthread_mutex_init(&wtf_mutex, &attr);
 
-      for (int i = 0; i < DATA_ARRSIZE; ++i)
-            p99_futex_init((p99_futex *)&destruction_futex[i], 0);
+      //for (int i = 0; i < DATA_ARRSIZE; ++i)
+      //      p99_futex_init((p99_futex *)&destruction_futex[i], 0);
 
       extern void talloc_emergency_library_init(void);
       talloc_emergency_library_init();
@@ -188,7 +188,7 @@ get_bufdata(int const bufnum, Filetype *ft)
       bdata->name.base = b_basename(bdata->name.full);
       bdata->name.path = b_dirname(bdata->name.full);
       bdata->lines     = ll_make_new(bdata);
-      bdata->num       = (uint16_t)bufnum;
+      bdata->num       = bufnum;
       bdata->ft        = ft;
       bdata->topdir    = init_topdir(bdata); // Topdir init must be the last step.
 
@@ -501,7 +501,7 @@ check_project_directories(bstring *dir, Filetype const *ft)
       FILE *fp = fopen(BS(settings.settings_file), "rb");
 #else
       /* "reb" -> 'e' = O_CLOEXEC. Nobody ever told me about that. */
-      FILE *fp = fopen(BS(settings.settings_file), "reb");
+      FILE *fp = fopen(BS(settings.settings_file), "rbem");
 #endif
       if (!fp)
             return dir;
@@ -781,7 +781,23 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
             pthread_rwlock_unlock(bnode->lock);
       }
 
-      //pthread_mutex_lock(&bdata->lock.lang_mtx);
+      unsigned cnt;
+      atomic_store(&bdata->initialized, false);
+      while ((cnt = atomic_load(&bdata->lock.num_workers)) > 0) {
+            /* NANOSLEEP_FOR_SECOND_FRACTION(0, 5); */
+            NANOSLEEP(0, 1000);
+#if 0
+            for (unsigned i = 0; i < cnt; ++i) {
+                  if (bdata->lock.pids[i] > 0) {
+                        //pthread_cancel(bdata->lock.pids[i]);
+                        //bdata->lock.pids[i] = 0;
+                        //p99_count_dec(&bdata->lock.num_workers);
+                  }
+            }
+#endif
+      }
+
+      pthread_mutex_lock(&bdata->lock.lang_mtx);
       //pthread_mutex_lock(&bdata->lock.total);
 
       if (--bdata->topdir->refs == 0) {
@@ -799,12 +815,12 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
                   mpack_destroy_arg_array(bdata->calls);
       }
 
-      //pthread_mutex_unlock(&bdata->lock.total);
-      pthread_mutex_destroy(&bdata->lock.total);
-      //pthread_mutex_unlock(&bdata->lock.lang_mtx);
+      /* pthread_mutex_unlock(&bdata->lock.total); */
+      /* pthread_mutex_destroy(&bdata->lock.total); */
+      pthread_mutex_unlock(&bdata->lock.lang_mtx);
       pthread_mutex_destroy(&bdata->lock.lang_mtx);
 
-      p99_futex_wakeup(&destruction_futex[bdata->num]);
+      //p99_futex_wakeup(&destruction_futex[bdata->num]);
       if (flags & DES_BUF_TALLOC_FREE) {
             talloc_set_destructor(bdata, NULL);
             talloc_free(bdata);

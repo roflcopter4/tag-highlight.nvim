@@ -241,8 +241,231 @@ do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watcher
             errx(1, "This shouldn't be reachable?...");
 }
 
-/*--------------------------------------------------------------------------------------*/
-#elif USE_EVENT_LIB == EVENT_LIB_EV
+/*======================================================================================*/
+#elif USE_EVENT_LIB == EVENT_LIB_LIBEVENT2
+
+# include <event2/event.h>
+
+struct userdata {
+      struct event_base *base;
+      atomic_bool        grace;
+};
+
+static void do_event_loop(struct event_base *base);
+static void event_loop_io_cb(evutil_socket_t fd, short flags, void *vdata);
+static void event_loop_signal_cb(evutil_socket_t signum, short flags, void *vdata);
+static void event_loop_graceful_signal_cb(evutil_socket_t signum, short flags, void *vdata);
+
+static inline void init_signal_handlers(struct event_base *base, struct event **handlers, struct userdata *data, struct timeval const *tv);
+static inline void clean_signal_handlers(struct event **handlers);
+
+static struct event_base *base;
+
+static void
+event_loop_sighandler(int signum)
+{
+        switch (signum) {
+        case SIGUSR1:
+              event_base_loopbreak(base);
+              break;
+        case SIGTERM:
+        case SIGHUP:
+        case SIGPIPE:
+        case SIGINT:
+                quick_exit(0);
+        default:
+                exit(0);
+        }
+}
+
+void stop_event_loop(int status)
+{
+      if (status) {
+            quick_exit(0);
+      } else {
+            event_base_loopbreak(base);
+      }
+}
+
+void
+run_event_loop(int const fd)
+{
+      static struct timeval const tv = {.tv_sec = 0, .tv_usec = 5000000};
+      event_loop_thread = pthread_self();
+
+#if 0
+      {
+            struct sigaction act;
+            memset(&act, 0, sizeof(act));
+            act.sa_handler = event_loop_sighandler;
+            sigaction(SIGUSR1, &act, NULL);
+            sigaction(SIGPIPE, &act, NULL);
+            sigaction(SIGHUP, &act, NULL);
+            sigaction(SIGINT, &act, NULL);
+            sigaction(SIGTERM, &act, NULL);
+      }
+#endif
+
+      {
+            struct event_config *cfg = event_config_new();
+            event_config_require_features(cfg, EV_FEATURE_EARLY_CLOSE);
+#ifdef _WIN32
+            event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP);
+#endif
+            base = event_base_new_with_config(cfg);
+            event_config_free(cfg);
+      }
+
+      struct userdata data = {base, ATOMIC_VAR_INIT(false)};
+      struct event *sighandlers[5];
+      struct event *rd_handle;
+
+      rd_handle = event_new(base, 0, EV_READ|EV_PERSIST, event_loop_io_cb, &data);
+      init_signal_handlers(base, sighandlers, &data, NULL);
+      event_add(rd_handle, &tv);
+
+#if 0
+      {
+            sigset_t set;
+            /* Block SIGQUIT and SIGUSR1; other threads created by main()
+               will inherit a copy of the signal mask. */
+            sigemptyset(&set);
+            sigaddset(&set, SIGUSR1);
+            int s = pthread_sigmask(SIG_UNBLOCK, &set, NULL);
+            if (s != 0)
+                  err(1, "pthread_sigmask");
+      }
+
+#endif
+
+      do_event_loop(base);
+
+      clean_signal_handlers(sighandlers);
+      event_free(rd_handle);
+      event_base_free(base);
+}
+
+static void
+do_event_loop(struct event_base *evbase)
+{
+      for (;;) {
+            int const ret = event_base_loop(evbase, 0);
+
+            if (event_base_got_break(evbase))
+                  break;
+            if (ret == 1)
+                  break;
+            if (ret == (-1)) {
+                  warnx("event_base_loop() exited with an error.");
+                  break;
+            }
+
+            // event_add(rd_handle, nullptr);
+            // event_base_dispatch(loop);
+      }
+}
+
+static void
+event_loop_io_cb(evutil_socket_t fd, short const flags, UNUSED void *vdata)
+{
+      static _Atomic(uint64_t) call_no = 1;
+
+      atomic_fetch_add_explicit(&call_no, 1, memory_order_relaxed);
+      if ((flags & EV_TIMEOUT) || (flags & EV_CLOSED))
+            return;
+
+      char const *foo;
+      switch (flags) {
+            case 0x01: foo = "timeout"; break;
+            case 0x02: foo = "read"; break;
+            case 0x04: foo = "write"; break;
+            case 0x08: foo = "signal"; break;
+            case 0x40: foo = "finalize"; break;
+            case 0x80: foo = "close"; break;
+            default:   foo = "unknown"; break;
+      }
+      //echo("HERE IN %s, call number %lu -> %s (%u)",
+      //     __func__, atomic_load_explicit(&call_no, memory_order_relaxed), foo, flags);
+
+      if (flags & EV_READ) {
+            pthread_mutex_lock(&event_loop_cb_mutex);
+
+            struct event_data data;
+            data.fd  = fd;
+            data.obj = mpack_decode_stream(data.fd);
+            talloc_steal(CTX, data.obj);
+            handle_nvim_message(&data);
+
+            pthread_mutex_unlock(&event_loop_cb_mutex);
+      }
+}
+
+static void
+event_loop_graceful_signal_cb(UNUSED evutil_socket_t signum, short const flags, void *vdata)
+{
+      if (!(flags & EV_SIGNAL))
+            return;
+            //fprintf(stderr, "wtf? -> %u\n", flags), fflush(stderr);
+
+      fprintf(stderr, "hi from '%s' %u\n", __PRETTY_FUNCTION__, flags), fflush(stderr);
+
+      struct userdata *data = vdata;
+      atomic_store_explicit(&data->grace, true, memory_order_release);
+      event_base_loopbreak(data->base);
+}
+
+static void
+event_loop_signal_cb(evutil_socket_t signum, short const flags, void *vdata)
+{
+      if (!(flags & EV_SIGNAL))
+            return;
+
+      fprintf(stderr, "hi from '%s' %u\n", __PRETTY_FUNCTION__, flags), fflush(stderr);
+
+      struct userdata *data = vdata;
+      atomic_store_explicit(&data->grace, true, memory_order_release);
+      event_base_loopbreak(data->base);
+
+      switch (signum) {
+      case SIGTERM:
+      case SIGHUP:
+      case SIGPIPE:
+      case SIGINT:
+            quick_exit(0);
+      default:
+            exit(0);
+      }
+}
+
+static inline void
+init_signal_handlers(struct event_base *evbase, struct event **handlers, struct userdata *data, struct timeval const *tv)
+{
+      handlers[0] = event_new(evbase, SIGPWR, EV_SIGNAL|EV_PERSIST, event_loop_graceful_signal_cb, data);
+      handlers[1] = event_new(evbase, SIGTERM, EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[2] = event_new(evbase, SIGHUP,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[3] = event_new(evbase, SIGPIPE, EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[4] = event_new(evbase, SIGINT,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+
+      event_add(handlers[0], tv);
+      event_add(handlers[1], tv);
+      event_add(handlers[2], tv);
+      event_add(handlers[3], tv);
+      event_add(handlers[4], tv);
+}
+
+static inline void
+clean_signal_handlers(struct event **handlers)
+{
+      event_free(handlers[0]);
+      event_free(handlers[1]);
+      event_free(handlers[2]);
+      event_free(handlers[3]);
+      event_free(handlers[4]);
+}
+
+
+/*======================================================================================*/
+#elif USE_EVENT_LIB == EVENT_LIB_LIBEV
 /*
  * Using libev
  */

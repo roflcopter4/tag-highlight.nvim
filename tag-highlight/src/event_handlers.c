@@ -91,6 +91,13 @@ handle_nvim_message(struct event_data *data)
       }
 }
 
+static void *
+destroy_buffer_thread(void *vdata)
+{
+      destroy_buffer(vdata, DES_BUF_SHOULD_CLEAR | DES_BUF_DESTROY_NODE | DES_BUF_TALLOC_FREE);
+      pthread_exit();
+}
+
 static void
 handle_nvim_notification(mpack_obj *event)
 {
@@ -105,7 +112,7 @@ handle_nvim_notification(mpack_obj *event)
             START_DETACHED_PTHREAD(event_autocmd, tmp);
       } else {
             int const bufnum = mpack_expect(arr->lst[0], E_NUM).num;
-            Buffer *  bdata  = find_buffer(bufnum);
+            Buffer   *bdata  = find_buffer(bufnum);
 
             if (!bdata)
                   errx(1, "Update called on uninitialized buffer.");
@@ -117,8 +124,8 @@ handle_nvim_notification(mpack_obj *event)
                   handle_buffer_update(bdata, arr, type);
                   break;
             case EVENT_BUF_DETACH:
-                  destroy_buffer(bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_DESTROY_NODE | DES_BUF_TALLOC_FREE);
                   echo("Detaching from buffer %d", bufnum);
+                  START_DETACHED_PTHREAD(destroy_buffer_thread, bdata);
                   break;
             default:
                   abort();
@@ -131,14 +138,15 @@ handle_nvim_notification(mpack_obj *event)
 static void
 handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
 {
-      uint32_t const new_tick = mpack_expect(arr->lst[1], E_NUM).num;
+      uint64_t const new_tick = mpack_expect(arr->lst[1], E_NUM, false, E_MPACK_NIL).num;
+      if (new_tick != 0)
+            p99_futex_exchange(&bdata->ctick, (uint32_t)new_tick);
 
-      p99_futex_exchange(&bdata->ctick, new_tick);
-
-      if (type->id == EVENT_BUF_LINES)
+      if (type->id == EVENT_BUF_LINES) {
             handle_line_event(bdata, arr);
-      if (bdata->ft->has_parser)
-            START_DETACHED_PTHREAD(wrap_update_highlight, bdata);
+            if (bdata->ft->has_parser)
+                  START_DETACHED_PTHREAD(wrap_update_highlight, bdata);
+      }
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -585,6 +593,8 @@ event_force_update(void)
 static noreturn void
 event_halt(bool const nvim_exiting)
 {
+      extern void stop_event_loop(int status);
+
       /* If neovim is shutting down, then we should also shut down ASAP. Taking too
        * long will hang the editor for a few seconds, which is intolerable. */
       if (nvim_exiting)
@@ -596,7 +606,9 @@ event_halt(bool const nvim_exiting)
 #ifdef DOSISH
       exit(0);
 #else
-      pthread_kill(event_loop_thread, KILL_SIG);
+      stop_event_loop(0);
+      /* pthread_kill(event_loop_thread, KILL_SIG); */
+      /* raise(SIGUSR1); */
       pthread_exit();
 #endif
 }

@@ -213,6 +213,15 @@ bool
         return ret;
 }
 
+
+mpack_retval
+(nvim_exec)(bstring const *src, bool output, mpack_expect_t expect)
+{
+        static bstring const fn = BS_FROMARR(__func__);
+        mpack_obj *result = generic_call(true, &fn, B("sB"), src, output);
+        return intern_mpack_expect(result, expect);
+}
+
 mpack_retval
 (nvim_command_output)(bstring const *cmd, mpack_expect_t const expect)
 {

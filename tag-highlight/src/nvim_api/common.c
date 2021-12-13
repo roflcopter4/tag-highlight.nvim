@@ -127,11 +127,11 @@ static mpack_obj *
 write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
 {
 #if defined DEBUG
-      if (mpack_raw) {
-            size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, mpack_raw);
-            assert(!ferror(mpack_raw) && (unsigned)n == (*pack->packed)->slen);
+      if (mpack_raw_write) {
+            size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, mpack_raw_write);
+            assert(!ferror(mpack_raw_write) && (unsigned)n == (*pack->packed)->slen);
       }
-      mpack_print_object(mpack_log, pack);
+      mpack_print_object(mpack_log, pack, B("\033[1;34mSENDING MESSAGE\033[0m"));
 #endif
 
       mpack_obj      *ret;

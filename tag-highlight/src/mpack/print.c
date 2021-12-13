@@ -48,10 +48,12 @@ pindent(struct printing_data *data)
 
 
 void
-mpack_print_object(FILE *fp, const mpack_obj *result)
+mpack_print_object(FILE *fp, const mpack_obj *result, bstring const *msg)
 {
         if (!fp || !result || !(result->flags & MPACKFLG_ENCODE))
                 return;
+        int dummy;
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy);
         pthread_mutex_lock(&mpack_print_mutex);
 
         struct printing_data data = {
@@ -61,6 +63,8 @@ mpack_print_object(FILE *fp, const mpack_obj *result)
                 .skip_indent = false,
         };
 
+        if (msg)
+                b_fwrite(fp, B("\033[1;31mMSG:\t\033[0m"), msg, B("\n"));
         do_mpack_print_object(result, &data);
         b_fwrite(fp, data.out, B("\n"));
         fflush(fp);
@@ -69,6 +73,7 @@ mpack_print_object(FILE *fp, const mpack_obj *result)
 #endif
         b_free(data.out);
 
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy);
         pthread_mutex_unlock(&mpack_print_mutex);
 }
 
@@ -221,8 +226,8 @@ print_ext(const mpack_obj *result, struct printing_data *data)
 #if 0
         pindent(data);
 #endif
-        b_sprintfa(data->out, "Type: %d -> Data: %d",
-                        mpack_type(result), result->ext->num);
+        b_formata(data->out, "(EXT: Type: %d -> Data: (%u, 0x%"PRIX64"))",
+                  mpack_type(result), result->ext->type, result->ext->u64);
 }
 
 

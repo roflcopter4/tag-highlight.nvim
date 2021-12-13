@@ -1,5 +1,6 @@
 #ifndef SRC_UTIL_H
 #define SRC_UTIL_H
+#pragma once
 
 #if !defined THL_COMMON_H_
 #  error "Must include Common.h first."
@@ -9,7 +10,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*===========================================================================*/
+/***************************************************************************************/
+
 /* Attribute aliases and junk like MIN, MAX, NOP, etc */
 
 #define __aMAL       __attribute__((__malloc__))
@@ -238,6 +240,41 @@ extern noreturn void win32_error_exit(int status, const char *msg, DWORD dw);
       win32_error_exit((ST), WIN32_ERROR_EXIT_HELPER(P99_UNIQ(), __VA_ARGS__), GetLastError())
 #endif
 
+/*=====================================================================================*/
+
+#ifndef _Notnull_
+# define _Notnull_
+# define _Maybenull_
+#endif
+
+extern char *
+braindead_tempname(_Notnull_   char       *restrict buf,
+                   _Notnull_   char const *restrict dir,
+                   _Maybenull_ char const *restrict prefix,
+                   _Maybenull_ char const *restrict suffix)
+    __attribute__((__nonnull__(1, 2)));
+
+extern uint32_t cxx_random_device_get_random_val(void) __aWUR;
+extern uint32_t cxx_random_engine_get_random_val(void) __aWUR;
+
+/*=====================================================================================*/
+
+#ifdef __GNUC__
+#  if !__has_builtin(__builtin_bswap16) || !__has_builtin(__builtin_bswap32) || !__has_builtin(__builtin_bswap64)
+#    error "Compiler does not support __builtin_bswapXX. Get a newer version."
+#  endif
+#  define MY_BSWAP_16(n) __builtin_bswap16(n)
+#  define MY_BSWAP_32(n) __builtin_bswap32(n)
+#  define MY_BSWAP_64(n) __builtin_bswap64(n)
+#elif defined _MSC_VER
+#  define MY_BSWAP_16(n) _byteswap_ushort(n)
+#  define MY_BSWAP_32(n) _byteswap_ulong(n)
+#  define MY_BSWAP_64(n) _byteswap_uint64(n)
+#else
+#  error "Can't be bothered to support whatever whacky compiler you're using."
+#endif
+
+/***************************************************************************************/
 #ifdef __cplusplus
 }
 #endif

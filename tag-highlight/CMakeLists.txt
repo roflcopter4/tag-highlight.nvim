@@ -13,7 +13,7 @@ include (GNUInstallDirs)
 set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/..")
 get_filename_component(CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" ABSOLUTE)
 
-set (REQUIRED_LZMA_VERSION 5.3.1)
+set (REQUIRED_LZMA_VERSION 5.3.0)
 option(SANITIZE "Enable sanitizers" OFF)
 option(USE_JEMALLOC "Use jemalloc" OFF)
 option(MINGW_PREFIX "Absolute path (windows style) to your Mingw prefix (eg. C:\\msys64\\mingw64)")
@@ -47,6 +47,10 @@ endif()
 if (MSVC AND NOT "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
     set (TRUE_MSVC YES)
 endif()
+
+if (NOT CMAKE_CXX_STANDARD)
+    set (CMAKE_CXX_STANDARD 20)
+endif ()
 
 ###############################################################################
 # Includes and defines
@@ -102,7 +106,8 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
-find_package (LibUV REQUIRED)
+#find_package (LibUV REQUIRED)
+find_package (Libevent)
 find_package (LibLZMA)
 
 # find_package (sodium)
@@ -247,17 +252,17 @@ if (NOT BUILD_DIST)
     set (MARCH_SETTING "-mtune=native -march=native")
 endif()
 
-if (SANITIZE)
-    set (SANIT -fsanitize-address-use-after-scope -fsanitize=undefined
-               -fsanitize=bounds -fsanitize=bool)
-    if ("${SANITIZE}" STREQUAL "thread")
-        set (SANIT ${SANIT} -fsanitize=thread)
-    elseif ("${SANITIZE}" STREQUAL "memory")
-        set (SANIT -fsanitize=undefined -fsanitize=memory)
-    else ()
-        set (SANIT ${SANIT} -fsanitize=address)
-    endif()
-endif()
+# set (SANIT -fsanitize=memory)
+# if (SANITIZE)
+#     set (SANIT -fsanitize-address-use-after-scope -fsanitize=undefined -fsanitize=bounds -fsanitize=bool)
+#     if ("${SANITIZE}" STREQUAL "thread")
+#         set (SANIT ${SANIT} -fsanitize=thread)
+#     elseif ("${SANITIZE}" STREQUAL "memory")
+#         set (SANIT -fsanitize=undefined -fsanitize=memory)
+#     else ()
+#         set (SANIT ${SANIT} -fsanitize=address)
+#     endif()
+# endif()
 
 message(WARNING "Sanitize set to \"${SANIT}\" -- \"${SANITIZE}\"")
 
@@ -309,14 +314,20 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set (BASE ${BASE} ${WARNS}
             -g3 -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
         )
-        # set (LTO_STR -flto=full -fwhole-program-vtables)
+        # set (LTO_STR -flto=full)
 
         string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
-                # -fuse-ld=gold -stdlib=libstdc++ -rtlib=compiler-rt --unwindlib=libgcc
-                -fuse-ld=lld -rtlib=compiler-rt --unwindlib=libunwind
-                # -Wl,--lto-O3 -Wl,--lto-whole-program-visibility ${LTO_STR}
+                # -fuse-ld=gold
+                -fuse-ld=lld
+                -stdlib=libstdc++
+                -rtlib=libgcc --unwindlib=libgcc
+                # -rtlib=compiler-rt --unwindlib=libgcc
+                # -rtlib=compiler-rt --unwindlib=libunwind
+                # -Wl,--lto-O3
+                # -Wl,--lto-whole-program-visibility ${LTO_STR}
         )
 
+        set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
         set (__EXTRA_C_CXX_RELEASE_FLAGS -fvectorize -fslp-vectorize -mprefer-vector-width=512)
 
         find_program(LLVM_AR "llvm-ar" REQUIRED)

@@ -83,6 +83,8 @@ set (thl-util_SOURCES
 
     contrib/contrib.c
 
+    util/cxx_utils.cc
+    util/temp_name.c
     util/archive_gzip.c
     util/archive_read.c
     util/archive_write.c
@@ -104,9 +106,9 @@ add_executable(tag-highlight ${tag-highlight_SOURCES})
 add_library(thl-util OBJECT ${thl-util_SOURCES})
 
 
-set_property(TARGET tag-highlight APPEND PROPERTY INCLUDE_DIRECTORIES
-             ${LIBUV_INCLUDE_DIRS}
-)
+# set_property(TARGET tag-highlight APPEND PROPERTY INCLUDE_DIRECTORIES
+#              ${LIBUV_INCLUDE_DIRS}
+# )
 
 ################################################################################
 # Libraries
@@ -118,8 +120,9 @@ target_link_libraries(tag-highlight
     ${LLVM_SYSTEM_LIBRARIES}
     ${LLVM_LIBRARIES}
     ${LIBCLANG_LIBRARY}
-    ${LIBUV_LIBRARIES}
-    #-L/usr/lib/llvm/13/lib64 -lclang-cpp
+    # ${LIBUV_LIBRARIES}
+    ${LIBEVENT_LIBRARIES}
+    -L/usr/lib/llvm/14/lib64 -lclang-cpp
     thl-util
     tag_highlight_lang
 )

@@ -28,10 +28,29 @@ static void mutex_init(void)
 
 /*======================================================================================*/
 
+#ifdef DOSISH
+#  define FIX_FOPEN_MODE(OLD, NEW)              \
+        char NEW [8];                           \
+        do {                                    \
+              char const *ptr = (OLD);          \
+              int         i = 0;                \
+              char        ch;                   \
+              while((ch = *ptr++))              \
+                    if (ch != 'e' && ch != 'm') \
+                          NEW [i++] = ch;       \
+              NEW [i] = '\0';                   \
+        } while (0)
+#else
+#define FIX_FOPEN_MODE(OLD, NEW) \
+        char const *const NEW = (OLD)
+#endif
+
 FILE *
 safe_fopen(const char *filename, const char *mode)
 {
-        FILE *fp = fopen(filename, mode);
+        FIX_FOPEN_MODE(mode, newmode);
+
+        FILE *fp = fopen(filename, newmode);
         if (!fp)
                 err(1, "Failed to open file \"%s\"", filename);
         if (!file_is_reg(filename))
@@ -51,20 +70,7 @@ safe_fopen_fmt(const char *const restrict mode,
         vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
         va_end(va);
 
-#ifdef DOSISH
-        char newmode[8];
-        {
-              char const *ptr = mode;
-              int         i = 0;
-              char        ch;
-              while((ch = *ptr++))
-                    if (ch != 'e')
-                          newmode[i++] = ch;
-              newmode[i] = '\0';
-        }
-#else
-        char const *const newmode = mode;
-#endif
+        FIX_FOPEN_MODE(mode, newmode);
 
         FILE *fp = fopen(buf, newmode);
         if (!fp)

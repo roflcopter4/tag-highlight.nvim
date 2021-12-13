@@ -1,5 +1,6 @@
 #ifndef MY_P99_COMMON_H_
 #define MY_P99_COMMON_H_
+#pragma once
 
 #include "Common.h"
 

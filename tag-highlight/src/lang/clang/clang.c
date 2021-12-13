@@ -73,6 +73,17 @@ static jmp_buf jbuf;
 extern void thl_cxx_call_foo(CXTranslationUnit tu, char const *fname, char const *buffer);
 extern void thl_cxx_try_harder(struct CXUnsavedFile *filecontents, char const **commands, size_t ncommands);
 
+static void bstr_cleanup(void *arg) {
+      if (arg)
+            talloc_free(arg);
+}
+
+static void mutex_cleanup(void *arg) {
+      Buffer *bdata = arg;
+      p99_count_dec(&bdata->lock.num_workers);
+      pthread_mutex_unlock(&bdata->lock.lang_mtx);
+}
+
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
 {
@@ -80,23 +91,27 @@ void
             return;
       if (bdata->total_failure)
             return;
-      if (setjmp(jbuf) != 0)
+
+      /* __attribute__((cleanup(bstr_cleanup))) */
+      int dummy;
+      bstring *joined = NULL;
+      uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
+      if (cnt_val > 3) {
+            p99_count_dec(&bdata->lock.num_workers);
             return;
+      }
+      bdata->lock.pids[cnt_val] = pthread_self();
+      if (setjmp(jbuf) != 0)
+            goto done;
 
       ALWAYS_ASSERT(P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX));
 
       mpack_arg_array   *calls;
       translationunit_t *stu;
       int64_t            startend[2];
-      bstring           *joined = NULL;
-
-      uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
-      if (cnt_val > 3) {
-            p99_count_dec(&bdata->lock.num_workers);
-            return;
-      }
 
       pthread_mutex_lock(&bdata->lock.lang_mtx);
+      pthread_cleanup_push(mutex_cleanup, bdata);
 
       if (bdata->num_failures > 10) {
             if (!bdata->total_failure) {
@@ -111,6 +126,7 @@ void
 
       pthread_mutex_lock(&bdata->lock.total);
       joined = ll_join_bstrings(bdata->lines, '\n');
+      //pthread_cleanup_push(bstr_cleanup, joined);
       pthread_mutex_unlock(&bdata->lock.total);
 
       if (last == (-1)) {
@@ -120,6 +136,7 @@ void
             lines2bytes(bdata, startend, first, last);
       }
 
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &dummy);
       if (type == HIGHLIGHT_REDO) {
             if (bdata->clangdata)
                   destroy_clangdata(bdata);
@@ -128,8 +145,13 @@ void
             stu = (bdata->clangdata) ? recover_compilation_unit(bdata, joined)
                                      : init_compilation_unit(bdata, joined);
       }
+      pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy);
 
-      //thl_cxx_call_foo(stu->tu, NULL, NULL);
+
+      {
+            /* thl_cxx_call_foo(stu->tu, NULL, NULL); */
+      }
+
 
       CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, BS(bdata->name.full));
       tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
@@ -144,8 +166,12 @@ void
       //TIMER_REPORT(&tm, "clang parse");
 
 done:
+      pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy);
+      bdata->lock.pids[cnt_val] = 0;
       p99_count_dec(&bdata->lock.num_workers);
       pthread_mutex_unlock(&bdata->lock.lang_mtx);
+      pthread_cleanup_pop(0);
+      //pthread_cleanup_pop(0);
 }
 
 void *
@@ -237,7 +263,6 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
                                       .Length   = buf->slen};
 
       //argv_dump(stderr, comp_cmds);
-      //thl_cxx_try_harder(&unsaved, (char const **)comp_cmds->lst, comp_cmds->qty);
 
       clangdata_t *cld = talloc_zero(bdata, clangdata_t);
       bdata->clangdata = cld;
@@ -264,6 +289,10 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
       stu->idx  = cld->idx;
       stu->ftid = bdata->ft->id;
       talloc_set_destructor(stu, destroy_struct_translationunit);
+
+#ifdef DEBUG
+      //thl_cxx_try_harder(&unsaved, (char const **)comp_cmds->lst, (int)comp_cmds->qty);
+#endif
 
       return stu;
 }

@@ -2,25 +2,23 @@
 
 #include "intern.h"
 
-#include <byteswap.h>
-
 #define encode_uint64(ARR, IT, VAL)                           \
         do {                                                  \
-                uint64_t tmp = bswap_64(VAL);                 \
+                uint64_t tmp = MY_BSWAP_64(VAL);              \
                 memcpy(&((ARR)[IT]), &tmp, sizeof(uint64_t)); \
                 (IT) += sizeof(uint64_t);                     \
         } while (0)
 
 #define encode_uint32(ARR, IT, VAL)                           \
         do {                                                  \
-                uint32_t tmp = bswap_32(VAL);                 \
+                uint32_t tmp = MY_BSWAP_32(VAL);              \
                 memcpy(&((ARR)[IT]), &tmp, sizeof(uint32_t)); \
                 (IT) += sizeof(uint32_t);                     \
         } while (0)
 
 #define encode_uint16(ARR, IT, VAL)                           \
         do {                                                  \
-                uint16_t tmp = bswap_16(VAL);                 \
+                uint16_t tmp = MY_BSWAP_16(VAL);              \
                 memcpy(&((ARR)[IT]), &tmp, sizeof(uint16_t)); \
                 (IT) += sizeof(uint16_t);                     \
         } while (0)

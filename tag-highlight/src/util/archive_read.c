@@ -69,12 +69,12 @@ break_into_lines(b_list *tags, uint8_t *buf)
 }
 
 
-#if defined(DEBUG) && defined(POINTLESS_DEBUG)
+#if defined(DEBUG) //&& defined(POINTLESS_DEBUG)
 static inline void
 report_size(struct archive_size *size)
 {
-      __extension__ warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
-                          size->uncompressed, size->archive);
+      warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
+            size->uncompressed, size->archive);
 }
 #else
 #  define report_size(...)
@@ -143,15 +143,88 @@ gz_getlines(b_list *tags, const bstring *filename)
 
 #ifdef LZMA_SUPPORT
 #  include <lzma.h>
-/* extern const char * message_strm(lzma_ret); */
 
+#if 0
+uint8_t * badly_attempt_to_decode_lzma_buffer(bstring const *fname);
+
+static int
+xz_getlines(b_list *tags, const bstring *filename)
+{
+      uint8_t *buf = badly_attempt_to_decode_lzma_buffer(filename);
+      break_into_lines(tags, buf);
+      return 1;
+}
 
 /* It would be nice if there were some magic macros to read an xz file too. */
 static int
 xz_getlines(b_list *tags, const bstring *filename)
 {
       struct archive_size size = {0, 0};
+      {
+            struct stat st;
+            if (stat(BS(filename), &st) == (-1))
+                  err(1, "stat");
+            size.archive = st.st_size;
+      }
+
+      /* We must read the size of the input buffer + 1 in order to
+       * trigger an EOF condition.*/
+      uint8_t *in_buf = talloc_size(NULL, size.archive + 1LLU);
+      FILE    *fp     = safe_fopen(BS(filename), "rb");
+      size_t   nread  = fread(in_buf, 1, size.archive + 1, fp);
+      if (ferror(fp))
+            err(1, "%s: Error reading input size", BS(filename));
+      if (!feof(fp))
+            errx(1, "Error reading file: buffer too small.");
+      fclose(fp);
+
       if (!xz_size(&size, BS(filename)))
+            return 0;
+      report_size(&size);
+
+      uint8_t *out_buf = talloc_size(NULL, size.uncompressed + 1LLU);
+
+      /* Setup the stream and initialize the decoder */
+      lzma_stream strm[1] = {LZMA_STREAM_INIT};
+      if ((lzma_auto_decoder(strm, UINT64_MAX, 0)) != LZMA_OK)
+            errx(1, "Unhandled internal error.");
+
+      lzma_ret ret = lzma_stream_decoder(strm, UINT64_MAX, 0);
+      if (ret != LZMA_OK)
+            errx(1, "%s\n",
+                 ret == LZMA_MEM_ERROR ? strerror(ENOMEM) : "Internal error (bug)");
+
+      /* avail_in is the number of bytes read from a file to the strm that
+       * have not yet been decoded. avail_out is the number of bytes remaining
+       * in the output buffer in which to place decoded bytes.*/
+      strm->next_out  = out_buf;
+      strm->next_in   = in_buf;
+      strm->avail_out = size.uncompressed;
+      strm->avail_in  = 0;
+      strm->avail_in = nread;
+
+      ret = lzma_code(strm, LZMA_RUN);
+
+      if (ret != LZMA_STREAM_END)
+            ret = lzma_code(strm, LZMA_FINISH);
+      if (ret != LZMA_STREAM_END)
+            warn("Unexpected error on line %d in file %s: %d => %s", __LINE__, __FILE__,
+                 ret, lzma_message_strm(ret));
+
+      out_buf[size.uncompressed] = '\0';
+      lzma_end(strm);
+      talloc_free(in_buf);
+
+      break_into_lines(tags, out_buf);
+      return 1;
+}
+#endif
+
+static int
+xz_getlines(b_list *tags, const bstring *filename)
+{
+      struct archive_size size = {0, 0};
+      if (!xz_get_uncompressed_size(&size, BS(filename)))
             return 0;
       report_size(&size);
 

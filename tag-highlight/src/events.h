@@ -6,17 +6,21 @@
 __BEGIN_DECLS
 /*======================================================================================*/
 
-#define EVENT_LIB_EV    1
-#define EVENT_LIB_NONE  2
-#define EVENT_LIB_LIBUV 3
+#define EVENT_LIB_NONE      1
+#define EVENT_LIB_EV        2
+#define EVENT_LIB_LIBUV     3
+#define EVENT_LIB_LIBEVENT2 4
+
 #ifdef DOSISH
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
 #  define KILL_SIG       SIGTERM
 #else
-#  if 1
+#  if 1 - 1
 #    define USE_EVENT_LIB EVENT_LIB_LIBUV
+#  elif 1
+#    define USE_EVENT_LIB EVENT_LIB_LIBEVENT2
 #  elif defined HAVE_LIBEV
-#    define USE_EVENT_LIB  EVENT_LIB_EV
+#    define USE_EVENT_LIB  EVENT_LIB_LIBEV
 #  else
 #    define USE_EVENT_LIB  EVENT_LIB_NONE
 #  endif

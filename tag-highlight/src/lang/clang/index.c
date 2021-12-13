@@ -84,7 +84,8 @@ lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls)
                               stu,
                               calls,
                               0,
-                              fopen("/home/bml/FUCKINGFUCK.log", "wb")};
+                              safe_fopen_fmt("wbe", "%*s/index.log", BSC(settings.cache_dir))};
+      
       CXIndexAction    iact = clang_IndexAction_create(data.cdata->idx);
       IndexerCallbacks cb;
 
@@ -297,16 +298,21 @@ my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info)
       struct idx_data *data = raw_data;
       struct line_data line_data;
 
-      /* log_idx_location(1, info->cursor, info->entityInfo, info->loc, data); */
+      //log_idx_location(1, info->cursor, info->entityInfo, info->loc, data);
 
+#if 0
       if (!get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
             return;
+#endif
 
       int calltype = 0;
 
       switch (info->entityInfo->kind) {
       case CXIdxEntity_EnumConstant:
             calltype = CTAGS_ENUMCONST;
+            break;
+      case CXIdxEntity_Field:
+            calltype = CTAGS_MEMBER;
             break;
 #if 0
       case CXIdxEntity_CXXClass:
@@ -323,9 +329,6 @@ my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info)
       case CXIdxEntity_CXXNamespace:
       case CXIdxEntity_CXXNamespaceAlias:
             calltype = CTAGS_NAMESPACE;
-            break;
-      case CXIdxEntity_Field:
-            calltype = CTAGS_MEMBER;
             break;
       case CXIdxEntity_CXXInstanceMethod:
             calltype = EXTENSION_METHOD;
@@ -356,13 +359,18 @@ my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
       struct line_data line_data;
       int              calltype = 0;
 
-      /* log_idx_location(2, info->cursor, info->referencedEntity, info->loc, data); */
+      //log_idx_location(2, info->cursor, info->referencedEntity, info->loc, data);
 
       switch (info->referencedEntity->kind) {
       case CXIdxEntity_EnumConstant:
             // case CXIdxEntity_Enum:
             calltype = CTAGS_ENUMCONST;
             break;
+#if 0
+      case CXIdxEntity_Field:
+            calltype = CTAGS_MEMBER;
+            break;
+#endif
 #if 0
       case CXIdxEntity_CXXTypeAlias:
       case CXIdxEntity_Typedef:
@@ -378,9 +386,6 @@ my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
       case CXIdxEntity_CXXNamespace:
       case CXIdxEntity_CXXNamespaceAlias:
             calltype = CTAGS_NAMESPACE;
-            break;
-      case CXIdxEntity_Field:
-            calltype = CTAGS_MEMBER;
             break;
       case CXIdxEntity_CXXInstanceMethod:
             calltype = EXTENSION_METHOD;

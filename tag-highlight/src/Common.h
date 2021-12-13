@@ -1,5 +1,6 @@
 #ifndef THL_COMMON_H_
 #define THL_COMMON_H_
+#pragma once
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -92,15 +93,17 @@ extern const char *program_invocation_name;
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_STDNORETURN_H
-#  include <stdnoreturn.h>
+#ifndef __cplusplus
+#  if defined HAVE_STDNORETURN_H 
+#    include <stdnoreturn.h>
+#  endif
+#  include <stdbool.h>
 #endif
 
 #ifdef basename
@@ -121,20 +124,24 @@ typedef int error_t;
 #define BSTR_USE_TALLOC 1
 
 #ifdef __cplusplus
+}
 #  include "contrib/bstring/defines.h"
+//#  include "bstring.h"
+#  include "contrib/contrib.h"
+extern "C" {
 #else
 #  include "bstring.h"
 #  include "my_p99_common.h"
 
 #  include "contrib/p99/p99.h"
 #  include "contrib/p99/p99_compiler.h"
+#  include "contrib/contrib.h"
 #endif
 
 #define ALWAYS_INLINE p99_inline
 #define INLINE        p99_inline
 #define STATIC_INLINE static inline
 
-#include "contrib/contrib.h"
 
 extern char *HOME;
 
