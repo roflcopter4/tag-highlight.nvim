@@ -266,6 +266,8 @@ nnoremap <unique> <Plug>tag_highlightToggle :call tag_highlightToggle()<CR>
 
 if g:tag_highlight#use_bundled_colors
     color THLMolokai
+else
+    let g:tag_highlight#link_bundled_colors = 0
 endif
 
 if g:tag_highlight#link_bundled_colors

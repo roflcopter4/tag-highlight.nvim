@@ -329,9 +329,10 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         if (NOT MINGW AND NOT MSYS)
             string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 -stdlib=libstdc++
-                -rtlib=libgcc --unwindlib=libgcc
-                # -rtlib=compiler-rt --unwindlib=libgcc
-                # -rtlib=compiler-rt --unwindlib=libunwind
+                -rtlib=compiler-rt 
+                --unwindlib=libgcc
+                #-rtlib=libgcc
+                #--unwindlib=libgcc
                 -Wl,--as-needed
                 -Wl,--lto-O3
                 -Wl,--lto-whole-program-visibility

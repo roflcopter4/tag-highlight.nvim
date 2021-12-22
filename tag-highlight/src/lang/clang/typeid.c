@@ -175,8 +175,7 @@ retry:
       case CXCursor_Namespace:
             if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;
-            //__attribute__((fallthrough));
-            [[fallthrough]];
+            __attribute__((fallthrough));
       case CXCursor_NamespaceRef:
             ADD_CALL(CTAGS_NAMESPACE);
             break;
