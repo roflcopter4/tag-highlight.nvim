@@ -20,7 +20,7 @@ static bool sanity_check_name(token_t *tok, CXCursor cursor);
 static bool is_really_template_parameter(token_t *tok, CXCursor cursor);
 
 UNUSED static void braindead(token_t *tok, int ngotos, CXCursor *provided);
-UNUSED static void slightly_less_braindead(CXFile, CXCursor cursor);
+UNUSED static void slightly_less_braindead(CXFile file, CXCursor cursor);
 
 /*======================================================================================*/
 
@@ -35,7 +35,7 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
       if (bdata->hl_id == 0)
             bdata->hl_id = nvim_buf_add_highlight(bdata->num);
       else
-            add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
+            add_clr_call(calls, (int)bdata->num, bdata->hl_id, 0, -1);
 
       dump_fp = safe_fopen_fmt("wbe", "%s/garbage.log", BS(settings.cache_dir));
 
@@ -77,7 +77,10 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
 #define ADD_CALL(CH) (call_group = (CH))
 
 static void
-do_typeswitch(Buffer *bdata, mpack_arg_array *calls, token_t *tok, enum CXCursorKind *last_kind)
+do_typeswitch(Buffer            *bdata,
+              mpack_arg_array   *calls,
+              token_t           *tok,
+              enum CXCursorKind *last_kind)
 {
       CXCursor          cursor = tok->cursor;
 
@@ -172,7 +175,8 @@ retry:
       case CXCursor_Namespace:
             if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;
-            __attribute__((fallthrough));
+            //__attribute__((fallthrough));
+            [[fallthrough]];
       case CXCursor_NamespaceRef:
             ADD_CALL(CTAGS_NAMESPACE);
             break;

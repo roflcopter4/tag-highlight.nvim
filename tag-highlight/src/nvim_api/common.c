@@ -11,9 +11,9 @@ typedef volatile p99_futex vfutex_t;
 typedef unsigned char      byte;
 
 struct gencall {
-    alignas(32)
+    //alignas(32)
       int count;
-    alignas(16)
+    //alignas(16)
       mpack_obj     *pack;
       bstring const *fn;
 };
@@ -41,7 +41,7 @@ make_call(bool const blocking, bstring const *fn, mpack_obj *pack, int const cou
       if (blocking) {
             result = write_and_clean(pack, count, fn);
       } else {
-            struct gencall *gc = aligned_alloc_for(struct gencall);
+            struct gencall *gc = malloc(sizeof(struct gencall));
             gc->count          = count;
             gc->pack           = pack;
             gc->fn             = fn;

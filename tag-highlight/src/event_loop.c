@@ -10,9 +10,9 @@
 
 /*======================================================================================*/
 
-#ifndef DOSISH
+//#ifndef DOSISH
 pthread_t event_loop_thread;
-#endif
+//#endif
 
 #define CTX event_loop_talloc_ctx_
 void *event_loop_talloc_ctx_ = NULL;
@@ -126,18 +126,22 @@ event_loop_init_watchers(uv_loop_t *loop, uv_signal_t signal_watchers[5])
       uv_signal_init(loop, &signal_watchers[0]);
       uv_signal_init(loop, &signal_watchers[1]);
       uv_signal_init(loop, &signal_watchers[2]);
+#ifndef _WIN32
       uv_signal_init(loop, &signal_watchers[3]);
       uv_signal_init(loop, &signal_watchers[4]);
+#endif
 }
 
 static void
 event_loop_start_watchers(uv_signal_t signal_watchers[5])
 {
-      uv_signal_start_oneshot(&signal_watchers[0], &event_loop_graceful_signal_cb, SIGUSR1);
+      uv_signal_start_oneshot(&signal_watchers[0], &event_loop_graceful_signal_cb, KILL_SIG);
       uv_signal_start_oneshot(&signal_watchers[1], &event_loop_signal_cb, SIGINT);
-      uv_signal_start_oneshot(&signal_watchers[2], &event_loop_signal_cb, SIGPIPE);
-      uv_signal_start_oneshot(&signal_watchers[3], &event_loop_signal_cb, SIGHUP);
-      uv_signal_start_oneshot(&signal_watchers[4], &event_loop_signal_cb, SIGTERM);
+      uv_signal_start_oneshot(&signal_watchers[2], &event_loop_signal_cb, SIGTERM);
+#ifndef _WIN32
+      uv_signal_start_oneshot(&signal_watchers[3], &event_loop_signal_cb, SIGPIPE);
+      uv_signal_start_oneshot(&signal_watchers[4], &event_loop_signal_cb, SIGHUP);
+#endif
 }
 
 static void
@@ -145,8 +149,8 @@ event_loop_io_cb(uv_poll_t *handle, UNUSED int const status, int const events)
 {
       if (events & UV_READABLE) {
             struct event_data data;
-            if (uv_fileno((uv_handle_t const *)handle, &data.fd))
-                  err(1, "uv_fileno()");
+            //if (uv_fileno((uv_handle_t const *)handle, &data.fd))
+            //      err(1, "uv_fileno()");
 
             data.obj = mpack_decode_stream(data.fd);
             talloc_steal(CTX, data.obj);
@@ -164,8 +168,10 @@ event_loop_graceful_signal_cb(uv_signal_t *handle, UNUSED int const signum)
       uv_signal_stop(&data->signal_watchers[0]);
       uv_signal_stop(&data->signal_watchers[1]);
       uv_signal_stop(&data->signal_watchers[2]);
+#ifndef _WIN32
       uv_signal_stop(&data->signal_watchers[3]);
       uv_signal_stop(&data->signal_watchers[4]);
+#endif
       if (data->poll_handle)
             uv_poll_stop(data->poll_handle);
       if (data->pipe_handle)
@@ -181,9 +187,11 @@ event_loop_signal_cb(uv_signal_t *handle, int const signum)
 
       switch (signum) {
       case SIGTERM:
+      case SIGINT:
+#ifndef _WIN32
       case SIGHUP:
       case SIGPIPE:
-      case SIGINT:
+#endif
             quick_exit(0);
       default:
             exit(0);
@@ -214,8 +222,8 @@ pipe_read_callback(UNUSED uv_stream_t *stream, ssize_t nread, uv_buf_t const *bu
       };
       struct event_data data;
 
-      if (uv_fileno((uv_handle_t const *)stream, &data.fd))
-            err(1, "uv_fileno()");
+      //if (uv_fileno((uv_handle_t const *)stream, &data.fd))
+      //      err(1, "uv_fileno()");
 
       while (wrapper.slen > 0) {
             data.obj = mpack_decode_obj(&wrapper);
@@ -242,7 +250,7 @@ do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watcher
 }
 
 /*======================================================================================*/
-#elif USE_EVENT_LIB == EVENT_LIB_LIBEVENT2
+#elif USE_EVENT_LIB == EVENT_LIB_LIBEVENT
 
 # include <event2/event.h>
 
@@ -265,13 +273,15 @@ static void
 event_loop_sighandler(int signum)
 {
         switch (signum) {
-        case SIGUSR1:
+        case KILL_SIG:
               event_base_loopbreak(base);
               break;
+        case SIGINT:
         case SIGTERM:
+#ifndef _WIN32
         case SIGHUP:
         case SIGPIPE:
-        case SIGINT:
+#endif
                 quick_exit(0);
         default:
                 exit(0);
@@ -290,6 +300,11 @@ void stop_event_loop(int status)
 void
 run_event_loop(int const fd)
 {
+      static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
+      if (atomic_flag_test_and_set(&event_loop_called))
+            return;
+        
+      event_enable_debug_logging(EVENT_DBG_NONE);
       static struct timeval const tv = {.tv_sec = 0, .tv_usec = 5000000};
       event_loop_thread = pthread_self();
 
@@ -310,7 +325,7 @@ run_event_loop(int const fd)
             struct event_config *cfg = event_config_new();
             event_config_require_features(cfg, EV_FEATURE_EARLY_CLOSE);
 #ifdef _WIN32
-            event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP);
+            //event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP);
 #endif
             base = event_base_new_with_config(cfg);
             event_config_free(cfg);
@@ -428,9 +443,11 @@ event_loop_signal_cb(evutil_socket_t signum, short const flags, void *vdata)
 
       switch (signum) {
       case SIGTERM:
+      case SIGINT:
+#ifndef _WIN32
       case SIGHUP:
       case SIGPIPE:
-      case SIGINT:
+#endif
             quick_exit(0);
       default:
             exit(0);
@@ -440,17 +457,21 @@ event_loop_signal_cb(evutil_socket_t signum, short const flags, void *vdata)
 static inline void
 init_signal_handlers(struct event_base *evbase, struct event **handlers, struct userdata *data, struct timeval const *tv)
 {
-      handlers[0] = event_new(evbase, SIGPWR, EV_SIGNAL|EV_PERSIST, event_loop_graceful_signal_cb, data);
-      handlers[1] = event_new(evbase, SIGTERM, EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
-      handlers[2] = event_new(evbase, SIGHUP,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
-      handlers[3] = event_new(evbase, SIGPIPE, EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
-      handlers[4] = event_new(evbase, SIGINT,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[0] = event_new(evbase, KILL_SIG, EV_SIGNAL|EV_PERSIST, event_loop_graceful_signal_cb, data);
+      handlers[1] = event_new(evbase, SIGTERM,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[2] = event_new(evbase, SIGINT,   EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+#ifndef _WIN32
+      handlers[3] = event_new(evbase, SIGHUP,   EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+      handlers[4] = event_new(evbase, SIGPIPE,  EV_SIGNAL|EV_PERSIST, event_loop_signal_cb, data);
+#endif
 
       event_add(handlers[0], tv);
       event_add(handlers[1], tv);
       event_add(handlers[2], tv);
+#ifndef _WIN32
       event_add(handlers[3], tv);
       event_add(handlers[4], tv);
+#endif
 }
 
 static inline void
@@ -459,8 +480,10 @@ clean_signal_handlers(struct event **handlers)
       event_free(handlers[0]);
       event_free(handlers[1]);
       event_free(handlers[2]);
+#ifndef _WIN32
       event_free(handlers[3]);
       event_free(handlers[4]);
+#endif
 }
 
 

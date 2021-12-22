@@ -9,22 +9,24 @@ __BEGIN_DECLS
 #define EVENT_LIB_NONE      1
 #define EVENT_LIB_EV        2
 #define EVENT_LIB_LIBUV     3
-#define EVENT_LIB_LIBEVENT2 4
+#define EVENT_LIB_LIBEVENT  4
 
 #ifdef DOSISH
+//#  define USE_EVENT_LIB EVENT_LIB_LIBEVENT
 #  define USE_EVENT_LIB  EVENT_LIB_NONE
-#  define KILL_SIG       SIGTERM
+//#  define USE_EVENT_LIB  EVENT_LIB_LIBUV
+#  define KILL_SIG       SIGFPE
 #else
 #  if 1 - 1
 #    define USE_EVENT_LIB EVENT_LIB_LIBUV
 #  elif 1
-#    define USE_EVENT_LIB EVENT_LIB_LIBEVENT2
+#    define USE_EVENT_LIB EVENT_LIB_LIBEVENT
 #  elif defined HAVE_LIBEV
 #    define USE_EVENT_LIB  EVENT_LIB_LIBEV
 #  else
 #    define USE_EVENT_LIB  EVENT_LIB_NONE
 #  endif
-#  define KILL_SIG       SIGUSR1
+#  define KILL_SIG       SIGPWR
 extern pthread_t event_loop_thread;
 #endif
 

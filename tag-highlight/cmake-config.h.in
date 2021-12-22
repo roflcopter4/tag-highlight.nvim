@@ -32,6 +32,8 @@
 #cmakedefine HAVE_LRAND48
 #cmakedefine HAVE_STRTONUM
 #cmakedefine HAVE_VASPRINTF
+#cmakedefine HAVE_LOCALTIME_R
+#cmakedefine HAVE_LOCALTIME_S
 
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 #cmakedefine HAVE_PROGRAM_INVOCATION_SHORT_NAME

@@ -253,8 +253,26 @@ write_gzfile(struct top_dir *topdir)
 
 /*======================================================================================*/
 
+static        str_vector *get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
+static inline str_vector *get_ctags_argv_init(Buffer *bdata);
+static inline void get_ctags_argv_recursion(Buffer *bdata, str_vector *argv);
+static inline void get_ctags_argv_other(Buffer *bdata, b_list *headers, str_vector *argv);
+static inline void get_ctags_argv_lang(Buffer *bdata, str_vector *argv, bool force);
+
 
 #ifdef DOSISH
+
+static bstring *
+exec_ctags_pipe(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts, int *status)
+{
+      str_vector *argv = get_ctags_argv(bdata, headers, opts);
+      bstring *out = get_command_output(BS(settings.ctags_bin), argv->lst, NULL, status);
+
+      if (status != 0)
+            warnx("ctags returned with status %d", ((*status &0xFF00) >> 8));
+
+      return out;
+}
 
 static int
 exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const opts)
@@ -279,7 +297,7 @@ exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const
             b_sprintfa(cmd, " \"-f%s\" \"%s\"", bdata->topdir->tmpfname, bdata->name.full);
       }
 
-      warnd("Running ctags command `CMD.EXE /c %s`", cmd);
+      warnd("Running ctags command `CMD.EXE /c %*s`", BSC(cmd));
 
       /* Yes, this directly uses unchecked user input in a call to system().
        * Frankly, if somehow someone takes over a user's vimrc then they're
@@ -290,12 +308,6 @@ exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const
 
 /*--------------------------------------------------------------------------------------*/
 #else // DOSISH
-
-static        str_vector *get_ctags_argv(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
-static inline str_vector *get_ctags_argv_init(Buffer *bdata);
-static inline void get_ctags_argv_recursion(Buffer *bdata, str_vector *argv);
-static inline void get_ctags_argv_other(Buffer *bdata, b_list *headers, str_vector *argv);
-static inline void get_ctags_argv_lang(Buffer *bdata, str_vector *argv, bool force);
 
 static bstring *
 exec_ctags_pipe(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts, int *status)
@@ -336,6 +348,8 @@ exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
       talloc_free(argv);
       return (status > 0) ? ((status & 0xFF00) >> 8) : status;
 }
+
+#endif // DOSISH
 
 # define B2C(var) b_bstr2cstr((var), 0)
 
@@ -412,5 +426,4 @@ get_ctags_argv_lang(Buffer *bdata, str_vector *argv, bool const force)
             argv_append_fmt(argv, "--languages=%s", BTS(bdata->ft->ctags_name));
 }
 
-#endif // DOSISH
 /*--------------------------------------------------------------------------------------*/

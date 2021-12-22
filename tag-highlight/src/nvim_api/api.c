@@ -20,7 +20,7 @@ void
 
         switch (type) {
         case NW_STANDARD: func = &fn_names[0]; break;
-        case NW_ERROR:    func = &fn_names[1]; break;
+        case NW_ERROR:    func = &fn_names[2]; break;
         case NW_ERROR_LN: func = &fn_names[2]; break;
         default:          errx(1, "Should be unreachable!");
         }

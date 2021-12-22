@@ -65,6 +65,9 @@ config.h
 topconfig.h
 .cache
 *ucrt*/
+.clang-format
+_clang-format
+MSVC
 
 # Vim stuff
 autoload

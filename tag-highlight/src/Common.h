@@ -115,6 +115,14 @@ extern char *basename(const char *) __THROW __nonnull((1));
 
 #include <talloc.h>
 
+//#if __has_include("threads.h")
+//#  include <threads.h>
+//#elif __has_include("tinycthread.h")
+//#  include <tinycthread.h>
+//#else
+//#  error "no threads"
+//#endif
+
 /* Guarentee that this typedef exists. */
 typedef int error_t;
 

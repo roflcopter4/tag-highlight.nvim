@@ -4,8 +4,6 @@
 #include "intern.h"
 #include "mpack.h"
 
-#include <byteswap.h>
-
 #define DEBUG_LOGS
 
 typedef void (*read_fn)(void *restrict src, void *restrict dest, size_t nbytes);
@@ -543,7 +541,17 @@ id_pack_type(uint8_t const ch)
       if (!mask) {
             char fname[PATH_MAX + 1];
             char tmp[256];
-            asctime_r(localtime((time_t[1]){0}), tmp);
+            struct tm tm_buf, *tm_ret;
+            time_t now = time(NULL);
+#if defined HAVE_LOCALTIME_S
+            localtime_s((tm_ret = &tm_buf), &now);
+#elif defined HAVE_LOCALTIME_R
+            tm_ret = localtime_r(&now, &tm_buf);
+#else
+#  pragma message "WARNING: Defaulting to unsafe \"localtime()\""
+            tm_ret = localtime(&now);
+#endif
+            strftime(tmp, 256, "%F %I:%M:%S %p", tm_ret);
             snprintf(fname, PATH_MAX, "%*s/decode_error.log", BSC(settings.cache_dir));
 
             FILE *fp = safe_fopen(fname, "ab");

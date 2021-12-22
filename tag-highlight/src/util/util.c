@@ -8,7 +8,7 @@
 
 #ifdef DOSISH
 #  define restrict __restrict
-static void win32_print_stack(void);
+extern void win32_print_stack(void);
 #endif
 
 #define SAFE_STAT(PATH, ST)                                     \
@@ -143,15 +143,15 @@ xatoi__(const char *const str, const bool strict)
 
 #ifndef HAVE_BASENAME
 char *
-basename(char *path)
+basename(char const *path)
 {
         assert(path != NULL && *path != '\0');
         const size_t len = strlen(path);
-        char *ptr = path + len;
+        char const *ptr = path + len;
         while (*ptr != '/' && *ptr != '\\' && ptr != path)
                 --ptr;
         
-        return (*ptr == '/' || *ptr == '\\') ? ptr + 1 : ptr;
+        return (char *)((*ptr == '/' || *ptr == '\\') ? ptr + 1 : ptr);
 }
 #endif
 
@@ -386,7 +386,7 @@ _win32_get_command_output(char *argv, bstring *input, int *status)
         WaitForSingleObject(pi.hProcess, INFINITE);
         GetExitCodeProcess(pi.hProcess, &st);
         if (st != 0)
-                SHOUT("Command failed with status %ld\n", st);
+                warnx("Command failed with status %ld\n", st);
         if (status)
                 *status = st;
         
@@ -421,9 +421,9 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
                       NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
         eprintf("%s: Error: %s: %s\n", program_invocation_short_name, msg, lpMsgBuf);
+        win32_print_stack();
         fflush(stderr);
         LocalFree(lpMsgBuf);
-        SHOW_STACKTRACE();
         ExitProcess(status);
 }
 #else
@@ -438,7 +438,7 @@ win32_error_exit(int const status, const char *msg, DWORD const dw)
 
 #  include <dbghelp.h>
 
-static void
+void
 win32_print_stack(void)
 {
       unsigned int   i;

@@ -157,7 +157,7 @@ struct aDESINIT_ pdata {
         bstring const  *filename;
         bstring       **lst;
         unsigned        num;
-} __attribute__((aligned(64)));
+} /*__attribute__((aligned(64)))*/;
 
 
 static struct taglist *
@@ -205,7 +205,7 @@ tok_search(Buffer const *bdata, b_list *vimbuf)
         /* Launch the actual search in separate threads, with each handling as
          * close to an equal number of tags as the math allows. */
         for (unsigned i = 0; i < num_threads; ++i) {
-                struct pdata  *tmp  = aligned_alloc(64, sizeof(struct pdata));
+                struct pdata  *tmp  = malloc(sizeof(struct pdata));
                 assert(tmp);
                 unsigned const quot = tags->qty / num_threads;
                 unsigned const num  = (i == num_threads - 1)

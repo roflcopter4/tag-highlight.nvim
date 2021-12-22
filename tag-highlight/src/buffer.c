@@ -82,10 +82,15 @@ new_buffer(int const bufnum)
 {
       buffer_node *bnode = find_buffer_node(bufnum);
       if (!bnode) {
-            bnode = new_buffer_node(bufnum);
-            ll_append(buffer_list, bnode);
+            if (!(bnode = new_buffer_node(bufnum)))
+                  return NULL;
+            //ll_append(buffer_list, bnode);
       }
       Buffer *ret = make_new_buffer(bnode);
+      if (ret)
+            ll_append(buffer_list, bnode);
+      else 
+            talloc_free(bnode);
       return ret;
 }
 
@@ -105,8 +110,10 @@ make_new_buffer(buffer_node *bnode)
       Buffer   *ret    = NULL;
       Filetype *ft     = NULL;
       bstring  *ftname = nvim_buf_get_option(bnode->num, B("ft"), E_STRING).ptr;
-      if (!ftname || ftname->slen == 0)
+      if (!ftname || ftname->slen == 0) {
+            
             goto error;
+      }
 
       for (unsigned i = 0; i < ftdata_len; ++i) {
             if (b_iseq(ftname, &ftdata[i]->vim_name)) {
@@ -204,7 +211,7 @@ get_bufdata(int const bufnum, Filetype *ft)
             for (unsigned i = loc, b = 0; i < bdata->name.base->slen && b < 8; ++i, ++b)
                   bdata->name.suffix[b] = (char)bdata->name.base->data[i];
 
-      atomic_store_explicit(&bdata->ctick, 0, memory_order_relaxed);
+      p99_futex_exchange(&bdata->ctick, 0);
       atomic_store_explicit(&bdata->last_ctick, 0, memory_order_relaxed);
       init_buffer_mutexes(bdata);
 
@@ -783,9 +790,10 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
 
       unsigned cnt;
       atomic_store(&bdata->initialized, false);
-      while ((cnt = atomic_load(&bdata->lock.num_workers)) > 0) {
+      while ((cnt = p99_futex_load(&bdata->lock.num_workers)) > 0) {
             /* NANOSLEEP_FOR_SECOND_FRACTION(0, 5); */
-            NANOSLEEP(0, 1000);
+            //NANOSLEEP(0, 1000);
+            usleep(1);
 #if 0
             for (unsigned i = 0; i < cnt; ++i) {
                   if (bdata->lock.pids[i] > 0) {

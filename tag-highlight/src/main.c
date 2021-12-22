@@ -97,14 +97,6 @@ main(UNUSED int argc, char *argv[])
       talloc_emergency_library_init();
       talloc_disable_null_tracking();
 
-      event_enable_debug_logging(EVENT_DBG_NONE);
-
-#if 0
-      extern void thl_clang_call_foo(char const *fname);
-      thl_clang_call_foo(argv[1]);
-      exit(0);
-#endif
-
       TIMER_START(&main_timer);
 
       /* Accomodate for Win32 */
@@ -215,19 +207,21 @@ static void
 open_logs(void)
 {
 #ifdef DEBUG
-      //bstring *tmp = b_fromcstr(program_invocation_name);
-      //bstring *dir = b_dirname(tmp);
-      char tmp[PATH_MAX + 1];
 #if 0
+      bstring *tmp = b_fromcstr(program_invocation_name);
+      bstring *dir = b_dirname(tmp);
       size_t len = settings.cache_dir->slen;
       memcpy(tmp, settings.cache_dir->data, len);
       tmp[len++] = '/';
       memcpy(tmp + len, ("mpack_log_XXXXXX"), 17);
       (void)tmpnam(tmp);
 #endif
+
+      char tmp[PATH_MAX + 1];
       braindead_tempname(tmp, BS(settings.cache_dir), "mpack_", NULL);
       warnd("Opening log at base \"%s\"", tmp);
 
+      /* Sprintf is fine because PATH_MAX. */
       sprintf(log_filenames[LOG_ID_MPACK_MSG],       "%s_msg.log", tmp);
       sprintf(log_filenames[LOG_ID_MPACK_RAW_READ],  "%s_raw_read.log", tmp);
       sprintf(log_filenames[LOG_ID_MPACK_RAW_WRITE], "%s_raw_write.log", tmp);
@@ -235,15 +229,17 @@ open_logs(void)
       mpack_raw_read  = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_READ], "wbex");
       mpack_raw_write = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_WRITE], "wbex");
 
-      //talloc_free(tmp);
-      //talloc_free(dir);
+#if 0
+      talloc_free(tmp);
+      talloc_free(dir);
+#endif
 
       at_quick_exit(quick_cleanup);
 #endif
 }
 
 static noreturn void *
-neovim_init(UNUSED void *arg)
+neovim_init(UNUSED void *arg) //NOLINT(readability-function-cognitive-complexity)
 {
       extern void global_previous_buffer_set(int num);
 
@@ -262,7 +258,8 @@ neovim_init(UNUSED void *arg)
             update_highlight(bdata);
 
             TIMER_REPORT(&main_timer, "main initialization");
-            P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized, value, true, 1U, 0U,
+            P99_FUTEX_COMPARE_EXCHANGE(&first_buffer_initialized,
+                                       value, true, 1U, 0U,
                                        P99_FUTEX_MAX_WAITERS);
       }
 
@@ -410,17 +407,17 @@ quick_cleanup(void)
       if (mpack_log) {
             fclose(mpack_log);
             mpack_log = NULL;
-            (pthread_create)(&pids[0], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_MSG]);
+            pthread_create(&pids[0], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_MSG]);
       }
       if (mpack_raw_write) {
             fclose(mpack_raw_write);
             mpack_raw_write = NULL;
-            (pthread_create)(&pids[1], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_READ]);
+            pthread_create(&pids[1], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_READ]);
       }
       if (mpack_raw_read) {
             fclose(mpack_raw_read);
             mpack_raw_read = NULL;
-            (pthread_create)(&pids[2], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_WRITE]);
+            pthread_create(&pids[2], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_WRITE]);
       }
 
 #if 0

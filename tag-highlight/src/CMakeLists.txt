@@ -114,15 +114,17 @@ add_library(thl-util OBJECT ${thl-util_SOURCES})
 # Libraries
 
 target_link_libraries(tag-highlight
-    -Wl,--as-needed
     ${CMAKE_THREAD_LIBS_INIT}
-    ${ZLIB_LIBRARIES}
+    #${ZLIB_LIBRARIES}
     ${LLVM_SYSTEM_LIBRARIES}
     ${LLVM_LIBRARIES}
     ${LIBCLANG_LIBRARY}
-    # ${LIBUV_LIBRARIES}
+    #${LIBUV_LIBRARIES}
     ${LIBEVENT_LIBRARIES}
-    -L/usr/lib/llvm/14/lib64 -lclang-cpp
+    #-LD:/new_msys64/clang64/lib
+    #-levent_core -levent_extra -levent_openssl -levent
+    #D:/vcpkg/installed/x64-windows/lib/tinycthread.lib
+    -lz -pthread
     thl-util
     tag_highlight_lang
 )

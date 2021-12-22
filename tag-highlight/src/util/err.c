@@ -51,8 +51,9 @@
 #  define SHOW_STACKTRACE(...)
 #endif
 
-#define ERRSTACKSIZE (6384)
+#define ERRSTACKSIZE (6384
 
+extern void win32_print_stack(void);
 static inline bstring * get_project_base(const char *fullpath);
 extern FILE *echo_log;
 
@@ -73,28 +74,23 @@ err_(int  const UNUSED    status,
         va_start(ap, fmt);
         bstring *base = get_project_base(file);
 
-        char *tmp_buf;
-        size_t tmp_size;
-        FILE *tmp = open_memstream(&tmp_buf, &tmp_size);
-
-        fprintf(tmp, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
-        vfprintf(tmp, fmt, ap);
+        fprintf(stderr, "%s: (%s:%d - %s): ", program_invocation_short_name, BS(base), line, func);
+        vfprintf(stderr, fmt, ap);
         if (print_err)
-                fprintf(tmp, ": %s\n", strerror(e));
+                fprintf(stderr, ": %s\n", strerror(e));
         else
-                fputc('\n', tmp);
+                fputc('\n', stderr);
 
         va_end(ap);
         talloc_free(base);
 
         SHOW_STACKTRACE();
-        fputc('\n', tmp);
-        fflush(tmp);
+        fputc('\n', stderr);
 
         /* nvim_err_write(btp_fromblk(tmp_buf, tmp_size)); */
-        fwrite(tmp_buf, 1, tmp_size, stderr);
+        //fwrite(tmp_buf, 1, tmp_size, stderr);
         fflush(stderr);
-        fclose(tmp);
+        //fclose(tmp);
 
         /* if (settings.buffer_initialized) */
 

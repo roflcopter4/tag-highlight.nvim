@@ -39,6 +39,7 @@ write_gzip_from_buffer(struct top_dir const *topdir, bstring const *buf)
         gzclose(gfp);
 }
 
+#ifdef LZMA_SUPPORT
 void
 write_lzma_from_buffer(struct top_dir const *topdir, bstring const *buf)
 {
@@ -70,6 +71,7 @@ write_lzma_from_buffer(struct top_dir const *topdir, bstring const *buf)
         lzma_end(&strm);
         talloc_free(out_buf);
 }
+#endif
 
 /*****************************************************************************/
 

@@ -1,3 +1,6 @@
+
+typedef int bstring;
+
 #include "Common.h"
 
 #include <cinttypes>

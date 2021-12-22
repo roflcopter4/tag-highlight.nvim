@@ -48,6 +48,9 @@ if (MSVC AND NOT "${CMAKE_C_SIMULATE_ID}" STREQUAL "MSVC")
     set (TRUE_MSVC YES)
 endif()
 
+if (NOT CMAKE_C_STANDARD)
+    set (CMAKE_C_STANDARD 17)
+endif ()
 if (NOT CMAKE_CXX_STANDARD)
     set (CMAKE_CXX_STANDARD 20)
 endif ()
@@ -103,12 +106,12 @@ endif()
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-find_package (ZLIB REQUIRED)
+#find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
-#find_package (LibUV REQUIRED)
-find_package (Libevent)
-find_package (LibLZMA)
+find_package (LibUV REQUIRED)
+find_package (Libevent REQUIRED)
+#find_package (LibLZMA)
 
 # find_package (sodium)
 
@@ -189,6 +192,8 @@ CHECK_SYMBOL_EXISTS (fork           "unistd.h"   HAVE_FORK)
 CHECK_SYMBOL_EXISTS (pause          "unistd.h"   HAVE_PAUSE)
 CHECK_SYMBOL_EXISTS (pipe2          "unistd.h"   HAVE_PIPE2)
 CHECK_SYMBOL_EXISTS (lrand48        "stdlib.h"   HAVE_LRAND48)
+CHECK_SYMBOL_EXISTS (localtime_r    "time.h"     HAVE_LOCALTIME_R)
+CHECK_SYMBOL_EXISTS (localtime_s    "time.h"     HAVE_LOCALTIME_S)
 
 CHECK_SYMBOL_EXISTS (getauxval "sys/getauxv.h" HAVE_GETAUXVAL)
 CHECK_SYMBOL_EXISTS (program_invocation_name "errno.h" HAVE_PROGRAM_INVOCATION_NAME)
@@ -314,20 +319,35 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         set (BASE ${BASE} ${WARNS}
             -g3 -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
         )
-        # set (LTO_STR -flto=full)
+        set (LTO_STR -flto=full)
 
         string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 # -fuse-ld=gold
                 -fuse-ld=lld
+                ${LTO_STR}
+        )
+        if (NOT MINGW AND NOT MSYS)
+            string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 -stdlib=libstdc++
                 -rtlib=libgcc --unwindlib=libgcc
                 # -rtlib=compiler-rt --unwindlib=libgcc
                 # -rtlib=compiler-rt --unwindlib=libunwind
-                # -Wl,--lto-O3
-                # -Wl,--lto-whole-program-visibility ${LTO_STR}
-        )
+                -Wl,--as-needed
+                -Wl,--lto-O3
+                -Wl,--lto-whole-program-visibility
+            )
+            set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
+        else ()
+            string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+                -stdlib=libstdc++
+                #-rtlib=compiler-rt --unwindlib=libunwind
+                -rtlib=libgcc --unwindlib=libgcc
+            )
+            set (BASE ${BASE} -U_FORTIFY_SOURCE -fno-stack-protector)
+            set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
+        endif ()
 
-        set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
+
         set (__EXTRA_C_CXX_RELEASE_FLAGS -fvectorize -fslp-vectorize -mprefer-vector-width=512)
 
         find_program(LLVM_AR "llvm-ar" REQUIRED)
@@ -349,11 +369,18 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
     set (BASE ${BASE} ${WARNS} -Werror=designated-init 
         -fvect-cost-model=unlimited
         -masm=intel -fverbose-asm
-        -g3 -gdwarf-5
+        -g3
     )
+    if (NOT WIN32)
+        set (BASE ${BASE} -gdwarf-5)
+    endif()
     set (LTO_STR -flto -fuse-linker-plugin -fno-fat-lto-objects)
 
-    string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}" -fuse-ld=bfd ${LTO_STR})
+    string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
+        -fuse-ld=bfd
+        ${LTO_STR}
+        -Wl,--as-needed
+    )
 
     find_program(GCC_AR "gcc-ar" REQUIRED)
     find_program(GCC_NM "gcc-nm" REQUIRED)
@@ -384,6 +411,7 @@ else()
         ${CMAKE_C_FLAGS_RELWITHDEBINFO} ${CFLAGS_RELWITHDEBINFO_COMMON}
         ${BASE} ${LTO_STR} ${CMAKE_C_FLAGS} ${__EXTRA_C_CXX_RELEASE_FLAGS})
 
+    string(JOIN " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}" "-std=gnu2x")
     string(JOIN " " CMAKE_CXX_FLAGS "-std=gnu++${CMAKE_CXX_STANDARD}" "${CMAKE_CXX_FLAGS}")
 
     set(CMAKE_CXX_FLAGS_DEBUG          ${CMAKE_C_FLAGS_DEBUG}          ${CMAKE_CXX_FLAGS})

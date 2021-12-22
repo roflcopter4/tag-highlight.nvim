@@ -31,20 +31,6 @@ FILE *mpack_raw_read;
 #define PRAGMA_NO_NONHEAP_POP()
 #endif
 
-
-#define SHUTUPGCC __attribute__((__unused__)) ssize_t n =
-#include <execinfo.h>
-#define SHOW_STACKTRACE()                                    \
-      __extension__({                                        \
-            void  *arr[128];                                 \
-            size_t num = backtrace(arr, 128);                \
-            fflush(stderr);                                  \
-            fsync(2);                                        \
-            SHUTUPGCC write(2, SLS("<<< STACKTRACE >>>\n")); \
-            backtrace_symbols_fd(arr, num, 2);               \
-            fsync(2);                                        \
-      })
-
 /*======================================================================================*/
 
 mpack_retval(mpack_expect)(mpack_obj *const obj,

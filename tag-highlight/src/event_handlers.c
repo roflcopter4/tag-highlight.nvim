@@ -11,9 +11,9 @@
 /*--------------------------------------------------------------------------------------*/
 
 struct message_args {
-    alignas(16)
+    //alignas(16)
       mpack_obj *obj;
-    alignas(8)
+    //alignas(8)
       int fd;
 };
 
@@ -76,7 +76,7 @@ handle_nvim_message(struct event_data *data)
             break;
       }
       case MES_RESPONSE: {
-            struct message_args *tmp = aligned_alloc_for(struct message_args);
+            struct message_args *tmp = malloc(sizeof(struct message_args));
             tmp->obj = obj;
             tmp->fd  = fd;
             START_DETACHED_PTHREAD(wrap_handle_nvim_response, tmp);
@@ -418,9 +418,9 @@ static noreturn void event_stop(void);
 static noreturn void event_exit(void);
 static void attach_new_buffer(int num);
 
-extern __always_inline void global_previous_buffer_set(int num);
-extern __always_inline int  global_previous_buffer_get(void);
-extern __always_inline int  global_previous_buffer_exchange(int num);
+extern void global_previous_buffer_set(int num);
+extern int  global_previous_buffer_get(void);
+extern int  global_previous_buffer_exchange(int num);
 
 
 __attribute__((__constructor__(400)))
@@ -489,19 +489,19 @@ event_autocmd(void *vdata)
       pthread_exit();
 }
 
-inline void
+void
 global_previous_buffer_set(int const num)
 {
       atomic_store_explicit(&global_previous_buffer, num, memory_order_release);
 }
 
-inline int
+int
 global_previous_buffer_get(void)
 {
       return atomic_load_explicit(&global_previous_buffer, memory_order_acquire);
 }
 
-inline int
+int
 global_previous_buffer_exchange(int const num)
 {
       return atomic_exchange_explicit(&global_previous_buffer, num, memory_order_acq_rel);

@@ -52,6 +52,7 @@ static translationunit_t *recover_compilation_unit(Buffer *bdata, bstring *buf);
 static CXCompileCommands  get_clang_compile_commands_for_file(CXCompilationDatabase *db,
                                                               Buffer *bdata);
 
+static noreturn void handle_libclang_error(Buffer *bdata, unsigned const err);
 static int         destroy_struct_translationunit(translationunit_t *stu);
 static int         do_destroy_clangdata(clangdata_t *cdata);
 static str_vector *get_backup_commands(Buffer *bdata);
@@ -69,20 +70,12 @@ clang_initializer(void)
 /*======================================================================================*/
 
 static jmp_buf jbuf;
-
 extern void thl_cxx_call_foo(CXTranslationUnit tu, char const *fname, char const *buffer);
 extern void thl_cxx_try_harder(struct CXUnsavedFile *filecontents, char const **commands, size_t ncommands);
+static void mutex_cleanup(void *arg);
 
-static void bstr_cleanup(void *arg) {
-      if (arg)
-            talloc_free(arg);
-}
-
-static void mutex_cleanup(void *arg) {
-      Buffer *bdata = arg;
-      p99_count_dec(&bdata->lock.num_workers);
-      pthread_mutex_unlock(&bdata->lock.lang_mtx);
-}
+//static int do_libclang_highlight(void);
+static inline int do_libclang_highlight(Buffer *bdata, int first, int last, int type);
 
 void
 (libclang_highlight)(Buffer *bdata, int const first, int const last, int const type)
@@ -92,26 +85,30 @@ void
       if (bdata->total_failure)
             return;
 
-      /* __attribute__((cleanup(bstr_cleanup))) */
-      int dummy;
-      bstring *joined = NULL;
       uint32_t cnt_val = p99_count_inc(&bdata->lock.num_workers);
       if (cnt_val > 3) {
             p99_count_dec(&bdata->lock.num_workers);
             return;
       }
+
       bdata->lock.pids[cnt_val] = pthread_self();
       if (setjmp(jbuf) != 0)
             goto done;
 
       ALWAYS_ASSERT(P99_EQ_ANY(bdata->ft->id, FT_C, FT_CXX));
 
+      pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED, NULL);
+      pthread_mutex_lock(&bdata->lock.lang_mtx);
+      pthread_cleanup_push(mutex_cleanup, bdata);
+
+      do_libclang_highlight(bdata, first, last, type);
+
+#if 0
+      int                dummy;
+      bstring           *joined = NULL;
       mpack_arg_array   *calls;
       translationunit_t *stu;
       int64_t            startend[2];
-
-      pthread_mutex_lock(&bdata->lock.lang_mtx);
-      pthread_cleanup_push(mutex_cleanup, bdata);
 
       if (bdata->num_failures > 10) {
             if (!bdata->total_failure) {
@@ -164,32 +161,74 @@ void
       talloc_free(stu);
 
       //TIMER_REPORT(&tm, "clang parse");
+#endif
 
 done:
-      pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &dummy);
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
       bdata->lock.pids[cnt_val] = 0;
       p99_count_dec(&bdata->lock.num_workers);
       pthread_mutex_unlock(&bdata->lock.lang_mtx);
       pthread_cleanup_pop(0);
+      pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
       //pthread_cleanup_pop(0);
 }
 
-void *
-highlight_c_pthread_wrapper(void *vdata)
+static inline int
+do_libclang_highlight(Buffer *bdata, int const first, int const last, int const type)
 {
-      Buffer *bdata = vdata;
-      libclang_highlight(bdata);
-      pthread_exit();
+      bstring           *joined = NULL;
+      mpack_arg_array   *calls;
+      translationunit_t *stu;
+      int64_t            startend[2];
+
+      if (bdata->num_failures > 10) {
+            if (!bdata->total_failure) {
+                  SHOUT("Too many clang errors. Shutting down this buffer.");
+                  bdata->total_failure = true;
+            }
+            return 1;
+      }
+
+      pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+      pthread_mutex_lock(&bdata->lock.total);
+      joined = ll_join_bstrings(bdata->lines, '\n');
+      pthread_mutex_unlock(&bdata->lock.total);
+
+      if (last == (-1)) {
+            startend[0] = 0;
+            startend[1] = joined->slen;
+      } else {
+            lines2bytes(bdata, startend, first, last);
+      }
+
+      if (type == HIGHLIGHT_REDO) {
+            if (bdata->clangdata)
+                  destroy_clangdata(bdata);
+            stu = init_compilation_unit(bdata, joined);
+      } else {
+            stu = (bdata->clangdata) ? recover_compilation_unit(bdata, joined)
+                                     : init_compilation_unit(bdata, joined);
+      }
+      pthread_setcancelstate(PTHREAD_CANCEL_DEFERRED, NULL);
+
+      CLD(bdata)->mainfile = clang_getFile(CLD(bdata)->tu, BS(bdata->name.full));
+      tokenize_range(stu, &CLD(bdata)->mainfile, startend[0], startend[1]);
+
+      calls = create_nvim_calls(bdata, stu);
+      nvim_call_atomic(calls);
+
+      talloc_free(calls);
+      talloc_free(stu);
+      return 0;
 }
 
-void
-libclang_suspend_translationunit(Buffer *bdata)
+/*--------------------------------------------------------------------------------------*/
+
+static
+void mutex_cleanup(void *arg)
 {
-      pthread_mutex_lock(&bdata->lock.lang_mtx);
-      fprintf(stderr, "Suspending translation unit \"%.*s\"\n", BSC(bdata->name.base));
-      fflush(stderr);
-      if (bdata->clangdata && CLD(bdata)->tu)
-            clang_suspendTranslationUnit(CLD(bdata)->tu);
+      Buffer *bdata = arg;
+      p99_count_dec(&bdata->lock.num_workers);
       pthread_mutex_unlock(&bdata->lock.lang_mtx);
 }
 
@@ -215,7 +254,15 @@ lines2bytes(Buffer *bdata, int64_t *startend, int const first, int const last)
       startend[1] = endbyte;
 }
 
-/*======================================================================================*/
+/*--------------------------------------------------------------------------------------*/
+
+void *
+highlight_c_pthread_wrapper(void *vdata)
+{
+      Buffer *bdata = vdata;
+      libclang_highlight(bdata);
+      pthread_exit();
+}
 
 static noreturn void
 handle_libclang_error(Buffer *bdata, unsigned const err)
@@ -225,6 +272,19 @@ handle_libclang_error(Buffer *bdata, unsigned const err)
       shout("Libclang error (%u). Unfortunately this is fatal at the moment.", err);
       ++bdata->num_failures;
       longjmp(jbuf, 1);
+}
+
+/*======================================================================================*/
+
+void
+libclang_suspend_translationunit(Buffer *bdata)
+{
+      pthread_mutex_lock(&bdata->lock.lang_mtx);
+      fprintf(stderr, "Suspending translation unit \"%.*s\"\n", BSC(bdata->name.base));
+      fflush(stderr);
+      if (bdata->clangdata && CLD(bdata)->tu)
+            clang_suspendTranslationUnit(CLD(bdata)->tu);
+      pthread_mutex_unlock(&bdata->lock.lang_mtx);
 }
 
 static translationunit_t *
