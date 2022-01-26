@@ -13,47 +13,25 @@
 #include "highlight.h"
 #include "util/archive.h"
 
-static int run_ctags (Buffer *bdata, enum update_taglist_opts opts);
-static int exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts opts);
 static bstring *exec_ctags_pipe(Buffer *bdata, b_list *headers, enum update_taglist_opts opts, int *status);
 static inline void write_gzfile_from_buffer(struct top_dir const *topdir, bstring const *buf);
-static inline void write_gzfile(struct top_dir *topdir);
 
 
 /*======================================================================================*/
 
 
-static int
-run_ctags(Buffer *bdata, enum update_taglist_opts const opts)
-{
-      if (!nvim_get_var(B("tag_highlight#run_ctags"), E_BOOL).num) {
-            warnd("ctags is disabled. Not running.");
-            return (-1);
-      }
-
-      assert(bdata != NULL && bdata->topdir != NULL);
-      if (!bdata->lines) {
-            warnd("File is empty, cannot run ctags");
-            return false;
-      }
-
-      /* Wipe any cached commands if they exist. */
-      if (!bdata->ft->has_parser && bdata->calls)
-            TALLOC_FREE(bdata->calls);
-
-      int status = exec_ctags(bdata, bdata->ft->is_c ? bdata->headers : NULL, opts);
-
-      if (status != 0)
-            warnx("ctags failed with status \"%d\"\n", status);
-
-      return (status == 0);
-}
-
-
 static bstring *
 run_ctags_pipe(Buffer *bdata, enum update_taglist_opts const opts)
 {
-      if (!nvim_get_var(B("tag_highlight#run_ctags"), E_BOOL).num) {
+      /* bool     const global_run_ctags = nvim_get_var(B("tag_highlight#run_ctags"), E_BOOL).num; */
+      bool     const global_run_ctags = settings.run_ctags;
+      uint64_t const buf_run_ctags    = nvim_buf_get_var(bdata->num, B("tag_highlight_run_ctags"), E_BOOL, UINT64_C(-1)).num;
+
+      bool const should_run_ctags = buf_run_ctags == UINT64_C(-1)
+                                    ? global_run_ctags
+                                    : buf_run_ctags;
+
+      if (!should_run_ctags) {
             warnd("ctags is disabled. Not running.");
             return NULL;
       }
@@ -61,7 +39,7 @@ run_ctags_pipe(Buffer *bdata, enum update_taglist_opts const opts)
       assert(bdata != NULL && bdata->topdir != NULL);
       if (!bdata->lines) {
             warnd("File is empty, cannot run ctags");
-            return false;
+            return NULL;
       }
 
       /* Wipe any cached commands if they exist. */
@@ -230,26 +208,6 @@ write_gzfile_from_buffer(struct top_dir const *topdir, bstring const *buf)
       }
 }
 
-static inline void
-write_gzfile(struct top_dir *topdir)
-{
-      switch (settings.comp_type) {
-      case COMP_NONE:
-            write_plain(topdir);
-            break;
-      case COMP_LZMA:
-#ifdef LZMA_SUPPORT
-            write_lzma(topdir);
-            break;
-#endif
-      case COMP_GZIP:
-            write_gzip(topdir);
-            break;
-      default:
-            abort();
-      }
-}
-
 
 /*======================================================================================*/
 
@@ -260,96 +218,20 @@ static inline void get_ctags_argv_other(Buffer *bdata, b_list *headers, str_vect
 static inline void get_ctags_argv_lang(Buffer *bdata, str_vector *argv, bool force);
 
 
-#ifdef DOSISH
-
 static bstring *
 exec_ctags_pipe(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts, int *status)
 {
       str_vector *argv = get_ctags_argv(bdata, headers, opts);
+      argv_dump(stderr, argv);
       bstring *out = get_command_output(BS(settings.ctags_bin), argv->lst, NULL, status);
 
       if (status != 0)
             warnx("ctags returned with status %d", ((*status &0xFF00) >> 8));
 
       return out;
-}
-
-static int
-exec_ctags(Buffer *bdata, b_list *headers, UNUSED enum update_taglist_opts const opts)
-{
-      bstring *cmd = b_fromcstr_alloc(2048, "ctags ");
-
-      for (unsigned i = 0; i < settings.ctags_args->qty; ++i)
-            b_sprintfa(cmd, "\"%s\" ", settings.ctags_args->lst[i]);
-
-      if (headers) {
-            B_LIST_SORT(headers);
-            bstring *tmp = b_join_quote(headers, B(" "), '"');
-            b_sprintfa(cmd, " \"-f%s\" \"%s\" %s", bdata->topdir->tmpfname,
-                       bdata->name.full, tmp);
-
-            talloc_free(tmp);
-            talloc_free(headers);
-      } else if (bdata->topdir->recurse) {
-            b_sprintfa(cmd, " \"--languages=%s\" -R \"-f%s\" \"%s\"", &bdata->ft->ctags_name,
-                       bdata->topdir->tmpfname, bdata->topdir->pathname);
-      } else {
-            b_sprintfa(cmd, " \"-f%s\" \"%s\"", bdata->topdir->tmpfname, bdata->name.full);
-      }
-
-      warnd("Running ctags command `CMD.EXE /c %*s`", BSC(cmd));
-
-      /* Yes, this directly uses unchecked user input in a call to system().
-       * Frankly, if somehow someone takes over a user's vimrc then they're
-       * already compromised, and if the user wants to attack their own
-       * system for some reason then they can be my guest. */
-      return system(BS(cmd));
 }
 
 /*--------------------------------------------------------------------------------------*/
-#else // DOSISH
-
-static bstring *
-exec_ctags_pipe(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts, int *status)
-{
-      str_vector *argv = get_ctags_argv(bdata, headers, opts);
-      /* argv_dump(stderr, argv); */
-      bstring *out = get_command_output(BS(settings.ctags_bin), argv->lst, NULL, status);
-
-      if (status != 0)
-            warnx("ctags returned with status %d", ((*status &0xFF00) >> 8));
-
-      return out;
-}
-
-/*
- * In a unix environment, let's avoid the headache of quoting arguments by
- * calling fork/exec, even at the cost of a bunch of extra allocations and copying.
- *
- * What a mess though.
- */
-static int
-exec_ctags(Buffer *bdata, b_list *headers, enum update_taglist_opts const opts)
-{
-      int         pid, status;
-      str_vector *argv = get_ctags_argv(bdata, headers, opts);
-      warnd("Running ctags:");
-
-# ifdef HAVE_POSIX_SPAWNP
-      if (posix_spawnp(&pid, BS(settings.ctags_bin), NULL, NULL, argv->lst, environ) != 0)
-            err(1, "posix_spawnp failed");
-# else
-      if ((pid = fork()) == 0)
-            if (execvpe(BS(settings.ctags_bin), argv->lst, environ) != 0)
-                  err(1, "execvpe failed");
-# endif
-
-      waitpid(pid, &status, 0);
-      talloc_free(argv);
-      return (status > 0) ? ((status & 0xFF00) >> 8) : status;
-}
-
-#endif // DOSISH
 
 # define B2C(var) b_bstr2cstr((var), 0)
 
@@ -379,14 +261,16 @@ get_ctags_argv(Buffer *bdata, b_list *headers,
 }
 
 static inline str_vector *
-get_ctags_argv_init(Buffer *bdata)
+get_ctags_argv_init(UNUSED Buffer *bdata)
 {
       str_vector *argv = argv_create(128);
 
       argv_append(argv, B2C(settings.ctags_bin), false);
-      argv_append(argv, "--pattern-length-limit=1", true);
+      argv_append(argv, "--pattern-length-limit=1", true); // Not needed; just pads the file
       argv_append(argv, "--output-format=e-ctags", true);
       argv_append(argv, "-f-", true);
+      argv_append(argv, "--fields=+l", true);
+      //argv_append(argv, "--fields=-P", true);
 #if 0
       argv_append_fmt(argv, "-f%s", BS(bdata->topdir->tmpfname));
 #endif
@@ -403,6 +287,12 @@ get_ctags_argv_recursion(Buffer *bdata, str_vector *argv)
 {
       argv_append(argv, "-R", true);
       argv_append(argv, B2C(bdata->topdir->pathname), false);
+#if 0
+      if (bdata->ft->id == FT_PYTHON) {
+            argv_append(argv, "/usr/lib/python3.10", true);
+            argv_append_fmt(argv, "%s/.local/lib/python3.10/site-packages", HOME);
+      }
+#endif
 }
 
 static inline void
@@ -425,5 +315,3 @@ get_ctags_argv_lang(Buffer *bdata, str_vector *argv, bool const force)
       else
             argv_append_fmt(argv, "--languages=%s", BTS(bdata->ft->ctags_name));
 }
-
-/*--------------------------------------------------------------------------------------*/

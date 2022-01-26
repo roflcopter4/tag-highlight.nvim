@@ -244,13 +244,15 @@ endif()
 set (WARNS
         -Wall -Wextra
         -Werror=format-extra-args
+        -Wimplicit-fallthrough
+        -Werror=invalid-pch
+)
+set (C_ONLY_WARNS
         -Werror=implicit
         -Werror=implicit-function-declaration
         -Werror=incompatible-pointer-types
-        -Werror=incompatible-pointer-types
         -Werror=int-conversion
         -Werror=pointer-to-int-cast
-        -Werror=invalid-pch
 )
 
 if (NOT BUILD_DIST) 
@@ -323,16 +325,17 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 
         string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 # -fuse-ld=gold
+                -rdynamic
                 -fuse-ld=lld
                 ${LTO_STR}
         )
         if (NOT MINGW AND NOT MSYS)
             string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 -stdlib=libstdc++
-                -rtlib=compiler-rt 
+                -rtlib=compiler-rt
+                # --unwindlib=libunwind
+                # -rtlib=libgcc
                 --unwindlib=libgcc
-                #-rtlib=libgcc
-                #--unwindlib=libgcc
                 -Wl,--as-needed
                 -Wl,--lto-O3
                 -Wl,--lto-whole-program-visibility
@@ -341,8 +344,10 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
         else ()
             string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                 -stdlib=libstdc++
-                #-rtlib=compiler-rt --unwindlib=libunwind
-                -rtlib=libgcc --unwindlib=libgcc
+                -rtlib=compiler-rt
+                # --unwindlib=libunwind
+                # -rtlib=libgcc
+                --unwindlib=libgcc
             )
             set (BASE ${BASE} -U_FORTIFY_SOURCE -fno-stack-protector)
             set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
@@ -367,6 +372,8 @@ elseif ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         -Wsuggest-attribute=const -Wsuggest-attribute=noreturn -Wsuggest-attribute=format
         -Wattributes
     )
+
+    set (C_ONLY_WARNS ${C_ONLY_WARNS} -Werror=designated-init)
     set (BASE ${BASE} ${WARNS} -Werror=designated-init 
         -fvect-cost-model=unlimited
         -masm=intel -fverbose-asm
@@ -432,6 +439,9 @@ else()
     list(JOIN CMAKE_CXX_FLAGS_RELEASE        " " CMAKE_CXX_FLAGS_RELEASE        )
     list(JOIN CMAKE_CXX_FLAGS_RELWITHDEBINFO " " CMAKE_CXX_FLAGS_RELWITHDEBINFO )
     list(JOIN CMAKE_CXX_FLAGS_MINSIZEREL     " " CMAKE_CXX_FLAGS_MINSIZEREL     )
+
+    list(JOIN C_ONLY_WARNS " " C_ONLY_WARNS)
+    string(JOIN " " CMAKE_C_FLAGS "${C_ONLY_WARNS} ${CMAKE_C_FLAGS}")
 endif()
 
 if (MINGW)

@@ -20,17 +20,20 @@ func Wait() string {
 		err   error
 	)
 
-        // eprintf("Reading %d bytes! (num2read)\n", n)
+	// eprintf("Reading %d bytes! (num2read)\n", n)
 
 	if n, err = io.ReadFull(os.Stdin, buf); err != nil {
+		if err == io.EOF {
+			os.Exit(0)
+		}
 		panic(err)
 	}
 
-        // eprintf("Read %d bytes! (num2read)\n", n)
+	// eprintf("Read %d bytes! (num2read)\n", n)
 
 	inlen = int(mkuint64(buf))
 
-        // eprintf("Reading %d bytes (buffer)\n", inlen)
+	// eprintf("Reading %d bytes (buffer)\n", inlen)
 
 	buf = make([]byte, inlen)
 
@@ -38,7 +41,7 @@ func Wait() string {
 		panic(err)
 	}
 
-        // eprintf("Read %d bytes (buffer)!\n", n)
+	// eprintf("Read %d bytes (buffer)!\n", n)
 	_ = n
 
 	return string(buf)

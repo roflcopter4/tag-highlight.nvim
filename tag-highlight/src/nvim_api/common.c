@@ -126,7 +126,7 @@ await_package(nvim_wait_node *node)
 static mpack_obj *
 write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
 {
-#if defined DEBUG
+#if defined DEBUG && defined DEBUG_LOGS
       if (mpack_raw_write) {
             size_t n = fwrite((*pack->packed)->data, 1, (*pack->packed)->slen, mpack_raw_write);
             assert(!ferror(mpack_raw_write) && (unsigned)n == (*pack->packed)->slen);
@@ -156,16 +156,16 @@ write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
 /*======================================================================================*/
 
 mpack_retval
-nvim_api_intern_mpack_expect_wrapper(mpack_obj *root, mpack_expect_t type)
+(nvim_api_intern_mpack_expect_wrapper)(mpack_obj *root, mpack_expect_t const type, uint64_t const defval)
 {
       mpack_obj   *errmsg = mpack_index(root, 2);
       mpack_obj   *data   = mpack_index(root, 3);
-      mpack_retval ret    = {.ptr = NULL};
+      mpack_retval ret    = {.num = defval};
 
       if (mpack_type(errmsg) != MPACK_NIL) {
             bstring *err_str = mpack_expect(mpack_index(errmsg, 1), E_STRING, false).ptr;
             if (err_str)
-                  echo("Neovim returned with an err_str: '%s'", BS(err_str));
+                  warnd("Neovim returned with an err_str: '%s'", BS(err_str));
       } else {
             ret = mpack_expect(data, type, false);
             switch (type) {

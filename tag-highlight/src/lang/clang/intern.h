@@ -73,6 +73,8 @@ INTERN void lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array
 INTERN bool resolve_range(CXSourceRange r, resolved_range_t *res);
 INTERN void get_tmp_path(char *buf);
 
+INTERN char const *const libclang_CXCursorKind_repr[];
+
 #undef INTERN
 
 /*--------------------------------------------------------------------------------------*/

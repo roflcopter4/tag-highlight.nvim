@@ -83,17 +83,18 @@ set (thl-util_SOURCES
 
     contrib/contrib.c
 
-    util/cxx_utils.cc
-    util/temp_name.c
     util/archive_gzip.c
     util/archive_read.c
     util/archive_write.c
+    util/cxx_utils.cc
+    util/err.c
     util/find.c
+    util/format_binary.c
     util/generic_list.c
     util/linked_list.c
     util/nanosleep.c
+    util/temp_name.c
     util/util.c
-    util/err.c
 )
 
 if (LZMA_SUPPORT)
@@ -124,7 +125,7 @@ target_link_libraries(tag-highlight
     #-LD:/new_msys64/clang64/lib
     #-levent_core -levent_extra -levent_openssl -levent
     #D:/vcpkg/installed/x64-windows/lib/tinycthread.lib
-    -lz -pthread
+    -lz -pthread -lgc
     thl-util
     tag_highlight_lang
 )

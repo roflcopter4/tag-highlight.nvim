@@ -8,6 +8,7 @@ set (tag-highlight-lang_SOURCES
     clang/typeid.c
     clang/util.c
     # clang/cxx.cc
+    clang/repr.c
     ctags_scan/scan.c
     ctags_scan/strip.c
     ctags_scan/tok.c

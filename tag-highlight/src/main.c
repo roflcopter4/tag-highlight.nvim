@@ -4,6 +4,7 @@
 #include "contrib/p99/p99_futex.h"
 
 #include <event2/event.h>
+#include <spawn.h>
 
 #if 0
 #  define JEMALLOC_MANGLE
@@ -65,12 +66,12 @@ extern void talloc_emergency_library_init(void);
 
 extern void           run_event_loop(int fd);
 extern void           exit_cleanup(void);
-static void           general_init(void);
-static void           platform_init(char **argv);
-static void           get_settings(void);
-static void           open_logs(void);
-static void           quick_cleanup(void);
+static void           general_init(char const *const *argv);
+static void           platform_init(char const *const *argv);
 static void           initialize_talloc_contexts(void);
+static void           open_logs(char const *cache_dir);
+static void           get_settings(void);
+static void           quick_cleanup(void);
 static void           clean_talloc_contexts(void);
 static comp_type_t    get_compression_type(void);
 static bstring       *get_go_binary(void);
@@ -87,7 +88,7 @@ extern void        *tok_scan_talloc_ctx_;
 extern void        *update_top_talloc_ctx_;
 extern void        *BSTR_talloc_top_ctx;
 UNUSED static void *main_top_talloc_ctx_ = NULL;
-#define CTX main_top_talloc_ctx
+#define CTX main_top_talloc_ctx_
 
 /*======================================================================================*/
 
@@ -100,20 +101,21 @@ main(UNUSED int argc, char *argv[])
       TIMER_START(&main_timer);
 
       /* Accomodate for Win32 */
-      platform_init(argv);
+      platform_init((char const *const *)argv);
 
       /* This function will ultimately spawn an asynchronous thread that will try to
        * attach to the current buffer, if possible. */
-      general_init();
+      general_init((char const *const *)argv);
 
       /* This normally does not return. */
       run_event_loop(STDIN_FILENO);
 
       /* ... except for when it does. If the user has deliberately stopped the
        * program, we clean up. */
-      clean_talloc_contexts();
 
       exit_cleanup();
+      clean_talloc_contexts();
+
       //malloc_stats_print(NULL, NULL, "");
       eprintf("All done!\n");
       return EXIT_SUCCESS;
@@ -122,10 +124,10 @@ main(UNUSED int argc, char *argv[])
 /*======================================================================================*/
 
 static void
-platform_init(char **argv)
+platform_init(char const *const *argv)
 {
       if (!program_invocation_name)
-            program_invocation_name = argv[0];
+            program_invocation_name = (char *)argv[0];
       if (!program_invocation_short_name)
             program_invocation_short_name = basename(argv[0]);
 #ifdef DOSISH
@@ -144,30 +146,28 @@ platform_init(char **argv)
 }
 
 static void
-general_init(void)
+general_init(char const *const *argv)
 {
 #if defined SANITIZE && !defined SANITIZER_LOG_PLACE
       {
             char tmp[8192];
-            snprintf(tmp, 8192, "%s/sanitizer.log", HOME);
+            snprintf(tmp, 8192, "%s/sanitizer.log", argv[1]);
             __sanitizer_set_report_path(tmp);
       }
 #endif
-      initialize_talloc_contexts();
-      //open_logs();
       top_thread = pthread_self();
+      open_logs(argv[1]);
       p99_futex_init(&first_buffer_initialized, 0);
       START_DETACHED_PTHREAD(neovim_init);
 }
 
+__attribute__((constructor(102)))
 static void
-initialize_talloc_contexts(void)
+initialize_talloc_contexts()
 {
-#if 0
-        talloc_log_file = safe_fopen_fmt("wb", "%s/talloc_report.log", HOME);
-#  define _CTX main_top_talloc_ctx_
+#if defined DEBUG && 0
+# define _CTX main_top_talloc_ctx_
         main_top_talloc_ctx_       = talloc_named_const(NULL, 0, "Main Top");
-        /* main_top_talloc_ctx_       = talloc_init("Main top context"); */
         mpack_encode_talloc_ctx_   = talloc_named_const(_CTX, 0, "Mpack Encode Top");
         mpack_decode_talloc_ctx_   = talloc_named_const(_CTX, 0, "Mpack Decode Top");
         nvim_common_talloc_ctx_    = talloc_named_const(_CTX, 0, "Nvim Common Top");
@@ -178,23 +178,19 @@ initialize_talloc_contexts(void)
         tok_scan_talloc_ctx_       = talloc_named_const(_CTX, 0, "Token Scanner Top Context");
         update_top_talloc_ctx_     = talloc_named_const(_CTX, 0, "Update Top Context");
         BSTR_talloc_top_ctx        = talloc_named_const(_CTX, 0, "Bstring Top Context");
-#  undef _CTX
-        at_quick_exit(clean_talloc_contexts);
+# undef _CTX
 #endif
 }
 
 static void
 clean_talloc_contexts(void)
 {
-#if 0
       static atomic_flag onceflg = ATOMIC_FLAG_INIT;
       if (atomic_flag_test_and_set(&onceflg))
             return;
-        talloc_report_full(main_top_talloc_ctx_, talloc_log_file);
-        talloc_report_full(buffer_talloc_ctx_, talloc_log_file);
-        fclose(talloc_log_file);
-        talloc_free(main_top_talloc_ctx_);
-#endif
+      if (talloc_log_file)
+            fclose(talloc_log_file);
+      talloc_free(main_top_talloc_ctx_);
 }
 
 /*======================================================================================*/
@@ -204,7 +200,7 @@ clean_talloc_contexts(void)
  * Open debug logs
  */
 static void
-open_logs(void)
+open_logs(char const *cache_dir)
 {
 #ifdef DEBUG
 #if 0
@@ -217,8 +213,11 @@ open_logs(void)
       (void)tmpnam(tmp);
 #endif
 
+      talloc_log_file = safe_fopen_fmt("wb", "%s/talloc_report.log", cache_dir);
+
+#ifdef DEBUG_LOGS
       char tmp[PATH_MAX + 1];
-      braindead_tempname(tmp, BS(settings.cache_dir), "mpack_", NULL);
+      braindead_tempname(tmp, cache_dir, "mpack_", NULL);
       warnd("Opening log at base \"%s\"", tmp);
 
       /* Sprintf is fine because PATH_MAX. */
@@ -228,6 +227,7 @@ open_logs(void)
       mpack_log       = safe_fopen(log_filenames[LOG_ID_MPACK_MSG], "wbex");
       mpack_raw_read  = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_READ], "wbex");
       mpack_raw_write = safe_fopen(log_filenames[LOG_ID_MPACK_RAW_WRITE], "wbex");
+#endif
 
 #if 0
       talloc_free(tmp);
@@ -239,12 +239,14 @@ open_logs(void)
 }
 
 static noreturn void *
-neovim_init(UNUSED void *arg) //NOLINT(readability-function-cognitive-complexity)
+neovim_init(void *varg) //NOLINT(readability-function-cognitive-complexity)
 {
       extern void global_previous_buffer_set(int num);
+      char const *cache_dir = varg;
 
       get_settings();
-      open_logs();
+      ALWAYS_ASSERT(b_iseq_cstr(settings.cache_dir, cache_dir));
+
       nvim_set_client_info(B(PKG), 0, 5, B("alpha"));
 
       int     initial_buf = nvim_get_current_buf();
@@ -290,21 +292,20 @@ get_settings(void)
       settings.verbose = true;
 #endif
 
-      if (!settings.enabled || !settings.ctags_bin)
+      if (!settings.enabled)
             exit(EXIT_SUCCESS);
 
       /* If I were smart, I might find a way to avoid needing all these calls.
        * Unfortunately, I am not smart. */
-      settings.talloc_ctx = talloc_named_const(NULL, 0, "Settings talloc context.");
-      talloc_steal(settings.talloc_ctx, settings.go_binary);
+      settings.talloc_ctx = talloc_named_const(CTX, 0, "Settings talloc context.");
       talloc_steal(settings.talloc_ctx, settings.cache_dir);
-      talloc_steal(settings.talloc_ctx, settings.ctags_bin);
-      talloc_steal(settings.talloc_ctx, settings.settings_file);
+      talloc_steal(settings.talloc_ctx, settings.go_binary);
       talloc_steal(settings.talloc_ctx, settings.ctags_args);
+      talloc_steal(settings.talloc_ctx, settings.ctags_bin);
       talloc_steal(settings.talloc_ctx, settings.ignored_ftypes);
-      talloc_steal(settings.talloc_ctx, settings.norecurse_dirs);
       talloc_steal(settings.talloc_ctx, settings.ignored_tags);
-      talloc_steal(settings.talloc_ctx, settings.order);
+      talloc_steal(settings.talloc_ctx, settings.norecurse_dirs);
+      talloc_steal(settings.talloc_ctx, settings.settings_file);
 }
 
 /*--------------------------------------------------------------------------------------*/
@@ -322,9 +323,9 @@ get_compression_type(void)
             ret = COMP_LZMA;
 #else
             ret = COMP_GZIP;
-            echo("Compression type is set to '%s', but only gzip is "
-                 "supported in this build. Defaulting to 'gzip'.",
-                 BS(tmp));
+            warnx("Compression type is set to '%s', but only gzip is "
+                  "supported in this build. Defaulting to 'gzip'.",
+                  BS(tmp));
 #endif
       } else if (b_iseq_lit(tmp, "none"))
             NOP;
@@ -367,6 +368,8 @@ exit_cleanup(void)
       if (atomic_flag_test_and_set(&flg))
             return;
 
+      if (talloc_log_file)
+            talloc_report_full(main_top_talloc_ctx_, talloc_log_file);
       TALLOC_FREE(buffer_list);
       TALLOC_FREE(top_dirs);
       TALLOC_FREE(ftdata);
@@ -376,22 +379,38 @@ exit_cleanup(void)
 }
 
 
-static noreturn void *dumb_thread_wrapper(void *vdata)
+static noreturn void *
+dumb_thread_wrapper(void *vdata)
 {
-      static const char xz_string[] = "xz -7 -- ";
+#if 0
+      //static const char xz_string[] = "xz -7 -- ";
+      static char const *xz_argv[5] = {"xz", "-7", "--", NULL, NULL};
 
       char const *filename = vdata;
       struct stat st;
 
       if (stat(filename, &st) == (-1) || st.st_size < 1024)
             pthread_exit();
+#endif
 
+#if 0
       char buf[PATH_MAX + SIZE_C(512)];
-
       memcpy(buf, xz_string, sizeof(xz_string) - SIZE_C(1));
       strcpy(buf + sizeof(xz_string) - SIZE_C(1), filename);
-
       (void)system(buf);
+#endif
+
+#if 0
+      pid_t pid;
+      int   status = 0;
+      xz_argv[3] = filename;
+      if (posix_spawnp(&pid, "xz", NULL, NULL, (char **)xz_argv, environ) != 0)
+            pthread_exit();
+      waitpid(pid, &status, 0);
+      if (status != 0)
+            eprintf("xz failed with status %d\n", WEXITSTATUS(status)), fflush(stderr);
+#endif
+
       pthread_exit();
 }
 
@@ -401,6 +420,8 @@ static noreturn void *dumb_thread_wrapper(void *vdata)
 static void
 quick_cleanup(void)
 {
+      if (talloc_log_file)
+            talloc_report_full(main_top_talloc_ctx_, talloc_log_file);
       pthread_t pids[3];
       memset(&pids, 0, sizeof(pids));
 
@@ -420,12 +441,10 @@ quick_cleanup(void)
             pthread_create(&pids[2], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_WRITE]);
       }
 
-#if 0
       if (pids[0])
             pthread_join(pids[0], NULL);
       if (pids[1])
             pthread_join(pids[1], NULL);
       if (pids[2])
             pthread_join(pids[2], NULL);
-#endif
 }

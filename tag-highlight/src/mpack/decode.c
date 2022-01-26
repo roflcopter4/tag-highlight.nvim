@@ -4,8 +4,6 @@
 #include "intern.h"
 #include "mpack.h"
 
-#define DEBUG_LOGS
-
 typedef void (*read_fn)(void *restrict src, void *restrict dest, size_t nbytes);
 
 static mpack_obj *do_decode(read_fn READ, void *src);
@@ -22,9 +20,6 @@ static void stream_read(void *restrict src, void *restrict dest, size_t nbytes);
 static void obj_read(void *restrict src, void *restrict dest, size_t nbytes);
 
 static mpack_mask const *id_pack_type(uint8_t ch) __attribute__((pure));
-
-static noreturn void handle_invalid_ext_length(uint64_t orig, uint8_t len, uint8_t type);
-static char const *identify_nvim_extension_type(unsigned value) __attribute__((pure, leaf));
 
 extern FILE *mpack_raw_read;
 
@@ -112,7 +107,9 @@ mpack_decode_stream(int32_t fd)
             errx(1, "For some incomprehensible reason the pack's type is %d.\n",
                  mpack_type(ret));
       }
+#if defined DEBUG && defined DEBUG_LOGS
       mpack_print_object(mpack_log, ret, B("\033[1;32mDECODED MESSAGE\033[0m"));
+#endif
       pthread_mutex_unlock(mut);
 
       return ret;
@@ -134,7 +131,9 @@ mpack_decode_obj(bstring *buf)
             errx(1, "For some incomprehensible reason the pack's type is %d.\n",
                  mpack_type(ret));
       }
+#if defined DEBUG && defined DEBUG_LOGS
       mpack_print_object(mpack_log, ret, B("\033[1;32mDECODED MESSAGE\033[0m"));
+#endif
       return ret;
 }
 

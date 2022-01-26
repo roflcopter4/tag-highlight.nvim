@@ -81,7 +81,7 @@ struct ll_node_s {
 #define ll_enqueue ll_prepend
 #define ll_create  ll_make_new
 
-LLDECL linked_list *ll_make_new       (void *talloc_ctx) LLAwur;
+LLDECL linked_list *ll_make_new       (void *talloc_ctx) LLAwur __attribute__((__malloc__));
 LLDECL ll_node     *ll_at             (linked_list *list, int index)  LLAnn(1);
 LLDECL void    ll_prepend             (linked_list *list, void *data) LLAnn(1, 2);
 LLDECL void    ll_append              (linked_list *list, void *data) LLAnn(1, 2);

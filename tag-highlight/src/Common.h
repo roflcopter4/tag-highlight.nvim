@@ -298,16 +298,21 @@ extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__)
 #define shout(...)                                                          \
       (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fputc('\n', stderr), \
        fflush(stderr))
+#  define eprintf(...) shout(__VA_ARGS__)
+#if 0
 #ifdef DEBUG
 #  define eprintf(...) shout(__VA_ARGS__)
 #else
 #  define eprintf(...) ((void)0)
+#endif
 #endif
 
 /*===========================================================================*/
 
 #include "util/util.h"
 #define nalloca(NUM, SIZ) alloca(((size_t)(NUM)) * ((size_t)(SIZ)))
+
+//#define DEBUG_LOGS
 
 /*===========================================================================*/
 #ifdef __cplusplus

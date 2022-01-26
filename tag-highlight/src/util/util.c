@@ -17,7 +17,7 @@ extern void win32_print_stack(void);
                      err(1, "Failed to stat file '%s", (PATH)); \
      } while (0)
 
-static bool file_is_reg(const char *filename);
+static bool file_is_reg(char const *filename);
 static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((__constructor__(400)))
@@ -41,53 +41,60 @@ static void mutex_init(void)
               NEW [i] = '\0';                   \
         } while (0)
 #else
-#define FIX_FOPEN_MODE(OLD, NEW) \
+#  define FIX_FOPEN_MODE(OLD, NEW) \
         char const *const NEW = (OLD)
 #endif
 
 FILE *
-safe_fopen(const char *filename, const char *mode)
+safe_fopen(char const *filename, char const *mode)
 {
+        if (!file_is_reg(filename))
+                errx(1, "Invalid filetype \"%s\"\n", filename);
         FIX_FOPEN_MODE(mode, newmode);
 
         FILE *fp = fopen(filename, newmode);
         if (!fp)
                 err(1, "Failed to open file \"%s\"", filename);
-        if (!file_is_reg(filename))
-                errx(1, "Invalid filetype \"%s\"\n", filename);
         return fp;
 }
 
 FILE *
-safe_fopen_fmt(const char *const restrict mode,
-               const char *const restrict fmt,
+safe_fopen_fmt(char const *const restrict mode,
+               char const *const restrict fmt,
                ...)
 {
-        va_list va;
-        char buf[SAFE_PATH_MAX + 1];
+        va_list ap;
+        char buf[PATH_MAX + 1];
         buf[0] = 0;
-        va_start(va, fmt);
-        vsnprintf(buf, SAFE_PATH_MAX + 1, fmt, va);
-        va_end(va);
+        va_start(ap, fmt);
+        vsnprintf(buf, PATH_MAX + 1, fmt, ap);
+        va_end(ap);
 
-        FIX_FOPEN_MODE(mode, newmode);
+        return safe_fopen(buf, mode);
+}
 
-        FILE *fp = fopen(buf, newmode);
-        if (!fp)
-                err(1, "Failed to open file \"%s\"", buf);
-        if (!file_is_reg(buf))
-                errx(1, "Invalid filetype \"%s\"\n", buf);
+FILE *
+fopen_fmt(char const *const restrict mode,
+          char const *const restrict fmt,
+          ...)
+{
+        va_list ap;
+        char buf[PATH_MAX + 1];
+        buf[0] = 0;
+        va_start(ap, fmt);
+        vsnprintf(buf, PATH_MAX + 1, fmt, ap);
+        va_end(ap);
 
-        return fp;
+        return fopen(buf, mode);
 }
 
 int
-safe_open(const char *const filename, const int flags, const int mode)
+safe_open(char const *const filename, int const flags, int const mode)
 {
 #ifdef DOSISH
-        const int fd = open(filename, flags, _S_IREAD|_S_IWRITE);
+        int const fd = open(filename, flags, _S_IREAD|_S_IWRITE);
 #else
-        const int fd = open(filename, flags, mode);
+        int const fd = open(filename, flags, mode);
 #endif
         if (fd == (-1)) {
                 fprintf(stderr, "Failed to open file \"%s\": %s\n", filename, strerror(errno));
@@ -97,7 +104,7 @@ safe_open(const char *const filename, const int flags, const int mode)
 }
 
 int
-safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, ...)
+safe_open_fmt(int const flags, int const mode, char const *const restrict fmt, ...)
 {
         va_list va;
         char buf[SAFE_PATH_MAX + 1];
@@ -107,9 +114,9 @@ safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, .
 
         errno = 0;
 #ifdef DOSISH
-        const int fd = open(buf, flags, _S_IREAD|_S_IWRITE);
+        int const fd = open(buf, flags, _S_IREAD|_S_IWRITE);
 #else
-        const int fd = open(buf, flags, mode);
+        int const fd = open(buf, flags, mode);
 #endif
         if (fd == (-1)) {
                 fprintf(stderr, "Failed to open file \"%s\": %s\n", buf, strerror(errno));
@@ -120,7 +127,7 @@ safe_open_fmt(const int flags, const int mode, const char *const restrict fmt, .
 }
 
 bool
-file_is_reg(const char *filename)
+file_is_reg(char const *filename)
 {
         struct stat st={0};
         SAFE_STAT(filename, &st);
@@ -130,10 +137,10 @@ file_is_reg(const char *filename)
 /*======================================================================================*/
 
 int64_t
-xatoi__(const char *const str, const bool strict)
+xatoi__(char const *const str, const bool strict)
 {
         char         *endptr;
-        const int64_t val = strtoll(str, &endptr, 10);
+        int64_t const val = strtoll(str, &endptr, 10);
 
         if ((endptr == str) || (strict && *endptr != '\0'))
                 errx(30, "Invalid integer \"%s\".\n", str);
@@ -186,8 +193,8 @@ find_num_cpus(void)
 
 
 #if defined(__GNUC__) && !defined(__clang__) && !defined(__cplusplus)
-const char *
-ret_func_name__(const char *const function, const size_t size)
+char const *
+ret_func_name__(char const *const function, const size_t size)
 {
         if (size + 2 > 256)
                 return function;
@@ -262,7 +269,7 @@ open_pipe(int fds[2])
 }
 
 bstring *
-get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
+get_command_output(char const *command, char *const *const argv, bstring *input, int *status)
 {
         bstring *rd;
         int fds[2][2], pid, st = ~0;
@@ -312,7 +319,7 @@ get_command_output(const char *command, char *const *const argv, bstring *input,
 static bstring *read_from_pipe(HANDLE han);
 
 bstring *
-get_command_output(const char *command, char *const *const argv, bstring *input, int *status)
+get_command_output(char const *command, char *const *const argv, bstring *input, int *status)
 {
         bstring *commandline = b_fromcstr("");
 
@@ -415,7 +422,7 @@ read_from_pipe(HANDLE han)
 } 
 
 noreturn void
-win32_error_exit(int const status, const char *msg, DWORD const dw)
+win32_error_exit(int const status, char const *msg, DWORD const dw)
 {
         char *lpMsgBuf;
         FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,

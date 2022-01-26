@@ -1,10 +1,9 @@
-#include "lang/clang/clang.h"
 #include "Common.h"
 #include "highlight.h"
-#include "lang/clang/intern.h"
 #include "util/find.h"
-#include "clang-c/Index.h"
-#include <sys/stat.h>
+
+#include "lang/clang/clang.h"
+#include "lang/clang/intern.h"
 
 /*
  * Here follows some of the sort of code that took so long to get working and
@@ -481,22 +480,22 @@ handle_include_compile_command(str_vector *lst, char const *s, CXString director
 {
       if (isalpha(s[0]) && s[1] == ':' && (s[2] == '/' || s[2] == '\\')) {
             if (is_i)
-                  argv_append(lst, talloc_asprintf(NULL, "-I%s", s), false);
+                  argv_append(lst, talloc_asprintf(CTX, "-I%s", s), false);
             else
                   argv_append(lst, s, true);
       } else if (s[0] == '/') {
             if (is_i) {
                   char *tmp = stupid_windows_bullshit(s);
-                  argv_append(lst, talloc_asprintf(NULL, "-I%s", tmp), false);
+                  argv_append(lst, talloc_asprintf(CTX, "-I%s", tmp), false);
                   free(tmp);
             } else {
                   argv_append(lst, stupid_windows_bullshit(s), false);
             }
       } else {
             if (is_i)
-                  argv_append(lst, talloc_asprintf(NULL, "-I%s\\%s", CS(directory), s), false);
+                  argv_append(lst, talloc_asprintf(CTX, "-I%s\\%s", CS(directory), s), false);
             else
-                  argv_append(lst, talloc_asprintf(NULL, "%s\\%s", CS(directory), s), false);
+                  argv_append(lst, talloc_asprintf(CTX, "%s\\%s", CS(directory), s), false);
       }
       fixup_path_sep(lst->lst[lst->qty - 1]);
 }
@@ -515,14 +514,14 @@ handle_include_compile_command(str_vector *lst, char const *cstr, CXString direc
 
       if (cstr[0] == '/') {
             if (is_i)
-                  argv_append(lst, talloc_asprintf(NULL, "-I%s", cstr), false);
+                  argv_append(lst, talloc_asprintf(CTX, "-I%s", cstr), false);
             else
                   argv_append(lst, cstr, true);
       } else {
             if (is_i)
-                  argv_append(lst, talloc_asprintf(NULL, "-I%s/%s", CS(directory), cstr), false);
+                  argv_append(lst, talloc_asprintf(CTX, "-I%s/%s", CS(directory), cstr), false);
             else
-                  argv_append(lst, talloc_asprintf(NULL, "%s/%s", CS(directory), cstr), false);
+                  argv_append(lst, talloc_asprintf(CTX, "%s/%s", CS(directory), cstr), false);
       }
 }
 
@@ -631,7 +630,7 @@ get_compile_commands(Buffer *bdata)
                                     handle_include_compile_command(ret, cstr + 2, directory, true);
                                     break;
 
-    //                          case 'f': case 'c': case 'o':
+                              //case 'f': case 'c': case 'o':
                               default:
                                     clang_arg_append(ret, cstr, true, arg_allow);
                               }

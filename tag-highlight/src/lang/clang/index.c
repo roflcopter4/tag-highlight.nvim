@@ -79,12 +79,12 @@ void
 lc_index_file(Buffer *bdata, translationunit_t *stu, mpack_arg_array *calls)
 {
       struct idx_data  data = {bdata,
-                              bdata->ft,
-                              CLD(bdata),
-                              stu,
-                              calls,
-                              0,
-                              safe_fopen_fmt("wbe", "%*s/index.log", BSC(settings.cache_dir))};
+                               bdata->ft,
+                               CLD(bdata),
+                               stu,
+                               calls,
+                               0U,
+                               fopen_fmt("wb", "%*s/index.log", BSC(settings.cache_dir))};
       
       CXIndexAction    iact = clang_IndexAction_create(data.cdata->idx);
       IndexerCallbacks cb;
@@ -125,13 +125,16 @@ mktok(const CXCursor *cursor, const CXString *dispname, const resolved_range_t *
       return ret;
 }
 
-static void
+UNUSED static void
 log_idx_location(const int              referrer,
                  const CXCursor         cursor,
                  const CXIdxEntityInfo *ref,
                  const CXIdxLoc         loc,
                  struct idx_data       *data)
 {
+      if (!data->fp)
+            return;
+
       struct {
             CXFile   file;
             unsigned line, column, offset;
@@ -298,7 +301,7 @@ my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info)
       struct idx_data *data = raw_data;
       struct line_data line_data;
 
-      //log_idx_location(1, info->cursor, info->entityInfo, info->loc, data);
+      log_idx_location(1, info->cursor, info->entityInfo, info->loc, data);
 
 #if 0
       if (!get_line_data(data->stu, info->cursor, info->loc, data, &line_data))
@@ -311,9 +314,11 @@ my_indexDeclaration(CXClientData raw_data, const CXIdxDeclInfo *info)
       case CXIdxEntity_EnumConstant:
             calltype = CTAGS_ENUMCONST;
             break;
+#if 0
       case CXIdxEntity_Field:
             calltype = CTAGS_MEMBER;
             break;
+#endif
 #if 0
       case CXIdxEntity_CXXClass:
             calltype = CTAGS_CLASS;
@@ -359,7 +364,7 @@ my_indexEntityReference(CXClientData raw_data, const CXIdxEntityRefInfo *info)
       struct line_data line_data;
       int              calltype = 0;
 
-      //log_idx_location(2, info->cursor, info->referencedEntity, info->loc, data);
+      log_idx_location(2, info->cursor, info->referencedEntity, info->loc, data);
 
       switch (info->referencedEntity->kind) {
       case CXIdxEntity_EnumConstant:

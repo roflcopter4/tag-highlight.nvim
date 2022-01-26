@@ -91,7 +91,7 @@ let s:resharper_light_purple = '#DDA0DD'
 let s:lighter_pink           = '#E58CB9'
 let s:nifty_pink             = '#E55CA1'
 let s:idunno                 = '#F7A6DA'
-let s:idunno2                = '#ed92c0'
+let s:idunno2                = '#ED92C0'
 let s:resharper_light_blue   = '#ADD8E6'
 let s:darker_cyan            = '#39acc2'
 let s:nova_cyan              = '#26C6DA'
@@ -257,7 +257,7 @@ call s:Hl('NamespaceB',         s:resharper_light_blue,   s:EMPTY, s:BOLD)
 call s:Hl('PreProcB',           s:lime_,                  s:EMPTY, s:BOLD)
 
 call s:Hl('Bold',               s:EMPTY,                  s:EMPTY, s:BOLD)
-call s:Hl('BoldGrey',           s:grey5,                  s:EMPTY, s:BOLD)
+call s:Hl('BoldGrey',           s:debug_grey,             s:EMPTY, s:BOLD)
 call s:Hl('BoldRed',            s:red_,                   s:EMPTY, s:BOLD)
 call s:Hl('LightPinkR',         s:bright_pink,            s:EMPTY, s:None)
 call s:Hl('magentaIGuess',      s:resharper_light_purple, s:EMPTY, s:None)
@@ -271,7 +271,7 @@ call s:Hl('CommaSemicolon',     s:EMPTY,                  s:EMPTY, s:BOLD)
 call s:Hl('DelimiterBold',      s:light_grey,             s:EMPTY, s:BOLD)
 call s:Hl('DereferenceStar',    s:debug_grey,             s:EMPTY, s:BOLD)
 call s:Hl('NegationChar',       s:red_,                   s:EMPTY, s:BOLD)
-call s:Hl('OperatorChars',      s:debug_grey,             s:EMPTY, s:BOLD)
+" call s:Hl('OperatorChars',      s:debug_grey,             s:EMPTY, s:BOLD)
 
 call s:Hl('cMiscFuncs',         s:orange_red,             s:EMPTY, s:BOLD)
 call s:Hl('cNumberPrefix',      s:nova_light_green,       s:EMPTY, s:None)
@@ -285,5 +285,12 @@ call s:Hl('perlMatchSE',        s:lime_,                  s:EMPTY, s:BOLD)
 call s:Hl('perlQuoteSE',        s:lime_,                  s:EMPTY, s:BOLD)
 call s:Hl('perlTypeSpec',       s:cyan_,                  s:EMPTY, s:BOLD)
 call s:Hl('pythonDocstring',    s:comment,                s:EMPTY, s:None)
+
+call s:Hl('ExperimentalColor01r', s:idunno, s:EMPTY, s:None)
+call s:Hl('ExperimentalColor01b', s:idunno, s:EMPTY, s:BOLD)
+call s:Hl('ExperimentalColor02r', s:idunno2, s:EMPTY, s:None)
+call s:Hl('ExperimentalColor02b', s:idunno2, s:EMPTY, s:BOLD)
+call s:Hl('ExperimentalColor03r', s:lighter_pink, s:EMPTY, s:None)
+call s:Hl('ExperimentalColor03b', s:lighter_pink, s:EMPTY, s:BOLD)
 
 set background=dark

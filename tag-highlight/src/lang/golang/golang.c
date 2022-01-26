@@ -125,11 +125,12 @@ parse_go_output(Buffer *bdata, b_list *output)
         if (bdata->hl_id == 0)
                 bdata->hl_id = nvim_buf_add_highlight(bdata->num);
         else
-                add_clr_call(calls, bdata->num, bdata->hl_id, 0, -1);
+                add_clr_call(calls, (int)bdata->num, (int)bdata->hl_id, 0, -1);
 
         B_LIST_FOREACH (output, tok) {
                 /* The out is so regular that we can get away with using scanf.
                  * I feel a bit dirty though. */
+                /*NOLINTNEXTLINE(cert-err34-c)*/
                 sscanf(BS(tok), "%c\t%u\t%u\t%u\t%u\t%u\t%1023s", &out.ch,
                        &out.start.line, &out.start.column, &out.end.line,
                        &out.end.column, &out.ident.len, out.ident.str);
@@ -140,7 +141,7 @@ parse_go_output(Buffer *bdata, b_list *output)
                 group = find_group(bdata->ft, out.ch);
                 if (group) {
                         line_data const ln = {out.start.line, out.start.column, out.end.column};
-                        add_hl_call(calls, bdata->num, bdata->hl_id, group, &ln);
+                        add_hl_call(calls, (int)bdata->num, (int)bdata->hl_id, group, &ln);
                 }
         }
 

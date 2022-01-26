@@ -18,10 +18,12 @@ static const char is_debug[] = "0";
 
 static pthread_mutex_t golang_init_mtx;
 
-__attribute__((__constructor__))
+__attribute__((__constructor__(10000)))
 static void golang_sock_init(void)
 {
-        pthread_mutex_init(&golang_init_mtx);
+      pthread_mutexattr_t attr;
+      pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+      pthread_mutex_init(&golang_init_mtx, &attr);
 }
 
 /*======================================================================================*/
@@ -29,13 +31,21 @@ static void golang_sock_init(void)
 
 static pid_t start_binary(Buffer *bdata);
 
+__attribute__((__artificial__))
+static inline int golang_clear_data_wrapper(void *vdata)
+{
+      golang_clear_data(vdata);
+      return 0;
+}
+
 void
 golang_clear_data(Buffer *bdata)
 {
         pthread_mutex_lock(&golang_init_mtx);
         struct golang_data *gd = bdata->godata.sock_info;
+        bool is_initialized;
 
-        if (gd) {
+        if ((is_initialized = atomic_load(&bdata->godata.initialized)) && gd) {
 #ifdef DOSISH
                 bool b;
                 b = TerminateProcess(gd->hProcess, 0);
@@ -45,12 +55,18 @@ golang_clear_data(Buffer *bdata)
                 b = CloseHandle(gd->write_handle);
                 assert(b);
 #else
+                int chstat = 0;
+                eprintf("Killing %d\n", gd->pid);
                 kill(gd->pid, SIGTERM);
+                waitpid(gd->pid, &chstat, 0);
+                warnx("Child exited with status %d -> %d", chstat, WEXITSTATUS(chstat));
                 close(gd->read_fd);
                 close(gd->write_fd);
 #endif
                 talloc_free(gd);
                 bdata->godata.sock_info = NULL;
+        } else {
+              warnx("Attempt to close uninitialized buffer! (%u): %p, %d", bdata->num, gd, is_initialized);
         }
 
         pthread_mutex_unlock(&golang_init_mtx);
@@ -61,7 +77,9 @@ golang_buffer_init(Buffer *bdata)
 {
         pthread_mutex_lock(&golang_init_mtx);
         bdata->godata.sock_info = talloc_zero(bdata, struct golang_data);
+        //talloc_set_destructor(bdata->godata.sock_info, golang_clear_data_wrapper);
         start_binary(bdata);
+        atomic_store(&bdata->godata.initialized, true);
         pthread_mutex_unlock(&golang_init_mtx);
 }
 
@@ -200,7 +218,6 @@ void golang_send_msg(struct golang_data const *gd, bstring const *const msg)
 
 /* If you're lazy and you know it clap your hands CLAP CLAP */
 static void openpipe(int fds[2]);
-static noreturn void *await_certain_death(void *vdata);
 
 static pid_t
 start_binary(Buffer *bdata)
@@ -241,13 +258,6 @@ start_binary(Buffer *bdata)
                         err(1, "exec() failed\n");
         }
 
-
-#if 0
-        pid_t *arg = malloc(sizeof(pid_t));
-        *arg = pid;
-        START_DETACHED_PTHREAD(await_certain_death, arg);
-#endif
-
         close(fds[0][READ_FD]);
         close(fds[1][WRITE_FD]);
 
@@ -256,18 +266,6 @@ start_binary(Buffer *bdata)
         gd->pid   = pid;
 
         return pid;
-}
-
-static noreturn void *
-await_certain_death(void *vdata)
-{
-        pid_t const pid = *((pid_t *)vdata);
-        int         st;
-        free(vdata);
-        if (waitpid(pid, &st, 0) == (-1))
-                err(1, "wtf");
-        shout("Catastrophe! Binary exited! Status %d.", st);
-        pthread_exit();
 }
 
 static void

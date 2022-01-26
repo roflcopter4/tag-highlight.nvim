@@ -45,14 +45,14 @@ extern void           nvim_b_printf            (bstring const *fmt, ...);
 extern int            nvim_buf_add_highlight   (unsigned bufnum, int hl_id, bstring const *group, unsigned line, unsigned start, int end);
 extern mpack_dict   * nvim_get_hl_by_name      (bstring const *name, bool rgb) __aWUR;
 extern mpack_dict   * nvim_get_hl_by_id        (int hlid, bool rgb) __aWUR;
-extern void           nvim_buf_attach          (int bufnum);
+extern void           nvim_buf_attach          (unsigned bufnum);
 extern void           nvim_buf_clear_namespace (unsigned bufnum, int ns_id, unsigned start, int end, bool blocking);
-extern unsigned       nvim_buf_get_changedtick (int bufnum);
+extern unsigned       nvim_buf_get_changedtick (unsigned bufnum);
 extern b_list       * nvim_buf_get_lines       (unsigned bufnum, int start, int end) __aWUR;
-extern bstring      * nvim_buf_get_name        (int bufnum) __aWUR;
-extern mpack_retval   nvim_buf_get_option      (int bufnum, bstring const *optname, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_buf_get_var         (int bufnum, bstring const *varname, mpack_expect_t expect) __aWUR;
-extern unsigned       nvim_buf_line_count      (int bufnum);
+extern bstring      * nvim_buf_get_name        (unsigned bufnum) __aWUR;
+extern mpack_retval   nvim_buf_get_option      (unsigned bufnum, bstring const *optname, mpack_expect_t expect, uint64_t defval) __aWUR;
+extern mpack_retval   nvim_buf_get_var         (unsigned bufnum, bstring const *varname, mpack_expect_t expect, uint64_t defval) __aWUR;
+extern unsigned       nvim_buf_line_count      (unsigned bufnum);
 extern void           nvim_call_atomic         (mpack_arg_array const *calls);
 extern mpack_retval   nvim_call_function       (bstring const *function, mpack_expect_t expect) __aWUR; // FIXME: Needs to be able to take arguments properly
 extern bool           nvim_command             (bstring const *cmd);
@@ -61,8 +61,8 @@ extern mpack_retval   nvim_eval                (bstring const *eval, mpack_expec
 extern void           nvim_get_api_info        (void);
 extern int            nvim_get_current_buf     (void);
 extern bstring      * nvim_get_current_line    (void) __aWUR;
-extern mpack_retval   nvim_get_option          (bstring const *optname, mpack_expect_t expect) __aWUR;
-extern mpack_retval   nvim_get_var             (bstring const *varname, mpack_expect_t expect) __aWUR;
+extern mpack_retval   nvim_get_option          (bstring const *optname, mpack_expect_t expect, uint64_t defval) __aWUR;
+extern mpack_retval   nvim_get_var             (bstring const *varname, mpack_expect_t expect, uint64_t defval) __aWUR;
 extern mpack_retval   nvim_list_bufs           (void) __aWUR;
 extern void           nvim_subscribe           (bstring const *event);
 extern bool           nvim_set_var             (bstring const *varname, bstring const *fmt, ...);
@@ -129,6 +129,16 @@ extern int _nvim_api_read_fd;
 #define nvim_buf_clear_highlight_defarg_4() false
 #define nvim_buf_clear_namespace(...)       P99_CALL_DEFARG(nvim_buf_clear_namespace, 5, __VA_ARGS__)
 #define nvim_buf_clear_namespace_defarg_4() false
+
+#define nvim_get_option(...)       P99_CALL_DEFARG(nvim_get_option, 3, __VA_ARGS__)
+#define nvim_get_option_defarg_2() (UINT64_C(0))
+#define nvim_get_var(...)          P99_CALL_DEFARG(nvim_get_var, 3, __VA_ARGS__)
+#define nvim_get_var_defarg_2()    (UINT64_C(0))
+
+#define nvim_buf_get_option(...)       P99_CALL_DEFARG(nvim_buf_get_option, 4, __VA_ARGS__)
+#define nvim_buf_get_option_defarg_3() (UINT64_C(0))
+#define nvim_buf_get_var(...)          P99_CALL_DEFARG(nvim_buf_get_var, 4, __VA_ARGS__)
+#define nvim_buf_get_var_defarg_3()    (UINT64_C(0))
 
 /*============================================================================*/
 #ifdef __cplusplus

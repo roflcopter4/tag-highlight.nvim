@@ -28,7 +28,7 @@ linked_list *buffer_list;
 
 P99_DECLARE_STRUCT(buffer_node);
 struct buffer_node {
-      int               num;
+      unsigned          num;
       bool              isopen;
       pthread_rwlock_t *lock;
       Buffer           *bdata;
@@ -62,8 +62,8 @@ buffer_c_constructor(void)
 
       extern void talloc_emergency_library_init(void);
       talloc_emergency_library_init();
-      buffer_list = ll_make_new();
-      top_dirs    = ll_make_new();
+      buffer_list = ll_make_new(CTX);
+      top_dirs    = ll_make_new(CTX);
 }
 
 /*======================================================================================
@@ -73,19 +73,17 @@ buffer_c_constructor(void)
  *=====================================================================================*/
 
 static inline bool         should_skip_buffer(bstring const *ft) __attribute__((pure));
-static inline buffer_node *new_buffer_node(int bufnum);
-static buffer_node        *find_buffer_node(int bufnum);
+static inline buffer_node *new_buffer_node(unsigned bufnum);
+static buffer_node        *find_buffer_node(unsigned bufnum);
 static Buffer             *make_new_buffer(buffer_node *bnode);
 
 Buffer *
-new_buffer(int const bufnum)
+new_buffer(unsigned const bufnum)
 {
       buffer_node *bnode = find_buffer_node(bufnum);
-      if (!bnode) {
+      if (!bnode)
             if (!(bnode = new_buffer_node(bufnum)))
                   return NULL;
-            //ll_append(buffer_list, bnode);
-      }
       Buffer *ret = make_new_buffer(bnode);
       if (ret)
             ll_append(buffer_list, bnode);
@@ -139,7 +137,7 @@ error:
 }
 
 static buffer_node *
-find_buffer_node(int const bufnum)
+find_buffer_node(unsigned const bufnum)
 {
       buffer_node *bnode = NULL;
       pthread_mutex_lock(&buffer_list->lock);
@@ -161,9 +159,8 @@ find_buffer_node(int const bufnum)
 }
 
 static inline buffer_node *
-new_buffer_node(int const bufnum)
+new_buffer_node(unsigned const bufnum)
 {
-      extern FILE *talloc_log_file;
       buffer_node *bnode = talloc(CTX, buffer_node);
       bnode->lock        = talloc(bnode, pthread_rwlock_t);
       bnode->bdata       = NULL;
@@ -188,7 +185,7 @@ should_skip_buffer(bstring const *ft)
 static inline void init_buffer_mutexes(Buffer *bdata);
 
 Buffer *
-get_bufdata(int const bufnum, Filetype *ft)
+get_bufdata(unsigned const bufnum, Filetype *ft)
 {
       Buffer *bdata    = talloc_zero(CTX, Buffer);
       bdata->name.full = nvim_buf_get_name(bufnum);
@@ -248,7 +245,7 @@ init_buffer_mutexes(Buffer *bdata)
 /*--------------------------------------------------------------------------------------*/
 
 Buffer *
-find_buffer(int const bufnum)
+find_buffer(unsigned const bufnum)
 {
       Buffer      *ret   = NULL;
       buffer_node *bnode = find_buffer_node(bufnum);
@@ -263,7 +260,7 @@ find_buffer(int const bufnum)
 }
 
 bool
-have_seen_bufnum(int const bufnum)
+have_seen_bufnum(unsigned const bufnum)
 {
       buffer_node *bnode = find_buffer_node(bufnum);
       return bnode != NULL;
@@ -323,7 +320,8 @@ init_topdir(Buffer *bdata)
       Top_Dir *tdir = check_open_topdirs(bdata, base);
       if (tdir) {
             talloc_free(base);
-            talloc_reference(bdata, tdir);
+            ++tdir->refs;
+            //talloc_reference(bdata, tdir);
             return tdir;
       }
 
@@ -373,7 +371,6 @@ check_open_topdirs(Buffer const *bdata, bstring const *base)
                   continue;
             if (b_iseq(cur->pathname, base)) {
                   ECHO("Using already initialized project directory \"%s\"", cur->pathname);
-                  cur->refs++;
                   ret = cur;
                   break;
             }
@@ -770,14 +767,21 @@ get_cmd_info(Filetype *ft)
  * \===========/
  *-------------------------------------------------------------------------------------*/
 
-void(destroy_buffer)(Buffer *bdata, unsigned const flags)
+void
+(destroy_buffer)(Buffer *bdata, unsigned const flags)
 {
       extern bool process_exiting;
       extern void destroy_clangdata(Buffer * bdata);
       assert(bdata != NULL);
 
+      {
+            char buf[512];
+            warnx("FUCKING TWERP -> %s", util_format_int_to_binary(buf, flags));
+      }
+
       if (!process_exiting && (flags & DES_BUF_SHOULD_CLEAR))
             clear_highlight(bdata);
+
 
       if (flags & DES_BUF_DESTROY_NODE) {
             buffer_node *bnode = find_buffer_node(bdata->num);
@@ -793,6 +797,7 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
       while ((cnt = p99_futex_load(&bdata->lock.num_workers)) > 0) {
             /* NANOSLEEP_FOR_SECOND_FRACTION(0, 5); */
             //NANOSLEEP(0, 1000);
+            (void)cnt;
             usleep(1);
 #if 0
             for (unsigned i = 0; i < cnt; ++i) {
@@ -818,19 +823,21 @@ void(destroy_buffer)(Buffer *bdata, unsigned const flags)
                   TALLOC_FREE(bdata->headers);
       } else if (bdata->ft->id == FT_GO) {
             golang_clear_data(bdata);
-      } else {
-            if (bdata->calls)
-                  mpack_destroy_arg_array(bdata->calls);
       }
+
+      else if (bdata->calls)
+            mpack_destroy_arg_array(bdata->calls);
 
       /* pthread_mutex_unlock(&bdata->lock.total); */
       /* pthread_mutex_destroy(&bdata->lock.total); */
       pthread_mutex_unlock(&bdata->lock.lang_mtx);
       pthread_mutex_destroy(&bdata->lock.lang_mtx);
 
+      warnx("FUCKING TWERP");
       //p99_futex_wakeup(&destruction_futex[bdata->num]);
       if (flags & DES_BUF_TALLOC_FREE) {
             talloc_set_destructor(bdata, NULL);
+            warnx("freeing");
             talloc_free(bdata);
       }
 }
@@ -846,6 +853,8 @@ static int
 destroy_buffer_node(buffer_node *bnode)
 {
       ALWAYS_ASSERT(bnode != NULL);
+
+      warnx("YOLO SWAGGINS!");
 
       if (bnode->bdata)
             destroy_buffer(bnode->bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_TALLOC_FREE);

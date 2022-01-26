@@ -35,8 +35,8 @@ if !exists('g:tag_highlight#ignored_tags')
 endif
 " call extend(g:tag_highlight#ignored_tags['cpp'], ['noreturn', 'nodiscard'])
 
-call s:InitVar('use_bundled_colors', 1)
-call s:InitVar('link_bundled_colors', 1)
+call s:InitVar('use_bundled_colors', 0)
+call s:InitVar('link_bundled_colors', 0)
 
 call s:InitVar('file', '')
 call s:InitVar('ctags_bin', 'ctags')
@@ -74,49 +74,48 @@ call s:InitVar('norecurse_dirs', [
                 \ 'C:/'
                 \ ])
 
-if g:tag_highlight#run_ctags
-    let s:ctags_bin = 0
+let s:ctags_bin = 0
 
-    function! s:test_ctags(str)
-        return executable(a:str) && system(a:str.' --version') =~# 'Universal'
-    endfunction
+function! s:test_ctags(str)
+    return executable(a:str) && system(a:str.' --version') =~# 'Universal'
+endfunction
 
-    if s:test_ctags(g:tag_highlight#ctags_bin)
-        let s:ctags_bin = g:tag_highlight#ctags_bin
-    elseif s:test_ctags('ctags')
-        let s:ctags_bin = 'ctags'
-    elseif s:test_ctags('uctags')
-        let s:ctags_bin = 'uctags'
-    elseif s:test_ctags('/usr/local/bin/ctags')
-        let s:ctags_bin = '/usr/local/bin/ctags'
-    elseif s:test_ctags('/usr/bin/ctags')
-        let s:ctags_bin = '/usr/bin/ctags'
-    elseif s:test_ctags('/opt/bin/ctags')
-        let s:ctags_bin = '/opt/bin/ctags'
-    elseif s:test_ctags(expand('~/.local/bin/ctags'))
-        let s:ctags_bin = expand('~/.local/bin/ctags')
-    else
-        unlet s:ctags_bin
-    endif
+if s:test_ctags(g:tag_highlight#ctags_bin)
+    let s:ctags_bin = g:tag_highlight#ctags_bin
+elseif s:test_ctags('ctags')
+    let s:ctags_bin = 'ctags'
+elseif s:test_ctags('uctags')
+    let s:ctags_bin = 'uctags'
+elseif s:test_ctags('/usr/local/bin/ctags')
+    let s:ctags_bin = '/usr/local/bin/ctags'
+elseif s:test_ctags('/usr/bin/ctags')
+    let s:ctags_bin = '/usr/bin/ctags'
+elseif s:test_ctags('/opt/bin/ctags')
+    let s:ctags_bin = '/opt/bin/ctags'
+elseif s:test_ctags(expand('~/.local/bin/ctags'))
+    let s:ctags_bin = expand('~/.local/bin/ctags')
+else
+    unlet s:ctags_bin
+endif
 
-    if exists('s:ctags_bin')
-        let g:tag_highlight#ctags_bin = s:ctags_bin
-        call s:InitVar('ctags_args', [
-                \   '--fields=+l',
-                \   '--c-kinds=+px',
-                \   '--c++-kinds=+px',
-                \   '--sort=yes',
-                \   '--regex-go=/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/',
-                \   '--languages=-Pod',
-                \ ])
-    else
-        let g:tag_highlight#enabled = 0
-        unlet g:tag_highlight#ctags_bin
-        echohl ErrorMsg
-        echom 'tag_highlight: Universal Ctags not found, cannot run ctags.'
-        echohl None
-        finish
-    endif
+if exists('s:ctags_bin')
+    let g:tag_highlight#ctags_bin = s:ctags_bin
+    call s:InitVar('ctags_args', [
+            \   '--fields=+l',
+            \   '--c-kinds=+px',
+            \   '--c++-kinds=+px',
+            \   '--python-kinds=+cfmviIx',
+            \   '--sort=yes',
+            \   '--regex-go=/^\s*(var)?\s*(\w*)\s*:?=\s*func/\2/f/',
+            \   '--languages=-Pod',
+            \ ])
+elseif g:tag_highlight#run_ctags
+    let g:tag_highlight#enabled = 0
+    unlet g:tag_highlight#ctags_bin
+    echohl ErrorMsg
+    echom 'tag_highlight: Universal Ctags not found, cannot run ctags.'
+    echohl None
+    finish
 endif
 
 if g:tag_highlight#run_ctags && g:tag_highlight#no_autoconf == 1
@@ -270,7 +269,7 @@ else
     let g:tag_highlight#link_bundled_colors = 0
 endif
 
-if g:tag_highlight#link_bundled_colors
+if g:tag_highlight#use_bundled_colors && g:tag_highlight#link_bundled_colors
     function s:WhyWontYouJustWork()
 
         highlight default link tag_highlight_ClassTag			MagentaIGuess
@@ -306,41 +305,42 @@ if g:tag_highlight#link_bundled_colors
         highlight! link rustMacroTag					NewClassColor
 
     endfunction
+
+    augroup TagHighlightLinks
+        autocmd VimEnter * call s:WhyWontYouJustWork()
+    augroup END
+
 else
-    function s:WhyWontYouJustWork()
-
-        highlight default link tag_highlight_ClassTag			tag_highlight_TypeTag
-        highlight default link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
-        highlight default link tag_highlight_FieldTag			tag_highlight_MemberTag
-        highlight default link tag_highlight_MethodTag			tag_highlight_FunctionTag
-        highlight default link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
-        highlight default link tag_highlight_StructTag			tag_highlight_TypeTag
-        highlight default link tag_highlight_TemplateTag		tag_highlight_ClassTag
-        highlight default link tag_highlight_UnionTag			tag_highlight_TypeTag
-        highlight default link tag_highlight_VariableTag		tag_highlight_ObjectTag
-
-        highlight default link tag_highlight_ConstantTag		Constant
-        highlight default link tag_highlight_EnumTag			Constant
-        highlight default link tag_highlight_FunctionTag		Function
-        highlight default link tag_highlight_GlobalVarTag		PreCondit
-        highlight default link tag_highlight_InterfaceTag		Identifier
-        highlight default link tag_highlight_MemberTag			Operator
-        highlight default link tag_highlight_ModuleTag			PreProc
-        highlight default link tag_highlight_NonTypeTemplateParam	Normal
-        highlight default link tag_highlight_ObjectTag			Identifier
-        highlight default link tag_highlight_OverloadedDeclTag		Function
-        highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
-        highlight default link tag_highlight_PreProcTag			PreProc
-        highlight default link tag_highlight_TypeKeywordTag		Structure
-        highlight default link tag_highlight_TypeTag			Type
-        highlight default link tag_highlight_UnknownTag			Error
-
-    endfunction
+    " function s:WhyWontYouJustWork()
+    " 
+    "     highlight default link tag_highlight_ClassTag			tag_highlight_TypeTag
+    "     highlight default link tag_highlight_EnumTypeTag		tag_highlight_TypeTag
+    "     highlight default link tag_highlight_FieldTag			tag_highlight_MemberTag
+    "     highlight default link tag_highlight_MethodTag			tag_highlight_FunctionTag
+    "     highlight default link tag_highlight_NamespaceTag		tag_highlight_ModuleTag
+    "     highlight default link tag_highlight_StructTag			tag_highlight_TypeTag
+    "     highlight default link tag_highlight_TemplateTag		tag_highlight_ClassTag
+    "     highlight default link tag_highlight_UnionTag			tag_highlight_TypeTag
+    "     highlight default link tag_highlight_VariableTag		tag_highlight_ObjectTag
+    " 
+    "     highlight default link tag_highlight_ConstantTag		Constant
+    "     highlight default link tag_highlight_EnumTag			Constant
+    "     highlight default link tag_highlight_FunctionTag		Function
+    "     highlight default link tag_highlight_GlobalVarTag		PreCondit
+    "     highlight default link tag_highlight_InterfaceTag		Identifier
+    "     highlight default link tag_highlight_MemberTag			Operator
+    "     highlight default link tag_highlight_ModuleTag			PreProc
+    "     highlight default link tag_highlight_NonTypeTemplateParam	Normal
+    "     highlight default link tag_highlight_ObjectTag			Identifier
+    "     highlight default link tag_highlight_OverloadedDeclTag		Function
+    "     highlight default link tag_highlight_OverloadedOperatorTag	SpecialChar
+    "     highlight default link tag_highlight_PreProcTag			PreProc
+    "     highlight default link tag_highlight_TypeKeywordTag		Structure
+    "     highlight default link tag_highlight_TypeTag			Type
+    "     highlight default link tag_highlight_UnknownTag			Error
+    " 
+    " endfunction
 endif
-
-augroup TagHighlightLinks
-    autocmd VimEnter * call s:WhyWontYouJustWork()
-augroup END
 
 
 "============================================================================= 
@@ -351,11 +351,11 @@ function! s:OnStderr(job_id, data, event) dict
     for l:str in a:data
         if len(l:str) && l:str !=# ' '
             echom l:str
-            if g:tag_highlight#verbose || 1
+            " if g:tag_highlight#verbose || 1
                try
                    call writefile([l:str], expand(g:tag_highlight#directory . '/stderr.log'), 'a')
                endtry
-            endif
+            " endif
         endif
     endfor
 endfunction
@@ -467,8 +467,15 @@ function! s:InitTagHighlight()
     endtry
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
+    let l:cache = tag_highlight#install_info#GetCachePath()
+    echom l:binary
+    echom l:cache
     try
-        let g:tag_highlight#pid = jobstart([l:binary], s:rpc)
+        if l:cache ==# ''
+            echoerr 'Cache directory not found!'
+            return
+        endif
+        let g:tag_highlight#pid = jobstart([l:binary, l:cache], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
         echom 'tag-highlight executable not found.'
     endtry

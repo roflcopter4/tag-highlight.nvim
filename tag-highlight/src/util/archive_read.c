@@ -6,6 +6,10 @@
 #endif
 #include <sys/stat.h>
 
+#ifndef __GNUC__
+#  define __extension__
+#endif
+
 #define SAFE_STAT(PATH, ST)                                  \
       do {                                                   \
             if ((stat((PATH), (ST)) != 0))                   \
@@ -73,8 +77,11 @@ break_into_lines(b_list *tags, uint8_t *buf)
 static inline void
 report_size(struct archive_size *size)
 {
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wformat"
       warnx("Using a buffer of size %'zu for output; filesize is %'zu\n",
             size->uncompressed, size->archive);
+#  pragma GCC diagnostic pop
 }
 #else
 #  define report_size(...)

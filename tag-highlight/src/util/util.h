@@ -203,12 +203,13 @@ extern noreturn void err_(int status, bool print_err, char const *restrict file,
 
 
 extern void     free_all__    (void *ptr, ...);
-extern int64_t  xatoi__       (const char *str, bool strict);
+extern int64_t  xatoi__       (char const *str, bool strict);
 extern unsigned find_num_cpus (void);
-extern FILE *   safe_fopen    (const char *filename, const char *mode) __aWUR __aNNA;
-extern FILE *   safe_fopen_fmt(const char *mode, const char *fmt, ...) __aWUR __aFMT(2,3);
-extern int      safe_open     (const char *filename, int flags, int mode) __aWUR;
-extern int      safe_open_fmt (int flags, int mode, const char *fmt, ...) __aWUR __aFMT(3, 4);
+extern FILE *   fopen_fmt     (char const *restrict mode, char const *restrict fmt, ...) __aWUR __aNN(1, 2) __aFMT(2, 3);
+extern FILE *   safe_fopen    (char const *filename, char const *mode) __aWUR __aNN(1, 2);
+extern FILE *   safe_fopen_fmt(char const *mode, char const *fmt, ...) __aWUR __aNN(1, 2) __aFMT(2,3);
+extern int      safe_open     (char const *filename, int flags, int mode) __aWUR;
+extern int      safe_open_fmt (int flags, int mode, char const *fmt, ...) __aWUR __aFMT(3, 4);
 extern void     fd_set_open_flag(int fd, int flag);
 
 #if 0 && defined DEBUG
@@ -224,11 +225,11 @@ extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
 #define NANOSLEEP_FOR_SECOND_FRACTION(s, i, d) \
         clock_nanosleep_for((uintmax_t)(s), (uintmax_t)((NSEC2SECOND * (uintmax_t)(i)) / ((uintmax_t)(d))))
 
-extern bstring *get_command_output(const char *command, char *const *argv, bstring *input, int *status) __aWUR __aNN(1, 2);
+extern bstring *get_command_output(char const *command, char *const *argv, bstring *input, int *status) __aWUR __aNN(1, 2);
 #ifdef DOSISH
 extern int win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
 extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
-extern noreturn void win32_error_exit(int status, const char *msg, DWORD dw);
+extern noreturn void win32_error_exit(int status, char const *msg, DWORD dw);
 
 #define WIN32_ERROR_EXIT_HELPER(VAR, ...)     \
       (__extension__({                        \
@@ -256,6 +257,9 @@ braindead_tempname(_Notnull_   char       *restrict buf,
 
 extern uint32_t cxx_random_device_get_random_val(void) __aWUR;
 extern uint32_t cxx_random_engine_get_random_val(void) __aWUR;
+
+/* buf should be at least 320 bytes long */
+extern char *util_format_int_to_binary(char *buf, uintmax_t val);
 
 /*=====================================================================================*/
 

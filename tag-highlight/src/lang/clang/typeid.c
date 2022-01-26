@@ -1,19 +1,24 @@
 #include "Common.h"
 #include "highlight.h"
 
+#include "contrib/p99/p99_for.h"
+
 #include "lang/clang/clang.h"
 #include "lang/clang/intern.h"
 #include "lang/lang.h"
 #include "util/list.h"
 #include "clang-c/Index.h"
 
+#define IGNORE_CASE_RANGE_EXTENSION() \
+      P01_CLANG_DIAGNOSTIC_IGNORED(-Wgnu-case-range) \
+      P01_GCC_DIAGNOSTIC_IGNORED(-Wpedantic)
 
 static void do_typeswitch(Buffer            *bdata,
                           mpack_arg_array   *calls,
                           token_t           *tok,
-                          enum CXCursorKind *last_kind);
+                          CXCursor *last);
 
-static void translationunit_visitor(Buffer *bdata, translationunit_t *stu);
+static UNUSED void translationunit_visitor(Buffer *bdata, translationunit_t *stu);
 
 static bool tok_in_skip_list(Buffer *bdata, token_t *tok) __attribute__((pure));
 static bool sanity_check_name(token_t *tok, CXCursor cursor);
@@ -29,7 +34,7 @@ static thread_local FILE *dump_fp = NULL;
 mpack_arg_array *
 create_nvim_calls(Buffer *bdata, translationunit_t *stu)
 {
-      enum CXCursorKind last  = 1;
+      CXCursor last = clang_getNullCursor();
       mpack_arg_array  *calls = new_arg_array();
 
       if (bdata->hl_id == 0)
@@ -37,27 +42,39 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
       else
             add_clr_call(calls, (int)bdata->num, bdata->hl_id, 0, -1);
 
-      dump_fp = safe_fopen_fmt("wbe", "%s/garbage.log", BS(settings.cache_dir));
-
+#if defined DEBUG
+      dump_fp = fopen_fmt("wb", "%s/garbage.log", BS(settings.cache_dir));
+#endif
       //translationunit_visitor(bdata, stu);
 
       for (unsigned i = 0; i < stu->tokens->qty; ++i) {
             token_t *tok = stu->tokens->lst[i];
             if (((int)tok->line) == -1) {
-                  fprintf(dump_fp, "Token \"%s\" isn't even in the damned file?!\n", tok->raw);
+                  if (dump_fp)
+                        fprintf(dump_fp, "Token \"%s\" isn't even in the damned file?!\n", tok->raw);
                   continue;
             }
             if (tok_in_skip_list(bdata, tok)) {
-                  fprintf(dump_fp, "Token \"%s\" is to be skipped.\n", tok->raw);
+                  if (dump_fp)
+                        fprintf(dump_fp, "Token \"%s\" is to be skipped.\n", tok->raw);
                   continue;
             }
 
             do_typeswitch(bdata, calls, tok, &last);
       }
 
-      (void)fclose(dump_fp);
+#if defined DEBUG
+      if (dump_fp) {
+            fflush(dump_fp);
+            fsync(fileno(dump_fp));
+            (void)fclose(dump_fp);
+      }
+#endif
 
-      lc_index_file(bdata, stu, calls);
+#if 0
+      if (bdata->ft->id == FT_CXX)
+            lc_index_file(bdata, stu, calls);
+#endif
 
       return calls;
 }
@@ -80,20 +97,20 @@ static void
 do_typeswitch(Buffer            *bdata,
               mpack_arg_array   *calls,
               token_t           *tok,
-              enum CXCursorKind *last_kind)
+              CXCursor *last)
 {
-      CXCursor          cursor = tok->cursor;
+      CXCursor cursor = tok->cursor;
 
       int  goto_safety_count = 0;
       int  call_group        = 0;
       bool in_template       = false;
 
-      //braindead(tok, 0);
+#ifdef DEBUG
+      /* braindead(tok, 0, NULL); */
+#endif
 
 retry:
-      if (goto_safety_count < 3)
-            ++goto_safety_count;
-      else
+      if (goto_safety_count++ > 2)
             goto skip;
 
       /*
@@ -108,12 +125,13 @@ retry:
       /* An actual typedef */
       case CXCursor_TypedefDecl:
       case CXCursor_TypeAliasDecl:
+      case CXCursor_TypeAliasTemplateDecl:
             ADD_CALL(CTAGS_TYPE);
             break;
 
       case CXCursor_CXXBaseSpecifier:
-            ADD_CALL(CTAGS_TYPE);
-            warnd("Got a CXXBaseSpecifier!");
+            //ADD_CALL(EXTENSION_I_DONT_KNOW);
+            //warnx("Got a CXXBaseSpecifier!");
             //braindead(tok, goto_safety_count, &cursor);
             break;
 
@@ -219,6 +237,7 @@ retry:
                   ADD_CALL(EXTENSION_TEMPLATE_TYPE_PARAM);
                   break;
             }
+            //braindead(tok, 0, &cursor);
             ADD_CALL(EXTENSION_METHOD);
             break;
 
@@ -231,6 +250,7 @@ retry:
       /* --- Mainly C++ Stuff --- */
       case CXCursor_Constructor:
       case CXCursor_Destructor:
+            //braindead(tok, 0, &cursor);
             ADD_CALL(EXTENSION_METHOD);
             break;
 
@@ -246,6 +266,7 @@ retry:
       {
             CXCursor ref  = clang_getCursorReferenced(cursor);
             CXType   what = clang_getCursorType(cursor);
+
             if (what.kind == CXType_Int && clang_equalCursors(cursor, ref)) {
                   CXString spell = clang_getCursorSpelling(ref);
                   if (STREQ(tok->raw, CS(spell)))
@@ -278,7 +299,7 @@ retry:
 
       /* Macros are trouble */
       case CXCursor_MacroDefinition:
-            if (*last_kind == CXCursor_PreprocessingDirective)
+            if (last->kind == CXCursor_PreprocessingDirective)
                   ADD_CALL(CTAGS_PREPROC);
             break;
 
@@ -293,8 +314,10 @@ retry:
       //case CXCursor_DeclStmt:
 
       /* Possibly the most generic kind, this could refer to many things. */
-      case CXCursor_DeclRefExpr:
-            switch (clang_getCursorType(cursor).kind) {
+      case CXCursor_DeclRefExpr: {
+            enum CXTypeKind typekind = clang_getCursorType(cursor).kind;
+
+            switch (typekind) {
             case CXType_Typedef:
                   if (bdata->ft->id == FT_CXX) {
                         CXCursor ref = clang_getCursorReferenced(cursor);
@@ -305,12 +328,11 @@ retry:
                         case CXCursor_TypeRef:
                               ADD_CALL(CTAGS_TYPE);
                               break;
-                        default:
-                              break;
+                        default:;
                         }
                   }
 
-                  break;
+                  goto primative_type;
 
             case CXType_Enum:
                   ADD_CALL(CTAGS_ENUMCONST);
@@ -323,32 +345,61 @@ retry:
                         ADD_CALL(CTAGS_FUNCTION);
                   break;
 
-            case CXType_UShort ... CXType_ULongLong:
-            case CXType_Short ... CXType_LongLong:
-            {
-                  CXCursor ref = clang_getCursorReferenced(cursor);
-                  switch (ref.kind) {
-                  case CXCursor_EnumConstantDecl:
-                        ADD_CALL(CTAGS_ENUMCONST);
-                        break;
-                  case CXCursor_NonTypeTemplateParameter:
-                        ADD_CALL(EXTENSION_TEMPLATE_NONTYPE_PARAM);
-                        break;
-                  default:;
+            case CXType_Char_U:
+            case CXType_UShort:
+            case CXType_UInt:
+            case CXType_ULong:
+            case CXType_ULongLong:
+            case CXType_Char_S:
+            case CXType_SChar:
+            case CXType_Short:
+            case CXType_Int:
+            case CXType_Long:
+            case CXType_LongLong:
+            primative_type:
+                  if (bdata->ft->id == FT_C) {
+                        CXCursor ref = clang_getCursorReferenced(cursor);
+                        switch (ref.kind) {
+                        case CXCursor_EnumConstantDecl:
+                              ADD_CALL(CTAGS_ENUMCONST);
+                              break;
+                        case CXCursor_NonTypeTemplateParameter:
+                              ADD_CALL(EXTENSION_TEMPLATE_NONTYPE_PARAM);
+                              break;
+                        default:;
+                        }
+                  }
+
+                  break;
+
+            case CXType_Dependent:
+                  if (bdata->ft->id == FT_CXX) {
+                        CXType ltype = clang_getCursorType(*last);
+                        if (ltype.kind == CXType_Enum)
+                              ADD_CALL(CTAGS_ENUMCONST);
                   }
                   break;
-            }
 
             default:
-                  break;
+                  {
+                        CXCursor ref     = clang_getCursorDefinition(cursor);
+                        CXType   reftype = clang_getCursorType(ref);
+                        switch (reftype.kind) {
+                        case CXType_FunctionProto:
+                              ADD_CALL(CTAGS_FUNCTION);
+                              break;
+                        default:;
+                        }
+
+                        break;
+                  }
             }
 
-            if (in_template) {
+            if (in_template)
                   ADD_CALL(EXTENSION_TEMPLATE_TYPE_PARAM);
-                  break;
-            }
 
             break;
+      }
 
       case CXCursor_ParmDecl: {
             if (goto_safety_count > 0 && is_really_template_parameter(tok, cursor)) {
@@ -383,7 +434,7 @@ retry:
       if (call_group) {
             const bstring *group = find_group(bdata->ft, call_group);
             if (group)
-                  add_hl_call(calls, bdata->num, bdata->hl_id, group,
+                  add_hl_call(calls, (int)bdata->num, bdata->hl_id, group,
                               (line_data[]){{tok->line, tok->col1, tok->col2}});
       }
 
@@ -391,7 +442,7 @@ skip:
 #ifdef DEBUG
       //braindead(tok, goto_safety_count, &cursor);
 #endif
-      *last_kind = cursor.kind;
+      *last = cursor;
 }
 
 /*======================================================================================*/
@@ -459,41 +510,62 @@ is_really_template_parameter(token_t *tok, CXCursor cursor)
       return ret;
 }
 
+#define REPR(CURSOR) (libclang_CXCursorKind_repr[(CURSOR).kind])
+#define SPELLING(x) clang_getCursorDisplayName(x)
+
 static void
 braindead(token_t *tok, int ngotos, CXCursor *provided)
 {
-        CXString spell        = clang_getCursorSpelling(tok->cursor);
+      if (!dump_fp)
+            return;
+
+        CXString spell        = SPELLING(tok->cursor);
         CXType   what         = clang_getCursorType(tok->cursor);
         CXString whatspell    = clang_getTypeSpelling(what);
         CXString typespell    = clang_getCursorKindSpelling(tok->cursor.kind);
         CXString tkspell      = clang_getTypeKindSpelling(what.kind);
 
-        CXCursor decl = clang_getTypeDeclaration(what);
-        CXString declspell = clang_getCursorSpelling(decl);
+        CXCursor decl      = clang_getTypeDeclaration(what);
+        CXString declspell = SPELLING(decl);
         CXString decldisp  = clang_getCursorDisplayName(decl);
 
         CXCursor ref          = clang_getCursorReferenced(tok->cursor);
-        CXString refspell     = clang_getCursorSpelling(ref);
+        CXString refspell     = SPELLING(ref);
         CXString reftypespell = clang_getCursorKindSpelling(ref.kind);
         CXType   refwhat      = clang_getCursorType(ref);
         CXString refwhatspell = clang_getTypeSpelling(refwhat);
         CXString refwhatkindspell = clang_getTypeKindSpelling(refwhat.kind);
 
-        CXCursor def          = clang_getCursorDefinition(tok->cursor);
-        CXString defspell     = clang_getCursorSpelling(def);
-        CXString deftypespell = clang_getCursorKindSpelling(def.kind);
-        CXString defwhatspell = clang_getTypeSpelling(clang_getCursorType(def));
+        CXCursor def              = clang_getCursorDefinition(tok->cursor);
+        CXString defspell         = SPELLING(def);
+        CXString deftypespell     = clang_getCursorKindSpelling(def.kind);
+        CXType   defwhat          = clang_getCursorType(def);
+        CXString defwhatspell     = clang_getTypeSpelling(defwhat);
+        CXString defwhatkindspell = clang_getTypeKindSpelling(refwhat.kind);
 
-        fprintf(dump_fp, "Have (%s [%d]): spell(`%s`) (WHAT  `%s`  TYPE  `%s`) > TK=(`%s`) > decl:(`%s` - `%s`)  ** references ** S:(%s) W:(%s) T:(%s) TK:(%s)  **DEF**  S:(%s) W:(%s) T:(%s)  ===>  %u:[%u, %u]\n",
-                tok->raw, ngotos, CS(spell), CS(whatspell), CS(typespell), CS(tkspell), CS(declspell), CS(decldisp),
-                CS(refspell), CS(refwhatspell), CS(reftypespell), CS(refwhatkindspell),
-                CS(defspell), CS(defwhatspell), CS(deftypespell),
-                tok->line + 1U, tok->col1, tok->col2);
+        fprintf(dump_fp,
+                "\033[1;32m" "Have:" "\033[0m"
+                "\033[1;33m" " spell(" "\033[0m"
+                "\033[0;33m" "%s" "\033[0m"
+                "\033[1;33m" ")" "\033[0m"
+                " (REPR  `%s`  WHAT  `%s`  TYPE  `%s`) > TK=(`%s`:%d) > decl:(`%s` - `%s`)  "
+                "\033[1;36m" "** references **" "\033[0m"
+                " S:(%s) R:(%s) W:(%s) T:(%s) TK:(%s:%d)  "
+                "\033[1;36m" "**DEF**" "\033[0m"
+                "  S:(%s) R:(%s) W:(%s) T:(%s) TK:(%s:%d)  "
+                "\033[1;34m" "===>" "\033[0m"
+                "  %u[%u:%u]"
+                "\n",
+                CS(spell), REPR(tok->cursor), CS(whatspell), CS(typespell), CS(tkspell), what.kind, CS(declspell), CS(decldisp),
+                CS(refspell), REPR(tok->cursor), CS(refwhatspell), CS(reftypespell), CS(refwhatkindspell), refwhat.kind,
+                CS(defspell), REPR(tok->cursor), CS(defwhatspell), CS(deftypespell), CS(defwhatkindspell), defwhat.kind,
+                tok->line + 1U, tok->col1, tok->col2
+       );
 
         free_cxstrings(whatspell, spell, typespell, tkspell,
+                       declspell, decldisp,
                        refspell, reftypespell, refwhatspell, refwhatkindspell,
-                       defspell, deftypespell, defwhatspell,
-                       declspell, decldisp
+                       defspell, deftypespell, defwhatspell, defwhatkindspell
         );
 
         if (provided && ngotos > 1) {
@@ -503,7 +575,10 @@ braindead(token_t *tok, int ngotos, CXCursor *provided)
               CXString provwhatspell = clang_getTypeSpelling(provwhat);
               CXString provwhatkindspell = clang_getTypeKindSpelling(provwhat.kind);
 
-              fprintf(dump_fp, "\tProvided cursor: S:(%s) W:(%s) T:(%s) TK:(%s)\n", CS(provspell), CS(provwhatspell), CS(provtypespell), CS(provwhatkindspell));
+              fprintf(dump_fp, "\t\033[1;35mProvided cursor:\033[0m S:(%s) W:(%s) T:(%s) TK:(%s)\n",
+                      CS(provspell), CS(provwhatspell), CS(provtypespell), CS(provwhatkindspell));
+
+              free_cxstrings(provspell, provtypespell, provwhatspell, provwhatkindspell);
         }
 }
 
@@ -512,6 +587,9 @@ braindead(token_t *tok, int ngotos, CXCursor *provided)
 static void
 slightly_less_braindead(CXFile file, CXCursor cursor)
 {
+      if (!dump_fp)
+            return;
+
         resolved_range_t range = {0U, 0U, 0U, 0U, 0U, 0U, NULL};
         resolve_range(clang_getCursorExtent(cursor), &range);
         if (!clang_File_isEqual(file, range.file))
