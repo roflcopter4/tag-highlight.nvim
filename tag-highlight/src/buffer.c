@@ -695,7 +695,7 @@ get_restore_cmds(b_list *restored_groups)
                   continue;
             }
 
-            cmd = b_alloc_null(64u + output->slen);
+            cmd = b_alloc_null(64U + output->slen);
             ptr += 4;
             ALWAYS_ASSERT(!isblank(*ptr));
             b_sprintfa(cmd, "syntax clear %s | ", restored_groups->lst[i]);
@@ -774,11 +774,6 @@ void
       extern void destroy_clangdata(Buffer * bdata);
       assert(bdata != NULL);
 
-      {
-            char buf[512];
-            warnx("FUCKING TWERP -> %s", util_format_int_to_binary(buf, flags));
-      }
-
       if (!process_exiting && (flags & DES_BUF_SHOULD_CLEAR))
             clear_highlight(bdata);
 
@@ -833,11 +828,10 @@ void
       pthread_mutex_unlock(&bdata->lock.lang_mtx);
       pthread_mutex_destroy(&bdata->lock.lang_mtx);
 
-      warnx("FUCKING TWERP");
       //p99_futex_wakeup(&destruction_futex[bdata->num]);
       if (flags & DES_BUF_TALLOC_FREE) {
             talloc_set_destructor(bdata, NULL);
-            warnx("freeing");
+            warnd("freeing");
             talloc_free(bdata);
       }
 }
@@ -853,8 +847,6 @@ static int
 destroy_buffer_node(buffer_node *bnode)
 {
       ALWAYS_ASSERT(bnode != NULL);
-
-      warnx("YOLO SWAGGINS!");
 
       if (bnode->bdata)
             destroy_buffer(bnode->bdata, DES_BUF_SHOULD_CLEAR | DES_BUF_TALLOC_FREE);

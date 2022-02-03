@@ -380,7 +380,7 @@ exit_cleanup(void)
 
 
 static noreturn void *
-dumb_thread_wrapper(void *vdata)
+dumb_thread_wrapper(UNUSED void *vdata)
 {
 #if 0
       //static const char xz_string[] = "xz -7 -- ";
