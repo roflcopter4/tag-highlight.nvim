@@ -72,7 +72,7 @@ buffer_c_constructor(void)
  * \------------------------------------/
  *=====================================================================================*/
 
-static inline bool         should_skip_buffer(bstring const *ft) __attribute__((pure));
+static inline bool         should_skip_buffer(bstring const *ft) __attribute__((__pure__));
 static inline buffer_node *new_buffer_node(unsigned bufnum);
 static buffer_node        *find_buffer_node(unsigned bufnum);
 static Buffer             *make_new_buffer(buffer_node *bnode);
@@ -294,7 +294,7 @@ clear_bnode(void *vdata, bool blocking)
  * \-----------------------------------------/
  *=====================================================================================*/
 
-static bool     check_norecurse_directories(bstring const *dir) __attribute__((pure));
+static bool     check_norecurse_directories(bstring const *dir) __attribute__((__pure__));
 static bstring *check_project_directories(bstring *dir, Filetype const *ft);
 static Top_Dir *check_open_topdirs(Buffer const *bdata, bstring const *base);
 static void     get_tag_filename(bstring *gzfile, bstring const *base, Buffer *bdata);

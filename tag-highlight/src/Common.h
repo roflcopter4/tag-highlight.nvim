@@ -10,6 +10,7 @@ extern "C" {
 #    define __MINGW__
 #  endif
 #  include "mingw_config.h"
+#  define __WINPTRHEAD_ENABLE_WRAP_API 1
 #endif
 #ifdef _MSC_VER
 #  define _CRT_SECURE_NO_WARNINGS
@@ -28,6 +29,7 @@ extern "C" {
 #endif
 #ifdef USE_JEMALLOC
 #  define JEMALLOC_MANGLE
+#  define JEMALLOC_NO_RENAME
 #  include <jemalloc/jemalloc.h>
 #endif
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)

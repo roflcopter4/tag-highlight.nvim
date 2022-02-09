@@ -60,7 +60,7 @@ static token_t    *get_token_data(translationunit_t *stu, CXToken *tok, CXCursor
 static void        tokenize_range(translationunit_t *stu, CXFile *file, int64_t first, int64_t last);
 static inline void lines2bytes(Buffer *bdata, int64_t *startend, int first, int last);
 
-__attribute__((constructor(400))) static void
+__attribute__((__constructor__(500))) static void
 clang_initializer(void)
 {
       pthread_mutex_init(&lc_mutex);
@@ -405,9 +405,12 @@ unquote(bstring *str)
 }
 
 static void
-handle_win32_command_script(Buffer *bdata, char const *directory, char const *cstr, str_vector *ret)
+handle_win32_command_script(UNUSED Buffer *bdata,
+                            char const    *directory,
+                            char const    *cstr,
+                            str_vector    *ret)
 {
-      char searchbuf[8192];
+      char searchbuf[32768];
       {
             char        ch;
             char       *sptr = searchbuf;
@@ -564,8 +567,8 @@ get_compile_commands(Buffer *bdata)
       unsigned const ncmds = clang_CompileCommands_getSize(cmds);
       str_vector    *ret   = argv_create(INIT_ARGV);
 
-      ECHO("Found compilation database for %s -> %u commands\n", bdata->topdir->pathname,
-           ncmds);
+      warnd("Found compilation database for %*s -> %u commands\n",
+            BSC(bdata->topdir->pathname), ncmds);
 
       for (unsigned i = 0; i < ncmds; ++i) {
             CXCompileCommand command   = clang_CompileCommands_getCommand(cmds, i);

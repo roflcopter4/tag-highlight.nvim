@@ -4,7 +4,6 @@
 #include "contrib/p99/p99_futex.h"
 
 #include <event2/event.h>
-#include <spawn.h>
 
 #if 0
 #  define JEMALLOC_MANGLE

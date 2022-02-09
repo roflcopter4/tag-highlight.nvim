@@ -452,9 +452,7 @@ win32_print_stack(void)
       void          *stack[100];
       unsigned short frames;
       SYMBOL_INFO   *symbol;
-      HANDLE         process;
-
-      process = GetCurrentProcess();
+      HANDLE         process = GetCurrentProcess();
 
       SymInitialize(process, NULL, TRUE);
 

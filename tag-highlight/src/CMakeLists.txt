@@ -125,10 +125,14 @@ target_link_libraries(tag-highlight
     #-LD:/new_msys64/clang64/lib
     #-levent_core -levent_extra -levent_openssl -levent
     #D:/vcpkg/installed/x64-windows/lib/tinycthread.lib
-    -lz -pthread -lgc
+    -lz -pthread
     thl-util
     tag_highlight_lang
 )
+
+if ()
+    #target_link_libraries(main PRIVATE unofficial::libuv::libuv)
+endif()
 
 if (IS_BSD)
     target_link_libraries(tag-highlight -lstdthreads -lexecinfo)
