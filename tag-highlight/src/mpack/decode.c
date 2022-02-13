@@ -53,7 +53,7 @@ extern FILE *mpack_raw_read;
 
 P99_DECLARE_STRUCT(mpack_mutex);
 struct mpack_mutex {
-      int             fd;
+      intptr_t        fd;
       bool            init;
       pthread_mutex_t mut;
 } __attribute__((aligned(64)));
@@ -66,7 +66,7 @@ static mpack_mutex     mpack_mutex_list[NUM_MUTEXES];
 /*============================================================================*/
 
 mpack_obj *
-mpack_decode_stream(int32_t fd)
+mpack_decode_stream(intptr_t fd)
 {
       pthread_mutex_lock(&mpack_search_mutex);
       pthread_mutex_t *mut = NULL;
@@ -563,12 +563,12 @@ id_pack_type(uint8_t const ch)
       return mask;
 }
 
-#ifdef DOSISH
+#if defined _WIN32 && USE_EVENT_LIB != EVENT_LIB_LIBEVENT
 
 static void
 stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
-      int const fd    = *((int *)src);
+      int const fd    = (int)*((intptr_t *)src);
       size_t    nread = 0;
 
       while (nread < nbytes) {
@@ -584,18 +584,34 @@ stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 #endif
 }
 
-#else /* !defined DOSISH */
+#else /* !defined _WIN32 */
+#pragma message("HI")
 
 static void
 stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
-      int const fd = *((int *)src);
+      SOCKET const sock = (SOCKET)*((intptr_t *)src);
+      eprintf("Reading %zu bytes from socket %llu\n", nbytes, sock);
+      fflush(stderr);
 
-      ssize_t const nread = recv(fd, dest, nbytes, MSG_WAITALL);
+#if 0
+      ssize_t const nread = recv(sock, dest, nbytes, MSG_WAITALL);
       if (unlikely(nread < 0))
             err(1, "recv() error");
       if (unlikely((size_t)nread != nbytes))
             err(1, "recv() returned too few bytes (%zd != %zu)!", nread, nbytes);
+#endif
+
+      size_t nread = 0;
+
+      while (nread < nbytes) {
+            ssize_t n = recv(sock, (char *)dest + nread, nbytes - nread, 0);
+            if (unlikely(n < 0))
+                  err(1, "read() error");
+            nread += (size_t)n;
+      }
+
+
 
 #if defined DEBUG && defined DEBUG_LOGS
       if (P99_LIKELY(mpack_raw_read))
@@ -603,7 +619,7 @@ stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 #endif
 }
 
-#endif /* defined DOSISH */
+#endif /* defined _WIN32 */
 
 
 static void

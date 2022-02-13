@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <sys/stat.h>
 
-#if defined(DOSISH) || defined(MINGW)
+#if defined(_WIN32) || defined(MINGW)
 # include <direct.h>
 #else
 # include <dirent.h>

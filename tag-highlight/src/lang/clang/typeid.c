@@ -66,7 +66,7 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
 #if defined DEBUG
       if (dump_fp) {
             fflush(dump_fp);
-            fsync(fileno(dump_fp));
+            //fsync(fileno(dump_fp));
             (void)fclose(dump_fp);
       }
 #endif

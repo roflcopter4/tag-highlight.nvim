@@ -384,7 +384,10 @@ function! s:NewBuf()
     if g:tag_highlight#pid > 0
         let l:buf = nvim_get_current_buf()
         if index(s:new_bufs, l:buf) == (-1)
-            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
+            try
+                call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
+            catch /.*/
+            endtry
             call add(s:new_bufs, l:buf)
         endif
     endif
@@ -392,22 +395,28 @@ endfunction
 
 function! s:BufChanged()
     let l:buf = nvim_get_current_buf()
-    if g:tag_highlight#pid > 0
-        if index(s:new_bufs, l:buf) == (-1)
-            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
-            call add(s:new_bufs, l:buf)
-            call add(s:seen_bufs, l:buf)
-        elseif index(s:seen_bufs, l:buf) ==# (-1)
-            call add(s:seen_bufs, l:buf)
-        elseif g:tag_highlight#pid >=# 0
-            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufChanged'])
+    try
+        if g:tag_highlight#pid > 0
+            if index(s:new_bufs, l:buf) == (-1)
+                call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufNew'])
+                call add(s:new_bufs, l:buf)
+                call add(s:seen_bufs, l:buf)
+            elseif index(s:seen_bufs, l:buf) ==# (-1)
+                call add(s:seen_bufs, l:buf)
+            elseif g:tag_highlight#pid >=# 0
+                call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['BufChanged'])
+            endif
         endif
-    endif
+    catch /.*/
+    endtry
 endfunction
 
 function! s:SendMessage(msg)
     if g:tag_highlight#pid > 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types[a:msg])
+        try
+            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types[a:msg])
+        catch /.*/
+        endtry
     endif
 endfunction
 
@@ -426,7 +435,10 @@ endfunction
 
 function! s:StopTagHighlight()
     if g:tag_highlight#pid > 0
-        call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['Stop'])
+        try
+            call rpcnotify(g:tag_highlight#pid, 'vim_event_update', s:msg_types['Stop'])
+        catch /.*/
+        endtry
     endif
 endfunction
 
@@ -456,6 +468,10 @@ let s:rpc  = {  'rpc':       v:true,
             \   'on_exit':   function('s:OnExit'),
             \ }
 
+if has('win32') || has('win64')
+    " let s:rpc['overlapped'] = v:true
+endif
+
 function! s:InitTagHighlight()
     let l:cur  = nvim_get_current_buf()
     let s:seen_bufs = [l:cur]
@@ -475,7 +491,8 @@ function! s:InitTagHighlight()
             echoerr 'Cache directory not found!'
             return
         endif
-        let g:tag_highlight#pid = jobstart([l:binary, l:cache], s:rpc)
+        echom printf("Starting [%s, %s, %s], %s", l:binary, l:cache, v:servername, s:rpc)
+        let g:tag_highlight#pid = jobstart([l:binary, l:cache, v:servername], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
         echom 'tag-highlight executable not found.'
     endtry

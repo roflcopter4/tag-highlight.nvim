@@ -18,12 +18,13 @@ struct gencall {
       bstring const *fn;
 };
 
+extern intptr_t global_output_descriptor;
 extern _Atomic(mpack_obj *) event_loop_mpack_obj;
 extern vfutex_t             event_loop_futex, nvim_wait_futex;
 static pthread_mutex_t      await_package_mutex = PTHREAD_MUTEX_INITIALIZER;
 vfutex_t                    nvim_wait_futex     = P99_FUTEX_INITIALIZER(0);
 
-static noreturn void *make_async_call(void *arg);
+static NORETURN void *make_async_call(void *arg);
 static mpack_obj *make_call(bool blocking, bstring const *fn, mpack_obj *pack, int count);
 static mpack_obj *write_and_clean(mpack_obj *pack, int count, bstring const *func);
 static mpack_obj *await_package(nvim_wait_node *node) __aWUR;
@@ -52,7 +53,7 @@ make_call(bool const blocking, bstring const *fn, mpack_obj *pack, int const cou
       return result;
 }
 
-static noreturn void *
+static NORETURN void *
 make_async_call(void *arg)
 {
       struct gencall *gc  = arg;
@@ -138,6 +139,7 @@ write_and_clean(mpack_obj *pack, int const count, UNUSED bstring const *func)
       nvim_wait_node *node;
 
       b_write(1, *pack->packed);
+      /* b_send(global_output_descriptor, *pack->packed); */
 
       node        = calloc(1, sizeof(*node));
       node->fd    = 1;

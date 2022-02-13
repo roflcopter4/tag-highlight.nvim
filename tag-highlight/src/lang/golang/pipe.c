@@ -46,7 +46,7 @@ golang_clear_data(Buffer *bdata)
         bool is_initialized;
 
         if ((is_initialized = atomic_load(&bdata->godata.initialized)) && gd) {
-#ifdef DOSISH
+#ifdef _WIN32
                 bool b;
                 b = TerminateProcess(gd->hProcess, 0);
                 assert(b);
@@ -85,7 +85,7 @@ golang_buffer_init(Buffer *bdata)
 
 /*======================================================================================*/
 
-#ifdef DOSISH
+#ifdef _WIN32
 
 static bstring *read_pipe(HANDLE hand);
 static void write_buffer(HANDLE hand, bstring const *buf);

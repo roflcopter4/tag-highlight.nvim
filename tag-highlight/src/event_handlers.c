@@ -45,9 +45,9 @@ static void event_handlers_initializer(void)
 }
 
 extern void exit_cleanup(void);
-extern noreturn void *highlight_go_pthread_wrapper(void *vdata);
-static noreturn void *wrap_update_highlight(void *vdata);
-static noreturn void *wrap_handle_nvim_response(void *wrapper);
+extern NORETURN void *highlight_go_pthread_wrapper(void *vdata);
+static NORETURN void *wrap_update_highlight(void *vdata);
+static NORETURN void *wrap_handle_nvim_response(void *wrapper);
 static void           handle_nvim_response(mpack_obj *obj, int fd);
 static void           handle_nvim_notification(mpack_obj *event);
 
@@ -151,7 +151,7 @@ handle_buffer_update(Buffer *bdata, mpack_array *arr, event_idp type)
 
 /*--------------------------------------------------------------------------------------*/
 
-static noreturn void *
+static NORETURN void *
 wrap_handle_nvim_response(void *wrapper)
 {
       mpack_obj *obj = ((struct message_args *)wrapper)->obj;
@@ -366,7 +366,7 @@ line_event_multi_op(Buffer *bdata, b_list *new_strings, int const first, int num
  * possible to fail to update for the last handful of changes. This waiting thread should
  * hopefully belatedly fix the situation.
  */
-static noreturn void *
+static NORETURN void *
 delayed_update_highlight(void *vdata)
 {
       /* Sleep for 1 & 1/2 seconds. */
@@ -375,7 +375,7 @@ delayed_update_highlight(void *vdata)
       pthread_exit();
 }
 
-static noreturn void *
+static NORETURN void *
 wrap_update_highlight(void *vdata)
 {
       Buffer *bdata = vdata;
@@ -414,8 +414,8 @@ static void event_buffer_changed(void);
 static void event_syntax_changed(void);
 static void event_want_update(vimscript_message_type val);
 static void event_force_update(void);
-static noreturn void event_stop(void);
-static noreturn void event_exit(void);
+static NORETURN void event_stop(void);
+static NORETURN void event_exit(void);
 static void attach_new_buffer(int num);
 
 extern void global_previous_buffer_set(int num);
@@ -431,7 +431,7 @@ void autocmd_constructor(void)
 
 /*--------------------------------------------------------------------------------------*/
 
-noreturn void *
+NORETURN void *
 event_autocmd(void *vdata)
 {
       pthread_mutex_lock(&autocmd_mutex);
@@ -590,7 +590,7 @@ event_force_update(void)
       TIMER_REPORT(&t, "Forced update");
 }
 
-static noreturn void
+static NORETURN void
 event_halt(bool const nvim_exiting)
 {
       extern void stop_event_loop(int status);
@@ -603,7 +603,7 @@ event_halt(bool const nvim_exiting)
       clear_highlight(, true);
       exit_cleanup();
 
-#ifdef DOSISH
+#ifdef _WIN32
       exit(0);
 #else
       stop_event_loop(0);
@@ -613,13 +613,13 @@ event_halt(bool const nvim_exiting)
 #endif
 }
 
-static noreturn void
+static NORETURN void
 event_stop(void)
 {
       event_halt(false);
 }
 
-static noreturn void
+static NORETURN void
 event_exit(void)
 {
       extern bool process_exiting;

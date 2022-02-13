@@ -1,20 +1,21 @@
 #cmakedefine DEBUG
 #cmakedefine USE_JEMALLOC
 #cmakedefine LZMA_SUPPORT
-#cmakedefine HAVE_LIBEV
-#cmakedefine LIBEV_FOUND
-#cmakedefine SANITIZE
 
 #cmakedefine HAVE_ARC4RANDOM
 #cmakedefine HAVE_ASPRINTF
 #cmakedefine HAVE_BASENAME
-#cmakedefine HAVE_GETAUXVAL
 #cmakedefine HAVE_CLOCK_GETTIME
 #cmakedefine HAVE_DPRINTF
 #cmakedefine HAVE_ERR
 #cmakedefine HAVE_FORK
+#cmakedefine HAVE_GETAUXVAL
 #cmakedefine HAVE_GETTIMEOFDAY
+#cmakedefine HAVE_LOCALTIME_R
+#cmakedefine HAVE_LOCALTIME_S
+#cmakedefine HAVE_LRAND48
 #cmakedefine HAVE_MEMRCHR
+#cmakedefine HAVE_MKDTEMP
 #cmakedefine HAVE_MKOSTEMPS
 #cmakedefine HAVE_NANOSLEEP
 #cmakedefine HAVE_OPEN_MEMSTREAM
@@ -22,18 +23,26 @@
 #cmakedefine HAVE_PIPE2
 #cmakedefine HAVE_POSIX_SPAWNP
 #cmakedefine HAVE_REALLOCARRAY
+#cmakedefine HAVE_SOCKETPAIR
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRCHRNUL
+#cmakedefine HAVE_STRCPY_S
 #cmakedefine HAVE_STRDUPA
+#cmakedefine HAVE_STRERROR_R
+#cmakedefine HAVE_STRERROR_S
 #cmakedefine HAVE_STRICMP
 #cmakedefine HAVE_STRLCAT
 #cmakedefine HAVE_STRLCPY
 #cmakedefine HAVE_STRSEP
-#cmakedefine HAVE_LRAND48
 #cmakedefine HAVE_STRTONUM
+#cmakedefine HAVE_TIMESPEC_GET
 #cmakedefine HAVE_VASPRINTF
-#cmakedefine HAVE_LOCALTIME_R
-#cmakedefine HAVE_LOCALTIME_S
+
+#cmakedefine HAVE_EXECINFO_H
+#cmakedefine HAVE_STDATOMIC_H
+#cmakedefine HAVE_STDNORETURN_H
+#cmakedefine HAVE_THREADS_H
+#cmakedefine HAVE_UNISTD_H
 
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 #cmakedefine HAVE_PROGRAM_INVOCATION_SHORT_NAME
@@ -56,3 +65,20 @@
 
 #define VERSION "0.1.0"
 #define PACKAGE_STRING "tag-highlight " VERSION
+
+#ifdef _MSC_VER
+#  define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING 1
+#  define _CRT_SECURE_NO_WARNINGS 1
+#  define _USE_DECLSPECS_FOR_SAL 1
+#else
+#  define _Notnull_ //NOLINT
+#endif
+
+#if defined _WIN32 || defined _WIN64
+#  define WIN32_LEAN_AND_MEAN 1
+#  define NOMINMAX 1
+#elif defined __linux__   || defined __bsd__  || defined bsd  || \
+      defined __FreeBSD__ || defined __unix__ || defined unix
+#else
+# error "What the hell kind of OS are you even using?"
+#endif

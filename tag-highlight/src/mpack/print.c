@@ -23,7 +23,7 @@ static void print_string(const mpack_obj *result, struct printing_data *data);
 static pthread_mutex_t mpack_print_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 __attribute__((constructor))
-static void init(void) 
+static void init(void)
 {
         pthread_mutex_init(&mpack_print_mutex);
 }
@@ -68,7 +68,7 @@ mpack_print_object(FILE *fp, const mpack_obj *result, bstring const *msg)
         do_mpack_print_object(result, &data);
         b_fwrite(fp, data.out, B("\n"));
         fflush(fp);
-#ifndef DOSISH
+#ifndef _WIN32
         fsync(fileno(fp));
 #endif
         b_free(data.out);

@@ -1,6 +1,6 @@
 #include "Common.h"
 
-#ifdef DOSISH
+#ifdef _WIN32
 //#  include <direct.h>
 #  undef mkdir
 #  define mkdir(PATH, MODE) _mkdir(PATH)

@@ -12,9 +12,14 @@
  */
 
 /*--------------------------------------------------------------------------------------*/
-#if defined(__GNUC__) || defined(__clang__) 
+#if defined(__GNUC__) || defined(__clang__)
+# ifdef __attribute__
+#  error "__attribute__ was defined?"
+# endif
 # define HELP_INITIALIZER_HACK_1_(FN, UNIQ) \
       __attribute__((__constructor__)) static void FN##_##UNIQ(void)
+# define HELP_INITIALIZER_HACK_N_1_(FN, N, UNIQ) \
+      __attribute__((__constructor__(N))) static void FN##_##UNIQ(void)
 
 /*--------------------------------------------------------------------------------------*/
 #elif defined __cplusplus
@@ -53,6 +58,14 @@
 #define HELP_INITIALIZER_HACK_02_(FN, CNT, LN) HELP_INITIALIZER_HACK_1_(FN, CNT ## _ ## LN)
 #define HELP_INITIALIZER_HACK_01_(FN, CNT, LN) HELP_INITIALIZER_HACK_02_(FN, CNT, LN)
 #define INITIALIZER_HACK(FN)                   HELP_INITIALIZER_HACK_01_(FN, __COUNTER__, __LINE__)
+
+#if (defined(__GNUC__) || defined(__clang__)) // && !defined(__clang__)) || (defined(__clang__) && !defined(_WIN32))
+# define HELP_INITIALIZER_HACK_N_02_(FN, N, CNT, LN) HELP_INITIALIZER_HACK_N_1_(FN, N, CNT ## _ ## LN)
+# define HELP_INITIALIZER_HACK_N_01_(FN, N, CNT, LN) HELP_INITIALIZER_HACK_N_02_(FN, N, CNT, LN)
+# define INITIALIZER_HACK_N(FN, N)                   HELP_INITIALIZER_HACK_N_01_(FN, N, __COUNTER__, __LINE__)
+#else
+# define INITIALIZER_HACK_N(FN, N) HELP_INITIALIZER_HACK_01_(FN, __COUNTER__, __LINE__)
+#endif
 
 #endif // initializer_hack.h
 // vim: ft=cpp

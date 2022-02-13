@@ -1,7 +1,7 @@
 #include "scan.h"
 #include <stdlib.h>
 
-#if defined(DOSISH) || defined(__MINGW32__) || defined(__MINGW64__)
+#if defined(_WIN32) || defined(__MINGW32__) || defined(__MINGW64__)
 #  include <malloc.h>
 #  define CONST__
 #  define SEPCHAR ';'
@@ -50,7 +50,7 @@ add_tag_to_list(struct taglist **listp, struct tag *tag)
 
         if (list->qty >= (list->mlen - 1))
                 list->lst = talloc_realloc(list, list->lst, struct tag *, (list->mlen <<= 1));
-                                           
+
         list->lst[list->qty++] = talloc_steal(list->lst, tag);
 }
 
@@ -124,7 +124,7 @@ in_order(b_list const *equiv, const bstring *order, uchar *kind)
 static inline bool
 is_correct_lang(bstring const *lang, CONST__ bstring *match_lang, bool const is_c_or_cpp)
 {
-#ifdef DOSISH
+#ifdef _WIN32
         if (match_lang->data[match_lang->slen - 1] == '\r')
                 match_lang->data[--match_lang->slen] = '\0';
 #endif

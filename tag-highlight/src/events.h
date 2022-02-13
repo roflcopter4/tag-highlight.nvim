@@ -11,10 +11,10 @@ __BEGIN_DECLS
 #define EVENT_LIB_LIBUV     3
 #define EVENT_LIB_LIBEVENT  4
 
-#ifdef DOSISH
+#ifdef _WIN32
 //#  define USE_EVENT_LIB EVENT_LIB_LIBEVENT
-#  define USE_EVENT_LIB  EVENT_LIB_NONE
-//#  define USE_EVENT_LIB  EVENT_LIB_LIBUV
+//#  define USE_EVENT_LIB  EVENT_LIB_NONE
+#  define USE_EVENT_LIB  EVENT_LIB_LIBUV
 #  define KILL_SIG       SIGFPE
 #else
 #  if 1 - 1
@@ -52,14 +52,18 @@ struct event_node {
 };
 
 struct event_data {
-        int        fd;
+#ifdef _WIN32
+        intptr_t fd;
+#else
+        int fd;
+#endif
         mpack_obj *obj;
 };
 
 extern const struct event_id event_list[];
 extern p99_futex volatile _nvim_wait_futex;
 
-extern noreturn void *event_autocmd(void *vdata);
+extern _Noreturn void *event_autocmd(void *vdata);
 
 /*===========================================================================*/
 /* Event handlers */

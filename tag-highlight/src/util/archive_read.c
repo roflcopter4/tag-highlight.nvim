@@ -18,8 +18,8 @@
 
 
 static void break_into_lines(b_list *tags, uint8_t *buf);
-static int  plain_getlines(b_list *tags, const bstring *filename);
-static int  gz_getlines(b_list *tags, const bstring *filename);
+static int  plain_getlines(b_list *tags, bstring const *filename);
+static int  gz_getlines(b_list *tags, bstring const *filename);
 #ifdef LZMA_SUPPORT
 static int xz_getlines(b_list *tags, const bstring *filename);
 #endif
@@ -28,7 +28,7 @@ static int xz_getlines(b_list *tags, const bstring *filename);
 
 
 int
-getlines(b_list *tags, const comp_type_t comptype, const bstring *filename)
+getlines(b_list *tags, comp_type_t const comptype, bstring const *filename)
 {
       int ret;
 
@@ -93,7 +93,7 @@ report_size(struct archive_size *size)
 
 
 static int
-plain_getlines(b_list *tags, const bstring *filename)
+plain_getlines(b_list *tags, bstring const *filename)
 {
       FILE       *fp = safe_fopen(BS(filename), "rb");
       struct stat st;
@@ -120,7 +120,7 @@ plain_getlines(b_list *tags, const bstring *filename)
 
 
 static int
-gz_getlines(b_list *tags, const bstring *filename)
+gz_getlines(b_list *tags, bstring const *filename)
 {
       struct archive_size size;
       gzip_size(&size, BS(filename));

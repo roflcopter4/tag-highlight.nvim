@@ -11,6 +11,10 @@
 #include "contrib/p99/p99_fifo.h"
 #include "contrib/p99/p99_for.h"
 
+#ifdef noreturn
+# undef noreturn
+#endif
+
 #define pthread_create(...)       P99_CALL_DEFARG(pthread_create, 4, __VA_ARGS__)
 #define pthread_create_defarg_3() NULL
 #define pthread_exit(...)       P99_CALL_DEFARG(pthread_exit, 1, __VA_ARGS__)

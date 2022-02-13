@@ -12,7 +12,7 @@ __BEGIN_DECLS
 extern void libclang_highlight(Buffer *bdata, int first, int last, int type);
 extern void launch_libclang_waiter(void);
 extern void destroy_clangdata(Buffer *bdata);
-extern noreturn void *highlight_c_pthread_wrapper(void *vdata);
+extern NORETURN void *highlight_c_pthread_wrapper(void *vdata);
 extern void libclang_suspend_translationunit(Buffer *bdata);
 
 
