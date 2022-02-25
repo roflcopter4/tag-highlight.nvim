@@ -15,6 +15,11 @@ set (tag-highlight-lang_SOURCES
     golang/golang.c
     golang/pipe.c
     lang.c
+
+    lang.h
+    golang/golang.h
+    ctags_scan/scan.h
+    clang/clang.h
 )
 
 add_subdirectory(golang)

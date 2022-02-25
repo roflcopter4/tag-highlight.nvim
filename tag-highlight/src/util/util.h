@@ -14,6 +14,9 @@ extern "C" {
 
 /* Attribute aliases and junk like MIN, MAX, NOP, etc */
 
+//#if !defined __GNUC__ && !defined __clang__ && !defined __attribute__
+//#  define __attribute__(a)
+//#endif
 #define __aMAL       __attribute__((__malloc__))
 #define __aALSZ(...) __attribute__((__alloc_size__(__VA_ARGS__)))
 #define __aNNA       __attribute__((__nonnull__))
@@ -39,9 +42,13 @@ extern "C" {
 #  define MINOF(IA, IB)  __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia<ib)?ia:ib;})
 #  define MODULO(IA, IB) __extension__({auto_type ia=(IA); auto_type ib=(IB); (ia % ib + ib) % ib;})
 #else
-#  define FUNC_NAME      (__func__)
-#  define MAXOF(iA, iB)    (((iA) > (iB)) ? (iA) : (iB))
-#  define MINOF(iA, iB)    (((iA) < (iB)) ? (iA) : (iB))
+#  ifdef _MSC_VER
+#    define FUNC_NAME __FUNCTION__
+#  else
+#    define FUNC_NAME __func__
+#  endif
+#  define MAXOF(iA, iB)  (((iA) > (iB)) ? (iA) : (iB))
+#  define MINOF(iA, iB)  (((iA) < (iB)) ? (iA) : (iB))
 #  define MODULO(iA, iB) (((iA) % (iB) + (iB)) % (iB))
 #endif
 
@@ -50,79 +57,16 @@ extern "C" {
 #define aligned_alloc_for(t) aligned_alloc(alignof(t), sizeof(t))
 
 /*===========================================================================*/
-/* 
+/*
  * Timer structure
  */
-#if defined __MINGW__
 
 struct timer {
-        struct timespec tv1, tv2;
-};
-
-#  define TIMER_START(T_)        ((void)0)
-#  define TIMER_START_BAR(T_)    ((void)0)
-#  define TIMER_REPORT(T_, MSG_) ((void)0)
-
-#elif defined HAVE_CLOCK_GETTIME
-
-struct timer {
-      alignas(32)
         struct timespec tv1;
-      alignas(16)
         struct timespec tv2;
 };
 
-#  define TIMER_START(T_) \
-        (clock_gettime(CLOCK_REALTIME, &(T_)->tv1))
-#  define TIMER_START_BAR(T_)                    \
-        do {                                     \
-                TIMER_START(T_);                 \
-                shout("----------------------"); \
-        } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                                      \
-        do {                                                                          \
-                clock_gettime(CLOCK_REALTIME, &(T_)->tv2);                            \
-                echo("Time for \"%s\": % *.9fs", (MSG_),                              \
-                     (int)(35 - sizeof(MSG_)), TIMESPECDIFF(&(T_)->tv1, &(T_)->tv2)); \
-        } while (0)
-
-#else
-        
-struct timer {
-        struct timeval tv1, tv2;
-};
-
-#  define TIMER_START(T_) (gettimeofday(&(T_)->tv1, NULL))
-#  define TIMER_START_BAR(T_)                    \
-        do {                                     \
-                gettimeofday(&(T_)->tv1, NULL);  \
-                echo("----------------------");  \
-        } while (0)
-#  define TIMER_REPORT(T_, MSG_)                                              \
-        do {                                                                  \
-                gettimeofday(&(T_)->tv2, NULL);                               \
-                echo("Time for \"%s\": % *fs", (MSG_),                        \
-                      (int)(30 - sizeof(MSG_)), TDIFF((T_)->tv1, (T_)->tv2)); \
-        } while (0)
-#endif
-
-#if defined __MINGW__
-#  define TIMER_REPORT_RESTART(T, MSG) ((void)0)
-#else
-#  define TIMER_REPORT_RESTART(T, MSG) do { TIMER_REPORT(T, MSG); TIMER_START(T); } while (0)
-#endif
-
 #define STRUCT_TIMER_INITIALIZER {{0, 0}, {0, 0}}
-
-#define STRDUP(STR)                                                     \
-        __extension__({                                                 \
-                static const char strng_[]   = ("" STR "");             \
-                char *            strng_cpy_ = malloc(sizeof(strng_));  \
-                memcpy(strng_cpy_, strng_, sizeof(strng_));             \
-                strng_cpy_;                                             \
-        })
-
-/*======================================================================================*/
 
 #define USEC2SECOND (1000000LLU) /* 1,000,000 - one million */
 #define NSEC2SECOND (1000000000LLU) /* 1,000,000,000 - one billion */
@@ -132,29 +76,74 @@ struct timer {
          ((double)((STV2).tv_sec - (STV1).tv_sec)))
 
 /* Taken from glibc */
-#define TIMESPEC_ADD(a, b, result)                               \
-        do {                                                     \
-                (result)->tv_sec  = (a)->tv_sec + (b)->tv_sec;   \
-                (result)->tv_nsec = (a)->tv_nsec + (b)->tv_nsec; \
-                if ((result)->tv_nsec >= 1000000000) {           \
-                        ++(result)->tv_sec;                      \
-                        (result)->tv_nsec -= 1000000000;         \
-                }                                                \
-        } while (0)
+#define TIMESPEC_ADD(a, b, result)                           \
+      do {                                                   \
+            (result)->tv_sec  = (a)->tv_sec + (b)->tv_sec;   \
+            (result)->tv_nsec = (a)->tv_nsec + (b)->tv_nsec; \
+            if ((result)->tv_nsec >= UINT64_C(1000000000)) { \
+                  ++(result)->tv_sec;                        \
+                  (result)->tv_nsec -= UINT64_C(1000000000); \
+            }                                                \
+      } while (0)
 
-#define TIMESPECDIFF(STV1, STV2)                                               \
-        (((double)((STV2)->tv_nsec - (STV1)->tv_nsec) / (double)NSEC2SECOND) + \
-         ((double)((STV2)->tv_sec - (STV1)->tv_sec)))
+#define TIMESPEC_SUB(a, b, result)                           \
+      do {                                                   \
+            (result)->tv_sec  = (a)->tv_sec - (b)->tv_sec;   \
+            (result)->tv_nsec = (a)->tv_nsec - (b)->tv_nsec; \
+            if ((result)->tv_nsec < 0) {                     \
+                  --(result)->tv_sec;                        \
+                  (result)->tv_nsec += UINT64_C(1000000000); \
+            }                                                \
+      } while (0)
 
+/* This mess is my own */
 #define TIMESPEC2DOUBLE(STV) \
-        ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / (double)NSEC2SECOND)))
+      ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / (double)NSEC2SECOND)))
 
+#if 0
 #define DOUBLE2TIMESPEC(FLT) ((struct timespec[]){{ \
           (int64_t)(FLT),                           \
           (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
+#endif
 
-#define MKTIMESPEC(s, n) ((struct timespec[]){{s, n}})
-#define NANOSLEEP(s, n) nanosleep(MKTIMESPEC((s), (n)), NULL)
+#define TIMER_START(T_) \
+        ((void)timespec_get(&(T_)->tv1, TIME_UTC))
+
+#define TIMER_START_BAR(T_)                          \
+        do {                                         \
+                TIMER_START(T_);                     \
+                eprintf("----------------------\n"); \
+        } while (0)
+
+#define TIMER_REPORT(T_, FMT_, ...)                                        \
+        do {                                                               \
+                struct timespec tmp_;                                      \
+                (void)timespec_get(&(T_)->tv2, TIME_UTC);                  \
+                TIMESPEC_SUB(&(T_)->tv2, &(T_)->tv1, &tmp_);               \
+                nvim_printf("Time for (" FMT_ "):\t%.9fs\n", ##__VA_ARGS__,   \
+                        /*(int)(65 - sizeof(FMT_)),*/ \
+                    TIMESPEC2DOUBLE(&tmp_)); \
+        } while (0)
+
+#define TIMER_REPORT_RESTART(T, ...) do { TIMER_REPORT(T, __VA_ARGS__); TIMER_START(T); } while (0)
+
+#define TIMESPEC_FROM_DOUBLE(FLT)                                          \
+      { (uintmax_t)((double)(FLT)),                                        \
+            (uintmax_t)(((double)((double)(FLT) -                          \
+                                  (double)((uintmax_t)((double)(FLT))))) * \
+                        (double)NSEC2SECOND) }
+
+#define TIMESPEC_FROM_SECOND_FRACTION(seconds, numerator, denominator)               \
+      {                                                                              \
+            (uintmax_t)(seconds),                                                    \
+            (uintmax_t)((denominator) == 0 ? UINTMAX_C(0)                            \
+                                           : (((uintmax_t)(numerator)*NSEC2SECOND) / \
+                                              (uintmax_t)(denominator)))             \
+      }
+
+#define MKTIMESPEC(s, n) ((struct timespec[1]){{s, n}})
+#define NANOSLEEP(s, n)  nanosleep(MKTIMESPEC((s), (n)), NULL)
+
 
 /*===========================================================================*/
 /* Generic Utility Functions */
@@ -162,6 +151,9 @@ struct timer {
 #ifndef __always_inline
 #  define __always_inline extern __inline__ __attribute__((__always_inline__))
 /* #  undef __always_inline */
+#endif
+#ifdef noreturn
+# error "I give up"
 #endif
 
 #ifndef NOP
@@ -179,7 +171,7 @@ struct timer {
 #define STRINGIFY_HLP(...) #__VA_ARGS__
 #define STRINGIFY(...)     STRINGIFY_HLP(__VA_ARGS__)
 
-/*
+/**
  * Silly convenience macro for assertions that should _always_ be checked regardless of
  * release type. Saves an if statement.
  */
@@ -199,17 +191,17 @@ struct timer {
 #define warnd(...)      warn_(false,  false,  __FILE__, __LINE__, __func__, __VA_ARGS__)
 
 extern void warn_(bool print_err, bool force, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
-extern noreturn void err_(int status, bool print_err, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
+NORETURN extern void err_(int status, bool print_err, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
 
 
 extern void     free_all__    (void *ptr, ...);
 extern int64_t  xatoi__       (char const *str, bool strict);
 extern unsigned find_num_cpus (void);
-extern FILE *   fopen_fmt     (char const *restrict mode, char const *restrict fmt, ...) __aWUR __aNN(1, 2) __aFMT(2, 3);
-extern FILE *   safe_fopen    (char const *filename, char const *mode) __aWUR __aNN(1, 2);
-extern FILE *   safe_fopen_fmt(char const *mode, char const *fmt, ...) __aWUR __aNN(1, 2) __aFMT(2,3);
-extern int      safe_open     (char const *filename, int flags, int mode) __aWUR;
-extern int      safe_open_fmt (int flags, int mode, char const *fmt, ...) __aWUR __aFMT(3, 4);
+ND extern FILE *   fopen_fmt     (char const *restrict mode, char const *restrict fmt, ...) __aNN(1, 2) __aFMT(2, 3);
+ND extern FILE *   safe_fopen    (char const *filename, char const *mode) __aNN(1, 2);
+ND extern FILE *   safe_fopen_fmt(char const *mode, char const *fmt, ...) __aNN(1, 2) __aFMT(2,3);
+ND extern int      safe_open     (char const *filename, int flags, int mode) ;
+ND extern int      safe_open_fmt (int flags, int mode, char const *fmt, ...) __aFMT(3, 4);
 extern void     fd_set_open_flag(int fd, int flag);
 
 #if 0 && defined DEBUG
@@ -226,18 +218,18 @@ extern int clock_nanosleep_for(intmax_t seconds, intmax_t nanoseconds);
         clock_nanosleep_for((uintmax_t)(s), (uintmax_t)((NSEC2SECOND * (uintmax_t)(i)) / ((uintmax_t)(d))))
 
 extern bstring *get_command_output(char const *command, char *const *argv, bstring *input, int *status) __aWUR __aNN(1, 2);
-#ifdef DOSISH
-extern int win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
-extern bstring *_win32_get_command_output(char *argv, bstring *input, int *status);
-extern noreturn void win32_error_exit(int status, char const *msg, DWORD dw);
+#ifdef _WIN32
+extern int           win32_start_process_with_pipe(char const *exe, char *argv, HANDLE pipehandles[2], PROCESS_INFORMATION *pi);
+extern bstring *     _win32_get_command_output(char *argv, bstring const *input, int *status);
+NORETURN extern void win32_error_exit(int status, char const *msg, DWORD dw);
 
-#define WIN32_ERROR_EXIT_HELPER(VAR, ...)     \
+# define WIN32_ERROR_EXIT_HELPER(VAR, ...)    \
       (__extension__({                        \
             char VAR[2048];                   \
             snprintf(VAR, 2048, __VA_ARGS__); \
             VAR;                              \
       }))
-#define WIN32_ERROR_EXIT(ST, ...) \
+# define WIN32_ERROR_EXIT(ST, ...) \
       win32_error_exit((ST), WIN32_ERROR_EXIT_HELPER(P99_UNIQ(), __VA_ARGS__), GetLastError())
 #endif
 
@@ -245,6 +237,8 @@ extern noreturn void win32_error_exit(int status, char const *msg, DWORD dw);
 
 #ifndef _Notnull_
 # define _Notnull_
+#endif
+#ifndef _Maybenull_
 # define _Maybenull_
 #endif
 

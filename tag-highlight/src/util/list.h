@@ -6,9 +6,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#if !defined __GNUC__ && !defined __attribute__
-#  define __attribute__(...)
-#endif
+//#if !defined __GNUC__ && !defined __attribute__
+//#  define __attribute__(...)
+//#endif
 #ifndef LLAwur
 #  define LLAwur __attribute__((__warn_unused_result__))
 #endif

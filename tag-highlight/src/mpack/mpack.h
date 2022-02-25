@@ -157,7 +157,7 @@ extern const char *const m_type_names[];
 extern void        mpack_print_object     (FILE *fp, const mpack_obj *result, bstring const *msg);
 extern int         mpack_destroy_object   (mpack_obj *root);
 extern void        mpack_destroy_arg_array(mpack_arg_array *calls);
-extern mpack_obj * mpack_decode_stream    (int fd);
+extern mpack_obj * mpack_decode_stream    (intptr_t fd);
 extern mpack_obj * mpack_decode_obj       (bstring *buf);
 
 /* Encode */

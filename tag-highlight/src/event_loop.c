@@ -16,9 +16,16 @@
 #  define FUNCTION_NAME __func__
 #endif
 
+intptr_t global_output_descriptor = 1;
+#ifdef _WIN32
+static void init_wsa(void);
+static int socket_to_int(SOCKET orig);
+static SOCKET fuck_my_ass(char *servername);
+#endif
+
 /*=====================================================================================*/
 
-//#ifndef DOSISH
+//#ifndef _WIN32
 pthread_t event_loop_thread;
 //#endif
 
@@ -26,7 +33,7 @@ pthread_t event_loop_thread;
 void *event_loop_talloc_ctx_ = NULL;
 static pthread_mutex_t event_loop_cb_mutex;
 
-static noreturn void * handle_nvim_message_wrapper(void *data);
+static NORETURN void * handle_nvim_message_wrapper(void *data);
 
 /*
  * @Explicitly initializing every mutex seems strictly necessary under MinGW's
@@ -53,6 +60,7 @@ static void event_loop_initializer(void)
  *=====================================================================================*/
 
 # include <event2/event.h>
+# include <event2/thread.h>
 
 struct userdata {
       struct event_base *base;
@@ -70,7 +78,8 @@ static int const signals_to_handle[] = {
 #endif
 };
 
-static void do_event_loop(struct event_base *base);
+
+static int do_event_loop(struct event_base *base);
 static void event_loop_io_cb(evutil_socket_t fd, short flags, void *vdata);
 static void clean_signal_handlers(struct event **handlers);
 static void init_signal_handlers(struct event_base *base, struct event **handlers,
@@ -80,24 +89,42 @@ static void event_loop_graceful_signal_cb(evutil_socket_t signum, short flags, v
 
 static struct event_base *base;
 
+
 void
-run_event_loop(int const fd)
+run_event_loop(int const fd, char *servername)
 {
       static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
       if (atomic_flag_test_and_set(&event_loop_called))
             return;
-        
-      event_enable_debug_logging(EVENT_DBG_NONE);
-      static struct timeval const tv = {.tv_sec = 0, .tv_usec = 5000000};
+
+      init_wsa();
+      evthread_use_pthreads();
+      event_enable_debug_mode();
+      event_enable_debug_logging(EVENT_DBG_ALL);
+      static struct timeval const tv = {.tv_sec = INT_MAX, .tv_usec = 5000000};
       event_loop_thread = pthread_self();
 
+      SOCKET sock = fuck_my_ass(servername);
+      /* HANDLE sock = GetStdHandle(STD_INPUT_HANDLE); */
+      /* int sock = 0; */
+      /* global_output_descriptor = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE); */
+      global_output_descriptor = (intptr_t)sock;
       {
             struct event_config *cfg = event_config_new();
-            event_config_require_features(cfg, EV_FEATURE_EARLY_CLOSE);
+            //event_config_require_features(cfg, EV_FEATURE_EARLY_CLOSE);
 #ifdef _WIN32
             event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP);
 #endif
+            /* event_config_require_features(cfg, EV_FEATURE_FDS); */
+            event_config_avoid_method(cfg, "select");
             base = event_base_new_with_config(cfg);
+
+            if (!base) {
+                  warnx("Failed to initialize libevent.");
+                  fflush(stderr);
+                  NANOSLEEP(1, 0);
+                  return;
+            }
             event_config_free(cfg);
       }
 
@@ -105,11 +132,19 @@ run_event_loop(int const fd)
       struct event *sighandlers[ARRSIZ(signals_to_handle)];
       struct event *rd_handle;
 
-      rd_handle = event_new(base, fd, EV_READ|EV_PERSIST, event_loop_io_cb, &data);
+      rd_handle = event_new(base, (intptr_t)sock, EV_READ|EV_PERSIST, event_loop_io_cb, &data);
       init_signal_handlers(base, sighandlers, &data, NULL);
+      
+#if 1
       event_add(rd_handle, &tv);
-
       do_event_loop(base);
+#else
+      for (;;) {
+            event_add(rd_handle, &tv);
+            if (do_event_loop(base) != 0)
+                  break;;
+      }
+#endif
 
       clean_signal_handlers(sighandlers);
       event_free(rd_handle);
@@ -124,11 +159,12 @@ void stop_event_loop(int status)
             event_base_loopbreak(base);
 }
 
-static void
+static int
 do_event_loop(struct event_base *evbase)
 {
+      int ret = 0;
       for (;;) {
-            int const ret = event_base_loop(evbase, 0);
+            int const ret = event_base_loop(evbase, EVLOOP_NO_EXIT_ON_EMPTY);
 
             if (event_base_got_break(evbase))
                   break;
@@ -139,6 +175,7 @@ do_event_loop(struct event_base *evbase)
                   break;
             }
       }
+      return ret;
 }
 
 static void
@@ -155,7 +192,7 @@ event_loop_io_cb(evutil_socket_t fd, short const flags, UNUSED void *vdata)
 
             struct event_data data;
             data.fd  = fd;
-            data.obj = mpack_decode_stream(data.fd);
+            data.obj = mpack_decode_stream((intptr_t)fd);
             talloc_steal(CTX, data.obj);
             handle_nvim_message(&data);
 
@@ -234,7 +271,7 @@ clean_signal_handlers(struct event **handlers)
  *  \--------------------/                                                             *
  *=====================================================================================*/
 
-#define USE_UV_POLL 1
+/* #define USE_UV_POLL 1 */
 
 # include <uv.h>
 
@@ -257,11 +294,15 @@ struct userdata {
 
 
 void
-run_event_loop(int const fd)
+run_event_loop(int const fd, UNUSED char *servername)
 {
       static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
       if (atomic_flag_test_and_set(&event_loop_called))
             return;
+      
+#ifdef _WIN32
+      init_wsa();
+#endif
 
       uv_loop_t  *loop = uv_default_loop();
       uv_signal_t signal_watchers[5];
@@ -274,7 +315,7 @@ run_event_loop(int const fd)
 #if defined USE_UV_POLL
       uv_poll_t   upoll;
       memset(&upoll, 0, sizeof upoll);
-# ifdef _WIN32
+# if defined _WIN32
       uv_poll_init(loop, &upoll, fd);
 # else
       uv_poll_init_socket(loop, &upoll, fd);
@@ -340,17 +381,21 @@ event_loop_start_watchers(uv_signal_t signal_watchers[5])
 }
 
 static void
-event_loop_io_cb(uv_poll_t *handle, UNUSED int const status, int const events)
+event_loop_io_cb(UNUSED uv_poll_t *handle, UNUSED int const status, int const events)
 {
       if (events & UV_READABLE) {
-            struct event_data data;
             //if (uv_fileno((uv_handle_t const *)handle, &data.fd))
             //      err(1, "uv_fileno()");
 
+            struct event_data data;
             data.obj = mpack_decode_stream(data.fd);
             talloc_steal(CTX, data.obj);
-
             handle_nvim_message(&data);
+
+            //struct event_data *data = calloc(1, sizeof(struct event_data));
+            //data->obj = talloc_steal(data, mpack_decode_stream(data->fd));
+            //START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
+            //handle_nvim_message(data);
       }
 }
 
@@ -469,11 +514,15 @@ struct userdata {
 };
 
 /*extern*/ void
-run_event_loop(int const fd)
+run_event_loop(int const fd, char *servername)
 {
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
         if (atomic_flag_test_and_set(&event_loop_called))
                 return;
+          
+#ifdef _WIN32
+        init_wsa();
+#endif
 
         struct userdata data = {0};
         struct ev_loop *loop = EV_DEFAULT;
@@ -560,13 +609,13 @@ event_loop_init_watchers(struct ev_loop *loop)
  *  \-------------------------------------/                                            *
  *=====================================================================================*/
 
-static noreturn void event_loop(int fd);
+static NORETURN void event_loop(int fd);
 
-# ifndef DOSISH
+# ifndef _WIN32
 #  include <sys/wait.h>
 static jmp_buf event_loop_jmp_buf;
 
-static noreturn void
+static NORETURN void
 event_loop_sighandler(int signum)
 {
         switch (signum) {
@@ -584,15 +633,19 @@ event_loop_sighandler(int signum)
 # endif
 
 /*extern*/ void
-run_event_loop(int const fd)
+run_event_loop(int const fd, char *servername)
 {
         /* I wanted to use pthread_once but it requires a function that takes no
          * arguments. Getting around that would defeat the whole point. */
         static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
         if (atomic_flag_test_and_set(&event_loop_called))
                 return;
+          
+#ifdef _WIN32
+      init_wsa();
+#endif
 
-# ifndef DOSISH
+# ifndef _WIN32
         /* Don't bother handling signals at all on Windows. */
         event_loop_thread = pthread_self();
 
@@ -616,7 +669,7 @@ run_event_loop(int const fd)
 /*
  * Very sophisticated loop.
  */
-static noreturn void
+static NORETURN void
 event_loop(int const fd)
 {
         for (;;) {
@@ -631,10 +684,116 @@ event_loop(int const fd)
 /*=====================================================================================*/
 
 UNUSED
-static noreturn void *
+static NORETURN void *
 handle_nvim_message_wrapper(void *data)
 {
         handle_nvim_message(data);
         free(data);
         pthread_exit();
 }
+
+
+#ifdef _WIN32
+
+static void init_wsa(void)
+{
+      WORD const w_version_requested = MAKEWORD(2, 2);
+      WSADATA    wsa_data;
+
+      if (WSAStartup(w_version_requested, &wsa_data) != 0)
+            errx(1, "Bad winsock dll");
+
+      if (LOBYTE(wsa_data.wVersion) != 2 || HIBYTE(wsa_data.wVersion) != 2) {
+            WSACleanup();
+            errx(1, "Could not find a usable version of Winsock.dll\n");
+      }
+}
+
+
+static int socket_to_int(SOCKET orig)
+{
+    WSAPROTOCOL_INFO wsa_pi;
+
+    // dupicate the SOCKET from libmysql
+    int r = WSADuplicateSocket(orig, GetCurrentProcessId(), &wsa_pi);
+    SOCKET s = WSASocket(wsa_pi.iAddressFamily, wsa_pi.iSocketType, wsa_pi.iProtocol, &wsa_pi, 0, 0);
+
+    // create the CRT fd so ruby can get back to the SOCKET
+    int fd = _open_osfhandle(s, O_RDWR|O_BINARY);
+    return fd;
+}
+
+
+static SOCKET fuck_my_ass(char *servername)
+{
+      char const *server   = servername;
+      char       *servport = strchr(servername, ':');
+      if (!servport)
+            errx(1, "no port identified");
+      *servport++ = '\0';
+
+      SOCKET sd = -1;
+      int    rc;
+
+      struct in6_addr  serveraddr;
+      struct addrinfo  hints;
+      struct addrinfo *res = NULL;
+
+      do {
+            memset(&serveraddr, 0, sizeof(serveraddr));
+            memset(&hints, 0, sizeof(hints));
+            hints.ai_flags    = AI_NUMERICSERV | AI_NUMERICHOST;
+            hints.ai_family   = AF_INET;
+            hints.ai_socktype = SOCK_STREAM;
+
+            rc = inet_pton(AF_INET6, server, &serveraddr);
+
+            if (rc == 1) /* valid IPv4 text address? */
+            {
+                  hints.ai_family = AF_INET;
+                  hints.ai_flags |= AI_NUMERICHOST;
+            } else {
+                  //err(1, "inet_pton");
+                  rc = inet_pton(AF_INET6, server, &serveraddr);
+
+                  if (rc == 1) /* valid IPv6 text address? */
+                  {
+                        hints.ai_family = AF_INET6;
+                        hints.ai_flags |= AI_NUMERICHOST;
+                  }
+            }
+
+            rc = getaddrinfo(server, servport, &hints, &res);
+            if (rc != 0) {
+                  warnx("Host not found --> %s", gai_strerror(rc));
+                  if (rc == EAI_FAIL)
+                        err(1, "getaddrinfo() failed");
+                  break;
+            }
+
+            sd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+            if (sd == (SOCKET)(-1)) {
+                  err(1, "socket() failed %s", gai_strerror(WSAGetLastError()));
+                  break;
+            }
+
+            rc = connect(sd, res->ai_addr, res->ai_addrlen);
+            if (rc < 0) {
+                  /*****************************************************************/
+                  /* Note: the res is a linked list of addresses found for server. */
+                  /* If the connect() fails to the first one, subsequent addresses */
+                  /* (if any) in the list can be tried if required.               */
+                  /*****************************************************************/
+                  err(1, "connect() %s", gai_strerror(WSAGetLastError()));
+                  break;
+            }
+      } while (0);
+
+
+      if (res != NULL)
+            freeaddrinfo(res);
+      return sd;
+}
+
+#endif
+

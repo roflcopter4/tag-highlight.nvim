@@ -11,6 +11,11 @@
 #include "contrib/p99/p99_defarg.h"
 #include "contrib/p99/p99_futex.h"
 
+#ifdef noreturn
+#  undef noreturn
+#endif
+
+
 __BEGIN_DECLS
 /*===========================================================================*/
 
@@ -23,7 +28,8 @@ struct cmd_info;
 typedef struct bufdata  Buffer;
 typedef struct filetype Filetype;
 
-struct settings_s { alignas(128)
+struct settings_s {
+      alignas(128)
       bstring    *cache_dir;
       bstring    *ctags_bin;
       bstring    *settings_file;

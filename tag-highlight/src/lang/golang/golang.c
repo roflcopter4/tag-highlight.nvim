@@ -7,7 +7,7 @@
 #ifndef WEXITSTATUS
 # define	WEXITSTATUS(status)	(((status) & 0xff00) >> 8)
 #endif
-#ifdef DOSISH
+#ifdef _WIN32
 # define CMD_SUFFIX ".exe"
 #else
 # define CMD_SUFFIX
@@ -56,10 +56,10 @@ highlight_go(Buffer *bdata)
 
         pthread_mutex_lock(&bdata->lock.lang_mtx);
 
-#if 0 //ndef DOSISH
+#if 0 //ndef _WIN32
         if (!atomic_flag_test_and_set(&bdata->godata.flg)) {
                 start_binary(bdata);
-        } 
+        }
         else {
                 errno = 0;
                 kill(bdata->godata.pid, 0);
@@ -150,7 +150,7 @@ parse_go_output(Buffer *bdata, b_list *output)
 
 /*======================================================================================*/
 
-noreturn void *
+NORETURN void *
 highlight_go_pthread_wrapper(void *vdata)
 {
         highlight_go((Buffer *)vdata);

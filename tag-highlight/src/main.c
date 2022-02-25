@@ -3,8 +3,6 @@
 
 #include "contrib/p99/p99_futex.h"
 
-#include <event2/event.h>
-
 #if 0
 #  define JEMALLOC_MANGLE
 #  include <jemalloc/jemalloc.h>
@@ -19,7 +17,7 @@ __asan_default_options(void)
 }
 #endif
 
-#ifdef DOSISH
+#ifdef _WIN32
 #  define WIN_BIN_FAIL(STREAM) \
       err(1, "Failed to change stream \"" STREAM "\" to binary mode.")
 #  define CMD_SUFFIX ".exe"
@@ -35,6 +33,13 @@ __asan_default_options(void)
 #  define CLANG_ENUM_SIZE(size) : size
 #else
 #  define CLANG_ENUM_SIZE(size)
+#endif
+#ifdef noreturn
+#  error "noreturn is defined somehow??"
+#endif
+
+#ifdef __attribute__
+#  error "??"
 #endif
 
 /*--------------------------------------------------------------------------------------*/
@@ -63,18 +68,17 @@ static struct timer main_timer = STRUCT_TIMER_INITIALIZER;
 
 extern void talloc_emergency_library_init(void);
 
-extern void           run_event_loop(int fd);
+extern void           run_event_loop(int fd, char *servername);
 extern void           exit_cleanup(void);
 static void           general_init(char const *const *argv);
 static void           platform_init(char const *const *argv);
-static void           initialize_talloc_contexts(void);
 static void           open_logs(char const *cache_dir);
 static void           get_settings(void);
 static void           quick_cleanup(void);
 static void           clean_talloc_contexts(void);
 static comp_type_t    get_compression_type(void);
 static bstring       *get_go_binary(void);
-static noreturn void *neovim_init(void *arg);
+NORETURN static void *neovim_init(void *arg);
 
 extern void        *mpack_decode_talloc_ctx_;
 extern void        *mpack_encode_talloc_ctx_;
@@ -107,7 +111,7 @@ main(UNUSED int argc, char *argv[])
       general_init((char const *const *)argv);
 
       /* This normally does not return. */
-      run_event_loop(STDIN_FILENO);
+      run_event_loop(STDIN_FILENO, argv[2]);
 
       /* ... except for when it does. If the user has deliberately stopped the
        * program, we clean up. */
@@ -129,7 +133,7 @@ platform_init(char const *const *argv)
             program_invocation_name = (char *)argv[0];
       if (!program_invocation_short_name)
             program_invocation_short_name = basename(argv[0]);
-#ifdef DOSISH
+#ifdef _WIN32
       HOME = getenv("USERPROFILE");
 
       /* Set the standard streams to binary mode on Windows */
@@ -154,15 +158,15 @@ general_init(char const *const *argv)
             __sanitizer_set_report_path(tmp);
       }
 #endif
+      if (!argv[1] || !argv[2])
+            errx(1, "Bad arguments.");
       top_thread = pthread_self();
       open_logs(argv[1]);
       p99_futex_init(&first_buffer_initialized, 0);
       START_DETACHED_PTHREAD(neovim_init);
 }
 
-__attribute__((constructor(102)))
-static void
-initialize_talloc_contexts()
+INITIALIZER_HACK_N(initialize_talloc_contexts, 200)
 {
 #if defined DEBUG && 0
 # define _CTX main_top_talloc_ctx_
@@ -212,7 +216,7 @@ open_logs(char const *cache_dir)
       (void)tmpnam(tmp);
 #endif
 
-      talloc_log_file = safe_fopen_fmt("wb", "%s/talloc_report.log", cache_dir);
+      //talloc_log_file = safe_fopen_fmt("wb", "%s/talloc_report.log", cache_dir);
 
 #ifdef DEBUG_LOGS
       char tmp[PATH_MAX + 1];
@@ -237,7 +241,7 @@ open_logs(char const *cache_dir)
 #endif
 }
 
-static noreturn void *
+static NORETURN void *
 neovim_init(void *varg) //NOLINT(readability-function-cognitive-complexity)
 {
       extern void global_previous_buffer_set(int num);
@@ -378,7 +382,7 @@ exit_cleanup(void)
 }
 
 
-static noreturn void *
+static NORETURN void *
 dumb_thread_wrapper(UNUSED void *vdata)
 {
 #if 0
@@ -440,10 +444,10 @@ quick_cleanup(void)
             pthread_create(&pids[2], NULL, dumb_thread_wrapper, log_filenames[LOG_ID_MPACK_RAW_WRITE]);
       }
 
-      if (pids[0])
+      //if (pids[0])
             pthread_join(pids[0], NULL);
-      if (pids[1])
+      //if (pids[1])
             pthread_join(pids[1], NULL);
-      if (pids[2])
+      //if (pids[2])
             pthread_join(pids[2], NULL);
 }

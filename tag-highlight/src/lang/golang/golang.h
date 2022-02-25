@@ -10,7 +10,7 @@ __BEGIN_DECLS
 struct golang_data {
         bstring *path1;
         bstring *path2;
-#ifdef DOSISH
+#ifdef _WIN32
         HANDLE   write_handle;
         HANDLE   read_handle;
         HANDLE   hProcess;

@@ -52,22 +52,20 @@ Mkfile.old
 dkms.conf
 
 # Other
-GARBAGE
-NEOTAGS
 *.json
-THING.sh
-bast
-thing
-build
-.depend
-yacc
-config.h
-topconfig.h
-.cache
 *ucrt*/
+.cache
 .clang-format
-_clang-format
+.depend
+.clang-format
 MSVC
+build
+clang/
+config.h
+mingw
+mingw
+topconfig.h
+yacc
 
 # Vim stuff
 autoload

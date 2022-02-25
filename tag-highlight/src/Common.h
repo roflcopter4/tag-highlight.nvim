@@ -1,6 +1,7 @@
+// ReSharper disable CppUnusedIncludeDirective
+#pragma once
 #ifndef THL_COMMON_H_
 #define THL_COMMON_H_
-#pragma once
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -10,14 +11,19 @@ extern "C" {
 #    define __MINGW__
 #  endif
 #  include "mingw_config.h"
-#  define __WINPTRHEAD_ENABLE_WRAP_API 1
+//#  define __WINPTRHEAD_ENABLE_WRAP_API 1
 #endif
 #ifdef _MSC_VER
-#  define _CRT_SECURE_NO_WARNINGS
-#  define _CRT_NONSTDC_NO_WARNINGS
+#  ifndef _CRT_SECURE_NO_WARNINGS
+#    define _CRT_SECURE_NO_WARNINGS
+#  endif
+#  ifndef _CRT_NONSTDC_NO_WARNINGS
+#    define _CRT_NONSTDC_NO_WARNINGS
+#  endif
 #endif
-#ifndef __GNUC__
+#if !(defined __GNUC__ || defined __clang__) && !defined __attribute__
 #  define __attribute__(a)
+#  error "SIGH"
 #endif
 #if defined(HAVE_TOPCONFIG_H)
 #  include "topconfig.h"
@@ -27,14 +33,8 @@ extern "C" {
 #  define _GNU_SOURCE
 #  define __USE_GNU
 #endif
-#ifdef USE_JEMALLOC
-#  define JEMALLOC_MANGLE
-#  define JEMALLOC_NO_RENAME
-#  include <jemalloc/jemalloc.h>
-#endif
 #if (defined(_WIN64) || defined(_WIN32)) && !defined(__CYGWIN__)
-#  define DOSISH
-#  define WIN32_LEAN_AND_MEAN
+#  define _USE_DECLSPECS_FOR_SAL 1
 #  ifdef __MINGW__
 #    include <dirent.h>
 #    include <sys/stat.h>
@@ -42,11 +42,14 @@ extern "C" {
 #  else
 typedef signed long long int ssize_t;
 #  endif
+#  include <Windows.h>
 #  include <direct.h>
 #  include <io.h>
-#  include <pthread.h>
-#  include <windows.h>
 #  include <winsock2.h>
+#  include <pthread.h>
+#  ifdef _MSC_VER
+//#    pragma comment(lib, "pthreadVC3.lib")
+#  endif
 #  define PATHSEP     '\\'
 #  define PATHSEP_STR "\\"
 #  ifndef _UCRT
@@ -69,43 +72,41 @@ typedef signed long long int ssize_t;
 #  define PATHSEP_STR "/"
 #endif
 #if (defined(__MINGW32__) || defined(__MINGW64__)) && \
-    (!defined(__MINGW__) || !defined(DOSISH))
+    (!defined(__MINGW__) || !defined(_WIN32))
 #  error "Something really messed up here."
 #endif
-#if defined(HAVE_TIME_H)
+#if defined __cplusplus
+#  include <ctime>
+#elif defined(HAVE_TIME_H)
 #  include <time.h>
 #elif defined(HAVE_SYS_TIME_H)
 #  include <sys/time.h>
 #endif
 
 #ifndef HAVE_BASENAME
-extern char *basename(const char *);
+extern char *basename(char const *);
 #endif
 #ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
-extern const char *program_invocation_short_name;
+extern char const *program_invocation_short_name;
 #endif
 #ifndef HAVE_PROGRAM_INVOCATION_NAME
-extern const char *program_invocation_name;
+extern char const *program_invocation_name;
 #endif
 
 #define SAFE_PATH_MAX (4096)
 
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #ifndef __cplusplus
-#  if defined HAVE_STDNORETURN_H 
-#    include <stdnoreturn.h>
-#  endif
+#  include <assert.h>
+#  include <errno.h>
+#  include <fcntl.h>
+#  include <inttypes.h>
+#  include <stdarg.h>
 #  include <stdbool.h>
+#  include <stddef.h>
+#  include <stdint.h>
+#  include <stdio.h>
+#  include <stdlib.h>
+#  include <string.h>
 #endif
 
 #ifdef basename
@@ -147,11 +148,11 @@ extern "C" {
 #  include "contrib/p99/p99_compiler.h"
 #  include "contrib/contrib.h"
 #endif
+#include "util/initializer_hack.h"
 
 #define ALWAYS_INLINE p99_inline
 #define INLINE        p99_inline
 #define STATIC_INLINE static inline
-
 
 extern char *HOME;
 
@@ -161,18 +162,6 @@ extern char *HOME;
 
 /*===========================================================================*/
 /* Some system/compiler specific config/setup */
-
-#ifndef noreturn
-#  if defined(_MSC_VER)
-#    define noreturn __declspec(noreturn)
-#  elif defined(__GNUC__)
-#    define noreturn __attribute__((__noreturn__))
-#  elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#    define noreturn _Noreturn
-#  else
-#    define noreturn
-#  endif
-#endif
 
 #if !defined(thread_local) && !defined(__cplusplus)
 #  if defined(_MSC_VER)
@@ -187,20 +176,20 @@ extern char *HOME;
 #endif
 
 #if !defined(static_assert) && !defined(__cplusplus)
-#  if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  if defined _MSC_VER
+#  elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #    define static_assert(...) _Static_assert(__VA_ARGS__)
 #  else
-#    define 
+#    define
 #    define static_assert(COND ((char [(COND) ? 1 : -1]){})
 #  endif
 #endif
 
 #if defined(_MSC_VER)
-#  define UNUSED    __pragma(warning(suppress : 4100 4101))
 #  define WEAK_SYMB __declspec(selectany)
-#  define __aWUR    _Check_return_
+#  define __aWUR
+#  define restrict __restrict
 #elif defined(__GNUC__)
-#  define UNUSED __attribute__((__unused__))
 #  if defined(__MINGW__)
 #    define WEAK_SYMB __declspec(selectany)
 #  else
@@ -209,6 +198,31 @@ extern char *HOME;
 #  define __aWUR __attribute__((__warn_unused_result__))
 #else
 #  define WEAK_SYMB static
+#  define __aWUR
+#endif
+
+#if defined __cplusplus && (__cplusplus >= 201700L || defined __TAG_HIGHLIGHT__)
+# define UNUSED      [[maybe_unused]]
+# define ND          [[nodiscard]]
+# define NORETURN    [[noreturn]]
+# define FALLTHROUGH [[fallthrough]]
+#elif defined __GNUC__
+# define UNUSED      __attribute__((__unused__))
+# define ND          __attribute__((__warn_unused_result__))
+# define NORETURN    __attribute__((__noreturn__))
+# define FALLTHROUGH __attribute__((__fallthrough__))
+#elif defined _MSC_VER
+# define UNUSED      __pragma(warning(suppress : 4100 4101))
+# define ND          _Check_return_
+# define NORETURN    __declspec(noreturn)
+# define FALLTHROUGH __fallthrough
+#else
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define NORETURN _Noreturn
+# endif
+# define UNUSED
+# define ND
+# define FALLTHROUGH
 #endif
 
 #ifndef __BEGIN_DECLS
@@ -226,7 +240,7 @@ extern char *HOME;
 #  endif
 #endif
 
-#ifdef DOSISH
+#ifdef _WIN32
 #  ifdef realpath
 #    undef realpath
 #  endif
@@ -235,6 +249,9 @@ extern char *HOME;
 #      define WINPTHREAD_API __declspec(dllimport)
 #    endif
 extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__));
+#  endif
+#  ifndef PATH_MAX
+#    define PATH_MAX            _MAX_PATH
 #  endif
 #  define realpath(PATH, BUF) _fullpath((BUF), (PATH), _MAX_PATH)
 #  define strcasecmp          _stricmp
@@ -277,6 +294,18 @@ extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__)
 #  define SSIZE_C(x) P99_PASTE3(INT,  __WORDSIZE, _C)(x)
 #endif
 
+#ifdef __cplusplus
+#  ifdef bool
+#    undef bool
+#  endif
+#  ifdef true
+#    undef true
+#  endif
+#  ifdef false
+#    undef false
+#  endif
+#endif
+
 /*===========================================================================*/
 /* Generic Macros */
 
@@ -300,7 +329,8 @@ extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__)
 #define shout(...)                                                          \
       (fprintf(stderr, "tag-highlight: " __VA_ARGS__), fputc('\n', stderr), \
        fflush(stderr))
-#  define eprintf(...) shout(__VA_ARGS__)
+//#  define eprintf(...) shout(__VA_ARGS__)
+#  define eprintf(...) fprintf(stderr, __VA_ARGS__)
 #if 0
 #ifdef DEBUG
 #  define eprintf(...) shout(__VA_ARGS__)
@@ -315,6 +345,11 @@ extern void WINPTHREAD_API(pthread_exit)(void *res) __attribute__((__noreturn__)
 #define nalloca(NUM, SIZ) alloca(((size_t)(NUM)) * ((size_t)(SIZ)))
 
 //#define DEBUG_LOGS
+
+#ifdef USE_JEMALLOC
+#  define JEMALLOC_MANGLE
+#  include <jemalloc/jemalloc.h>
+#endif
 
 /*===========================================================================*/
 #ifdef __cplusplus

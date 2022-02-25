@@ -51,7 +51,7 @@ static translationunit_t *recover_compilation_unit(Buffer *bdata, bstring *buf);
 static CXCompileCommands  get_clang_compile_commands_for_file(CXCompilationDatabase *db,
                                                               Buffer *bdata);
 
-static noreturn void handle_libclang_error(Buffer *bdata, unsigned const err);
+static NORETURN void handle_libclang_error(Buffer *bdata, unsigned const err);
 static int         destroy_struct_translationunit(translationunit_t *stu);
 static int         do_destroy_clangdata(clangdata_t *cdata);
 static str_vector *get_backup_commands(Buffer *bdata);
@@ -263,7 +263,7 @@ highlight_c_pthread_wrapper(void *vdata)
       pthread_exit();
 }
 
-static noreturn void
+static NORETURN void
 handle_libclang_error(Buffer *bdata, unsigned const err)
 {
       extern void exit_cleanup(void);
@@ -358,7 +358,7 @@ init_compilation_unit(Buffer *bdata, bstring *buf)
 
 /*======================================================================================*/
 
-#ifdef DOSISH
+#ifdef _WIN32
 
 static char *
 stupid_windows_bullshit(char const *const path)
@@ -503,7 +503,7 @@ handle_include_compile_command(str_vector *lst, char const *s, CXString director
       fixup_path_sep(lst->lst[lst->qty - 1]);
 }
 
-#else /* ! defined DOSISH */
+#else /* ! defined _WIN32 */
 
 static inline void
 handle_include_compile_command(str_vector *lst, char const *cstr, CXString directory, bool is_i)
@@ -528,7 +528,7 @@ handle_include_compile_command(str_vector *lst, char const *cstr, CXString direc
       }
 }
 
-#endif /* defined DOSISH */
+#endif /* defined _WIN32 */
 
 /*======================================================================================*/
 
@@ -638,7 +638,7 @@ get_compile_commands(Buffer *bdata)
                                     clang_arg_append(ret, cstr, true, arg_allow);
                               }
                         }
-#ifdef DOSISH
+#ifdef _WIN32
                   } else if (cstr[0] == '@') {
                         handle_win32_command_script(bdata, CS(directory), cstr + 1, ret);
 #endif

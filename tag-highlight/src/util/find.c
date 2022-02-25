@@ -2,7 +2,7 @@
 #include "find.h"
 #include <sys/stat.h>
 
-#if defined(DOSISH) || defined(MINGW)
+#if defined(_WIN32) || defined(__MINGW64__)
 //#  include <direct.h>
 #  define B_FILE_EQ(FILE1_, FILE2_) (b_iseq_caseless((FILE1_), (FILE2_)))
 #  define SEPSTR "\\"

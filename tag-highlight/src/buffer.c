@@ -6,7 +6,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 
-#ifdef DOSISH
+#ifdef _WIN32
 #define SEPCHAR                '\\'
 #define SEPSTR                 "\\"
 #define FUTEX_INITIALIZER(VAL) (p99_futex) P99_FUTEX_INITIALIZER(VAL)
@@ -16,7 +16,7 @@
 #define SEPSTR                 "/"
 #endif
 
-#ifdef DOSISH
+#ifdef _WIN32
 #define DOSCHECK(CH_) ((CH_) == ':' || (CH_) == '/')
 #else
 #define DOSCHECK(CH_) (false)
@@ -48,8 +48,7 @@ static int      destroy_buffer_wrapper(Buffer *bdata);
 
 
 /* Actually initializing these things seems to be mandatory on Windows. */
-__attribute__((__constructor__(500))) static void
-buffer_c_constructor(void)
+INITIALIZER_HACK_N(buffer_c_constructor, 500)
 {
       pthread_mutexattr_t attr;
       pthread_mutexattr_init(&attr);
@@ -87,7 +86,7 @@ new_buffer(unsigned const bufnum)
       Buffer *ret = make_new_buffer(bnode);
       if (ret)
             ll_append(buffer_list, bnode);
-      else 
+      else
             talloc_free(bnode);
       return ret;
 }
@@ -109,7 +108,7 @@ make_new_buffer(buffer_node *bnode)
       Filetype *ft     = NULL;
       bstring  *ftname = nvim_buf_get_option(bnode->num, B("ft"), E_STRING).ptr;
       if (!ftname || ftname->slen == 0) {
-            
+
             goto error;
       }
 
@@ -231,7 +230,7 @@ init_buffer_mutexes(Buffer *bdata)
             pthread_mutex_init(&bdata->lock.total, &attr);
             pthread_mutex_init(&bdata->lock.lang_mtx, &attr);
             pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL);
-#ifndef DOSISH
+#ifndef _WIN32
             pthread_mutexattr_setrobust(&attr, PTHREAD_MUTEX_ROBUST);
 #endif
       }
@@ -501,7 +500,7 @@ get_project_directory_candidates(FILE *fp, bstring const *dir, Filetype const *f
 static bstring *
 check_project_directories(bstring *dir, Filetype const *ft)
 {
-#ifdef DOSISH
+#ifdef _WIN32
       FILE *fp = fopen(BS(settings.settings_file), "rb");
 #else
       /* "reb" -> 'e' = O_CLOEXEC. Nobody ever told me about that. */

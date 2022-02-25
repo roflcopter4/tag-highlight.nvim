@@ -4,7 +4,7 @@
 
 #define BI bt_init
 
-static const struct filetype ftdata_static[] = {
+static struct filetype const ftdata_static[] = {
     { 0, 0, 0, 0, 0, BI("NONE"),       BI("NONE"),       FT_NONE,       0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, BI("c"),          BI("c"),          FT_C,          0, 0, 1, 1 },
     { 0, 0, 0, 0, 0, BI("cpp"),        BI("c++"),        FT_CXX,        0, 0, 1, 1 },
@@ -29,8 +29,7 @@ extern void talloc_emergency_library_init(void);
 size_t const ftdata_len = ARRSIZ(ftdata_static);
 struct filetype **ftdata;
 
-__attribute__((__constructor__(105)))
-static void init_ftdata(void)
+INITIALIZER_HACK_N(init_ftdata, 105)
 {
       talloc_emergency_library_init();
         ftdata = talloc_array(NULL, struct filetype *, ftdata_len);
@@ -42,10 +41,10 @@ static void init_ftdata(void)
 }
 
 #ifndef HAVE_PROGRAM_INVOCATION_SHORT_NAME
-const char *program_invocation_short_name;
+char const *program_invocation_short_name;
 #endif
 #ifndef HAVE_PROGRAM_INVOCATION_NAME
-const char *program_invocation_name;
+char const *program_invocation_name;
 #endif
 
 extern bool             process_exiting;
