@@ -109,12 +109,24 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 #find_package (ZLIB REQUIRED)
 find_package (Threads REQUIRED)
 find_package (LibClang REQUIRED)
-find_package (Libevent REQUIRED)
+find_package (Libevent)
 find_package (LibUV)
 find_package(unofficial-libuv CONFIG)
 #find_package (LibLZMA)
-
 # find_package (sodium)
+
+if (NOT LIBEVENT_FOUND)
+    pkg_check_modules(LIBEVENT_BASE libevent REQUIRED)
+    pkg_check_modules(LIBEVENT_CORE libevent_core REQUIRED)
+    pkg_check_modules(LIBEVENT_EXTRA libevent_extra REQUIRED)
+    pkg_check_modules(LIBEVENT_PTHREADS libevent_pthreads)
+    set (LIBEVENT_LIBRARIES
+        ${LIBEVENT_BASE_LDFLAGS} ${LIBEVENT_CORE_LDFLAGS}
+        ${LIBEVENT_EXTRA_LDFLAGS} ${LIBEVENT_PTHREADS_LDFLAGS})
+    include_directories(
+        ${LIBEVENT_BASE_CFLAGS_I} ${LIBEVENT_CORE_CFLAGS_I}
+        ${LIBEVENT_EXTRA_CFLAGS_I} ${LIBEVENT_PTHREADS_CFLAGS_I})
+endif()
 
 if (NOT ZLIB_FOUND)
     pkg_check_modules(ZLIB zlib REQUIRED)
@@ -320,7 +332,7 @@ if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
              -Wno-sign-compare -Wno-dollar-in-identifier-extension -Wno-unused-parameter
         )
         set (BASE ${BASE} ${WARNS}
-            -g3 -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
+            -g -fintegrated-as -fintegrated-cc1 -fno-legacy-pass-manager
         )
         set (LTO_STR -flto=full)
 
