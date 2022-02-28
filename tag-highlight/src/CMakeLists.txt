@@ -255,9 +255,9 @@ endif()
 if (LIBEV_FOUND)
     target_link_libraries(tag-highlight ${LIBEV_LIBRARIES})
 endif ()
-if (LIBEVENT_FOUND)
+# if (LIBEVENT_FOUND)
     target_link_libraries(tag-highlight ${LIBEVENT_LIBRARIES})
-else()
+# else()
 
     #include_directories("D:/OPT/Libevent2/include")
     #target_link_libraries(tag-highlight 
@@ -267,7 +267,7 @@ else()
     #"D:/OPT/Libevent2/lib/libevent_openssl.a"
     #"D:/OPT/Libevent2/lib/libevent_pthreads.a"
 #)
-endif()
+# endif()
 
 if (LZMA_SUPPORT)
     # target_link_libraries(tag-highlight LibLZMA::LibLZMA)
