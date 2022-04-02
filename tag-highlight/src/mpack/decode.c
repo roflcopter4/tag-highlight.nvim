@@ -585,14 +585,13 @@ stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 }
 
 #else /* !defined _WIN32 */
-#pragma message("HI")
 
 static void
 stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
 {
-      SOCKET const sock = (SOCKET)*((intptr_t *)src);
-      eprintf("Reading %zu bytes from socket %llu\n", nbytes, sock);
-      fflush(stderr);
+      socket_t const sock = *((socket_t *)src);
+      //eprintf("Reading %zu bytes from socket %llu\n", nbytes, (long long unsigned)sock);
+      //fflush(stderr);
 
 #if 0
       ssize_t const nread = recv(sock, dest, nbytes, MSG_WAITALL);
@@ -610,8 +609,6 @@ stream_read(void *restrict src, void *restrict dest, size_t const nbytes)
                   err(1, "read() error");
             nread += (size_t)n;
       }
-
-
 
 #if defined DEBUG && defined DEBUG_LOGS
       if (P99_LIKELY(mpack_raw_read))

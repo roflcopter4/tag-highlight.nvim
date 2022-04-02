@@ -11,9 +11,7 @@
 /*--------------------------------------------------------------------------------------*/
 
 struct message_args {
-    //alignas(16)
       mpack_obj *obj;
-    //alignas(8)
       int fd;
 };
 
@@ -24,8 +22,8 @@ const event_id event_list[] = {
       { BT("vim_event_update"),           EVENT_VIM_UPDATE },
 };
 
-FILE *api_buffer_log = NULL;
-p99_futex volatile event_loop_futex = P99_FUTEX_INITIALIZER(0);
+FILE                    *api_buffer_log   = NULL;
+p99_futex volatile       event_loop_futex = P99_FUTEX_INITIALIZER(0);
 static pthread_mutex_t   handle_mutex;
 static pthread_mutex_t   nvim_event_handler_mutex;
 P99_FIFO(event_node_ptr) nvim_event_queue;
@@ -180,8 +178,8 @@ handle_nvim_response(mpack_obj *obj, int fd)
                         break;
                   P99_FIFO_APPEND(&nvim_wait_queue, node);
             } else {
-                  /* Nothing is in the queue at all. 50ns smoke break. */
-                  clock_nanosleep_for(0, UINTMAX_C(50));
+                  /* Nothing is in the queue at all. 5ms smoke break. */
+                  clock_nanosleep_for(0, UINTMAX_C(5000));
             }
       }
 
@@ -292,7 +290,7 @@ handle_line_event(Buffer *bdata, mpack_array *arr)
       /* Neovim always considers there to be at least one line in any buffer.
        * An empty buffer therefore must have one empty line. */
       if (bdata->lines->qty == 0)
-            ll_append(bdata->lines, b_empty_string());
+            ll_append(bdata->lines, b_create(0));
 
       if (!bdata->initialized && !empty)
             bdata->initialized = true;
@@ -394,7 +392,7 @@ wrap_update_highlight(void *vdata)
  */
 
 extern atomic_int global_previous_buffer;
-atomic_int global_previous_buffer = ATOMIC_VAR_INIT(-1);
+atomic_int global_previous_buffer = (-1);
 
 static pthread_mutex_t autocmd_mutex;
 
@@ -607,8 +605,6 @@ event_halt(bool const nvim_exiting)
       exit(0);
 #else
       stop_event_loop(0);
-      /* pthread_kill(event_loop_thread, KILL_SIG); */
-      /* raise(SIGUSR1); */
       pthread_exit();
 #endif
 }
@@ -644,6 +640,6 @@ attach_new_buffer(int const num)
 
             TIMER_REPORT(&t, "initialization");
       } else {
-            ECHO("Failed to attach to buffer number %d.", num);
+            warnd("Failed to attach to buffer number %d.", num);
       }
 }

@@ -651,6 +651,11 @@ get_compile_commands(Buffer *bdata)
             clang_disposeString(directory);
       }
 
+      if (STREQ(ret->lst[ret->qty - 1U], "--"))
+            argv_pop(ret);
+
+      argv_append(ret, "-D__TAG_HIGHLIGHT__", true);
+
       for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
             argv_append(ret, gcc_sys_dirs[i], true);
 
@@ -661,7 +666,6 @@ get_compile_commands(Buffer *bdata)
 
       argv_append(ret, "-I", true);
       argv_append(ret, BS(bdata->name.path), true);
-      argv_append(ret, "-D__TAG_HIGHLIGHT__=1", true);
 
       clang_CompileCommands_dispose(cmds);
       clang_CompilationDatabase_dispose(db);
@@ -673,13 +677,19 @@ static str_vector *
 get_backup_commands(Buffer *bdata)
 {
       str_vector *ret = argv_create(INIT_ARGV);
+      argv_append(ret, "clang", true);
+
       for (size_t i = 0; i < ARRSIZ(gcc_sys_dirs); ++i)
             argv_append(ret, gcc_sys_dirs[i], true);
       for (size_t i = 0; i < ARRSIZ(default_includes); ++i)
             argv_append(ret, default_includes[i], true);
 
-      argv_append(ret, "-stdlib=libstdc++", true);
+      //argv_append(ret, "-stdlib=libstdc++", true);
       argv_append(ret, "-I.", true);
+      argv_append(ret, "-I..", true);
+      argv_append(ret, "-I../..", true);
+      argv_append(ret, "-D__TAG_HIGHLIGHT__", true);
+      argv_append(ret, "-ferror-limit=0", true);
       argv_append_fmt(ret, "-I%.*s", BSC(bdata->name.path));
       argv_append_fmt(ret, "-I%.*s", BSC(bdata->topdir->pathname));
 

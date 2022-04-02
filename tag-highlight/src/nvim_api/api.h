@@ -69,9 +69,9 @@ extern bool           nvim_set_var             (bstring const *varname, bstring 
 extern bool           nvim_set_option          (bstring const *optname, bstring const *value);
 
 extern mpack_retval nvim_command_output(bstring const *cmd, mpack_expect_t expect) __aWUR
-        __aDEPMSG("Deprecated in v7: see nvim_exec");
+        __attribute__((error("deprecated"))) __aDEPMSG("Deprecated in v7: see nvim_exec");
 extern void nvim_buf_clear_highlight(unsigned bufnum, int hl_id, unsigned start, int end, bool blocking)
-        __aDEPMSG("Deprecated in v7: use nvim_buf_clear_namespace.");
+        __attribute__((error("deprecated"))) __aDEPMSG("Deprecated in v7: use nvim_buf_clear_namespace.");
 
 extern void nvim_set_client_info(bstring const *name, unsigned major, unsigned minor, bstring const *dev,
                                  bstring const *type, void const *methods, void const *attributes);

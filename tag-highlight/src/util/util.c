@@ -1,5 +1,5 @@
-#include "util.h"
 #include "Common.h"
+#include "util.h"
 
 #include <dirent.h>
 #include <sys/stat.h>

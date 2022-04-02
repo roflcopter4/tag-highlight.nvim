@@ -120,7 +120,7 @@ struct timer {
                 struct timespec tmp_;                                      \
                 (void)timespec_get(&(T_)->tv2, TIME_UTC);                  \
                 TIMESPEC_SUB(&(T_)->tv2, &(T_)->tv1, &tmp_);               \
-                nvim_printf("Time for (" FMT_ "):\t%.9fs\n", ##__VA_ARGS__,   \
+                nvim_printf("Time for (" FMT_ "):  %.9fs\n", ##__VA_ARGS__,   \
                         /*(int)(65 - sizeof(FMT_)),*/ \
                     TIMESPEC2DOUBLE(&tmp_)); \
         } while (0)

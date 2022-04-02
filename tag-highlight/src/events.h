@@ -17,7 +17,7 @@ __BEGIN_DECLS
 #  define USE_EVENT_LIB  EVENT_LIB_LIBUV
 #  define KILL_SIG       SIGFPE
 #else
-#  if 1 - 1
+#  if 1
 #    define USE_EVENT_LIB EVENT_LIB_LIBUV
 #  elif 1
 #    define USE_EVENT_LIB EVENT_LIB_LIBEVENT

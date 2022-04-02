@@ -126,11 +126,12 @@ retry:
       case CXCursor_TypedefDecl:
       case CXCursor_TypeAliasDecl:
       case CXCursor_TypeAliasTemplateDecl:
+      case CXCursor_FriendDecl:
             ADD_CALL(CTAGS_TYPE);
             break;
 
       case CXCursor_CXXBaseSpecifier:
-            //ADD_CALL(EXTENSION_I_DONT_KNOW);
+            ADD_CALL(EXTENSION_I_DONT_KNOW);
             //warnx("Got a CXXBaseSpecifier!");
             //braindead(tok, goto_safety_count, &cursor);
             break;
@@ -175,13 +176,13 @@ retry:
       /* A reference to a member of a struct, union, or class in
        * non-expression context such as a designated initializer. */
       case CXCursor_MemberRef:
-            ADD_CALL(CTAGS_MEMBER);
-            break;
+            //ADD_CALL(CTAGS_MEMBER);
+            //break;
 
       /* Ordinary reference to a struct/class member. */
       case CXCursor_MemberRefExpr: {
-            CXType deftype = clang_getCanonicalType(clang_getCursorType(cursor));
-            if (bdata->ft->id == FT_CXX && deftype.kind == CXType_Unexposed) {
+            //CXType deftype = clang_getCanonicalType(clang_getCursorType(cursor));
+            if (bdata->ft->id == FT_CXX /*&& deftype.kind == CXType_Unexposed*/) {
                   cursor = clang_getCursorReferenced(cursor);
                   goto retry;
             } else {
@@ -194,6 +195,7 @@ retry:
             if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;
             __attribute__((fallthrough));
+      case CXCursor_NamespaceAlias:
       case CXCursor_NamespaceRef:
             ADD_CALL(CTAGS_NAMESPACE);
             break;
@@ -250,16 +252,13 @@ retry:
       /* --- Mainly C++ Stuff --- */
       case CXCursor_Constructor:
       case CXCursor_Destructor:
+      case CXCursor_ConversionFunction:
             //braindead(tok, 0, &cursor);
             ADD_CALL(EXTENSION_METHOD);
             break;
 
       case CXCursor_TemplateTypeParameter:
             ADD_CALL(EXTENSION_TEMPLATE_TYPE_PARAM);
-            break;
-
-      case CXCursor_ClassTemplatePartialSpecialization:
-            ADD_CALL(EXTENSION_I_DONT_KNOW);
             break;
 
       case CXCursor_NonTypeTemplateParameter:
@@ -280,11 +279,11 @@ retry:
             break;
       }
 
-      case CXCursor_ConversionFunction:
       case CXCursor_FunctionTemplate:
             ADD_CALL(CTAGS_FUNCTION);
             break;
 
+      case CXCursor_ClassTemplatePartialSpecialization:
       case CXCursor_ClassTemplate:
             if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;
@@ -292,7 +291,7 @@ retry:
             break;
 
       case CXCursor_TemplateRef:
-            if (!sanity_check_name(tok, cursor))
+            if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;
             ADD_CALL(EXTENSION_TEMPLATE);
             break;
@@ -377,6 +376,8 @@ retry:
                         CXType ltype = clang_getCursorType(*last);
                         if (ltype.kind == CXType_Enum)
                               ADD_CALL(CTAGS_ENUMCONST);
+                  } else {
+                        ADD_CALL(CTAGS_TYPE);
                   }
                   break;
 
@@ -395,7 +396,7 @@ retry:
                   }
             }
 
-            if (in_template)
+            if (in_template && !call_group)
                   ADD_CALL(EXTENSION_TEMPLATE_TYPE_PARAM);
 
             break;
@@ -421,7 +422,8 @@ retry:
       }     break;
 
       case CXCursor_TemplateTemplateParameter:
-            warnd("Got a TemplateTemplateParameter!");
+            ADD_CALL(EXTENSION_TEMPLATE);
+            /* warnd("Got a TemplateTemplateParameter!"); */
             //braindead(tok, goto_safety_count, &cursor);
             break;
 

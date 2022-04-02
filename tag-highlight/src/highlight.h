@@ -68,7 +68,7 @@ struct filetype {
 };
 
 struct top_dir {
-      int16_t          tmpfd;
+      int              tmpfd;
       uint16_t         index;
       uint16_t         refs;
       bool             recurse;

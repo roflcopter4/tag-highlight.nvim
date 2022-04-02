@@ -1,5 +1,5 @@
 if !exists('g:tag_highlight#cpp#order')
-        let g:tag_highlight#cpp#order = 'TncgstuedfmvMODNK_'
+        let g:tag_highlight#cpp#order = 'TncgstuedfmvMODNKq'
 endif
 
 let g:tag_highlight#cpp#T = { 'group': 'cppTemplateTag' }
@@ -16,7 +16,7 @@ let g:tag_highlight#cpp#O = { 'group': 'cppOverloadedOperatorTag' }
 let g:tag_highlight#cpp#D = { 'group': 'cppOverloadedDeclTag' }
 let g:tag_highlight#cpp#N = { 'group': 'cppNonTypeTemplateParam' }
 let g:tag_highlight#cpp#K = { 'group': 'cppTypeKeywordTag' }
-let g:tag_highlight#cpp#_ = { 'group': 'cppUnknownTag' }
+let g:tag_highlight#cpp#q = { 'group': 'cppUnknownTag' }
 let g:tag_highlight#cpp#m = {
             \   'group': 'cppMemberTag',
             \   'prefix': '\%(\%(\>\|\]\|)\)\%(\.\|->\)\)\@5<=',

@@ -326,7 +326,7 @@ get_compression_type(void)
             ret = COMP_LZMA;
 #else
             ret = COMP_GZIP;
-            warnx("Compression type is set to '%s', but only gzip is "
+            warnd("Compression type is set to '%s', but only gzip is "
                   "supported in this build. Defaulting to 'gzip'.",
                   BS(tmp));
 #endif

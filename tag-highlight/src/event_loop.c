@@ -6,6 +6,11 @@
 
 #include "util/initializer_hack.h"
 
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <signal.h>
 
 #if defined __GNUC__
@@ -16,12 +21,15 @@
 #  define FUNCTION_NAME __func__
 #endif
 
-intptr_t global_output_descriptor = 1;
+intptr_t global_output_descriptor = STDOUT_FILENO;
 #ifdef _WIN32
 static void init_wsa(void);
-static int socket_to_int(SOCKET orig);
-static SOCKET fuck_my_ass(char *servername);
+static int socket_to_int(socket_t orig);
+# define ERRNO WSAGetLastError()
+#else
+# define ERRNO errno
 #endif
+static socket_t fuck_my_ass(char *servername);
 
 /*=====================================================================================*/
 
@@ -91,49 +99,66 @@ static struct event_base *base;
 
 
 void
-run_event_loop(int const fd, char *servername)
+run_event_loop(UNUSED int const fd, UNUSED char *servername)
 {
       static atomic_flag event_loop_called = ATOMIC_FLAG_INIT;
       if (atomic_flag_test_and_set(&event_loop_called))
             return;
 
+#ifdef _WIN32
       init_wsa();
+      evthread_use_windows_threads();
+#else
       evthread_use_pthreads();
+#endif
+
+#ifdef DEBUG
       event_enable_debug_mode();
       event_enable_debug_logging(EVENT_DBG_ALL);
-      static struct timeval const tv = {.tv_sec = INT_MAX, .tv_usec = 5000000};
+#endif
+
+      static struct timeval const tv = {.tv_sec = 1, .tv_usec = 0};
       event_loop_thread = pthread_self();
 
-      SOCKET sock = fuck_my_ass(servername);
-      /* HANDLE sock = GetStdHandle(STD_INPUT_HANDLE); */
-      /* int sock = 0; */
-      /* global_output_descriptor = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE); */
-      global_output_descriptor = (intptr_t)sock;
       {
-            struct event_config *cfg = event_config_new();
+            socket_t sock = STDOUT_FILENO;
+            /* socket_t sock = fuck_my_ass(servername); */
+            /* HANDLE sock = GetStdHandle(STD_INPUT_HANDLE); */
+            /* int sock = 0; */
+            /* global_output_descriptor = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE); */
+
+            global_output_descriptor = (intptr_t)sock;
+      }
+
+      socket_t sock = STDIN_FILENO;
+
+      {
+            /* struct event_config *cfg = event_config_new(); */
             //event_config_require_features(cfg, EV_FEATURE_EARLY_CLOSE);
 #ifdef _WIN32
-            event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP);
+            /* event_config_set_flag(cfg, EVENT_BASE_FLAG_STARTUP_IOCP); */
 #endif
             /* event_config_require_features(cfg, EV_FEATURE_FDS); */
-            event_config_avoid_method(cfg, "select");
-            base = event_base_new_with_config(cfg);
+            /* event_config_avoid_method(cfg, "select"); */
+            /* base = event_base_new_with_config(cfg); */
+
+            base = event_base_new();
 
             if (!base) {
                   warnx("Failed to initialize libevent.");
-                  fflush(stderr);
+                  (void)fflush(stderr);
                   NANOSLEEP(1, 0);
                   return;
             }
-            event_config_free(cfg);
+            /* event_config_free(cfg); */
       }
 
-      struct userdata data = {base, ATOMIC_VAR_INIT(false)};
+      struct userdata data = {base, false};
       struct event *sighandlers[ARRSIZ(signals_to_handle)];
       struct event *rd_handle;
 
-      rd_handle = event_new(base, (intptr_t)sock, EV_READ|EV_PERSIST, event_loop_io_cb, &data);
-      init_signal_handlers(base, sighandlers, &data, NULL);
+      rd_handle = event_new(base, sock, EV_READ|EV_PERSIST, event_loop_io_cb, &data);
+      init_signal_handlers(base, sighandlers, &data, &tv);
       
 #if 1
       event_add(rd_handle, &tv);
@@ -142,7 +167,7 @@ run_event_loop(int const fd, char *servername)
       for (;;) {
             event_add(rd_handle, &tv);
             if (do_event_loop(base) != 0)
-                  break;;
+                  break;
       }
 #endif
 
@@ -271,7 +296,7 @@ clean_signal_handlers(struct event **handlers)
  *  \--------------------/                                                             *
  *=====================================================================================*/
 
-/* #define USE_UV_POLL 1 */
+#define USE_UV_POLL 1
 
 # include <uv.h>
 
@@ -281,17 +306,19 @@ static void event_loop_io_cb(uv_poll_t* handle, int status, int events);
 static void event_loop_graceful_signal_cb(uv_signal_t *handle, int signum);
 static void event_loop_signal_cb(uv_signal_t *handle, int signum);
 
-UNUSED static void do_event_loop(uv_loop_t *loop, uv_poll_t *upoll, uv_signal_t signal_watcher[5]);
-UNUSED static void do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watchers[5]);
+UNUSED static void do_event_loop(uv_loop_t *loop, uv_poll_t *upoll, uv_signal_t signal_watcher[5], intptr_t fd);
+UNUSED static void do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watchers[5], intptr_t fd);
 
 struct userdata {
       uv_loop_t   *loop_handle;
       uv_poll_t   *poll_handle;
       uv_pipe_t   *pipe_handle;
       uv_signal_t *signal_watchers;
+      intptr_t     fd;
       bool         grace;
 };
 
+static uv_loop_t base_loop;
 
 void
 run_event_loop(int const fd, UNUSED char *servername)
@@ -304,24 +331,33 @@ run_event_loop(int const fd, UNUSED char *servername)
       init_wsa();
 #endif
 
-      uv_loop_t  *loop = uv_default_loop();
-      uv_signal_t signal_watchers[5];
-      memset(signal_watchers, 0, sizeof signal_watchers);
-      //uv_loop_init(&loop);
-      event_loop_init_watchers(loop, signal_watchers);
+      {
+            socket_t sock = STDOUT_FILENO;
+            global_output_descriptor = (intptr_t)sock;
+      }
+
       event_loop_thread = pthread_self();
 
+      /* uv_loop_t  *loop = uv_default_loop(); */
+      memset(&base_loop, 0, sizeof base_loop);
+      uv_loop_init(&base_loop);
+
+      uv_loop_t *loop = &base_loop;
+
+      uv_signal_t signal_watchers[5];
+      memset(signal_watchers, 0, sizeof signal_watchers);
+      event_loop_init_watchers(loop, signal_watchers);
 
 #if defined USE_UV_POLL
-      uv_poll_t   upoll;
+      uv_poll_t upoll;
       memset(&upoll, 0, sizeof upoll);
 # if defined _WIN32
       uv_poll_init(loop, &upoll, fd);
 # else
-      uv_poll_init_socket(loop, &upoll, fd);
+      /* uv_poll_init_socket(loop, &upoll, fd); */
+      uv_poll_init(loop, &upoll, fd);
 # endif
-
-      do_event_loop(loop, &upoll, signal_watchers);
+      do_event_loop(loop, &upoll, signal_watchers, (intptr_t)fd);
 
 #else
 
@@ -330,7 +366,7 @@ run_event_loop(int const fd, UNUSED char *servername)
       uv_pipe_init(loop, &phand, false);
       uv_pipe_open(&phand, fd);
 
-      do_event_loop_pipe(loop, &phand, signal_watchers);
+      do_event_loop_pipe(loop, &phand, signal_watchers, fd);
 #endif
 
 
@@ -340,16 +376,16 @@ run_event_loop(int const fd, UNUSED char *servername)
 
 
 static void
-do_event_loop(uv_loop_t *loop, uv_poll_t *upoll, uv_signal_t signal_watchers[5])
+do_event_loop(uv_loop_t *loop, uv_poll_t *upoll, uv_signal_t signal_watchers[5], intptr_t fd)
 {
-      struct userdata data = {loop, upoll, NULL, signal_watchers, false};
+      struct userdata data = {loop, upoll, NULL, signal_watchers, fd, false};
       loop->data = upoll->data = signal_watchers[0].data = signal_watchers[1].data =
                                  signal_watchers[2].data = signal_watchers[3].data =
                                  signal_watchers[4].data =
                    &data;
 
       event_loop_start_watchers(signal_watchers);
-      uv_poll_start(upoll, UV_READABLE, &event_loop_io_cb);
+      uv_poll_start(upoll, UV_READABLE | UV_DISCONNECT, &event_loop_io_cb);
       uv_run(loop, UV_RUN_DEFAULT);
 
       if (!data.grace)
@@ -383,11 +419,15 @@ event_loop_start_watchers(uv_signal_t signal_watchers[5])
 static void
 event_loop_io_cb(UNUSED uv_poll_t *handle, UNUSED int const status, int const events)
 {
-      if (events & UV_READABLE) {
+      if (events & UV_DISCONNECT) {
+            uv_poll_stop(handle);
+      } else if (events & UV_READABLE) {
             //if (uv_fileno((uv_handle_t const *)handle, &data.fd))
             //      err(1, "uv_fileno()");
 
+            struct userdata *user = handle->data;
             struct event_data data;
+            data.fd  = (int)user->fd;
             data.obj = mpack_decode_stream(data.fd);
             talloc_steal(CTX, data.obj);
             handle_nvim_message(&data);
@@ -473,9 +513,9 @@ pipe_read_callback(UNUSED uv_stream_t *stream, ssize_t nread, uv_buf_t const *bu
 }
 
 static void
-do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watchers[5])
+do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watchers[5], intptr_t fd)
 {
-      struct userdata data = {loop, NULL, phand, signal_watchers, false};
+      struct userdata data = {loop, NULL, phand, signal_watchers, fd, false};
       loop->data = phand->data = signal_watchers[0].data = signal_watchers[1].data =
                                  signal_watchers[2].data = signal_watchers[3].data =
                                  signal_watchers[4].data =
@@ -487,6 +527,17 @@ do_event_loop_pipe(uv_loop_t *loop, uv_pipe_t *phand, uv_signal_t signal_watcher
 
       if (!data.grace)
             errx(1, "This shouldn't be reachable?...");
+}
+
+void
+stop_event_loop(int status)
+{
+      if (status)
+            quick_exit(0);
+
+      uv_stop(&base_loop);
+      //uv_loop_close(&base_loop);
+      //exit(0);
 }
 
 
@@ -710,21 +761,22 @@ static void init_wsa(void)
 }
 
 
-static int socket_to_int(SOCKET orig)
+static int socket_to_int(socket_t orig)
 {
     WSAPROTOCOL_INFO wsa_pi;
 
-    // dupicate the SOCKET from libmysql
+    // dupicate the socket_t from libmysql
     int r = WSADuplicateSocket(orig, GetCurrentProcessId(), &wsa_pi);
-    SOCKET s = WSASocket(wsa_pi.iAddressFamily, wsa_pi.iSocketType, wsa_pi.iProtocol, &wsa_pi, 0, 0);
+    socket_t s = WSASocket(wsa_pi.iAddressFamily, wsa_pi.iSocketType, wsa_pi.iProtocol, &wsa_pi, 0, 0);
 
-    // create the CRT fd so ruby can get back to the SOCKET
+    // create the CRT fd so ruby can get back to the socket_t
     int fd = _open_osfhandle(s, O_RDWR|O_BINARY);
     return fd;
 }
 
+#endif
 
-static SOCKET fuck_my_ass(char *servername)
+static socket_t fuck_my_ass(char *servername)
 {
       char const *server   = servername;
       char       *servport = strchr(servername, ':');
@@ -732,7 +784,7 @@ static SOCKET fuck_my_ass(char *servername)
             errx(1, "no port identified");
       *servport++ = '\0';
 
-      SOCKET sd = -1;
+      socket_t sd = -1;
       int    rc;
 
       struct in6_addr  serveraddr;
@@ -772,8 +824,8 @@ static SOCKET fuck_my_ass(char *servername)
             }
 
             sd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-            if (sd == (SOCKET)(-1)) {
-                  err(1, "socket() failed %s", gai_strerror(WSAGetLastError()));
+            if (sd == (socket_t)(-1)) {
+                  err(1, "socket() failed %s", gai_strerror(ERRNO));
                   break;
             }
 
@@ -784,7 +836,7 @@ static SOCKET fuck_my_ass(char *servername)
                   /* If the connect() fails to the first one, subsequent addresses */
                   /* (if any) in the list can be tried if required.               */
                   /*****************************************************************/
-                  err(1, "connect() %s", gai_strerror(WSAGetLastError()));
+                  err(1, "connect() %s", gai_strerror(ERRNO));
                   break;
             }
       } while (0);
@@ -794,6 +846,4 @@ static SOCKET fuck_my_ass(char *servername)
             freeaddrinfo(res);
       return sd;
 }
-
-#endif
 

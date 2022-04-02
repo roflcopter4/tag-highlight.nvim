@@ -34,7 +34,7 @@ int
 int
 nvim_api_intern_get_fd_count(UNUSED const int fd, const bool inc)
 {
-        static atomic_int count = ATOMIC_VAR_INIT(0);
+        static atomic_int count = 0;
         int ret;
 
         if (inc)

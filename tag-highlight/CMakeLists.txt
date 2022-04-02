@@ -73,6 +73,8 @@ if ((CMAKE_BUILD_TYPE STREQUAL "Debug") OR
     set (DEBUG 1)
 endif()
 
+set(CMAKE_C_STANDARD 23)
+
 macro(FIX_WINDOWS_PATHS _pathvar)
     string(REPLACE "\\" "/" ${_pathvar} "${${_pathvar}}")
 endmacro()
@@ -436,24 +438,24 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
                 -flto=full
             )
 
-            set (LTO_LINK_STR ${LTO_STR} -g3
-                -Wl,-Xlink=-mllvm:-march=native
-                -Wl,-Xlink=-mllvm:--aggressive-ext-opt
-                -Wl,-Xlink=-mllvm:--extra-vectorizer-passes
-                -Wl,-Xlink=-mllvm:--exhaustive-register-search
-                -Wl,-Xlink=-mllvm:--enable-unsafe-fp-math
-                -Wl,-Xlink=-mllvm:--optimize-regalloc
-                -Wl,-Xlink=-mllvm:--scalar-evolution-use-expensive-range-sharpening
-                -Wl,-Xlink=-mllvm:--slp-max-vf=0
-                -Wl,-Xlink=-mllvm:--slp-vectorize-hor
-                -Wl,-Xlink=-mllvm:--whole-program-visibility
-                -Wl,-Xlink=-mllvm:--x86-indirect-branch-tracking
-                -Wl,-Xlink=-mllvm:--interleave-loops
-                -Wl,-Xlink=-mllvm:--ir-outliner
-                -Wl,-Xlink=-mllvm:--enable-post-misched
-                -Wl,-Xlink=-mllvm:--enable-nontrivial-unswitch
-                -Wl,-Xlink=-mllvm:--enable-nonnull-arg-prop
-            )
+            # set (LTO_LINK_STR ${LTO_STR} -g3
+            #     -Wl,-Xlink=-mllvm:-march=native
+            #     -Wl,-Xlink=-mllvm:--aggressive-ext-opt
+            #     -Wl,-Xlink=-mllvm:--extra-vectorizer-passes
+            #     -Wl,-Xlink=-mllvm:--exhaustive-register-search
+            #     -Wl,-Xlink=-mllvm:--enable-unsafe-fp-math
+            #     -Wl,-Xlink=-mllvm:--optimize-regalloc
+            #     -Wl,-Xlink=-mllvm:--scalar-evolution-use-expensive-range-sharpening
+            #     -Wl,-Xlink=-mllvm:--slp-max-vf=0
+            #     -Wl,-Xlink=-mllvm:--slp-vectorize-hor
+            #     -Wl,-Xlink=-mllvm:--whole-program-visibility
+            #     -Wl,-Xlink=-mllvm:--x86-indirect-branch-tracking
+            #     -Wl,-Xlink=-mllvm:--interleave-loops
+            #     -Wl,-Xlink=-mllvm:--ir-outliner
+            #     -Wl,-Xlink=-mllvm:--enable-post-misched
+            #     -Wl,-Xlink=-mllvm:--enable-nontrivial-unswitch
+            #     -Wl,-Xlink=-mllvm:--enable-nonnull-arg-prop
+            # )
         else()
             set (LTO_STR -flto=full -fwhole-program-vtables 
                          -fvirtual-function-elimination -fsplit-lto-unit)

@@ -330,7 +330,7 @@ init_topdir(Buffer *bdata)
       bstring *cdir = b_strcpy(settings.cache_dir);
 
       tdir = talloc_zero(CTX, Top_Dir);
-      tdir->tmpfd = (int16_t)safe_open(BS(tnam), O_CREAT | O_RDWR | O_EXCL | O_BINARY | O_CLOEXEC, 0600);
+      tdir->tmpfd     = safe_open(BS(tnam), O_CREAT | O_RDWR | O_EXCL | O_BINARY | O_CLOEXEC, 0600);
       tdir->gzfile    = talloc_move(tdir, &cdir);
       tdir->pathname  = talloc_move(tdir, &dir);
       tdir->tmpfname  = talloc_move(tdir, &tnam);
@@ -573,8 +573,7 @@ init_filetype(Filetype *ft)
       ft->restore_cmds = NULL;
       get_ignored_tags(ft);
 
-      mpack_dict *equiv =
-          nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#equivalent", BTS(ft->vim_name)).ptr;
+      mpack_dict *equiv = nvimext_get_var_fmt(E_MPACK_DICT, PKG "%s#equivalent", BTS(ft->vim_name)).ptr;
       if (equiv) {
             ft->equiv = b_list_create_alloc(equiv->qty);
 
@@ -638,7 +637,8 @@ get_tags_from_restored_groups(Filetype *ft, b_list *restored_groups)
             char  cmd[8192];
             char *ptr;
             size_t const len = snprintf(cmd, 8192, "syntax list %s", BS(restored_groups->lst[i]));
-            bstring *output  = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr;
+            /* bstring *output  = nvim_command_output(btp_fromblk(cmd, len), E_STRING).ptr; */
+            bstring *output  = nvim_exec(btp_fromblk(cmd, len), true, E_STRING).ptr;
 
             if (!output || !(ptr = strstr(BS(output), "xxx")))
                   goto next;
@@ -683,7 +683,10 @@ get_restore_cmds(b_list *restored_groups)
 
       for (unsigned i = 0; i < restored_groups->qty; ++i) {
             bstring *cmd    = b_sprintf("syntax list %s", restored_groups->lst[i]);
-            bstring *output = nvim_command_output(cmd, E_STRING).ptr;
+
+            /* bstring *output = nvim_command_output(cmd, E_STRING).ptr; */
+            bstring *output = nvim_exec(cmd, true, E_STRING).ptr;
+
             talloc_free(cmd);
             if (!output)
                   continue;

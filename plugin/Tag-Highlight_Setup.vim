@@ -484,14 +484,12 @@ function! s:InitTagHighlight()
         
     let l:binary = tag_highlight#install_info#GetBinaryName()
     let l:cache = tag_highlight#install_info#GetCachePath()
-    echom l:binary
-    echom l:cache
     try
         if l:cache ==# ''
             echoerr 'Cache directory not found!'
             return
         endif
-        echom printf("Starting [%s, %s, %s], %s", l:binary, l:cache, v:servername, s:rpc)
+        " echom printf("Starting [%s, %s, %s], %s", l:binary, l:cache, v:servername, s:rpc)
         let g:tag_highlight#pid = jobstart([l:binary, l:cache, v:servername], s:rpc)
     catch /^Vim\%((\a\+)\)\=:E475/
         echom 'tag-highlight executable not found.'

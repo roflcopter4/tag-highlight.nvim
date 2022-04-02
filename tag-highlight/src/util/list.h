@@ -151,6 +151,7 @@ struct argument_vector_st {
 
 LLDECL str_vector *argv_create      (unsigned len) LLAwur;
 LLDECL void        argv_append      (str_vector *argv, const char *str, bool cpy) LLAnn(1);
+LLDECL void        argv_pop         (str_vector *argv) LLAnn(1);
 LLDECL void        argv_destroy     (str_vector *argv);
 LLDECL void        argv_append_fmt  (str_vector *argv, const char *__restrict fmt, ...) LLAfmt(2, 3) LLAnn(1, 2);
 LLDECL void        argv_append_null (str_vector *argv) LLAnn(1);

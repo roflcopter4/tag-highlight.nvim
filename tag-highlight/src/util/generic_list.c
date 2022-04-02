@@ -344,6 +344,16 @@ argv_append(str_vector *argv, const char *str, const bool cpy)
 
 
 void
+argv_pop(str_vector *argv)
+{
+        pthread_mutex_lock(&argv->lock);
+        talloc_free(argv->lst[--argv->qty]);
+        argv->lst[argv->qty] = NULL;
+        pthread_mutex_unlock(&argv->lock);
+}
+
+
+void
 argv_append_fmt(str_vector *argv, const char *const __restrict fmt, ...)
 {
         pthread_mutex_lock(&argv->lock);

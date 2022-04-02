@@ -58,6 +58,7 @@ typedef signed long long int ssize_t;
 #  endif
 #  undef mkdir
 #  define mkdir(PATH, MODE) mkdir(PATH)
+typedef SOCKET socket_t;
 #else
 #  include <dirent.h>
 #  include <libgen.h>
@@ -70,6 +71,7 @@ typedef signed long long int ssize_t;
 #  include <unistd.h>
 #  define PATHSEP     '/'
 #  define PATHSEP_STR "/"
+typedef int socket_t;
 #endif
 #if (defined(__MINGW32__) || defined(__MINGW64__)) && \
     (!defined(__MINGW__) || !defined(_WIN32))
