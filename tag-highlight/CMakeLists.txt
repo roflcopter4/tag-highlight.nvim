@@ -417,17 +417,26 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     #-- CLANG PRETENDING TO BE GCC --
     else()
         set (WARNS ${WARNS}
-            #-Weverything
-            -Wno-c++98-compat -Wno-c++98-compat-pedantic
+            # -Weverything
+            -Wno-c++98-compat
+            -Wno-c++98-compat-pedantic
             -Wno-zero-as-null-pointer-constant
-            -Wno-disabled-macro-expansion -Wno-reserved-macro-identifier -Wno-unused-macros
-            -Wno-weak-vtables
-            -Wno-shorten-64-to-32
-            -Wno-ctad-maybe-unsupported
+            -Wno-disabled-macro-expansion
+            # -Wno-reserved-macro-identifier
+            # -Wno-reserved-identifier
+            -Wno-unused-macros
+            # -Wno-weak-vtables
+            # -Wno-shorten-64-to-32
+            # -Wno-ctad-maybe-unsupported
             -Wno-missing-prototypes
+            -Wno-declaration-after-statement
+            # -Wno-declaration-after-return-statement
+            -Wno-missing-variable-declarations
+            -Wno-padded
         )
         set (WARNS ${WARNS}
-            -Wno-gnu -Wno-gnu-zero-variadic-macro-arguments
+            -Wno-gnu
+            -Wno-gnu-zero-variadic-macro-arguments
             -Wno-gnu-statement-expression
             -Werror=return-type
             -Werror=inline-namespace-reopened-noninline
@@ -481,14 +490,15 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
                 )
             endif()
             message("FOO")
-        else()
-            set (CLANG_STDLIB -stdlib=libc++)
-            # set (CLANG_STDLIB -stdlib=libstdc++)
+
+        else() # NOT WIN32
+
+            # set (CLANG_STDLIB -stdlib=libc++)
+            set (CLANG_STDLIB -stdlib=libstdc++)
             string (JOIN " " CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
                     -fuse-ld=lld
                     -rtlib=compiler-rt
                     -unwindlib=libgcc
-                    -rdynamic
                     ${CLANG_STDLIB}
                     ${LTO_LINK_STR}
             )
@@ -502,12 +512,12 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         
     endif() # Any clang now
 
-        find_program(LLVM_AR "llvm-ar" REQUIRED)
-        find_program(LLVM_NM "llvm-nm" REQUIRED)
-        find_program(LLVM_RANLIB "llvm-ranlib" REQUIRED)
-        set (CMAKE_AR "${LLVM_AR}")
-        set (CMAKE_NM "${LLVM_NM}")
-        set (CMAKE_RANLIB "${LLVM_RANLIB}")
+    find_program(LLVM_AR "llvm-ar" REQUIRED)
+    find_program(LLVM_NM "llvm-nm" REQUIRED)
+    find_program(LLVM_RANLIB "llvm-ranlib" REQUIRED)
+    set (CMAKE_AR "${LLVM_AR}")
+    set (CMAKE_NM "${LLVM_NM}")
+    set (CMAKE_RANLIB "${LLVM_RANLIB}")
 
 #-----------------------------------------------------------------------------------------
 #-- GCC --

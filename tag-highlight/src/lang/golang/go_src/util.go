@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/davecgh/go-spew/spew"
 )
+
+var my_name string = filepath.Base(os.Args[0])
 
 /*--------------------------------------------------------------------------------------*/
 
@@ -28,13 +31,13 @@ func open_log_rel(lfile **os.File, prog_name string) {
 }
 
 func open_log_dbg(lfile **os.File, prog_name string) {
-	// lfile = &os.Stderr
 	var err error
-	// *lfile, err = os.OpenFile("thl_go.log", os.O_CREATE|os.O_TRUNC|os.O_WRONLY|os.O_SYNC, 0600)
-	*lfile, err = os.Create("thl_go.log")
-	if err != nil {
+	if *lfile, err = os.Create("thl_go.log"); err != nil {
 		panic(err)
 	}
+
+	// lfile = &os.Stderr
+
 	lg.Logger = log.New(*lfile, "  =====  ", 0)
 	lg.File = *lfile
 }
@@ -57,6 +60,6 @@ func eprintln(a ...interface{})               { fmt.Fprintln(errFile, a...); err
 func eprintf(format string, a ...interface{}) { fmt.Fprintf(errFile, format, a...); errFile.Sync() }
 
 func errx(code int, format string, a ...interface{}) {
-	eprintf(format, a...)
+	eprintf(my_name+": "+format+"\n", a...)
 	os.Exit(code)
 }

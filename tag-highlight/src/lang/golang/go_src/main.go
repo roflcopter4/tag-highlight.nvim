@@ -42,11 +42,11 @@ const debug_override = 2
 
 func main() {
 	if len(os.Args) != 6 {
-		errx(1, "Too few arguments (%d)", len(os.Args))
+		errx(1, "Too few arguments (have %d, need 5)\n", len(os.Args)-1)
 	}
 	var (
 		lfile        *os.File
-		isdebug      int
+		isdebug      bool
 		prog_name    string = os.Args[1]
 		isdebug_s    string = os.Args[2]
 		our_fname    string = os.Args[3]
@@ -54,8 +54,8 @@ func main() {
 		our_projpath string = os.Args[5]
 	)
 
-	isdebug, _ = strconv.Atoi(isdebug_s)
-	open_log(&lfile, debug_override != 2 && (debug_override == 1 || isdebug == 1), prog_name)
+	isdebug, _ = strconv.ParseBool(isdebug_s)
+	open_log(&lfile, debug_override != 2 && (debug_override == 1 || isdebug), prog_name)
 	defer func() {
 		if lfile != nil && lfile != os.Stderr {
 			lfile.Close()
@@ -145,7 +145,7 @@ func whyunofind(data *Parsed_Data, fname string) *ast.Package {
 			}
 		}
 	} else {
-		// eprintf("wtf there are %d packages", len(data.Packages))
+		/* XXX I don't know what to do if this fails. */
 	}
 
 	e := fmt.Errorf("Error: Want \"%s\" or \"%s\", but it's not in ( %#+v )", fname, bname, data.Packages)
@@ -224,16 +224,15 @@ func (this *Parsed_Data) handle_ident(ident *ast.Ident, typeinfo types.Object) {
 	}
 
 	kind := identify_kind(ident, typeinfo)
-
 	if kind == 0 {
 		return
 	}
+
 	if this.FileToken.Name() != fset.File(ident.Pos()).Name() {
 		return
 	}
 
 	p := get_range(ident.Pos(), len(ident.Name))
-
 	if p[0].Line <= 0 || p[1].Line <= 0 {
 		return
 	}

@@ -13,36 +13,22 @@ func Wait() string {
 	/* The number 4294967295 (aka UINT32_MAX), which is the largest size a buffer can
 	 * be (in my app anyway) is 10 characters. The actual size of the buffer will be
 	 * padded with zeros on the left if necessary. */
-	var (
-		buf   = make([]byte, 8)
-		inlen int
-		n     int
-		err   error
-	)
 
-	// eprintf("Reading %d bytes! (num2read)\n", n)
+	buf := make([]byte, 8)
 
-	if n, err = io.ReadFull(os.Stdin, buf); err != nil {
+	if _, err := io.ReadFull(os.Stdin, buf); err != nil {
 		if err == io.EOF {
 			os.Exit(0)
 		}
 		panic(err)
 	}
 
-	// eprintf("Read %d bytes! (num2read)\n", n)
-
-	inlen = int(mkuint64(buf))
-
-	// eprintf("Reading %d bytes (buffer)\n", inlen)
-
+	inlen := int(mkuint64(buf))
 	buf = make([]byte, inlen)
 
-	if n, err = io.ReadFull(os.Stdin, buf); err != nil {
+	if _, err := io.ReadFull(os.Stdin, buf); err != nil {
 		panic(err)
 	}
-
-	// eprintf("Read %d bytes (buffer)!\n", n)
-	_ = n
 
 	return string(buf)
 }
