@@ -82,16 +82,6 @@ create_nvim_calls(Buffer *bdata, translationunit_t *stu)
 
 /*======================================================================================*/
 
-#if 0
-#define ADD_CALL(CH)                                                             \
-      do {                                                                       \
-            const bstring *group = find_group(bdata->ft, (CH));                  \
-            if (group)                                                           \
-                  add_hl_call(calls, bdata->num, bdata->hl_id, group,            \
-                              (line_data[]){{tok->line, tok->col1, tok->col2}}); \
-      } while (0)
-#endif
-
 #define ADD_CALL(CH) (call_group = (CH))
 
 static void
@@ -129,6 +119,10 @@ retry:
       case CXCursor_TypeAliasTemplateDecl:
       case CXCursor_FriendDecl:
             ADD_CALL(CTAGS_TYPE);
+            break;
+
+      case CXCursor_ConceptDecl:
+            ADD_CALL(EXTENSION_TYPE_KEYWORD);
             break;
 
       case CXCursor_CXXBaseSpecifier:
@@ -291,11 +285,6 @@ retry:
 
       case CXCursor_ClassTemplatePartialSpecialization:
       case CXCursor_ClassTemplate:
-            if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
-                  break;
-            ADD_CALL(EXTENSION_TEMPLATE);
-            break;
-
       case CXCursor_TemplateRef:
             if (goto_safety_count > 0 && !sanity_check_name(tok, cursor))
                   break;

@@ -80,9 +80,11 @@ Buffer *
 new_buffer(unsigned const bufnum)
 {
       buffer_node *bnode = find_buffer_node(bufnum);
-      if (!bnode)
-            if (!(bnode = new_buffer_node(bufnum)))
+      if (!bnode) {
+            bnode = new_buffer_node(bufnum);
+            if (!bnode)
                   return NULL;
+      }
       Buffer *ret = make_new_buffer(bnode);
       if (ret)
             ll_append(buffer_list, bnode);
@@ -107,10 +109,8 @@ make_new_buffer(buffer_node *bnode)
       Buffer   *ret    = NULL;
       Filetype *ft     = NULL;
       bstring  *ftname = nvim_buf_get_option(bnode->num, B("ft"), E_STRING).ptr;
-      if (!ftname || ftname->slen == 0) {
-
+      if (!ftname || ftname->slen == 0)
             goto error;
-      }
 
       for (unsigned i = 0; i < ftdata_len; ++i) {
             if (b_iseq(ftname, &ftdata[i]->vim_name)) {
@@ -715,8 +715,8 @@ get_restore_cmds(b_list *restored_groups)
                         b_list_append(toks, b_fromblk(ptr, PSUB(tmp, ptr)));
                         while (isblank(*++tmp))
                               ;
-                        if (strncmp((ptr = tmp), "links to ", 9) == 0 &&
-                            !(strchr(ptr, '\n') + 1))
+                        ptr = tmp;
+                        if (strncmp(ptr, "links to ", 9) == 0 && !(strchr(ptr, '\n') + 1))
                               break;
                   }
 
@@ -792,8 +792,6 @@ void
       unsigned cnt;
       atomic_store(&bdata->initialized, false);
       while ((cnt = p99_futex_load(&bdata->lock.num_workers)) > 0) {
-            /* NANOSLEEP_FOR_SECOND_FRACTION(0, 5); */
-            //NANOSLEEP(0, 1000);
             (void)cnt;
             usleep(1);
 #if 0

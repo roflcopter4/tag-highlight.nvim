@@ -203,7 +203,7 @@ clean_talloc_contexts(void)
  * Open debug logs
  */
 static void
-open_logs(char const *cache_dir)
+open_logs(UNUSED char const *cache_dir)
 {
 #ifdef DEBUG
 #if 0
@@ -385,35 +385,6 @@ exit_cleanup(void)
 static NORETURN void *
 dumb_thread_wrapper(UNUSED void *vdata)
 {
-#if 0
-      //static const char xz_string[] = "xz -7 -- ";
-      static char const *xz_argv[5] = {"xz", "-7", "--", NULL, NULL};
-
-      char const *filename = vdata;
-      struct stat st;
-
-      if (stat(filename, &st) == (-1) || st.st_size < 1024)
-            pthread_exit();
-#endif
-
-#if 0
-      char buf[PATH_MAX + SIZE_C(512)];
-      memcpy(buf, xz_string, sizeof(xz_string) - SIZE_C(1));
-      strcpy(buf + sizeof(xz_string) - SIZE_C(1), filename);
-      (void)system(buf);
-#endif
-
-#if 0
-      pid_t pid;
-      int   status = 0;
-      xz_argv[3] = filename;
-      if (posix_spawnp(&pid, "xz", NULL, NULL, (char **)xz_argv, environ) != 0)
-            pthread_exit();
-      waitpid(pid, &status, 0);
-      if (status != 0)
-            eprintf("xz failed with status %d\n", WEXITSTATUS(status)), fflush(stderr);
-#endif
-
       pthread_exit();
 }
 

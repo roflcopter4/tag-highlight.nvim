@@ -100,12 +100,6 @@ struct timer {
 #define TIMESPEC2DOUBLE(STV) \
       ((double)((((double)(STV)->tv_sec)) + (((double)(STV)->tv_nsec) / (double)NSEC2SECOND)))
 
-#if 0
-#define DOUBLE2TIMESPEC(FLT) ((struct timespec[]){{ \
-          (int64_t)(FLT),                           \
-          (int64_t)(((double)((FLT) - (double)((int64_t)(FLT)))) * (double)NSEC2SECOND)}})
-#endif
-
 #define TIMER_START(T_) \
         ((void)timespec_get(&(T_)->tv1, TIME_UTC))
 
@@ -150,7 +144,6 @@ struct timer {
 
 #ifndef __always_inline
 #  define __always_inline extern __inline__ __attribute__((__always_inline__))
-/* #  undef __always_inline */
 #endif
 #ifdef noreturn
 # error "I give up"
@@ -193,15 +186,14 @@ struct timer {
 extern void warn_(bool print_err, bool force, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
 NORETURN extern void err_(int status, bool print_err, char const *restrict file, int line, char const *restrict func, char const *restrict fmt, ...) __aFMT(6, 7);
 
-
 extern void     free_all__    (void *ptr, ...);
 extern int64_t  xatoi__       (char const *str, bool strict);
 extern unsigned find_num_cpus (void);
-ND extern FILE *   fopen_fmt     (char const *restrict mode, char const *restrict fmt, ...) __aNN(1, 2) __aFMT(2, 3);
-ND extern FILE *   safe_fopen    (char const *filename, char const *mode) __aNN(1, 2);
-ND extern FILE *   safe_fopen_fmt(char const *mode, char const *fmt, ...) __aNN(1, 2) __aFMT(2,3);
-ND extern int      safe_open     (char const *filename, int flags, int mode) ;
-ND extern int      safe_open_fmt (int flags, int mode, char const *fmt, ...) __aFMT(3, 4);
+ND extern FILE *fopen_fmt     (char const *restrict mode, char const *restrict fmt, ...) __aNN(1, 2) __aFMT(2, 3);
+ND extern FILE *safe_fopen    (char const *filename, char const *mode) __aNN(1, 2);
+ND extern FILE *safe_fopen_fmt(char const *mode, char const *fmt, ...) __aNN(1, 2) __aFMT(2,3);
+ND extern int   safe_open     (char const *filename, int flags, int mode) ;
+ND extern int   safe_open_fmt (int flags, int mode, char const *fmt, ...) __aFMT(3, 4);
 extern void     fd_set_open_flag(int fd, int flag);
 
 #if 0 && defined DEBUG

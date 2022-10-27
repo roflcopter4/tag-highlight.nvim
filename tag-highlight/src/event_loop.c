@@ -29,7 +29,6 @@ static int socket_to_int(socket_t orig);
 #else
 # define ERRNO errno
 #endif
-static socket_t fuck_my_ass(char *servername);
 
 /*=====================================================================================*/
 
@@ -122,7 +121,6 @@ run_event_loop(UNUSED int const fd, UNUSED char *servername)
 
       {
             socket_t sock = STDOUT_FILENO;
-            /* socket_t sock = fuck_my_ass(servername); */
             /* HANDLE sock = GetStdHandle(STD_INPUT_HANDLE); */
             /* int sock = 0; */
             /* global_output_descriptor = (intptr_t)GetStdHandle(STD_OUTPUT_HANDLE); */
@@ -422,20 +420,12 @@ event_loop_io_cb(UNUSED uv_poll_t *handle, UNUSED int const status, int const ev
       if (events & UV_DISCONNECT) {
             uv_poll_stop(handle);
       } else if (events & UV_READABLE) {
-            //if (uv_fileno((uv_handle_t const *)handle, &data.fd))
-            //      err(1, "uv_fileno()");
-
             struct userdata *user = handle->data;
             struct event_data data;
             data.fd  = (int)user->fd;
             data.obj = mpack_decode_stream(data.fd);
             talloc_steal(CTX, data.obj);
             handle_nvim_message(&data);
-
-            //struct event_data *data = calloc(1, sizeof(struct event_data));
-            //data->obj = talloc_steal(data, mpack_decode_stream(data->fd));
-            //START_DETACHED_PTHREAD(handle_nvim_message_wrapper, data);
-            //handle_nvim_message(data);
       }
 }
 
@@ -502,9 +492,6 @@ pipe_read_callback(UNUSED uv_stream_t *stream, ssize_t nread, uv_buf_t const *bu
       };
       struct event_data data;
 
-      //if (uv_fileno((uv_handle_t const *)stream, &data.fd))
-      //      err(1, "uv_fileno()");
-
       while (wrapper.slen > 0) {
             data.obj = mpack_decode_obj(&wrapper);
             talloc_steal(CTX, data.obj);
@@ -536,8 +523,6 @@ stop_event_loop(int status)
             quick_exit(0);
 
       uv_stop(&base_loop);
-      //uv_loop_close(&base_loop);
-      //exit(0);
 }
 
 
@@ -775,75 +760,3 @@ static int socket_to_int(socket_t orig)
 }
 
 #endif
-
-static socket_t fuck_my_ass(char *servername)
-{
-      char const *server   = servername;
-      char       *servport = strchr(servername, ':');
-      if (!servport)
-            errx(1, "no port identified");
-      *servport++ = '\0';
-
-      socket_t sd = -1;
-      int    rc;
-
-      struct in6_addr  serveraddr;
-      struct addrinfo  hints;
-      struct addrinfo *res = NULL;
-
-      do {
-            memset(&serveraddr, 0, sizeof(serveraddr));
-            memset(&hints, 0, sizeof(hints));
-            hints.ai_flags    = AI_NUMERICSERV | AI_NUMERICHOST;
-            hints.ai_family   = AF_INET;
-            hints.ai_socktype = SOCK_STREAM;
-
-            rc = inet_pton(AF_INET6, server, &serveraddr);
-
-            if (rc == 1) /* valid IPv4 text address? */
-            {
-                  hints.ai_family = AF_INET;
-                  hints.ai_flags |= AI_NUMERICHOST;
-            } else {
-                  //err(1, "inet_pton");
-                  rc = inet_pton(AF_INET6, server, &serveraddr);
-
-                  if (rc == 1) /* valid IPv6 text address? */
-                  {
-                        hints.ai_family = AF_INET6;
-                        hints.ai_flags |= AI_NUMERICHOST;
-                  }
-            }
-
-            rc = getaddrinfo(server, servport, &hints, &res);
-            if (rc != 0) {
-                  warnx("Host not found --> %s", gai_strerror(rc));
-                  if (rc == EAI_FAIL)
-                        err(1, "getaddrinfo() failed");
-                  break;
-            }
-
-            sd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-            if (sd == (socket_t)(-1)) {
-                  err(1, "socket() failed %s", gai_strerror(ERRNO));
-                  break;
-            }
-
-            rc = connect(sd, res->ai_addr, res->ai_addrlen);
-            if (rc < 0) {
-                  /*****************************************************************/
-                  /* Note: the res is a linked list of addresses found for server. */
-                  /* If the connect() fails to the first one, subsequent addresses */
-                  /* (if any) in the list can be tried if required.               */
-                  /*****************************************************************/
-                  err(1, "connect() %s", gai_strerror(ERRNO));
-                  break;
-            }
-      } while (0);
-
-
-      if (res != NULL)
-            freeaddrinfo(res);
-      return sd;
-}
-
